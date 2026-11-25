@@ -563,6 +563,7 @@ export const WorldScreen = ({
     setArcadeOpen(false);
     setDecorating(false);
     setChosenItem(null);
+    setWatching(null);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);

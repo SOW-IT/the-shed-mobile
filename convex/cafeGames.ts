@@ -11,8 +11,8 @@ import {
   CAFE_QUIET_MS,
   CAFE_TABLES,
   CAFE_TURN_MS,
-  CAFE_WATCH_TOUCH_MS,
   CAFE_WATCH_TTL_MS,
+  CAFE_WATCH_WRITE_MS,
   cafeTableOf,
   isCafeGameKind,
   missTurn,
@@ -580,7 +580,7 @@ export const watch = mutation({
     if (!(await canWatch(ctx, game, email, await memberByEmail(ctx, email)))) return refuse("That game isn't here.");
     const row = await myWatch(ctx, gameId, email);
     if (row) {
-      if (now - row.at >= CAFE_WATCH_TOUCH_MS) await ctx.db.patch("cafeWatchers", row._id, { at: now });
+      if (now - row.at >= CAFE_WATCH_WRITE_MS) await ctx.db.patch("cafeWatchers", row._id, { at: now });
       return done;
     }
     if (game.endedAt !== undefined) return refuse("That game's over.");

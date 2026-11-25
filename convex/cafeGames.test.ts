@@ -3,7 +3,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { SEATS } from "../shared/world";
-import { CAFE_AWAY_GRACE_MS, CAFE_CHALLENGE_MS, CAFE_KEEP_MS, CAFE_QUIET_MS, CAFE_TURN_MS, CAFE_WATCH_TOUCH_MS, CAFE_WATCH_TTL_MS, newBoard } from "../shared/cafeGames";
+import { CAFE_AWAY_GRACE_MS, CAFE_CHALLENGE_MS, CAFE_KEEP_MS, CAFE_QUIET_MS, CAFE_TURN_MS, CAFE_WATCH_TOUCH_MS, CAFE_WATCH_TTL_MS, CAFE_WATCH_WRITE_MS, newBoard } from "../shared/cafeGames";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -519,6 +519,11 @@ describe("spectating", () => {
     const stranger = asUser(t, "dana@sow.org.au");
     expect(await stranger.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
     expect(await stranger.query(api.cafeGames.watching, { gameId })).toBeNull();
+    const elsewhere = asUser(t, "eve@sow.org.au");
+    await elsewhere.mutation(api.world.join, {});
+    expect(await elsewhere.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true });
+    expect(await elsewhere.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
+    expect(await elsewhere.query(api.cafeGames.watching, { gameId })).toBeNull();
     await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: CARA, blockedName: "cara" }));
     expect(await cara.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).toBeNull();
@@ -541,18 +546,28 @@ describe("spectating", () => {
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).not.toBeNull();
   });
 
+  test("leaving the Café for another place stops watching at once", async () => {
+    const { t, anna, cara, gameId } = await startGame();
+    await cara.who.mutation(api.cafeGames.watch, { gameId });
+    expect(await countFor(anna.who)).toBe(1);
+    expect(await cara.who.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true });
+    expect(await watchers(t)).toEqual([]);
+    expect(await countFor(anna.who)).toBe(0);
+  });
+
   test("a spectator who stops sending heartbeats is swept, and one who leaves the World goes at once", async () => {
     const { t, anna, cara, gameId } = await startGame();
     const dana = await inCafe(t, "dana@sow.org.au");
     await cara.who.mutation(api.cafeGames.watch, { gameId });
     await dana.who.mutation(api.cafeGames.watch, { gameId });
     const firstAt = (await watchers(t))[0].at;
-    later(CAFE_WATCH_TOUCH_MS - 1000);
+    later(CAFE_WATCH_WRITE_MS - 1000);
     await dana.who.mutation(api.cafeGames.watch, { gameId });
     expect((await watchers(t)).map((row) => row.at)).toEqual([firstAt, firstAt]);
-    later(2000);
+    later(CAFE_WATCH_TOUCH_MS - CAFE_WATCH_WRITE_MS - 1000);
     await dana.who.mutation(api.cafeGames.watch, { gameId });
-    later(CAFE_WATCH_TTL_MS - CAFE_WATCH_TOUCH_MS);
+    expect((await watchers(t)).find((row) => row.email === "dana@sow.org.au")?.at).toBe(Date.now());
+    later(CAFE_WATCH_TTL_MS - CAFE_WATCH_TOUCH_MS + 4000);
     await t.mutation(internal.world.sweep, {});
     expect((await watchers(t)).map((row) => row.email)).toEqual(["dana@sow.org.au"]);
     expect(await countFor(anna.who)).toBe(1);

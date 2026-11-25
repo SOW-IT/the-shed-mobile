@@ -475,6 +475,7 @@ const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: D
   else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
   await cafeMoved(ctx, member.email, room._id, Date.now());
+  await dropWatchesOf(ctx, member.email);
 };
 
 const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: number; z: number }, now: number, except?: Id<"worldMembers">) => {

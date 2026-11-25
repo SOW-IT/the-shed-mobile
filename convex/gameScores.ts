@@ -219,7 +219,7 @@ export const myLeaderboardPlace = query({
 
 export const myBests = query({
   args: {},
-  returns: v.union(v.null(), v.array(v.object({ game: gameIdValidator, score: v.number() }))),
+  returns: v.union(v.null(), v.object({ email: v.string(), bests: v.array(v.object({ game: gameIdValidator, score: v.number() })) })),
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
@@ -227,7 +227,7 @@ export const myBests = query({
       .query("gameScores")
       .withIndex("by_email_and_game", (q) => q.eq("email", email))
       .take(GAME_IDS.length);
-    return rows.map(({ game, score }) => ({ game, score }));
+    return { email, bests: rows.map(({ game, score }) => ({ game, score })) };
   },
 });
 

@@ -184,24 +184,48 @@ export const playingLine = (names: readonly string[], game: GameId): string | nu
 };
 
 export type BestRuns = Partial<Record<GameId, QueuedScore>>;
+export type BestRunsByAccount = Record<string, BestRuns>;
 
-export const parseBestRuns = (saved: string): BestRuns => {
+const SIGNED_OUT = "";
+
+const stillCounts = (run: QueuedScore, now: number) => scoreProblem(run, now) === null;
+
+export const parseBestRuns = (saved: string, now: number): BestRunsByAccount => {
   try {
     const parsed: unknown = JSON.parse(saved);
-    const record = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-    const runs: BestRuns = {};
-    for (const game of GAME_IDS) {
-      const run = record[game];
-      if (isQueuedScore(run) && run.game === game) runs[game] = run;
+    const accounts = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    const kept: BestRunsByAccount = {};
+    for (const [account, value] of Object.entries(accounts)) {
+      const record = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+      const runs: BestRuns = {};
+      for (const game of GAME_IDS) {
+        const run = record[game];
+        if (isQueuedScore(run) && run.game === game && stillCounts(run, now)) runs[game] = run;
+      }
+      if (Object.keys(runs).length > 0) kept[account] = runs;
     }
-    return runs;
+    return kept;
   } catch {
     return {};
   }
 };
 
-export const withBestRun = (runs: BestRuns, run: QueuedScore): BestRuns =>
-  run.score > (runs[run.game]?.score ?? 0) ? { ...runs, [run.game]: run } : runs;
+export const withBestRun = (accounts: BestRunsByAccount, account: string | null, run: QueuedScore, now: number): BestRunsByAccount => {
+  const key = account ?? SIGNED_OUT;
+  const runs = accounts[key] ?? {};
+  const held = runs[run.game];
+  if (!stillCounts(run, now)) return accounts;
+  if (held && stillCounts(held, now) && held.score >= run.score) return accounts;
+  return { ...accounts, [key]: { ...runs, [run.game]: run } };
+};
+
+export const runsOf = (accounts: BestRunsByAccount, account: string | null): BestRuns => (account ? (accounts[account] ?? {}) : {});
+
+export const bestsFromRuns = (runs: BestRuns): LocalBests => {
+  const bests = { ...NO_BESTS };
+  for (const game of GAME_IDS) bests[game] = runs[game]?.score ?? 0;
+  return bests;
+};
 
 type ServerBests = readonly { game: string; score: number }[];
 
@@ -224,6 +248,6 @@ export const bestsToSync = (
   GAME_IDS.flatMap((game) => {
     const run = runs[game];
     const onServer = server.find((row) => row.game === game)?.score ?? 0;
-    if (!run || run.score <= onServer || tried.has(run.runId) || scoreProblem(run, now) !== null) return [];
+    if (!run || run.score <= onServer || tried.has(run.runId) || !stillCounts(run, now)) return [];
     return queue.some((queued) => queued.game === game && queued.score >= run.score) ? [] : [run];
   });

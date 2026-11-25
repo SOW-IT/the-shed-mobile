@@ -7,17 +7,19 @@ import { useMemo, useSyncExternalStore } from "react";
 import { useOffline } from "@/hooks/useOffline";
 import { api } from "../../../convex/_generated/api";
 import {
+  bestsFromRuns,
   enqueueScore,
   NO_BESTS,
   parseBestRuns,
   parseBests,
   parseQueue,
   removeSettled,
+  runsOf,
   shownBests,
   stringifyBests,
   withBest,
   withBestRun,
-  type BestRuns,
+  type BestRunsByAccount,
   type GameId,
   type LocalBests,
   type QueuedScore,
@@ -34,7 +36,7 @@ import { persisted } from "./persisted";
 
 const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
-const bestRuns = persisted<BestRuns>("games.bestRuns", parseBestRuns, {});
+const bestRuns = persisted<BestRunsByAccount>("games.bestRuns", (saved) => parseBestRuns(saved, Date.now()), {});
 
 const characters = persisted<CharacterChoices>("games.characters", parseCharacters, DEFAULT_CHARACTERS);
 
@@ -48,17 +50,25 @@ export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.g
 export const useScoreQueue = () => useSyncExternalStore(queue.subscribe, queue.get, queue.get);
 export const useBestRuns = () => useSyncExternalStore(bestRuns.subscribe, bestRuns.get, bestRuns.get);
 
-export const useServerBests = () => {
+const useAccount = () => {
   const { isAuthenticated } = useConvexAuth();
+  const account = useQuery(api.gameScores.myBests, isAuthenticated ? {} : "skip");
+  return isAuthenticated ? account : undefined;
+};
+
+export const useAccountEmail = (): string | null => useAccount()?.email ?? null;
+
+export const useServerBests = () => {
+  const account = useAccount();
   const offline = useOffline();
-  const server = useQuery(api.gameScores.myBests, isAuthenticated && !offline ? {} : "skip");
-  return isAuthenticated && !offline ? server : undefined;
+  return offline ? undefined : account;
 };
 
 export const useBests = (): LocalBests => {
   const local = useLocalBests();
-  const server = useServerBests();
-  return useMemo(() => shownBests(local, server), [local, server]);
+  const runs = useBestRuns();
+  const account = useServerBests();
+  return useMemo(() => (account ? shownBests(bestsFromRuns(runsOf(runs, account.email)), account.bests) : local), [local, runs, account]);
 };
 
 export const queueRuns = (runs: readonly QueuedScore[]): Promise<void> =>
@@ -68,7 +78,7 @@ const runId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Crypto.randomUUID();
 
 /** Saves a finished run: a new best if it is one, and a place in the queue. */
-export const recordRun = (game: GameId, score: number, durationMs: number): Promise<string | null> => {
+export const recordRun = (game: GameId, score: number, durationMs: number, account: string | null): Promise<string | null> => {
   if (score < 1) return Promise.resolve(null);
   const entry: QueuedScore = {
     runId: runId(),
@@ -79,7 +89,7 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   };
   return Promise.all([
     bests.update((current) => withBest(current, game, score)),
-    bestRuns.update((current) => withBestRun(current, entry)),
+    bestRuns.update((current) => withBestRun(current, account, entry, entry.playedAt)),
     queue.update((current) => enqueueScore(current, entry, entry.playedAt)),
   ]).then(() => entry.runId);
 };

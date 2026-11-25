@@ -2,7 +2,7 @@ import { useOffline } from "@/hooks/useOffline";
 import { notePaid, queueRuns, settleRuns, useBestRuns, useScoreQueue, useServerBests } from "@/lib/games/gameStorage";
 import { useConvexAuth, useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
-import { bestsToSync, MAX_SCORES_PER_SUBMIT } from "../../../shared/games";
+import { bestsToSync, MAX_SCORES_PER_SUBMIT, runsOf } from "../../../shared/games";
 import { api } from "../../../convex/_generated/api";
 
 const RETRY_MS = 60_000;
@@ -21,16 +21,16 @@ export const GameScoreSync = () => {
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [retry, setRetry] = useState(0);
   const runs = useBestRuns();
-  const server = useServerBests();
+  const account = useServerBests();
   const tried = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!server) return;
-    const missing = bestsToSync(runs, server, queue, Date.now(), tried.current);
+    if (!account) return;
+    const missing = bestsToSync(runsOf(runs, account.email), account.bests, queue, Date.now(), tried.current);
     if (missing.length === 0) return;
     for (const run of missing) tried.current.add(run.runId);
     void queueRuns(missing);
-  }, [runs, server, queue]);
+  }, [runs, account, queue]);
 
   useEffect(() => {
     if (!isAuthenticated || offline || queue.length === 0 || sending.current) return;

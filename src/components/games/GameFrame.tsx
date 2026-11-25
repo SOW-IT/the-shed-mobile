@@ -1,7 +1,7 @@
 import { Btn, hapticSelect } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
-import { useBests, recordRun } from "@/lib/games/gameStorage";
+import { useAccountEmail, useBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
@@ -56,12 +56,14 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const [run, setRun] = useState<S | null>(null);
   const [bestAtStart, setBestAtStart] = useState(0);
   const best = useBests()[game];
+  const account = useAccountEmail();
   const recorded = useRef<S | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const generation = useRef(0);
   const overAt = useRef(0);
   const practice = useRef(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
+  if (phase === "playing" && best > bestAtStart) setBestAtStart(best);
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
   useRestartHold(phase === "playing");
@@ -73,10 +75,10 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     hapticSelect();
     if (practice.current) return;
     const started = generation.current;
-    void recordRun(game, run.score, run.time * 1000).then((id) => {
+    void recordRun(game, run.score, run.time * 1000, account).then((id) => {
       if (generation.current === started) setRunId(id);
     });
-  }, [run, game]);
+  }, [run, game, account]);
 
   const begin = useCallback(
     (state: S, practiceRun = false) => {
@@ -281,7 +283,7 @@ export const GameFrame = ({
           {result.score.toLocaleString()}
         </Text>
         <Text style={styles.cardBody}>
-          Best {Math.max(result.previousBest, result.score).toLocaleString()}
+          Best {Math.max(best, result.previousBest, result.score).toLocaleString()}
         </Text>
         {isAuthenticated ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">
