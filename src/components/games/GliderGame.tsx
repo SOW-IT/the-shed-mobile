@@ -209,11 +209,7 @@ const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
     <View
       style={[styles.track, { backgroundColor: dark ? c.trackNight : c.track }]}
       pointerEvents="none"
-      role="progressbar"
-      aria-label={`World ${state.world}`}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(done * 100)}
+      aria-label={`World ${state.world}, ${Math.round(done * 100)}% through`}
       testID="glider-world-progress"
     >
       <View style={[styles.trackFill, { width: `${done * 100}%`, backgroundColor: c.trackFill }]} />
