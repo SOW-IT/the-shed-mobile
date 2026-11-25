@@ -27,11 +27,12 @@ All notable changes to **The SHED** mobile app. This project follows
   tunnel and a gauntlet by 100,000. Two vines in a row from 10,000 and a
   rock step from 15,000.
 - **Flap.** A point for each pipe, and nothing for time. Pipes come at a
-  steady rhythm. The opening starts roomy and narrows a little with every
-  pipe until about pipe 190, where it stays just wide enough for a flap,
-  and the pipes speed up until pipe 100. The sky drifts from afternoon to
-  sunset by pipe 200 and stays there, and the pipes deepen a little with
-  it.
+  steady rhythm. The opening narrows a little with every pipe until pipe
+  150, where it stays just wide enough for a flap, and the pipes speed up
+  until pipe 100. The sky drifts from afternoon through sunset to night
+  by pipe 200 and stays dark, with the ground and clouds darkening along
+  with it. The board stays phone-shaped: on an iPad or a wide window it
+  gets black side borders instead of growing wider.
 - **Sky Shooter.** From 75 seconds a new wave every 30 seconds: more
   enemies, faster bullets and enemies, more big ones, and new bullet
   patterns: aimed doubles at 2 minutes, rings from big enemies at 2.5,
@@ -50,7 +51,8 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
   target and holds after a big flight. The bird keeps its size against the
-  hills when the view zooms out, rather than shrinking faster than them.
+  hills when the view zooms out, rather than shrinking faster than them,
+  and the view always shows the bottom of the valley ahead.
 - **Game over dims the whole screen**, the bands by the notch and the home
   bar too, and Sky Shooter and Mystic Man show a light clock on their dark
   screens.
