@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CAFE_CHALLENGE_MS, CAFE_GAME_ORDER, CAFE_GAMES, CAFE_TURN_MS, boxesWon, isCafeGameKind, otherSide, recordScore, type CafeGameKind, type Side } from "@shared/cafeGames";
+import { CAFE_CHALLENGE_MS, CAFE_GAME_ORDER, CAFE_GAMES, CAFE_TURN_MS, boxesWon, isCafeGameKind, otherSide, recordScore, type Side } from "@shared/cafeGames";
 import type { Look } from "@shared/world";
 import { fonts } from "@/theme";
 import { useQuery } from "convex/react";
@@ -10,10 +10,10 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { announce } from "./announce";
 import { challengeTitle, gameLabel, rematchWords, resultWords, secondsLeft, shownChallenge, turnWords, type CafeChallengeView } from "./cafe";
-import { CafeBoardView, CafePiece } from "./CafeBoards";
-import { useCafeTheme } from "./cafeTheme";
+import { CafeBoardView, CafePiece } from "@/components/games/cafe/CafeBoards";
+import { GameGlyph, GameTiles } from "@/components/games/cafe/CafeParts";
+import { useCafeTheme, type CafeTheme } from "@/components/games/cafe/cafeTheme";
 import { Bust, usePresence } from "./Overlays";
-import type { CafeTheme } from "./palette";
 import { useBatterySaver, useWorldName } from "./settings";
 import type { Cafe } from "./useCafe";
 import { useForeground } from "./useForeground";
@@ -37,54 +37,6 @@ const useClock = (serverNow: () => number, on: boolean) => {
   return now;
 };
 
-const Dot = ({ colour, size }: { colour: string; size: number }) => <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colour }} />;
-
-const GLYPH_PIECES: readonly { id: string; side: Side }[] = [
-  { id: "tl", side: "a" },
-  { id: "tr", side: "b" },
-  { id: "bl", side: "b" },
-  { id: "br", side: "a" },
-];
-
-const GameGlyph = ({ kind, size = 22 }: { kind: CafeGameKind; size?: number }) => {
-  const c = useCafeTheme();
-  const unit = size / 2;
-  if (kind === "fourInARow" || kind === "fiveInARow") {
-    const order = GLYPH_PIECES;
-    return (
-      <View style={[styles.glyph, { width: size, height: size }, kind === "fiveInARow" && { backgroundColor: c.fiveWoodTop, borderRadius: 4 }]}>
-        {order.map(({ id, side }) => (
-          <View key={id} style={[styles.centre, { width: unit, height: unit }]}>
-            <Dot colour={c[side].fill} size={unit - 3} />
-          </View>
-        ))}
-      </View>
-    );
-  }
-  if (kind === "ticTacToe") {
-    return (
-      <View style={[styles.glyph, { width: size, height: size, backgroundColor: c.tttBoard, borderRadius: 4 }]}>
-        <View style={[styles.centre, { width: unit, height: unit }]}>
-          <Text style={[styles.glyphX, { color: c.a.fill }]}>✕</Text>
-        </View>
-        <View style={{ width: unit, height: unit }} />
-        <View style={{ width: unit, height: unit }} />
-        <View style={[styles.centre, { width: unit, height: unit }]}>
-          <View style={{ width: unit - 3, height: unit - 3, borderRadius: unit, borderWidth: 2, borderColor: c.b.fill }} />
-        </View>
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.glyphBox, { width: size, height: size, borderColor: c.a.fill }]}>
-      <View style={[styles.glyphFill, { backgroundColor: c.a.box }]} />
-      {[0, 1, 2, 3].map((corner) => (
-        <View key={corner} style={[styles.glyphPeg, { backgroundColor: c.peg, left: corner % 2 ? size - 6 : -2, top: corner > 1 ? size - 6 : -2 }]} />
-      ))}
-    </View>
-  );
-};
-
 export const CafeRecord = ({ memberId, testID, tone = "app" }: { memberId: Id<"worldMembers">; testID?: string; tone?: "app" | "cafe" }) => {
   const c = useCafeTheme();
   const records = useQuery(api.cafeGames.record, { memberId });
@@ -106,29 +58,6 @@ export const CafeRecord = ({ memberId, testID, tone = "app" }: { memberId: Id<"w
           </View>
         ) : null;
       })}
-    </View>
-  );
-};
-
-const GameTiles = ({ onPick, testPrefix }: { onPick: (kind: string) => void; testPrefix: string }) => {
-  const c = useCafeTheme();
-  return (
-    <View style={styles.tiles}>
-      {CAFE_GAME_ORDER.map((kind) => (
-        <Pressable
-          key={kind}
-          onPress={() => onPick(kind)}
-          accessibilityRole="button"
-          accessibilityLabel={CAFE_GAMES[kind].label}
-          testID={`${testPrefix}-${kind}`}
-          style={({ pressed }) => [styles.tile, { backgroundColor: pressed ? c.tilePressed : c.tile, borderColor: c.tileEdge }]}
-        >
-          <GameGlyph kind={kind} />
-          <Text style={[styles.tileText, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-            {CAFE_GAMES[kind].label}
-          </Text>
-        </Pressable>
-      ))}
     </View>
   );
 };
@@ -630,15 +559,9 @@ const styles = StyleSheet.create({
   secPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12 },
   secPillText: { fontSize: 12.5, fontWeight: "800", fontVariant: ["tabular-nums"], minWidth: 24, textAlign: "center" },
   closeRound: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  tiles: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
   tile: { flexGrow: 1, flexBasis: "40%", flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 11, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1 },
   tileWide: { flexBasis: "auto" },
   tileText: { flexShrink: 1, fontFamily: fonts.display, fontSize: 13.5, letterSpacing: -0.2 },
-  glyph: { flexDirection: "row", flexWrap: "wrap", overflow: "hidden" },
-  glyphX: { fontSize: 10, fontWeight: "900", lineHeight: 11 },
-  glyphBox: { borderWidth: 2, borderRadius: 3 },
-  glyphFill: { flex: 1, margin: 2, borderRadius: 2 },
-  glyphPeg: { position: "absolute", width: 6, height: 6, borderRadius: 3 },
   answers: { flexDirection: "row", gap: 10, alignSelf: "stretch" },
   button: { flex: 1, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   primary: { shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 5, elevation: 3 },
