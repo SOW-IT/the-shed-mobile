@@ -2,7 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, type GameId } from "../shared/games";
+import { GAME_IDS, MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, type GameId } from "../shared/games";
 import { withHeight } from "../shared/world";
 import { worldLookValidator } from "./worldData";
 import { PLACE_COINS } from "../shared/coins";
@@ -247,6 +247,20 @@ export const myLeaderboardPlace = query({
   handler: async (ctx, { game }) => {
     const email = await optionalEmail(ctx);
     return email ? await placeOf(ctx, email, game) : null;
+  },
+});
+
+export const myBests = query({
+  args: {},
+  returns: v.union(v.null(), v.object({ email: v.string(), bests: v.array(v.object({ game: gameIdValidator, score: v.number() })) })),
+  handler: async (ctx) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const rows = await ctx.db
+      .query("gameScores")
+      .withIndex("by_email_and_game", (q) => q.eq("email", email))
+      .take(GAME_IDS.length);
+    return { email, bests: rows.map(({ game, score }) => ({ game, score })) };
   },
 });
 

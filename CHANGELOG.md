@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.15] - 2026-11-26
+## [2.13.18] - 2026-11-26
 
 ### Added
 - **A podium for each leaderboard's top three.** Above the scores, 1st
@@ -29,9 +29,9 @@ All notable changes to **The SHED** mobile app. This project follows
   Names setting (initials, first name and last initial, or full name).
 
 ### Changed
-- **No "On this device" line above a leaderboard.** Your best on this phone
-  already shows on the Games list beside each game, and a score waiting to
-  go up is noted there too, so the leaderboard starts with the podium. The
+- **No "On this device" line above a leaderboard.** Your best already
+  shows on the Games list beside each game, and a score waiting to go up is
+  noted there too, so the leaderboard starts with the podium. The
   "Sign in and your scores go on the leaderboard" note stays when you're
   signed out.
 - **The World carries on behind the arcade.** The arcade's panel no longer
@@ -52,6 +52,34 @@ All notable changes to **The SHED** mobile app. This project follows
   look: its cream chips along the top, and the games in a dark glass panel
   like the World's menus, over the garden's sky and lawn, the same in light
   and dark mode. The World row says who's online under its line.
+
+## [2.13.14] - 2026-11-25
+
+### Added
+- **Spectate a Café game.** Tap someone who's playing, in the Café or in
+  People, and their card's **Play** button says **Spectate**. It opens their
+  board as it happens, with both players, whose turn it is and the timer, and
+  a **Watching** pill at the top. You can't move, and you can close it any
+  time. When the game ends you see who won, with **Close** and no Rematch.
+  The button goes back to **Play** once their game is over. Games on one
+  phone can't be spectated.
+- **See who's watching.** Players see a small eye with a count, such as
+  "2 watching", at the top of the board.
+
+### Changed
+- **Your best is the same on every device.** The Best on the Games list, on
+  each game's screen and on its game-over card is your own best for that
+  game across all your devices, signed in. A higher best saved on this
+  phone still counts and is published the usual way. Signed out or offline,
+  it's this device's best as before.
+
+### Fixed
+- **Café board, after chatting.** What you say shows over the board's title
+  in a solid bubble wide enough for a short sentence on one line, instead
+  of a see-through one squeezed over your name. The highlight on a player's
+  name goes when their turn ends, and the board lands on whole pixels when
+  the keyboard closes.
+- **Scroll the World chat during a Café game,** as a player or a spectator.
 
 ## [2.13.13] - 2026-11-25
 

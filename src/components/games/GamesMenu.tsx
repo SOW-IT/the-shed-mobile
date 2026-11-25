@@ -1,6 +1,6 @@
 import { useOffline } from "@/hooks/useOffline";
 import { onlineNow, useWorldOnline } from "@/hooks/useWorldOnline";
-import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
+import { useBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -230,7 +230,7 @@ export const GameRows = ({
   rowStyle?: (index: number) => object | null;
 }) => {
   usePreloadAvatarArt();
-  const bests = useLocalBests();
+  const bests = useBests();
   const waiting = useScoreQueue().length;
   const nowPlaying = useNowPlaying();
   const lead = onGarden ? 1 : 0;

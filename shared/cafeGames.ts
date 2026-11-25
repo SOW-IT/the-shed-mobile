@@ -16,6 +16,9 @@ export const CAFE_CHALLENGE_MS = 30_000;
 export const CAFE_AWAY_GRACE_MS = 20_000;
 export const CAFE_QUIET_MS = 5 * 60_000;
 export const CAFE_KEEP_MS = 2 * 60_000;
+export const CAFE_WATCH_TOUCH_MS = 20_000;
+export const CAFE_WATCH_WRITE_MS = CAFE_WATCH_TOUCH_MS / 2;
+export const CAFE_WATCH_TTL_MS = 60_000;
 const CAFE_MISSES_TO_LOSE = 2;
 
 export type Side = "a" | "b";
