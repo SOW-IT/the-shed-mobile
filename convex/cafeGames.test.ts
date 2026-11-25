@@ -3,7 +3,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { SEATS } from "../shared/world";
-import { CAFE_AWAY_GRACE_MS, CAFE_CHALLENGE_MS, CAFE_KEEP_MS, CAFE_QUIET_MS, CAFE_TURN_MS } from "../shared/cafeGames";
+import { CAFE_AWAY_GRACE_MS, CAFE_CHALLENGE_MS, CAFE_KEEP_MS, CAFE_QUIET_MS, CAFE_TURN_MS, newBoard } from "../shared/cafeGames";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -396,6 +396,77 @@ describe("rematch and clean-up", () => {
     expect(records).toHaveLength(2);
     expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
     await t.mutation(internal.cafeGames.clear, { gameId });
+  });
+});
+
+describe("closing a finished game", () => {
+  test("a closed result stays closed for that player only, across fresh loads", async () => {
+    const { t, anna, ben, cara, gameId } = await startGame();
+    expect(await anna.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: false, reason: "Finish your game first." });
+    expect(await cara.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: false, reason: "That isn't your game." });
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ id: gameId, result: { winner: "a", why: "gaveUp" } });
+    expect(await anna.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: true });
+    expect(await anna.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: true });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+    expect((await ben.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ id: gameId });
+    expect(await ben.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: true });
+    expect((await ben.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+    expect((await rows(t)).games[0]).toMatchObject({ closedA: true, closedB: true });
+    later(CAFE_KEEP_MS);
+    await t.mutation(internal.cafeGames.clear, { gameId });
+    expect(await anna.who.mutation(api.cafeGames.close, { gameId })).toEqual({ ok: true });
+  });
+
+  test("a closed game doesn't hide the next one, and an older result never comes back", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId });
+    await ben.who.mutation(api.cafeGames.rematch, { gameId });
+    const next = (await rows(t)).games[1]._id;
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ id: next });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.result).toBeUndefined();
+    await anna.who.mutation(api.cafeGames.giveUp, { gameId: next });
+    await anna.who.mutation(api.cafeGames.close, { gameId: next });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+  });
+});
+
+describe("head-to-head", () => {
+  test("wins and draws between two people, from each side, and nothing for yourself, strangers or a block", async () => {
+    const { t, anna, ben, cara, gameId } = await startGame();
+    expect(await anna.who.query(api.cafeGames.versus, { memberId: ben.memberId })).toBeNull();
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect(await anna.who.query(api.cafeGames.versus, { memberId: ben.memberId })).toEqual({ mine: 1, theirs: 0, draws: 0 });
+    expect(await ben.who.query(api.cafeGames.versus, { memberId: anna.memberId })).toEqual({ mine: 0, theirs: 1, draws: 0 });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId });
+    await ben.who.mutation(api.cafeGames.rematch, { gameId });
+    const second = (await rows(t)).games[1]._id;
+    await anna.who.mutation(api.cafeGames.giveUp, { gameId: second });
+    expect(await anna.who.query(api.cafeGames.versus, { memberId: ben.memberId })).toEqual({ mine: 1, theirs: 1, draws: 0 });
+    await ben.who.mutation(api.cafeGames.rematch, { gameId: second });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId: second });
+    const third = (await rows(t)).games[2];
+    const board = await boardOf(t, third._id);
+    await t.run((ctx) => ctx.db.patch("cafeGames", third._id, { kind: "ticTacToe" }));
+    await t.run((ctx) => ctx.db.patch("cafeBoards", board._id, { board: { ...newBoard("ticTacToe"), cells: [1, 2, 1, 1, 2, 2, 2, 1, 0], turn: "a" } }));
+    await anna.who.mutation(api.cafeGames.move, { gameId: third._id, move: 8 });
+    expect(await ben.who.query(api.cafeGames.versus, { memberId: anna.memberId })).toEqual({ mine: 1, theirs: 1, draws: 1 });
+    expect((await t.run((ctx) => ctx.db.query("cafeVersus").collect())).length).toBe(1);
+    expect(await anna.who.query(api.cafeGames.versus, { memberId: anna.memberId })).toBeNull();
+    expect(await cara.who.query(api.cafeGames.versus, { memberId: anna.memberId })).toBeNull();
+    expect(await t.query(api.cafeGames.versus, { memberId: anna.memberId })).toBeNull();
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: BEN, blockedEmail: ANNA, blockedName: "anna" }));
+    expect(await anna.who.query(api.cafeGames.versus, { memberId: ben.memberId })).toBeNull();
+  });
+
+  test("an abandoned game doesn't count", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await anna.who.mutation(api.world.leave, {});
+    await ben.who.mutation(api.world.leave, {});
+    later(CAFE_AWAY_GRACE_MS);
+    await t.mutation(internal.cafeGames.checkAway, { gameId });
+    expect(await t.run((ctx) => ctx.db.query("cafeVersus").collect())).toEqual([]);
   });
 });
 

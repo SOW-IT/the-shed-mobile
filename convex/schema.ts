@@ -458,6 +458,8 @@ export default defineSchema({
     awayB: v.optional(v.number()),
     rematch: v.optional(cafeSideValidator),
     next: v.optional(v.id("cafeGames")),
+    closedA: v.optional(v.boolean()),
+    closedB: v.optional(v.boolean()),
   })
     .index("by_a", ["a"])
     .index("by_b", ["b"])
@@ -477,6 +479,16 @@ export default defineSchema({
     losses: v.number(),
     draws: v.number(),
   }).index("by_email_and_kind", ["email", "kind"]),
+
+  cafeVersus: defineTable({
+    a: v.string(),
+    b: v.string(),
+    aWins: v.number(),
+    bWins: v.number(),
+    draws: v.number(),
+  })
+    .index("by_a_and_b", ["a", "b"])
+    .index("by_b", ["b"]),
 
   devotionals: defineTable({
     email: v.string(),

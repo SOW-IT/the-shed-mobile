@@ -7,8 +7,13 @@ import {
   rematchWords,
   resultWords,
   secondsLeft,
-  sheetSwipe,
+  freshSay,
+  lowTimeDelay,
+  lowTimeLevel,
+  LOW_TIME_MS,
   shownChallenge,
+  turnEdge,
+  turnStarts,
   turnWords,
   type CafeChallengeView,
 } from "./cafe";
@@ -89,12 +94,48 @@ describe("words on the board", () => {
   });
 });
 
-describe("sheetSwipe", () => {
-  test("a swipe down asks to give up during play, so nobody forfeits by accident", () => {
-    expect(sheetSwipe(false)).toBe("confirmGiveUp");
+describe("whose turn it is", () => {
+  test("your colour edges the screen on your turn, none on theirs or once it's over", () => {
+    const board = { turn: "a" as const };
+    expect(turnEdge({ board }, "a")).toBe("mine");
+    expect(turnEdge({ board }, "b")).toBe("theirs");
+    expect(turnEdge({ board, result: { winner: "a", why: "played" } }, "a")).toBe("none");
   });
 
-  test("a swipe down on the end card closes it, like Close", () => {
-    expect(sheetSwipe(true)).toBe("close");
+  test("a turn starts when it becomes yours, and again after theirs passes back without a move", () => {
+    expect(turnStarts(null, { mine: true, endsAt: 60_000 })).toBe(true);
+    expect(turnStarts(null, { mine: false, endsAt: 60_000 })).toBe(false);
+    expect(turnStarts({ mine: false, endsAt: 60_000 }, { mine: true, endsAt: 61_000 })).toBe(true);
+    expect(turnStarts({ mine: true, endsAt: 60_000 }, { mine: true, endsAt: 60_000 })).toBe(false);
+    expect(turnStarts({ mine: true, endsAt: 60_000 }, { mine: true, endsAt: 121_000 })).toBe(true);
+    expect(turnStarts({ mine: true, endsAt: 60_000 }, { mine: false, endsAt: 60_000 })).toBe(false);
+  });
+});
+
+describe("low time", () => {
+  test("the glow waits for the last 10 seconds of the 60", () => {
+    expect(LOW_TIME_MS).toBe(10_000);
+    expect(lowTimeDelay(60_000, 0)).toBe(50_000);
+    expect(lowTimeDelay(60_000, 50_000)).toBe(0);
+    expect(lowTimeDelay(60_000, 55_000)).toBe(0);
+  });
+
+  test("it grows from nothing to full as the time runs out", () => {
+    expect(lowTimeLevel(60_000, 0)).toBe(0);
+    expect(lowTimeLevel(60_000, 50_000)).toBe(0);
+    expect(lowTimeLevel(60_000, 55_000)).toBe(0.5);
+    expect(lowTimeLevel(60_000, 60_000)).toBe(1);
+    expect(lowTimeLevel(60_000, 65_000)).toBe(1);
+  });
+});
+
+describe("bubbles over the players", () => {
+  test("a line shows while it's fresh, like the bubbles over heads", () => {
+    const say = { text: "gg", at: 1000 };
+    expect(freshSay(undefined, 1000, 8000)).toBeNull();
+    expect(freshSay(say, 1000, 8000)).toBe("gg");
+    expect(freshSay(say, 8999, 8000)).toBe("gg");
+    expect(freshSay(say, 9000, 8000)).toBeNull();
+    expect(freshSay(say, 500, 8000)).toBe("gg");
   });
 });
