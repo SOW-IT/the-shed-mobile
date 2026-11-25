@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.2] - 2026-11-25
+## [2.13.3] - 2026-11-25
 
 ### Added
 - **Whoever was already in a game's top 3 is paid for it.** 2.12.49 paid a
