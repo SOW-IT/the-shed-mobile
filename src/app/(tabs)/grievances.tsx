@@ -20,6 +20,7 @@ import {
   Btn,
   Card,
   FloatingYearPicker,
+  FooterAction,
   LoadingState,
   Muted,
   ReadableColumn,
@@ -207,17 +208,16 @@ export default function GrievancesScreen() {
         activeKey={activeKey}
         onActiveKeyChange={setActive}
         fullWidth
-        header={{
-          title: "Grievances",
-          icon: "shield-checkmark-outline",
-          action: {
-            label: "Raise",
-            onPress: () => router.push("/grievances/new"),
-            accessibilityLabel: "Raise a grievance",
-            testID: "grievances-new",
-          },
-          info: { onPress: () => setGuideOpen(true), accessibilityLabel: "How grievances work" },
-        }}
+        header={{ title: "Grievances", icon: "shield-checkmark-outline" }}
+        footer={
+          <FooterAction
+            title="+ Raise a Grievance"
+            onPress={() => router.push("/grievances/new")}
+            onInfo={() => setGuideOpen(true)}
+          />
+        }
+        footerTabKey="mine"
+        floatingAboveFooter
         floating={
           activeKey === "submitted" && year && years && years.length > 1 ? (
             <FloatingYearPicker year={year} years={years} onSelect={setPickedYear} />

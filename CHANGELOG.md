@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.9] - 2026-11-25
+## [2.13.12] - 2026-11-25
 
 ### Added
 - **A backyard farm in the World.** Every home has a back door to a
@@ -28,7 +28,35 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Farm reminders.** One push at 6 pm Sydney time when something needs
   water or is ready to harvest, at most once a day. Turn it off in World
   Settings.
-- **The list view's Farm section** has the same actions as the backyard.
+- **Crops grow a little more every few hours**, with a new look each day:
+  watermelon goes from sprout to vine, leaves, a yellow flower and a small
+  striped melon to a big one; tomatoes flower, then go green, then red.
+  Seeds look like each crop's real seeds. Planting pats a seed into the
+  soil, watering tips a can over the plant and darkens the soil, and a
+  harvest pops the crop up and into the Bag with a "+1" chip. With Reduce
+  Motion or battery saver they change at once.
+
+### Removed
+- **The World's list view.** The World is always drawn now, also offline
+  and with VoiceOver; the plots, the back door, Sijin and people have
+  screen reader labels.
+
+## [2.13.11] - 2026-11-25
+
+### Fixed
+- **The passage picker check passes on iPhone again.** The app was already closing the Book, Chapter and Verse pickers mid-scroll (fixed in 2.13.1); the repo's own iPhone check was wrong. Its tap outside the sheet landed on the status bar, which iOS keeps for itself, so it failed even with the list still. It now taps just below the status bar, and also checks a tap below the sheet and a swipe down on the title bar while the list is moving. Its Psalms step looked for a row named exactly "Psalms" when the row reads "Psalms, 150 chapters", so that part never ran before.
+
+## [2.13.10] - 2026-11-25
+
+### Changed
+- **Each page's main button is back at the bottom.** Churches, Praise
+  List, Reimbursements, Event Requests, Design Requests, Mentoring,
+  Attendance and Grievances show their + button across the bottom of the
+  page again, with the ⓘ beside it where the page has one, instead of left
+  of the bell. Churches gets **+ Add church** there too. Page titles stay
+  in the middle of the top bar, and Devotionals keeps **Today** up there.
+  Who can use each button hasn't changed. Lists leave room at the end so
+  the last row scrolls clear of the button, on phones and wide screens.
 
 ## [2.13.8] - 2026-11-25
 
