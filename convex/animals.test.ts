@@ -46,6 +46,12 @@ const atCafe = async (t: T, email: string) => {
   await go(t, email, "cafe");
 };
 
+const atJosh = async (t: T, email: string) => {
+  await asUser(t, email).mutation(api.world.join, { backyard: true });
+  await go(t, email, "beach");
+  await go(t, email, "garden");
+};
+
 const roomOf = (t: T, email: string) =>
   t.run(async (ctx) => (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", email)).first())!.roomId);
 
@@ -209,7 +215,7 @@ describe("feeding", () => {
     await intoBackyard(t, ANNA);
     const id = await raise(t, ANNA, "cow", Date.now() - DAY_MS - HOUR, [], "Daisy");
     const anna = asUser(t, ANNA);
-    expect(await anna.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Sijin." });
+    expect(await anna.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Josh." });
     await setFarm(t, ANNA, { feed: { hay: 2, grain: 5 } });
     expect(await anna.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: true });
     expect(await anna.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Already fed today." });
@@ -254,7 +260,7 @@ describe("visitors", () => {
     await setFarm(t, ANNA, { feed: { hay: 3 } });
     const id = await raise(t, ANNA, "cow", Date.now() - DAY_MS - HOUR, [], "Daisy");
     const ben = asUser(t, BEN);
-    expect(await ben.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Sijin." });
+    expect(await ben.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Josh." });
     await setFarm(t, BEN, { feed: { hay: 1 } });
     expect(await ben.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: true });
     expect((await farmRow(t, ANNA))?.feed).toEqual({ hay: 3 });
@@ -327,7 +333,7 @@ describe("renaming", () => {
     const id = await raise(t, ANNA, "cow", Date.now(), [], "Daisy");
     const anna = asUser(t, ANNA);
     await setFarm(t, ANNA, {});
-    await expect(anna.mutation(api.animals.rename, { animalId: id, name: "Bessie" })).rejects.toThrow(/Get a name tag from Sijin/);
+    await expect(anna.mutation(api.animals.rename, { animalId: id, name: "Bessie" })).rejects.toThrow(/Get a name tag from Josh/);
     await setFarm(t, ANNA, { nameTags: 1 });
     await expect(anna.mutation(api.animals.rename, { animalId: id, name: "x".repeat(17) })).rejects.toThrow(/up to 16/);
     expect(await anna.mutation(api.animals.rename, { animalId: id, name: "Bessie" })).toEqual({ name: "Bessie", nameTags: 0 });
@@ -343,12 +349,12 @@ describe("renaming", () => {
   });
 });
 
-describe("Sijin's feed and name tags", () => {
-  test("grain and hay come in 1 or 5, in person, at the table's price", async () => {
+describe("Josh's feed and name tags", () => {
+  test("grain and hay come in 1 or 5, from Josh in the Garden only, at the table's price", async () => {
     const t = newConvex();
-    await asUser(t, ANNA).mutation(api.world.join, { backyard: true });
-    await expect(asUser(t, ANNA).mutation(api.animals.buyFeed, { feed: "hay", count: 1 })).rejects.toThrow(/in the Café/);
-    await go(t, ANNA, "cafe");
+    await atCafe(t, ANNA);
+    await expect(asUser(t, ANNA).mutation(api.animals.buyFeed, { feed: "hay", count: 1 })).rejects.toThrow(/Find Josh Kim in the Garden/);
+    await go(t, ANNA, "garden");
     await give(t, ANNA, 100);
     const anna = asUser(t, ANNA);
     expect(await anna.mutation(api.animals.buyFeed, { feed: "grain", count: 5 })).toEqual({ balance: 100 - 5 * FEEDS.grain.price, feed: 5 });
@@ -360,7 +366,7 @@ describe("Sijin's feed and name tags", () => {
 
   test("the bag holds 99 of each, and the balance is checked", async () => {
     const t = newConvex();
-    await atCafe(t, ANNA);
+    await atJosh(t, ANNA);
     await setFarm(t, ANNA, { feed: { hay: MAX_FEED_EACH - 4 } });
     await give(t, ANNA, 100);
     await expect(asUser(t, ANNA).mutation(api.animals.buyFeed, { feed: "hay", count: 5 })).rejects.toThrow(/holds 99 hay/);
@@ -370,7 +376,7 @@ describe("Sijin's feed and name tags", () => {
 
   test("a name tag is 20 coins and stacks", async () => {
     const t = newConvex();
-    await atCafe(t, ANNA);
+    await atJosh(t, ANNA);
     await give(t, ANNA, 45);
     expect(await asUser(t, ANNA).mutation(api.animals.buyNameTag, {})).toEqual({ balance: 45 - NAME_TAG_PRICE, nameTags: 1 });
     expect(await asUser(t, ANNA).mutation(api.animals.buyNameTag, {})).toEqual({ balance: 5, nameTags: 2 });

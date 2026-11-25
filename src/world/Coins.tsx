@@ -1,18 +1,21 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ordinal, PLACE_COINS } from "@shared/coins";
-import { NPC } from "@shared/world";
+import { FARMER, NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
+import { GoodThumb } from "./Animals";
+import { CropThumb } from "./Farm";
 import { gold, hud } from "./palette";
 import { popShadow } from "./popShadow";
 import { useBatterySaver } from "./settings";
 
 const NATIVE = Platform.OS !== "web";
+const JOSH = FARMER.name.split(" ")[0];
 
 export const useCoins = () => useQuery(api.coins.mine, {});
 
@@ -75,11 +78,13 @@ export const CoinsPanel = ({
   top,
   balance,
   onClose,
+  onBackyard,
 }: {
   open: boolean;
   top: number;
   balance: number | undefined;
   onClose: () => void;
+  onBackyard: () => void;
 }) => {
   const reduce = useBatterySaver();
   const { width } = useWindowDimensions();
@@ -162,6 +167,20 @@ export const CoinsPanel = ({
         <Text style={styles.note}>
           Each place pays once per game. Climb higher and you get the difference.
         </Text>
+        <Text style={[styles.lead, styles.farmLead]}>Farm in your backyard:</Text>
+        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Grow crops in your backyard and sell them to ${JOSH}. Go to your backyard`} testID="world-coins-crops" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+          <CropThumb crop="tomato" size={30} />
+          <Text style={styles.farmText}>Grow crops · sell to {JOSH}</Text>
+          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
+        </Pressable>
+        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Keep hens and cows and sell their eggs and milk to ${JOSH}. Go to your backyard`} testID="world-coins-animals" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+          <View style={styles.goods}>
+            <GoodThumb good="egg" size={24} />
+            <GoodThumb good="milk" size={24} />
+          </View>
+          <Text style={styles.farmText}>Keep hens and cows · sell eggs and milk</Text>
+          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
+        </Pressable>
         <View style={styles.shop}>
           <Bust look={NPC.look} size={36} />
           <Text style={styles.shopText}>{NPC.name.split(" ")[0]} in the Café sells furniture for your home.</Text>
@@ -198,6 +217,10 @@ const styles = StyleSheet.create({
   game: { fontWeight: "800", fontSize: 14, color: hud.forest },
   tiers: { fontWeight: "700", fontSize: 13, color: gold.text },
   note: { alignSelf: "stretch", fontSize: 13, lineHeight: 18, color: hud.primary, marginTop: 4 },
+  farmLead: { marginTop: 10 },
+  farmRow: { justifyContent: "flex-start", paddingVertical: 5 },
+  farmText: { flex: 1, fontWeight: "800", fontSize: 13.5, color: hud.forest },
+  goods: { flexDirection: "row", width: 30, marginLeft: -4 },
   shop: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, padding: 8, borderRadius: 16, backgroundColor: hud.accentSoft },
   shopText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600", color: hud.forest },
   wrap: { alignItems: "center" },

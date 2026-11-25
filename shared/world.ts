@@ -352,6 +352,7 @@ export const OBSTACLES = [
   { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
   // The notice board on the left: your notifications and the admins' notices.
   { id: "notices", x: -3.0, z: -6.0, rx: 0.65, rz: 0.4 },
+  { id: "josh", x: 3.05, z: 2.75, rx: 0.4, rz: 0.3 },
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
@@ -674,7 +675,7 @@ export const LOOK_SIZES = {
   freckles: 4,
   blush: 5,
   beard: 8,
-  outfit: 11,
+  outfit: 12,
   // Version 3.
   browColour: 13,
   eyeY: 7,
@@ -688,7 +689,7 @@ export const LOOK_SIZES = {
   mouthY: 7,
   mouthSize: 7,
   mouthTilt: 7,
-  glasses: 5,
+  glasses: 6,
   eyeshadow: 6,
   lipstick: 6,
   mole: 6,
@@ -806,13 +807,13 @@ export const HAIR_STYLES = [
   "Wavy",
 ] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat", "Beret", "Bow", "Headband", "Party hat", "Crown"] as const;
-export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots", "Flannel"] as const;
+export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots", "Flannel", "Tie-dye tank"] as const;
 /** Outfits that come with their own bottoms, so the bottoms choice doesn't show. */
 export const FULL_OUTFITS: readonly number[] = [1, 2, 3];
 /** Index 1 was glasses, which are their own part now; the editor doesn't offer it. */
 export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf", "Bow tie", "Necklace", "Headphones", "Ear flower"] as const;
 export const OLD_GLASSES = 1;
-export const GLASSES = ["None", "Round", "Square", "Sunglasses", "Big round"] as const;
+export const GLASSES = ["None", "Round", "Square", "Sunglasses", "Big round", "Clear"] as const;
 export const FACES = ["Round", "Oval", "Square", "Heart", "Long"] as const;
 export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow", "Lashes", "Almond"] as const;
 export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
@@ -999,6 +1000,35 @@ export const NPC = {
     beard: 7,
     outfit: 10,
     pants: 1,
+    pantsColour: 0,
+    favourite: 0,
+  } satisfies Look,
+} as const;
+
+export const FARMER = {
+  id: "npc:josh",
+  name: "Josh Kim",
+  place: "garden",
+  x: 3.05,
+  z: 2.75,
+  heading: -0.35,
+  look: {
+    v: LOOK_VERSION,
+    skin: 5,
+    hair: 0,
+    hairColour: 5,
+    shirt: 3,
+    face: 1,
+    eyes: 5,
+    eyeColour: 0,
+    brows: 2,
+    nose: 1,
+    mouth: 2,
+    height: 3,
+    build: 2,
+    outfit: 11,
+    glasses: 5,
+    pants: 2,
     pantsColour: 0,
     favourite: 0,
   } satisfies Look,

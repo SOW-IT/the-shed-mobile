@@ -34,7 +34,6 @@ export const ANIMALS = {
 } as const;
 
 export type AnimalId = keyof typeof ANIMALS;
-export const ANIMAL_IDS = Object.keys(ANIMALS) as AnimalId[];
 export const isAnimal = (value: unknown): value is AnimalId => typeof value === "string" && Object.hasOwn(ANIMALS, value);
 
 export type FeedId = (typeof ANIMALS)[AnimalId]["feed"];
@@ -51,7 +50,7 @@ export const GOODS: Record<GoodId, { label: string; sells: number; animal: Anima
   egg: { label: "Egg", sells: ANIMALS.chicken.sells, animal: "chicken" },
   milk: { label: "Milk", sells: ANIMALS.cow.sells, animal: "cow" },
 };
-export const GOOD_IDS = Object.keys(GOODS) as GoodId[];
+const GOOD_IDS = Object.keys(GOODS) as GoodId[];
 export const isGood = (value: unknown): value is GoodId => typeof value === "string" && Object.hasOwn(GOODS, value);
 
 export const NAME_TAG_PRICE = 20;

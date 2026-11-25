@@ -52,14 +52,14 @@ export type BuildingId = "coop" | "barn";
 export const BUILDING_IDS: readonly BuildingId[] = ["coop", "barn"];
 export const isBuilding = (value: unknown): value is BuildingId => value === "coop" || value === "barn";
 
-const PEN_FRONT = -5.0;
-const PEN_DEPTH = 3.4;
-const PEN_WIDTH = 2.9;
+const PEN_FRONT = -4.8;
+const PEN_DEPTH = 3.8;
+const PEN_WIDTH = 3.2;
 const PEN_GATE_REACH = 0.7;
 
 export const PENS: Record<BuildingId, { x: number; front: number; back: number; w: number; house: { x: number; z: number; w: number; d: number } }> = {
-  coop: { x: -2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: -2.6, z: -9.5, w: 1.9, d: 1.3 } },
-  barn: { x: 2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: 2.4, z: -9.7, w: 2.6, d: 1.7 } },
+  coop: { x: -2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: -2.6, z: -9.9, w: 1.9, d: 1.3 } },
+  barn: { x: 2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: 2.4, z: -10.1, w: 2.6, d: 1.7 } },
 };
 
 export const PEN_OBSTACLES = BUILDING_IDS.flatMap((id) => {

@@ -18,14 +18,13 @@ import {
   NAME_MAX,
   NAME_TAG_PRICE,
 } from "../shared/animals";
-import { BACKYARD, NPC } from "../shared/world";
+import { BACKYARD } from "../shared/world";
 import { ensureWallet } from "./coins";
-import { asOwner, atSijin, inBackyard } from "./farm";
+import { asOwner, atFarmShop, inBackyard, JOSH } from "./farm";
 import { animalsOf, buildingsOf, ensureFarm, farmOf, noteFeeder } from "./farmData";
 import { optionalEmail, requireEmail } from "./model";
 import { memberByEmail } from "./world";
 
-const SIJIN = NPC.name.split(" ")[0];
 
 const feedingValidator = v.object({ at: v.number(), by: v.union(v.string(), v.null()), mine: v.boolean() });
 
@@ -104,7 +103,7 @@ export const buyBuilding = mutation({
   returns: v.object({ balance: v.number() }),
   handler: async (ctx, { kind }) => {
     const email = await requireEmail(ctx);
-    if (!isBuilding(kind)) throw new ConvexError(`${SIJIN} doesn't build that.`);
+    if (!isBuilding(kind)) throw new ConvexError(`${JOSH} doesn't build that.`);
     if (await ownsBuilding(ctx, email, kind)) throw new ConvexError(`You have a ${BUILDINGS[kind].short.toLowerCase()} already.`);
     const now = Date.now();
     const price = BUILDINGS[kind].price;
@@ -141,7 +140,7 @@ export const buyAnimal = mutation({
   returns: v.object({ balance: v.number(), id: v.id("worldAnimals") }),
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
-    if (!isAnimal(args.kind)) throw new ConvexError(`${SIJIN} doesn't sell that.`);
+    if (!isAnimal(args.kind)) throw new ConvexError(`${JOSH} doesn't sell that.`);
     const kind = args.kind;
     const name = nameOf(args.name);
     const building = buildingFor(kind);
@@ -175,7 +174,7 @@ export const feed = mutation({
     const food = isAnimal(animal.kind) ? ANIMALS[animal.kind].feed : "grain";
     const row = await ensureFarm(ctx, me.email);
     const have = row.feed?.[food] ?? 0;
-    if (have < 1) return refuse(`Get feed from ${SIJIN}.`);
+    if (have < 1) return refuse(`Get feed from ${JOSH}.`);
     await ctx.db.patch("worldFarms", row._id, { feed: { ...row.feed, [food]: have - 1 } });
     const feedings = keptFeedings({ ...animal, feedings: [...animal.feedings, { at: now, email: me.email, name: me.member.name }] }, now);
     await ctx.db.patch("worldAnimals", animal._id, { feedings });
@@ -210,7 +209,7 @@ export const rename = mutation({
     if (life(animal, Date.now()).mood === "gone") throw new ConvexError(`${animal.name} wandered off.`);
     const row = await ensureFarm(ctx, email);
     const tags = row.nameTags ?? 0;
-    if (tags < 1) throw new ConvexError(`Get a name tag from ${SIJIN}.`);
+    if (tags < 1) throw new ConvexError(`Get a name tag from ${JOSH}.`);
     await ctx.db.patch("worldFarms", row._id, { nameTags: tags - 1 });
     await ctx.db.patch("worldAnimals", animal._id, { name });
     return { name, nameTags: tags - 1 };
@@ -234,8 +233,8 @@ export const buyFeed = mutation({
   args: { feed: v.string(), count: v.number() },
   returns: v.object({ balance: v.number(), feed: v.number() }),
   handler: async (ctx, { feed, count }) => {
-    const me = await atSijin(ctx);
-    if (!isFeed(feed)) throw new ConvexError(`${SIJIN} doesn't sell that.`);
+    const me = await atFarmShop(ctx);
+    if (!isFeed(feed)) throw new ConvexError(`${JOSH} doesn't sell that.`);
     if (!(FEED_BUYS as readonly number[]).includes(count)) throw new ConvexError(`Buy ${FEED_BUYS.join(" or ")} at a time.`);
     const now = Date.now();
     const row = await ensureFarm(ctx, me.email);
@@ -253,7 +252,7 @@ export const buyNameTag = mutation({
   args: {},
   returns: v.object({ balance: v.number(), nameTags: v.number() }),
   handler: async (ctx) => {
-    const me = await atSijin(ctx);
+    const me = await atFarmShop(ctx);
     const now = Date.now();
     const row = await ensureFarm(ctx, me.email);
     const nameTags = (row.nameTags ?? 0) + 1;

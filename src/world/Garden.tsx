@@ -20,6 +20,7 @@ import {
   PORTAL_RADIUS,
   PORTALS,
   NPC,
+  FARMER,
   DUEL_PICKS,
   seatIn,
   type Place,
@@ -47,8 +48,11 @@ import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./sett
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
 import { CampfireFlames } from "./Campfire";
-import { FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
-import { PLOT_SIZE, PLOTS, plotPrice, type CropId, type Stage } from "@shared/farm";
+import { CropThumb, FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
+import { BUILDING_IDS, FREE_PLOTS, PENS, PLOT_SIZE, PLOTS, plotPrice, type BuildingId, type CropId, type Stage } from "@shared/farm";
+import { animalFor, buildingFor, BUILDINGS } from "@shared/animals";
+import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
+import { penPoint, phaseAt, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -89,6 +93,21 @@ export type GardenFarm = {
   planting: { plot: number; crop: CropId; key: number } | null;
   onPlanted: () => void;
   describe: (plot: number) => string | null;
+};
+
+export type GardenYard = {
+  coop: boolean;
+  barn: boolean;
+  mine: boolean;
+  animals: readonly (PenAnimal & { label: string })[];
+  card: { at: BuildingId; text: string } | null;
+  feeding: { id: string; key: number } | null;
+  collecting: { id: string; good: "egg" | "milk"; key: number } | null;
+  onTapAnimal: (id: string) => void;
+  onTapBuilding: (kind: BuildingId) => void;
+  onFed: () => void;
+  onCollected: () => void;
+  onLeft: (id: string) => void;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
@@ -160,11 +179,13 @@ export const Garden = ({
   duels = [],
   home = null,
   onTapNpc,
+  onTapFarmer,
   decor = null,
   ball = null,
   onKick,
   paused = false,
   farm = null,
+  yard = null,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -198,6 +219,7 @@ export const Garden = ({
   /** Where a home's door leads: the place you came from. */
   homeExit?: Place;
   onTapNpc?: () => void;
+  onTapFarmer?: () => void;
   decor?: {
     selected: string | null;
     onItem: (key: string) => void;
@@ -209,6 +231,7 @@ export const Garden = ({
   onKick?: (dirX: number, dirZ: number) => void;
   paused?: boolean;
   farm?: GardenFarm | null;
+  yard?: GardenYard | null;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -220,8 +243,11 @@ export const Garden = ({
     if (!size || size.width !== width || size.height !== height) setSize({ width, height });
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
-  const plots = farm?.plots;
-  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined, plots), [cam, place, home, plots]);
+  const plots = farm?.plots ?? FREE_PLOTS;
+  const coop = yard?.coop === true;
+  const barn = yard?.barn === true;
+  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined, { plots, coop, barn }), [cam, place, home, plots, coop, barn]);
+  const pens = useMemo(() => (cam && place === BACKYARD ? penScreens(cam) : null), [cam, place]);
   const propActors = useMemo(
     () =>
       scene
@@ -264,6 +290,7 @@ export const Garden = ({
     [cam, place, homeExit]
   );
   const npcHere = place === NPC.place;
+  const farmerHere = place === FARMER.place;
 
   const saver = useBatterySaver();
   const [tagMode] = useWorldSetting("nameTags");
@@ -454,6 +481,14 @@ export const Garden = ({
       const box = hitBox(figureFor(cam, NPC_POSE), NPC.look);
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "npc" };
     }
+    if (farmerHere) {
+      const box = hitBox(figureFor(cam, FARMER_POSE), FARMER.look);
+      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "farmer" };
+    }
+    if (yard && pens && place === BACKYARD) {
+      const hit = yardAtScreen(cam, pens, yard, x, y);
+      if (hit) return hit;
+    }
     if (farm && place === BACKYARD) {
       const plot = plotAtScreen(cam, x, y);
       if (plot !== null) return { kind: "plot", index: plot };
@@ -542,7 +577,10 @@ export const Garden = ({
     else if (p.hit.kind === "lectern") onTapLectern?.();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
     else if (p.hit.kind === "npc") onTapNpc?.();
+    else if (p.hit.kind === "farmer") onTapFarmer?.();
     else if (p.hit.kind === "plot") farm?.onTapPlot(p.hit.index);
+    else if (p.hit.kind === "animal") yard?.onTapAnimal(p.hit.id);
+    else if (p.hit.kind === "building") yard?.onTapBuilding(p.hit.id);
     else if (p.hit.kind === "ball" && placed && rolled) {
       const dir = kickDirection(placed, rolled);
       onKick?.(dir.x, dir.z);
@@ -572,6 +610,12 @@ export const Garden = ({
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
+  }
+  if (farmerHere) {
+    const figure = figureFor(cam, FARMER_POSE);
+    actors.push({ depth: figure.foot.depth, key: FARMER.id, node: <Avatar figure={figure} pose={FARMER_POSE} look={FARMER.look} t={0} seed={5} doing={FARMER_CHEER} /> });
+    const head = cam.project([FARMER.x, headTop(FARMER.look) + 0.35, FARMER.z]);
+    actors.push({ depth: figure.foot.depth, key: `${FARMER.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={FARMER_TAG} me={false} emoteRise={0} /> });
   }
   if (place === "campfire") {
     const base = cam.project([FIRE.x, 0, FIRE.z]);
@@ -625,7 +669,44 @@ export const Garden = ({
     if (farm.flying) {
       const spot = PLOTS[farm.flying.plot];
       const from = cam.project([spot.x, 0.3, spot.z]);
-      farmLabels.push(<FlyingCrop key={`fly-${farm.flying.key}`} from={from} to={farm.bagAt} crop={farm.flying.crop} live={live} onDone={farm.onFlown} />);
+      farmLabels.push(
+        <FlyingCrop key={`fly-${farm.flying.key}`} from={from} to={farm.bagAt} live={live} onDone={farm.onFlown}>
+          <CropThumb crop={farm.flying.crop} size={56} />
+        </FlyingCrop>
+      );
+    }
+  }
+  if (yard && pens && place === BACKYARD) {
+    const live = !paused && !saver;
+    for (const id of BUILDING_IDS) {
+      const pen = pens[id];
+      if (!yard[id]) {
+        if (yard.mine) farmLabels.push(<PriceTag key={`price-${id}`} x={pen.middle.x} y={pen.middle.y} price={BUILDINGS[id].price} />);
+        continue;
+      }
+      const kind = animalFor(id);
+      const here = yard.animals.filter((a) => a.kind === kind);
+      actors.push({
+        depth: pen.middle.depth,
+        key: `animals-${id}`,
+        node: <PenAnimals pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} />,
+      });
+    }
+    if (yard.card) {
+      const top = pens[yard.card.at].top;
+      farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} text={yard.card.text} stageWidth={cam.width} />);
+    }
+    if (yard.collecting) {
+      const { id, good } = yard.collecting;
+      const animal = yard.animals.find((a) => a.id === id);
+      if (animal) {
+        const at = animalAt(pens[buildingFor(animal.kind)].corners, id, animal.mood, phaseAt(serverNow()));
+        farmLabels.push(
+          <FlyingCrop key={`collect-${yard.collecting.key}`} from={{ x: at.x, y: at.y - 0.4 * at.scale }} to={farm?.bagAt ?? { x: 54, y: 30 }} live={live} onDone={yard.onCollected}>
+            <GoodThumb good={good} size={48} />
+          </FlyingCrop>
+        );
+      }
     }
   }
   if (rolled) {
@@ -799,6 +880,10 @@ export const Garden = ({
     const at = cam.project([NPC.x, 0.8, NPC.z]);
     targets.push({ key: "a11y-npc", label: `${NPC.name}, shop`, x: at.x, y: at.y, onActivate: onTapNpc });
   }
+  if (farmerHere && onTapFarmer) {
+    const at = cam.project([FARMER.x, 0.8, FARMER.z]);
+    targets.push({ key: "a11y-farmer", label: `${FARMER.name}, farm shop`, x: at.x, y: at.y, onActivate: onTapFarmer });
+  }
   const propTaps: [string, string, (() => void) | undefined][] = [
     ["arcade", "Arcade", onTapArcade],
     ["noticeboard", "Calendar board", onTapNoticeBoard],
@@ -811,6 +896,19 @@ export const Garden = ({
     if (!obs || !onActivate) continue;
     const at = cam.project([obs.x, 0.6, obs.z]);
     targets.push({ key: `a11y-${id}`, label, x: at.x, y: at.y, onActivate });
+  }
+  if (yard && pens && place === BACKYARD) {
+    for (const id of BUILDING_IDS) {
+      const pen = pens[id];
+      if (!yard[id] && !yard.mine) continue;
+      const label = yard[id] ? `${BUILDINGS[id].short}, ${yard.animals.filter((a) => a.kind === animalFor(id) && a.mood !== "gone").length} of ${BUILDINGS[id].capacity}` : `${BUILDINGS[id].short}, locked, ${BUILDINGS[id].price} coins`;
+      targets.push({ key: `a11y-building-${id}`, label, x: pen.house.x, y: pen.house.y, onActivate: () => yard.onTapBuilding(id) });
+      yard.animals.forEach((animal, i) => {
+        if (animal.kind !== animalFor(id) || animal.mood === "gone") return;
+        const at = pen.slots[i % pen.slots.length];
+        targets.push({ key: `a11y-animal-${animal.id}`, label: animal.label, x: at.x, y: at.y, onActivate: () => yard.onTapAnimal(animal.id) });
+      });
+    }
   }
   if (farm && place === BACKYARD) {
     for (const spot of PLOTS) {
@@ -961,9 +1059,12 @@ type Hit =
   | { kind: "lectern" }
   | { kind: "seat"; id: string }
   | { kind: "npc" }
+  | { kind: "farmer" }
   | { kind: "ball" }
   | { kind: "item"; key: string }
   | { kind: "plot"; index: number }
+  | { kind: "animal"; id: string }
+  | { kind: "building"; id: BuildingId }
   | { kind: "floor" }
   | { kind: "ground" };
 const ITEM = "item:";
@@ -982,8 +1083,73 @@ const plotAtScreen = (cam: ReturnType<typeof makeCamera>, x: number, y: number):
   });
   return hits.sort((a, b) => b.z - a.z)[0]?.index ?? null;
 };
+type PenScreen = {
+  corners: PenCorners;
+  gate: { x: number; y: number; scale: number };
+  exit: { x: number; y: number; scale: number };
+  middle: { x: number; y: number; depth: number };
+  top: { x: number; y: number };
+  house: { x: number; y: number };
+  box: { left: number; right: number; top: number; bottom: number };
+  slots: { x: number; y: number }[];
+};
+
+const penScreens = (cam: ReturnType<typeof makeCamera>): Record<BuildingId, PenScreen> => {
+  const one = (id: BuildingId): PenScreen => {
+    const pen = PENS[id];
+    const x0 = pen.x - pen.w / 2 + 0.25;
+    const x1 = pen.x + pen.w / 2 - 0.25;
+    const back = pen.back + 0.2;
+    const front = pen.front - 0.25;
+    const corners = { backLeft: cam.project([x0, 0, back]), backRight: cam.project([x1, 0, back]), frontLeft: cam.project([x0, 0, front]), frontRight: cam.project([x1, 0, front]) };
+    const gate = cam.project([pen.x, 0, pen.front + 0.3]);
+    const exit = cam.project([pen.x + (id === "coop" ? -4.6 : 4.6), 0, pen.front + 1.2]);
+    const middle = cam.project([pen.x, 0, (pen.front + pen.back) / 2]);
+    const top = cam.project([pen.x, 1.1, pen.front]);
+    const house = cam.project([pen.house.x, 1.2, pen.house.z + pen.house.d / 2]);
+    const left = cam.project([pen.x - pen.w / 2 - 0.1, 0, pen.front]).x;
+    const right = cam.project([pen.x + pen.w / 2 + 0.1, 0, pen.front]).x;
+    const slots = [0.25, 0.75].flatMap((v) => [0.25, 0.75].map((u) => penPoint(corners, u, v)));
+    return {
+      corners,
+      gate,
+      exit,
+      middle: { x: middle.x, y: middle.y, depth: middle.depth },
+      top: { x: top.x, y: top.y },
+      house: { x: house.x, y: house.y },
+      box: { left, right, top: cam.project([pen.house.x, 2.4, pen.house.z]).y, bottom: cam.project([pen.x, 0, pen.front + 0.15]).y },
+      slots,
+    };
+  };
+  return { coop: one("coop"), barn: one("barn") };
+};
+
+const yardAtScreen = (cam: ReturnType<typeof makeCamera>, pens: Record<BuildingId, PenScreen>, yard: GardenYard, x: number, y: number): Hit | null => {
+  for (const id of BUILDING_IDS) {
+    const pen = pens[id];
+    const { box } = pen;
+    if (x < box.left || x > box.right || y < box.top || y > box.bottom) continue;
+    if (!yard[id]) return yard.mine ? { kind: "building", id } : null;
+    const phase = phaseAt(Date.now());
+    let best: { id: string; d: number } | null = null;
+    for (const animal of yard.animals) {
+      if (buildingFor(animal.kind) !== id || animal.mood === "gone") continue;
+      const at = animalAt(pen.corners, animal.id, animal.mood, phase);
+      const d = Math.hypot(at.x - x, at.y - 0.35 * at.scale - y);
+      if (d <= ANIMAL_REACH * at.scale && (!best || d < best.d)) best = { id: animal.id, d };
+    }
+    return best ? { kind: "animal", id: best.id } : { kind: "building", id };
+  }
+  return null;
+};
+
+const ANIMAL_REACH = 0.75;
+
 const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
 const NPC_TAG = "☕ Sijin Y.";
+const FARMER_POSE = { x: FARMER.x, z: FARMER.z, heading: FARMER.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
+const FARMER_TAG = "🌱 Josh K.";
+const FARMER_CHEER: Doing = { kind: "emote", id: "cheer", p: 0.5 };
 const SEATED_WITHIN = 0.25;
 const SHOUTS = new Set<string>(Object.values(DUEL_PICKS).map((pick) => pick.icon));
 const AWAY_STATUS = "🕹️ Playing";

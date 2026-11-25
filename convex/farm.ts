@@ -18,7 +18,7 @@ import {
   stackKey,
   type CropId,
 } from "../shared/farm";
-import { BACKYARD, NPC } from "../shared/world";
+import { BACKYARD, FARMER, NPC } from "../shared/world";
 import { ensureWallet } from "./coins";
 import { animalsOf, ensureFarm, farmOf, noteWaterer } from "./farmData";
 import { animalNudge, animalNudgeText, goodsList } from "../shared/animals";
@@ -26,6 +26,7 @@ import { type Ctx, optionalEmail, requireEmail } from "./model";
 import { blockedEither, memberByEmail, nameFor, ownerOf, placeOf, requireMe } from "./world";
 
 const REMIND_BATCH = 50;
+export const JOSH = FARMER.name.split(" ")[0];
 
 const plantsOf = (ctx: Ctx, owner: string) =>
   ctx.db
@@ -57,9 +58,12 @@ export const asOwner = async (ctx: MutationCtx) => {
   return me;
 };
 
-export const atSijin = async (ctx: MutationCtx) => {
+const FARM_SHOPS: readonly string[] = [FARMER.place, NPC.place];
+
+export const atFarmShop = async (ctx: MutationCtx, { oldApps = false }: { oldApps?: boolean } = {}) => {
   const me = await requireMe(ctx);
-  if (placeOf(me.member) !== NPC.place) throw new ConvexError(`Find ${NPC.name} in the Café to shop.`);
+  const place = placeOf(me.member);
+  if (place !== FARMER.place && !(oldApps && FARM_SHOPS.includes(place))) throw new ConvexError(`Find ${FARMER.name} in the Garden to shop.`);
   return me;
 };
 
@@ -162,7 +166,7 @@ export const plant = mutation({
     if (plot >= row.plots) throw new ConvexError("Buy that plot first.");
     if (await plantIn(ctx, me.email, plot)) throw new ConvexError("Something's growing there already.");
     const have = row.seeds[crop] ?? 0;
-    if (have < 1) throw new ConvexError(`Get seeds from ${NPC.name.split(" ")[0]}.`);
+    if (have < 1) throw new ConvexError(`Get seeds from ${JOSH}.`);
     const now = Date.now();
     await ctx.db.patch("worldFarms", row._id, { seeds: { ...row.seeds, [crop]: have - 1 } });
     await ctx.db.insert("worldPlants", { owner: me.email, plot, crop, plantedAt: now, waterings: [] });
@@ -228,8 +232,8 @@ export const buySeeds = mutation({
   args: { crop: v.string(), count: v.number() },
   returns: v.object({ balance: v.number(), seeds: v.number() }),
   handler: async (ctx, { crop, count }) => {
-    const me = await atSijin(ctx);
-    if (!isCrop(crop)) throw new ConvexError(`${NPC.name.split(" ")[0]} doesn't sell that.`);
+    const me = await atFarmShop(ctx, { oldApps: true });
+    if (!isCrop(crop)) throw new ConvexError(`${JOSH} doesn't sell that.`);
     if (!Number.isInteger(count) || count < 1 || count > MAX_SEED_BUY) throw new ConvexError(`Buy 1 to ${MAX_SEED_BUY} at a time.`);
     const now = Date.now();
     const row = await ensureFarm(ctx, me.email);
@@ -250,7 +254,7 @@ export const sell = mutation({
   args: { stack: v.optional(v.string()), goods: v.optional(v.boolean()) },
   returns: v.object({ balance: v.number(), coins: v.number() }),
   handler: async (ctx, { stack, goods }) => {
-    const me = await atSijin(ctx);
+    const me = await atFarmShop(ctx, { oldApps: true });
     const now = Date.now();
     const row = await farmOf(ctx, me.email);
     const selling = bagStacks(row?.crops ?? {}).filter((s) => stack === undefined || s.key === stack);
