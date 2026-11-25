@@ -304,6 +304,7 @@ const CafeSheet = ({
   now,
   serverNow,
   awayFromCafe,
+  onReturn,
   safe,
   looks,
   busy,
@@ -316,6 +317,7 @@ const CafeSheet = ({
   now: number;
   serverNow: () => number;
   awayFromCafe: boolean;
+  onReturn: () => void;
   safe: { top: number; bottom: number };
   looks: { mine: Look | null; theirs: Look | null };
   busy: boolean;
@@ -420,9 +422,16 @@ const CafeSheet = ({
             </View>
           ) : null}
           {live && (game.away || awayFromCafe) ? (
-            <Text style={[styles.warn, { backgroundColor: c.primary, color: c.onPrimary }]} testID="cafe-away">
-              Go back to the Café or you&apos;ll lose.
-            </Text>
+            <Pressable
+              onPress={onReturn}
+              accessibilityRole="button"
+              accessibilityLabel="Back to the Café. You lose if you stay away."
+              testID="cafe-away"
+              style={({ pressed }) => [styles.warn, { backgroundColor: c.primary }, pressed && styles.pressed]}
+            >
+              <Text style={[styles.warnText, { color: c.onPrimary }]}>Back to the Café</Text>
+              <Text style={[styles.warnSub, { color: c.onPrimary }]}>or you lose</Text>
+            </Pressable>
           ) : null}
           <CafeBoardView kind={kind} board={game.board} side={mine} canMove={myTurn && !busy} onMove={onMove} size={boardSize} calm={calm} winner={winner} />
           {result ? (
@@ -481,6 +490,7 @@ export const CafeLayer = ({
   bottom,
   safe,
   onNote,
+  onReturn,
 }: {
   cafe: Cafe;
   people: readonly Seated[];
@@ -489,6 +499,7 @@ export const CafeLayer = ({
   bottom: number;
   safe: { top: number; bottom: number };
   onNote: (note: string) => void;
+  onReturn: () => void;
 }) => {
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [closedGame, setClosedGame] = useState<string | null>(null);
@@ -533,6 +544,7 @@ export const CafeLayer = ({
           now={now}
           serverNow={serverNow}
           awayFromCafe={place !== "cafe"}
+          onReturn={onReturn}
           safe={safe}
           looks={{ mine: lookOf(people.find((p) => p.isMe)?.memberId ?? null), theirs: lookOf(game.opponent) }}
           busy={busy}
@@ -601,7 +613,9 @@ const styles = StyleSheet.create({
   seconds: { minWidth: 30, textAlign: "right", fontSize: 12.5, fontWeight: "800", fontVariant: ["tabular-nums"] },
   track: { height: 4, borderRadius: 2, overflow: "hidden" },
   fill: { height: 4, borderRadius: 2 },
-  warn: { borderRadius: 12, paddingVertical: 6, paddingHorizontal: 10, fontWeight: "700", fontSize: 13, overflow: "hidden" },
+  warn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 40, borderRadius: 20 },
+  warnText: { fontFamily: fonts.display, fontSize: 15 },
+  warnSub: { fontSize: 13, fontWeight: "600", opacity: 0.85 },
   endCard: { gap: 12, padding: 14, borderRadius: 20, borderWidth: 1 },
   result: { alignItems: "center", gap: 4 },
   resultRow: { flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "100%" },
