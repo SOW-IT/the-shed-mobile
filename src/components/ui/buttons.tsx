@@ -5,6 +5,7 @@ import { durations, USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme 
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
 import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
+import { useBottomLift } from "@/components/nav/tabBarShown";
 import { AppIcon, type AppIconName } from "./icon";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
@@ -26,7 +27,7 @@ export const FooterAction = ({
   note,
   cancel,
   secondary,
-  bottomOffset = 0,
+  bottomOffset: extraOffset = 0,
   avoidKeyboard = true,
   hidden = false,
 }: {
@@ -50,6 +51,7 @@ export const FooterAction = ({
   hidden?: boolean;
 }) => {
   const t = useAppTheme();
+  const bottomOffset = extraOffset + useBottomLift();
   const [fade] = useState(() => new Animated.Value(hidden ? 0 : 1));
   useEffect(() => {
     Animated.timing(fade, {
@@ -307,12 +309,13 @@ const FooterIconButton = ({ icon, accessibilityLabel, onPress, badge, primary }:
 
 export const FooterIconActions = ({ actions }: { actions: FooterIconAction[] }) => {
   const reportFooterHeight = useContext(FooterHeightContext);
+  const lift = useBottomLift();
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
   return (
     <View
       pointerEvents="box-none"
-      onLayout={(e) => reportFooterHeight(footerReach(e.nativeEvent.layout.height))}
-      style={styles.footerWrap}
+      onLayout={(e) => reportFooterHeight(footerReach(e.nativeEvent.layout.height, lift))}
+      style={[styles.footerWrap, lift ? { bottom: FOOTER_GAP + lift } : null]}
     >
       <View pointerEvents="box-none" style={[styles.inlineRow, { justifyContent: "flex-end" }]}>
         {actions.map((action) => (

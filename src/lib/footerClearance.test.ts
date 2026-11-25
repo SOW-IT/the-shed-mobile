@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  bottomLift,
   FOOTER_GAP,
   FOOTER_MIN_CLEARANCE,
   footerClearance,
@@ -27,5 +28,20 @@ describe("footerClearance", () => {
   test("takes a caller's floor, e.g. one that includes the safe area", () => {
     expect(footerClearance(0, 34 + FOOTER_MIN_CLEARANCE)).toBe(130);
     expect(footerClearance(200, 130)).toBe(200 + FOOTER_GAP);
+  });
+});
+
+describe("bottomLift", () => {
+  test("a screen with the tab bar under it isn't lifted, since the tab bar already clears the home indicator", () => {
+    expect(bottomLift(true, 34)).toBe(0);
+  });
+
+  test("a screen with no tab bar, like the World's Calendar, is lifted past the home indicator", () => {
+    expect(bottomLift(false, 34)).toBe(34);
+    expect(footerReach(50, bottomLift(false, 34))).toBe(50 + FOOTER_GAP + 34);
+  });
+
+  test("with no safe area, as on the web, nothing moves", () => {
+    expect(bottomLift(false, 0)).toBe(0);
   });
 });
