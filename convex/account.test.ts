@@ -505,7 +505,7 @@ describe("account.wipe", () => {
     });
   });
 
-  test("deletes the user's coins, home, farm, invites and pokes, keeping everyone else's", async () => {
+  test("deletes the user's coins, home, farm, animals, invites and pokes, keeping everyone else's", async () => {
     vi.useFakeTimers();
     const t = newConvex();
     const bucket = { tokens: 1, at: 0 };
@@ -518,7 +518,11 @@ describe("account.wipe", () => {
         await ctx.db.insert("worldHomes", { owner: email, wallpaper: "plain", items: [], bucket });
         await ctx.db.insert("worldFarms", { owner: email, plots: 4, seeds: { lettuce: 1 }, crops: {} });
         await ctx.db.insert("worldPlants", { owner: email, plot: 0, crop: "lettuce", plantedAt: 0, waterings: [] });
+        await ctx.db.insert("worldBuildings", { owner: email, kind: "coop", boughtAt: 0 });
       }
+      await ctx.db.insert("worldAnimals", { owner: GUEST, kind: "chicken", name: "Pip", boughtAt: 0, feedings: [] });
+      await ctx.db.insert("worldAnimals", { owner: OTHER, kind: "chicken", name: "Dot", boughtAt: 0, feedings: [{ at: 1, email: GUEST, name: "Gina" }, { at: 2, email: OTHER, name: "Other" }] });
+      await ctx.db.insert("worldFeeders", { email: GUEST, owner: OTHER });
       await ctx.db.insert("worldInvites", { owner: GUEST, ownerName: "Gina", guest: OTHER, at: 0, expiresAt: 1 });
       await ctx.db.insert("worldInvites", { owner: OTHER, ownerName: "Other", guest: GUEST, at: 0, expiresAt: 1 });
       await ctx.db.insert("worldPokes", { from: GUEST, to: OTHER, place: "garden", x: 0, z: 0, at: 0 });
@@ -533,6 +537,9 @@ describe("account.wipe", () => {
       expect(await ctx.db.query("worldHomes").collect()).toMatchObject([{ owner: OTHER }]);
       expect(await ctx.db.query("worldFarms").collect()).toMatchObject([{ owner: OTHER }]);
       expect(await ctx.db.query("worldPlants").collect()).toMatchObject([{ owner: OTHER }]);
+      expect(await ctx.db.query("worldBuildings").collect()).toMatchObject([{ owner: OTHER }]);
+      expect(await ctx.db.query("worldAnimals").collect()).toMatchObject([{ owner: OTHER, feedings: [{ at: 1, email: "", name: "" }, { at: 2, email: OTHER, name: "Other" }] }]);
+      expect(await ctx.db.query("worldFeeders").collect()).toEqual([]);
       expect(await ctx.db.query("worldInvites").collect()).toEqual([]);
       expect(await ctx.db.query("worldPokes").collect()).toEqual([]);
     });

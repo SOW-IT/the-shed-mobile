@@ -1,8 +1,7 @@
 import { fonts } from "@/theme";
-import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { FURNITURE, FURNITURE_IDS, MAX_OWNED_EACH, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type WallpaperId } from "@shared/home";
-import { NPC } from "@shared/world";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
@@ -14,23 +13,25 @@ import { glass, gold, hud } from "./palette";
 import { FurnitureThumb, WallpaperSwatch } from "./Thumb";
 import { bagStacks, CROP_IDS, CROPS, MAX_SEED_BUY, sellAllTotal, stackLabel, type CropId } from "@shared/farm";
 import { CropThumb, SeedCluster } from "./Farm";
+import { FEED_BUYS, FEED_IDS, FEEDS, GOODS, goodsList, goodsTotal, NAME_TAG_PRICE, type FeedId } from "@shared/animals";
+import { FeedThumb, GoodThumb, TagThumb } from "./Animals";
+import { KEEPERS, SHOP_TABS, type Keeper, type Tab } from "./shopTabs";
 import { Days } from "./FarmPanels";
 
-type Tab = "furniture" | "wallpaper" | "seeds" | "sell";
 type Wallet = { balance: number; items: Record<string, number>; wallpapers: string[] };
 type FarmShop = {
   crops: Record<string, number>;
   seeds: Record<string, number>;
+  goods: Record<string, number>;
+  feed: Record<string, number>;
+  nameTags: number;
   buySeeds: (crop: string, count: number) => Promise<string | null>;
+  buyFeed: (feed: string, count: number) => Promise<string | null>;
+  buyNameTag: () => Promise<string | null>;
   sell: (stack?: string) => Promise<{ coins: number } | string>;
 };
 
-const TABS: readonly { id: Tab; icon: string; label: string }[] = [
-  { id: "furniture", icon: "🛋️", label: "Furniture" },
-  { id: "wallpaper", icon: "🖼️", label: "Wallpaper" },
-  { id: "seeds", icon: "🌱", label: "Seeds" },
-  { id: "sell", icon: "🧺", label: "Sell" },
-];
+
 
 const Price = ({ amount }: { amount: number }) => (
   <View style={styles.price}>
@@ -41,6 +42,7 @@ const Price = ({ amount }: { amount: number }) => (
 
 export const ShopPanel = ({
   open,
+  keeper,
   top,
   bottom,
   wallet,
@@ -49,6 +51,7 @@ export const ShopPanel = ({
   farm,
 }: {
   open: boolean;
+  keeper: Keeper;
   top: number;
   bottom: number;
   wallet: Wallet | null | undefined;
@@ -58,17 +61,30 @@ export const ShopPanel = ({
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
-  const [tab, setTab] = useState<Tab>("furniture");
+  const [tabs, setTabs] = useState<{ keeper: Keeper; tab: Tab }>({ keeper, tab: SHOP_TABS[keeper][0].id });
+  if (tabs.keeper !== keeper) setTabs({ keeper, tab: SHOP_TABS[keeper][0].id });
+  const tab = tabs.keeper === keeper ? tabs.tab : SHOP_TABS[keeper][0].id;
+  const setTab = (next: Tab) => setTabs({ keeper, tab: next });
+  const who = KEEPERS[keeper];
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [many, setMany] = useState(1);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setError(null);
+      setPicked(null);
+      setMany(1);
+    }
+  }
   const buy = useMutation(api.worldHome.buy);
   if (!overlay.mounted) return null;
   const panelWidth = Math.min(440, width - 28);
   const tile = Math.floor((panelWidth - 24 - 16 - 6) / 3);
   const balance = wallet?.balance ?? 0;
-  const ids: readonly string[] = tab === "furniture" ? FURNITURE_IDS : tab === "wallpaper" ? WALLPAPER_IDS.filter((id) => WALLPAPERS[id].price > 0) : tab === "seeds" ? CROP_IDS : bagStacks(farm.crops).map((stack) => stack.key);
+  const ids: readonly string[] = tab === "furniture" ? FURNITURE_IDS : tab === "wallpaper" ? WALLPAPER_IDS.filter((id) => WALLPAPERS[id].price > 0) : tab === "seeds" ? CROP_IDS : [...bagStacks(farm.crops).map((stack) => stack.key), ...goodsList(farm.goods).map((good) => good.id)];
   const priceOf = (id: string) => (tab === "furniture" ? FURNITURE[id as FurnitureId].price : WALLPAPERS[id as WallpaperId].price);
   const labelOf = (id: string) => (tab === "furniture" ? FURNITURE[id as FurnitureId].label : WALLPAPERS[id as WallpaperId].label);
   const owned = (id: string) => (tab === "furniture" ? (wallet?.items[id] ?? 0) : wallet?.wallpapers.includes(id) ? 1 : 0);
@@ -76,7 +92,27 @@ export const ShopPanel = ({
   const choice = picked && ids.includes(picked) ? picked : null;
   const stacks = bagStacks(farm.crops);
   const pickedStack = stacks.find((stack) => stack.key === picked);
-  const pickedValue = pickedStack ? pickedStack.count * pickedStack.price : 0;
+  const goods = goodsList(farm.goods);
+  const pickedGood = goods.find((good) => good.id === picked);
+  const pickedValue = pickedStack ? pickedStack.count * pickedStack.price : pickedGood ? pickedGood.count * pickedGood.price : 0;
+  const sellAll = sellAllTotal(farm.crops) + goodsTotal(farm.goods);
+  const anythingToSell = stacks.length + goods.length > 0;
+  const sendFeed = async (id: FeedId, count: number) => {
+    setBusy(true);
+    setError(null);
+    const problem = await farm.buyFeed(id, count);
+    setBusy(false);
+    if (problem) setError(problem);
+    else onBought(`${count} ${FEEDS[id].label.toLowerCase()} bought.`);
+  };
+  const sendTag = async () => {
+    setBusy(true);
+    setError(null);
+    const problem = await farm.buyNameTag();
+    setBusy(false);
+    if (problem) setError(problem);
+    else onBought("Name tag bought.");
+  };
   const seedCost = (id: string) => CROPS[id as CropId].seed * many;
   const sendSeeds = async (id: string) => {
     setBusy(true);
@@ -117,9 +153,9 @@ export const ShopPanel = ({
       </Pressable>
       <Animated.View style={[styles.panel, blurBehind, { top, width: panelWidth, maxHeight: Math.max(300, height - top - bottom) }, popStyle(overlay)]} testID="world-shop">
         <Animated.View style={[styles.header, itemStyle(overlay, 0)]}>
-          <Bust look={NPC.look} size={40} />
+          <Bust look={who.look} size={40} />
           <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
-            {NPC.name}
+            {who.name}
           </Text>
           <View style={styles.grow} />
           <View style={styles.balance} accessibilityLabel={`${balance} coins`}>
@@ -131,7 +167,7 @@ export const ShopPanel = ({
           </Pressable>
         </Animated.View>
         <Animated.View style={[styles.tabs, itemStyle(overlay, 1)]}>
-          {TABS.map((t) => (
+          {SHOP_TABS[keeper].map((t) => (
             <Pressable
               key={t.id}
               onPress={() => {
@@ -185,10 +221,65 @@ export const ShopPanel = ({
                 </Pressable>
               </Animated.View>
             ))}
+            <Animated.View style={[styles.full, itemStyle(overlay, 2 + CROP_IDS.length)]}>
+              <Text style={styles.section} accessibilityRole="header">
+                Feed
+              </Text>
+            </Animated.View>
+            {FEED_IDS.map((id) => (
+              <View key={id} style={[styles.stack, styles.full]} testID={`world-shop-feed-${id}`}>
+                <FeedThumb feed={id} size={36} />
+                <View style={styles.feedText}>
+                  <Text style={styles.stackName} numberOfLines={1}>
+                    {FEEDS[id].label}
+                  </Text>
+                  <Price amount={FEEDS[id].price} />
+                </View>
+                {(farm.feed[id] ?? 0) > 0 ? <Text style={styles.stackCount}>×{farm.feed[id]}</Text> : null}
+                {FEED_BUYS.map((count) => (
+                  <Pressable
+                    key={count}
+                    onPress={() => void sendFeed(id, count)}
+                    disabled={busy || balance < FEEDS[id].price * count}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Buy ${count} ${FEEDS[id].label.toLowerCase()} for ${FEEDS[id].price * count} coins`}
+                    testID={`world-shop-feed-${id}-${count}`}
+                    style={({ pressed }) => [styles.plus, (busy || balance < FEEDS[id].price * count) && styles.buyOff, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.plusText}>+{count}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ))}
+            <View style={[styles.stack, styles.full]} testID="world-shop-nametag">
+              <TagThumb size={36} />
+              <View style={styles.feedText}>
+                <Text style={styles.stackName} numberOfLines={1}>
+                  Name tag
+                </Text>
+                <Price amount={NAME_TAG_PRICE} />
+              </View>
+              {farm.nameTags > 0 ? <Text style={styles.stackCount}>×{farm.nameTags}</Text> : null}
+              <Pressable
+                onPress={() => void sendTag()}
+                disabled={busy || balance < NAME_TAG_PRICE}
+                accessibilityRole="button"
+                accessibilityLabel={`Buy a name tag for ${NAME_TAG_PRICE} coins`}
+                testID="world-shop-nametag-buy"
+                style={({ pressed }) => [styles.plus, (busy || balance < NAME_TAG_PRICE) && styles.buyOff, pressed && styles.pressed]}
+              >
+                <Text style={styles.plusText}>+1</Text>
+              </Pressable>
+            </View>
+            {error && !choice ? (
+              <Text style={[styles.error, styles.full]} numberOfLines={2}>
+                {error}
+              </Text>
+            ) : null}
           </SharpScrollView>
         ) : tab === "sell" ? (
           <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
-            {stacks.length === 0 ? (
+            {!anythingToSell ? (
               <Text style={styles.empty} testID="world-shop-sell-empty">
                 Nothing to sell
               </Text>
@@ -212,6 +303,28 @@ export const ShopPanel = ({
                   </Text>
                   <Text style={styles.stackCount}>×{stack.count}</Text>
                   <Price amount={stack.price} />
+                </Pressable>
+              </Animated.View>
+            ))}
+            {goods.map((good, i) => (
+              <Animated.View key={good.id} style={itemStyle(overlay, 2 + stacks.length + i)}>
+                <Pressable
+                  onPress={() => {
+                    setError(null);
+                    setPicked(choice === good.id ? null : good.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: choice === good.id }}
+                  accessibilityLabel={`${GOODS[good.id].label}, ${good.count}, ${good.price} coins each`}
+                  testID={`world-shop-stack-${good.id}`}
+                  style={({ pressed }) => [styles.stack, choice === good.id && styles.cardOn, pressed && styles.pressed]}
+                >
+                  <GoodThumb good={good.id} size={40} />
+                  <Text style={styles.stackName} numberOfLines={1}>
+                    {GOODS[good.id].label}
+                  </Text>
+                  <Text style={styles.stackCount}>×{good.count}</Text>
+                  <Price amount={good.price} />
                 </Pressable>
               </Animated.View>
             ))}
@@ -278,7 +391,7 @@ export const ShopPanel = ({
             </Pressable>
           </View>
         ) : tab === "sell" ? (
-          stacks.length > 0 ? (
+          anythingToSell ? (
             <View style={styles.buyBar}>
               {error ? (
                 <Text style={styles.error} numberOfLines={2}>
@@ -301,12 +414,12 @@ export const ShopPanel = ({
                 onPress={() => void sendSell()}
                 disabled={busy}
                 accessibilityRole="button"
-                accessibilityLabel={`Sell all for ${sellAllTotal(farm.crops)} coins`}
+                accessibilityLabel={`Sell all for ${sellAll} coins`}
                 testID="world-shop-sell-all"
                 style={({ pressed }) => [styles.buy, busy && styles.buyOff, pressed && styles.pressed]}
               >
                 <GoldCoin size={18} />
-                <Text style={styles.buyText}>Sell all · {sellAllTotal(farm.crops)}</Text>
+                <Text style={styles.buyText}>Sell all · {sellAll}</Text>
               </Pressable>
             </View>
           ) : null
@@ -354,6 +467,11 @@ const styles = StyleSheet.create({
   tabIcon: { fontSize: 16 },
   tabText: { color: glass.text, fontWeight: "700", fontSize: 12 },
   cardName: { color: glass.text, fontWeight: "700", fontSize: 12.5 },
+  full: { width: "100%" },
+  section: { color: glass.muted, fontWeight: "800", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", paddingTop: 6 },
+  feedText: { flex: 1, gap: 2, alignItems: "flex-start" },
+  plus: { minWidth: 40, height: 32, paddingHorizontal: 8, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: hud.accent },
+  plusText: { color: hud.onAccent, fontWeight: "800", fontSize: 14 },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   list: { gap: 6, paddingHorizontal: 12, paddingBottom: 12 },
   empty: { color: glass.muted, fontSize: 14, fontWeight: "600", textAlign: "center", paddingVertical: 18 },

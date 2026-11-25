@@ -61,7 +61,7 @@ export const useFarm = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | nul
   const buySeeds = useCallback((crop: string, count: number) => attempt(async () => ({ ok: (await buySeedsM({ crop, count })).seeds > 0 }), "That didn't go through."), [buySeedsM]);
   const sell = useCallback(async (stack?: string): Promise<{ coins: number } | string> => {
     try {
-      const reply = await sellM(stack === undefined ? {} : { stack });
+      const reply = await sellM(stack === undefined ? { goods: true } : { stack, goods: true });
       return { coins: reply.coins };
     } catch (e) {
       return said(e, "That didn't sell.");
@@ -75,3 +75,52 @@ export const useFarm = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | nul
   return { view: inBackyard ? here : undefined, bag, water, plant, harvest, clear, buyPlot, buySeeds, sell, setReminders };
 };
 
+
+export const useAnimals = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | null; inBackyard: boolean }) => {
+  const here = useQuery(api.animals.yard, inBackyard && roomId ? { roomId } : "skip");
+  const feedM = useMutation(api.animals.feed);
+  const collectM = useMutation(api.animals.collect);
+  const buyBuildingM = useMutation(api.animals.buyBuilding);
+  const buyAnimalM = useMutation(api.animals.buyAnimal);
+  const renameM = useMutation(api.animals.rename);
+  const settleM = useMutation(api.animals.settle);
+  const buyFeedM = useMutation(api.animals.buyFeed);
+  const buyNameTagM = useMutation(api.animals.buyNameTag);
+
+  const feed = useCallback(async (animalId: string): Promise<number | string> => {
+    try {
+      const reply = await feedM({ animalId });
+      return reply.ok ? reply.serverNow : reply.reason;
+    } catch (e) {
+      return said(e, "That didn't feed.");
+    }
+  }, [feedM]);
+  const collect = useCallback(async (animalId: string) => {
+    try {
+      const reply = await collectM({ animalId });
+      return reply.ok ? { good: reply.good, serverNow: reply.serverNow } : reply.reason;
+    } catch (e) {
+      return said(e, "That didn't work.");
+    }
+  }, [collectM]);
+  const buyBuilding = useCallback((kind: string) => attempt(async () => ({ ok: (await buyBuildingM({ kind })).balance >= 0 }), "That didn't go through."), [buyBuildingM]);
+  const buyAnimal = useCallback(async (kind: string, name: string): Promise<{ id: string } | string> => {
+    try {
+      return { id: (await buyAnimalM({ kind, name })).id };
+    } catch (e) {
+      return said(e, "That didn't go through.");
+    }
+  }, [buyAnimalM]);
+  const rename = useCallback((animalId: string, name: string) => attempt(async () => ({ ok: (await renameM({ animalId, name })).name.length > 0 }), "That didn't rename."), [renameM]);
+  const settle = useCallback(async (): Promise<string[]> => {
+    try {
+      return await settleM({});
+    } catch {
+      return [];
+    }
+  }, [settleM]);
+  const buyFeed = useCallback((feedId: string, count: number) => attempt(async () => ({ ok: (await buyFeedM({ feed: feedId, count })).feed > 0 }), "That didn't go through."), [buyFeedM]);
+  const buyNameTag = useCallback(() => attempt(async () => ({ ok: (await buyNameTagM({})).nameTags > 0 }), "That didn't go through."), [buyNameTagM]);
+
+  return { view: inBackyard ? here : undefined, feed, collect, buyBuilding, buyAnimal, rename, settle, buyFeed, buyNameTag };
+};

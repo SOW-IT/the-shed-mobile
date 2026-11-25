@@ -450,7 +450,7 @@ export const PlantingPuff = ({ x, y, scale, crop, live, onDone }: { x: number; y
   );
 };
 
-export const FlyingCrop = ({ from, to, crop, live, onDone }: { from: { x: number; y: number }; to: { x: number; y: number }; crop: CropId; live: boolean; onDone: () => void }) => {
+export const FlyingCrop = ({ from, to, live, onDone, children }: { from: { x: number; y: number }; to: { x: number; y: number }; live: boolean; onDone: () => void; children: ReactNode }) => {
   const k = useSharedValue(0);
   useEffect(() => {
     if (!live) {
@@ -481,7 +481,7 @@ export const FlyingCrop = ({ from, to, crop, live, onDone }: { from: { x: number
   if (!live) return null;
   return (
     <Animated.View pointerEvents="none" style={[styles.abs, { left: from.x - 28, top: from.y - 48, width: 56, height: 56 }, style]} testID="world-crop-flying">
-      <CropThumb crop={crop} size={56} />
+      {children}
     </Animated.View>
   );
 };

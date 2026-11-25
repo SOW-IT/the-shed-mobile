@@ -13,6 +13,7 @@ import type * as actingAs from "../actingAs.js";
 import type * as actingAsData from "../actingAsData.js";
 import type * as admin from "../admin.js";
 import type * as admins from "../admins.js";
+import type * as animals from "../animals.js";
 import type * as announcementData from "../announcementData.js";
 import type * as announcements from "../announcements.js";
 import type * as appErrors from "../appErrors.js";
@@ -132,6 +133,7 @@ declare const fullApi: ApiFromModules<{
   actingAsData: typeof actingAsData;
   admin: typeof admin;
   admins: typeof admins;
+  animals: typeof animals;
   announcementData: typeof announcementData;
   announcements: typeof announcements;
   appErrors: typeof appErrors;
