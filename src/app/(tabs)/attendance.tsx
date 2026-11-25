@@ -110,11 +110,27 @@ export default function AttendanceScreen() {
                 onPress: () => setEventFilterOpen(true),
                 badge: eventFilterCount,
               },
+              {
+                icon: "add",
+                accessibilityLabel: "Create event",
+                onPress: () => setCreateEventOpen(true),
+                primary: true,
+              },
             ]}
           />
         ),
       });
     }
+    items.push({
+      tabKey: "members",
+      node: (
+        <FooterAction
+          title="+ Create member"
+          onPress={openCreateMember}
+          avoidKeyboard={active === "members"}
+        />
+      ),
+    });
     if (!canManage) return items;
     items.push({
       tabKey: "settings",
@@ -163,7 +179,7 @@ export default function AttendanceScreen() {
       ),
     });
     return items;
-  }, [subgroup, subgroups, tagsSave, metaSave, canManage, eventFilterCount]);
+  }, [active, subgroup, subgroups, tagsSave, metaSave, canManage, eventFilterCount]);
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
@@ -241,16 +257,7 @@ export default function AttendanceScreen() {
         tabs={tabs}
         activeKey={tabs.some((t) => t.key === active) ? active : "events"}
         onActiveKeyChange={setActive}
-        header={{
-          title: "Attendance",
-          icon: "checkbox-outline",
-          action:
-            active === "members"
-              ? { label: "Member", onPress: openCreateMember, accessibilityLabel: "Create member", testID: "attendance-new-member" }
-              : active === "events" && subgroup
-                ? { label: "Event", onPress: () => setCreateEventOpen(true), accessibilityLabel: "Create event", testID: "attendance-new-event" }
-                : null,
-        }}
+        header={{ title: "Attendance", icon: "checkbox-outline" }}
         footers={tabFooters}
         onEndReached={(key) => {
           if (key === "events") eventsLoadMoreRef.current?.();

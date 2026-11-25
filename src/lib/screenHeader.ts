@@ -1,17 +1,14 @@
-export type ScreenHeaderAction<Icon = string> = {
+type ScreenHeaderAction = {
   label: string;
-  icon?: Icon | null;
   onPress: () => void;
   accessibilityLabel?: string;
   testID?: string;
-  disabled?: boolean;
 };
 
 export type ScreenHeader<Icon = string> = {
   title: string;
   icon?: Icon;
-  action?: ScreenHeaderAction<Icon> | null;
-  info?: { onPress: () => void; accessibilityLabel: string } | null;
+  action?: ScreenHeaderAction | null;
 };
 
 type HeaderPlacement<Icon> = {

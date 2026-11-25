@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.10] - 2026-11-25
+
+### Changed
+- **Each page's main button is back at the bottom.** Churches, Praise
+  List, Reimbursements, Event Requests, Design Requests, Mentoring,
+  Attendance and Grievances show their + button across the bottom of the
+  page again, with the ⓘ beside it where the page has one, instead of left
+  of the bell. Churches gets **+ Add church** there too. Page titles stay
+  in the middle of the top bar, and Devotionals keeps **Today** up there.
+  Who can use each button hasn't changed. Lists leave room at the end so
+  the last row scrolls clear of the button, on phones and wide screens.
+
 ## [2.13.8] - 2026-11-25
 
 ### Added
