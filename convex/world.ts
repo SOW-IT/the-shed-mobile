@@ -78,7 +78,7 @@ import { sanitizePath } from "../shared/worldPath";
 import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
-import { cafeMoved, cafeSat } from "./cafeGames";
+import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
 import { giveStarterSeeds } from "./farmData";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -331,6 +331,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   }
   if (state) await ctx.db.delete("worldState", state._id);
   await cafeMoved(ctx, member.email, null, Date.now());
+  await dropWatchesOf(ctx, member.email);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
   const ping = await pingOf(ctx, member._id);
@@ -488,6 +489,7 @@ const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: D
   else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
   await cafeMoved(ctx, member.email, room._id, Date.now());
+  await dropWatchesOf(ctx, member.email);
 };
 
 const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: number; z: number }, now: number, except?: Id<"worldMembers">) => {
@@ -1992,6 +1994,7 @@ export const sweep = internalMutation({
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
       .take(SWEEP_BATCH);
     for (const row of oldInvites) await ctx.db.delete("worldInvites", row._id);
+    await dropStaleWatches(ctx, now);
 
     const meta = await sweeperMeta(ctx);
     const next = await nextSweep(ctx, now);

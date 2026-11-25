@@ -2,15 +2,24 @@
 // runs waiting to go on the leaderboard. Both work signed out and offline;
 // GameScoreSync publishes the queue once the phone is online and signed in.
 import * as Crypto from "expo-crypto";
-import { useSyncExternalStore } from "react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { useMemo, useSyncExternalStore } from "react";
+import { useOffline } from "@/hooks/useOffline";
+import { api } from "../../../convex/_generated/api";
 import {
+  bestsFromRuns,
   enqueueScore,
   NO_BESTS,
+  parseBestRuns,
   parseBests,
   parseQueue,
   removeSettled,
+  runsOf,
+  shownBests,
   stringifyBests,
   withBest,
+  withBestRun,
+  type BestRunsByAccount,
   type GameId,
   type LocalBests,
   type QueuedScore,
@@ -27,6 +36,7 @@ import { persisted } from "./persisted";
 
 const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
+const bestRuns = persisted<BestRunsByAccount>("games.bestRuns", (saved) => parseBestRuns(saved, Date.now()), {});
 
 const characters = persisted<CharacterChoices>("games.characters", parseCharacters, DEFAULT_CHARACTERS);
 
@@ -38,12 +48,43 @@ export const chooseCharacter = (game: CharacterGame, character: Character): Prom
 
 export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
 export const useScoreQueue = () => useSyncExternalStore(queue.subscribe, queue.get, queue.get);
+export const useBestRuns = () => useSyncExternalStore(bestRuns.subscribe, bestRuns.get, bestRuns.get);
+
+const useAccount = () => {
+  const { isAuthenticated } = useConvexAuth();
+  const account = useQuery(api.gameScores.myBests, isAuthenticated ? {} : "skip");
+  return isAuthenticated ? account : undefined;
+};
+
+export const useAccountEmail = (): string | null => useAccount()?.email ?? null;
+
+export const useServerBests = () => {
+  const account = useAccount();
+  const offline = useOffline();
+  return offline ? undefined : account;
+};
+
+export const useBests = (): LocalBests => {
+  const local = useLocalBests();
+  const runs = useBestRuns();
+  const { isAuthenticated } = useConvexAuth();
+  const offline = useOffline();
+  const account = useServerBests();
+  const deviceOnly = !isAuthenticated || offline;
+  return useMemo(
+    () => (deviceOnly ? local : account ? shownBests(bestsFromRuns(runsOf(runs, account.email)), account.bests) : NO_BESTS),
+    [deviceOnly, local, runs, account]
+  );
+};
+
+export const queueRuns = (runs: readonly QueuedScore[]): Promise<void> =>
+  queue.update((current) => runs.reduce((next, run) => enqueueScore(next, run, Date.now()), current));
 
 const runId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Crypto.randomUUID();
 
 /** Saves a finished run: a new best if it is one, and a place in the queue. */
-export const recordRun = (game: GameId, score: number, durationMs: number): Promise<string | null> => {
+export const recordRun = (game: GameId, score: number, durationMs: number, account: string | null): Promise<string | null> => {
   if (score < 1) return Promise.resolve(null);
   const entry: QueuedScore = {
     runId: runId(),
@@ -51,9 +92,11 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
     score,
     durationMs: Math.max(1, Math.round(durationMs)),
     playedAt: Date.now(),
+    ...(account ? { account } : {}),
   };
   return Promise.all([
     bests.update((current) => withBest(current, game, score)),
+    bestRuns.update((current) => withBestRun(current, account, entry, entry.playedAt)),
     queue.update((current) => enqueueScore(current, entry, entry.playedAt)),
   ]).then(() => entry.runId);
 };
