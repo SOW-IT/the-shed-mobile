@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.13] - 2026-11-25
+
+### Added
+- **Spectate a Café game.** Tap someone who's playing, in the Café or in
+  People, and their card's **Play** button says **Spectate**. It opens their
+  board as it happens, with both players, whose turn it is and the timer, and
+  a **Watching** pill at the top. You can't move, and you can close it any
+  time. When the game ends you see who won, with **Close** and no Rematch.
+  The button goes back to **Play** once their game is over. Games on one
+  phone can't be spectated.
+- **See who's watching.** Players see a small eye with a count, such as
+  "2 watching", at the top of the board.
+
 ## [2.13.8] - 2026-11-25
 
 ### Added
