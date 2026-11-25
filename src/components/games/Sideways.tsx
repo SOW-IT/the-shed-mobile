@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fixedColours } from "@/theme";
 
 /** Whether the main pointer is a finger (a phone or tablet browser). */
 const touchScreen = () =>
@@ -23,19 +24,11 @@ export const useSideways = () => {
 };
 
 /** The game's screen, turned a quarter turn when `turned`. */
-export const Sideways = ({
-  turned,
-  background,
-  children,
-}: {
-  turned: boolean;
-  background: string;
-  children: ReactNode;
-}) => {
+export const Sideways = ({ turned, children }: { turned: boolean; children: ReactNode }) => {
   const screen = useWindowDimensions();
   if (!turned) return children;
   return (
-    <View style={[styles.fill, { backgroundColor: background }]}>
+    <View style={styles.fill}>
       {/* Turned about its top-left corner, not its middle: with an odd screen
           width the middle sits on half a point, which puts everything drawn
           inside half a pixel off the grid and blurs it (the cards most). */}
@@ -57,5 +50,5 @@ export const Sideways = ({
 };
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, overflow: "hidden" },
+  fill: { flex: 1, overflow: "hidden", backgroundColor: fixedColours.games.letterbox },
 });

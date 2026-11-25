@@ -253,7 +253,7 @@
         "src/app/games/**",
         "src/components/games/**",
         "src/lib/games/**",
-        "src/hooks/useOffline.ts",
+        "src/hooks/{useOffline,useNoSwipeBack}.ts",
         "convex/{gameScores,gameScoreData,gameCharacters,gamePlayers}.ts",
         "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
@@ -262,6 +262,7 @@
     "world": {
       "files": [
         "src/app/world.tsx",
+        "src/hooks/useNoSwipeBack.ts",
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
         "src/app/world-devotionals.tsx",
