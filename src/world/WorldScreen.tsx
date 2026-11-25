@@ -299,6 +299,16 @@ export const WorldScreen = ({
     setTray(false);
     setArcadeOpen(true);
   }, []);
+  const openBoard = useCallback(() => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setShopOpen(false);
+    setSettingsOpen(false);
+    setCoinsOpen(false);
+    setArcadeOpen(false);
+    setTray(false);
+    setBoardOpen(true);
+  }, []);
   const openCoins = () => {
     setPlacesOpen(false);
     setPeopleOpen(false);
@@ -470,12 +480,12 @@ export const WorldScreen = ({
       if (!arrived) return;
       if (kind === "arcade") openArcade();
       else if (kind === "noticeboard") onCalendar();
-      else if (kind === "notices") setBoardOpen(true);
+      else if (kind === "notices") openBoard();
       else if (kind === "piano") onPraise();
       else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
-  }, [propTrip, openArcade, onCalendar, onPraise]);
+  }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
 
   useEffect(() => {
     if (seatTrip === null) return;
@@ -599,7 +609,7 @@ export const WorldScreen = ({
   useEffect(() => {
     goRef.current = go;
   });
-  const backToPlace = leaveAsked ? backFrom(world.place, world.home) : null;
+  const backToPlace = leaveAsked ? backFrom(world.place, world.home, world.homeLoading) : null;
   const backTarget = backToPlace?.kind === "travel" ? backToPlace.to : null;
   useEffect(() => {
     if (backTarget === null) return;
@@ -676,7 +686,7 @@ export const WorldScreen = ({
 
   const goToArcade = () => goToObject("arcade", openArcade);
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
-  const goToNotices = () => goToObject("notices", () => setBoardOpen(true));
+  const goToNotices = () => goToObject("notices", openBoard);
   const goToPiano = () => goToObject("piano", onPraise);
   const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
 
@@ -915,7 +925,7 @@ export const WorldScreen = ({
         }}
       />
       <LeaveDialog
-        open={leaving || (leaveAsked && backFrom(world.place, world.home).kind === "leave")}
+        open={leaving || (leaveAsked && backFrom(world.place, world.home, world.homeLoading).kind === "leave")}
         onStay={() => {
           setLeaving(false);
           onStay();
@@ -1008,7 +1018,7 @@ export const WorldScreen = ({
                 {world.place === NPC.place ? (
                   <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
                 ) : null}
-                <RoundButton icon="clipboard-outline" label="Notice board" onPress={() => setBoardOpen(true)} testID="world-list-notices" />
+                <RoundButton icon="clipboard-outline" label="Notice board" onPress={openBoard} testID="world-list-notices" />
                 <RoundButton icon="settings-outline" label="Settings" onPress={() => setSettingsOpen(true)} testID="world-list-settings" />
               </View>
               {inviteCard}
@@ -1141,6 +1151,8 @@ export const WorldScreen = ({
             onPress={() => {
               setPlacesOpen(false);
               setSettingsOpen(false);
+              setBoardOpen(false);
+              setPropTrip((trip) => (trip?.kind === "notices" ? null : trip));
               setPeopleOpen((was) => !was);
             }}
             testID="world-people"
