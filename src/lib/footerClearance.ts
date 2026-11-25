@@ -2,6 +2,9 @@ export const FOOTER_MIN_CLEARANCE = 96;
 
 export const FOOTER_GAP = 12;
 
+export const bottomLift = (tabBarShown: boolean, safeAreaBottom: number): number =>
+  tabBarShown ? 0 : safeAreaBottom;
+
 export const footerReach = (layoutHeight: number, bottomOffset = 0): number =>
   layoutHeight + FOOTER_GAP + bottomOffset;
 
