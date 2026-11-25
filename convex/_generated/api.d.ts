@@ -38,6 +38,7 @@ import type * as checkIn from "../checkIn.js";
 import type * as churches from "../churches.js";
 import type * as cleanup from "../cleanup.js";
 import type * as coins from "../coins.js";
+import type * as coinsBackfill from "../coinsBackfill.js";
 import type * as comments from "../comments.js";
 import type * as contact from "../contact.js";
 import type * as crons from "../crons.js";
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   churches: typeof churches;
   cleanup: typeof cleanup;
   coins: typeof coins;
+  coinsBackfill: typeof coinsBackfill;
   comments: typeof comments;
   contact: typeof contact;
   crons: typeof crons;

@@ -266,7 +266,7 @@
         "src/app/world-devotionals.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData,worldHome,worldNotices,coins}.ts",
+        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill}.ts",
         "shared/{world,worldPath,worldNotices,home,coins,ball,names}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]

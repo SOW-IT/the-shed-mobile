@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.1] - 2026-11-25
+## [2.13.3] - 2026-11-25
 
 ### Added
 - **A notice board on the Garden's left.** Opposite the Calendar board,
@@ -57,6 +57,17 @@ All notable changes to **The SHED** mobile app. This project follows
   Arriving on a pad doesn't send you back; walk off and onto it again to
   go back. A home, a poke, an invite or opening the World arrive where they
   did before.
+
+## [2.13.1] - 2026-11-25
+
+### Added
+- **Whoever was already in a game's top 3 is paid for it.** 2.12.49 paid a
+  place only when a new best reached it, so the people already 1st, 2nd or
+  3rd had nothing for their place. Within an hour of this release they're
+  paid once: 50 coins for 1st, 25 for 2nd and 10 for 3rd on each game's
+  leaderboard, with equal scores sharing a place as the leaderboard shows.
+  Anyone 2.12.49 already paid on that leaderboard gets only what they're
+  still owed, which is usually nothing.
 
 ## [2.13.0] - 2026-11-25
 
