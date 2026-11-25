@@ -48,6 +48,7 @@
     "src/app/e2e-auth.tsx",
     "src/components/nav/**",
     "src/components/ui/**",
+    "shared/sheetSwipe.ts",
     "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaAutoUpdate,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
     "src/components/{useTopBarCollapse,dateTimeDisplay}.ts",
     "src/theme.ts",
@@ -280,7 +281,8 @@
         "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
         "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor}.ts"
       ],
-      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
+      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"],
+      "checks": ["passage-picker-close"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

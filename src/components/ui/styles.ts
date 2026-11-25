@@ -153,6 +153,10 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   optionSheetHeader: {
+    // The header drags the sheet closed; on web a drag over selectable text
+    // starts a selection instead, and react-native-web won't start a
+    // responder while one is active.
+    userSelect: "none",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
