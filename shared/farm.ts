@@ -30,15 +30,15 @@ export const MAX_SEEDS_EACH = 99;
 export const MAX_SEED_BUY = 10;
 const FARM_PUSH_HOUR = 18;
 
-const PLOT_COLUMNS = [-2.7, -0.9, 0.9, 2.7] as const;
-const PLOT_ROWS = [2.8, 0.0, -2.8] as const;
+const PLOT_COLUMNS = [-2.55, -0.85, 0.85, 2.55] as const;
+const PLOT_ROWS = [2.2, -0.2, -2.6] as const;
 export const PLOT_SIZE = { w: 1.5, d: 1.4 } as const;
 const PLOT_REACH = 0.45;
 const PLOT_SIDE = 0.6;
 
 export const PLOTS = PLOT_ROWS.flatMap((z, row) => PLOT_COLUMNS.map((x, col) => ({ index: row * PLOT_COLUMNS.length + col, x, z })));
 
-export const PLOT_OBSTACLES = PLOTS.map((plot) => ({ id: `plot-${plot.index}`, x: plot.x, z: plot.z, rx: 0.85, rz: 0.78 }));
+export const PLOT_OBSTACLES = PLOTS.map((plot) => ({ id: `plot-${plot.index}`, x: plot.x, z: plot.z, rx: 0.75, rz: 0.7 }));
 
 export const plotStand = (index: number) => {
   const plot = PLOTS[index];

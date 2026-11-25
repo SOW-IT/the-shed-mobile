@@ -26,8 +26,9 @@ import {
   randomName,
   stageLabel,
 } from "./animals";
-import { DAY_MS, PEN_OBSTACLES, PENS, penStand, PLOT_OBSTACLES, PLOTS } from "./farm";
-import { clampTarget } from "./world";
+import { DAY_MS, PEN_OBSTACLES, PENS, penStand, PLOT_OBSTACLES, plotStand, PLOTS } from "./farm";
+import { arrivalSpot, clampTarget } from "./world";
+import { findPath } from "./worldPath";
 
 const AT = Date.UTC(2026, 10, 25, 2, 0);
 const HOUR = 60 * 60_000;
@@ -264,6 +265,13 @@ describe("the backyard layout", () => {
       expect(clampTarget(gate.x, gate.z, "backyard")).toEqual(gate);
     }
     expect(PEN_OBSTACLES).toHaveLength(4);
+  });
+
+  test("you can walk from the back door and from the Garden to every plot and both pen gates", () => {
+    const spots = [...PLOTS.map((plot) => plotStand(plot.index)), penStand("coop"), penStand("barn")];
+    for (const from of [arrivalSpot("home", "backyard"), arrivalSpot("garden", "backyard")]) {
+      for (const spot of spots) expect(findPath("backyard", from, clampTarget(spot.x, spot.z, "backyard"), [])).not.toBeNull();
+    }
     expect(PLOT_OBSTACLES).toHaveLength(12);
   });
 });

@@ -1028,6 +1028,7 @@ export const WorldScreen = ({
           return {
             id: animal.id,
             kind: animal.kind === "cow" ? ("cow" as const) : ("chicken" as const),
+            name: animal.name,
             stage: l.stage,
             progress: l.progress,
             mood: l.mood,

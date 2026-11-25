@@ -17,28 +17,37 @@ export const seedOf = (id: string) => {
 };
 
 type Spot = { u: number; v: number };
+export type Zone = { u0: number; u1: number; v0: number; v1: number };
 
-const spotAt = (seed: number, i: number): Spot => {
+export const zoneOf = (slot: number, slots: number): Zone => {
+  const cols = slots >= 4 ? 2 : Math.max(1, slots);
+  const rows = Math.ceil(Math.max(1, slots) / cols);
+  const col = slot % cols;
+  const row = Math.floor(slot / cols) % rows;
+  return { u0: col / cols, u1: (col + 1) / cols, v0: row / rows, v1: (row + 1) / rows };
+};
+
+const spotAt = (seed: number, i: number, zone: Zone): Spot => {
   "worklet";
   const k = ((i % SEGMENTS) + SEGMENTS) % SEGMENTS;
-  return { u: 0.18 + 0.64 * unit(seed, k), v: 0.3 + 0.55 * unit(seed + 101, k) };
+  return { u: zone.u0 + (zone.u1 - zone.u0) * (0.15 + 0.7 * unit(seed, k)), v: zone.v0 + (zone.v1 - zone.v0) * (0.2 + 0.7 * unit(seed + 101, k)) };
 };
 
 type Wander = { u: number; v: number; walking: boolean; left: boolean; idle: number };
 
 export const PACE = { fed: 0.3, hungry: 0.6 } as const;
 
-export const wanderAt = (seed: number, phase: number, pace: number | null): Wander => {
+export const wanderAt = (seed: number, phase: number, pace: number | null, zone: Zone): Wander => {
   "worklet";
   if (pace === null) {
-    const still = spotAt(seed, 0);
+    const still = spotAt(seed, 0, zone);
     return { u: still.u, v: still.v, walking: false, left: unit(seed, 99) < 0.5, idle: 0 };
   }
   const t = (((phase % 1) + 1) % 1) * SEGMENTS;
   const seg = Math.floor(t);
   const k = t - seg;
-  const from = spotAt(seed, seg);
-  const to = spotAt(seed, seg + 1);
+  const from = spotAt(seed, seg, zone);
+  const to = spotAt(seed, seg + 1, zone);
   const move = Math.min(1, k / pace);
   const eased = move * move * (3 - 2 * move);
   return {

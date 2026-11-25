@@ -1,8 +1,8 @@
 import type { Mood } from "@shared/animals";
-import { memo, useEffect, useMemo, type ReactNode } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { cancelAnimation, Easing, runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
-import { PACE, peckAt, penPoint, phaseAt, seedOf, swishAt, wanderAt, WANDER_LOOP_MS, type PenCorners } from "./animalMotion";
+import { PACE, peckAt, penPoint, phaseAt, seedOf, swishAt, wanderAt, WANDER_LOOP_MS, zoneOf, type PenCorners, type Zone } from "./animalMotion";
 import { Ellipse } from "./Shapes";
 import { animals as tint, garden, mix } from "./palette";
 
@@ -23,8 +23,6 @@ const Box = ({ x, y, w, h, r, fill, ink, turn = 0 }: { x: number; y: number; w: 
   />
 );
 
-const sizeOf = (look: Look) => (look.stage === 2 ? 1 : 0.5 + 0.42 * Math.min(1, look.progress));
-const DRAWN_AT: Record<Kind, number> = { chicken: 1.9, cow: 1.4 };
 
 const HenBody = ({ u, look }: { u: number; look: Look }) => {
   const ink = Math.max(1, 0.03 * u);
@@ -59,27 +57,28 @@ const HenHead = ({ u, look }: { u: number; look: Look }) => {
 };
 
 const SPOTS: readonly [number, number, number, number][] = [
-  [-0.22, -0.66, 0.13, 0.09],
-  [0.12, -0.56, 0.1, 0.08],
-  [-0.02, -0.72, 0.07, 0.05],
+  [-0.26, -0.52, 0.16, 0.11],
+  [0.16, -0.42, 0.12, 0.09],
+  [-0.02, -0.66, 0.09, 0.06],
 ];
+const BODY = { left: -0.52, top: -0.76, w: 1.02, h: 0.58 } as const;
 
 const CowBody = ({ u, look }: { u: number; look: Look }) => {
   const ink = Math.max(1, 0.03 * u);
   const hide = dim(look.stage === 0 ? tint.calf : tint.cow, look);
   const spot = dim(look.stage === 1 ? tint.youngSpot : tint.spot, look);
-  const thin = look.mood === "frail" ? 0.8 : 1;
+  const thin = look.mood === "frail" ? 0.84 : 1;
   const leg = dim(tint.cowLeg, look);
+  const h = BODY.h * thin;
+  const top = BODY.top + BODY.h - h;
   return (
     <>
-      {[-0.32, -0.18, 0.18, 0.3].map((x) => (
-        <Box key={x} x={x * u} y={-0.23 * u} w={0.09 * u} h={0.46 * u} r={0.03 * u} fill={leg} ink={ink} />
+      {[-0.34, -0.17, 0.17, 0.32].map((x) => (
+        <Box key={x} x={x * u} y={-0.12 * u} w={0.12 * u} h={0.24 * u} r={0.05 * u} fill={leg} ink={ink} />
       ))}
-      {look.stage === 2 ? <Ellipse cx={-0.02 * u} cy={-0.38 * u} rx={0.09 * u} ry={0.05 * u} fill={dim(tint.udder, look)} ink={ink * 0.8} inkColour={garden.ink} /> : null}
-      <View pointerEvents="none" style={[styles.abs, { left: -0.46 * u, top: (-0.62 - 0.22 * thin) * u, width: 0.9 * u, height: 0.44 * thin * u, borderRadius: 0.2 * u, backgroundColor: hide, borderWidth: ink, borderColor: garden.ink, overflow: "hidden" }]}>
-        {look.stage === 0
-          ? null
-          : SPOTS.map(([x, y, rx, ry]) => <Ellipse key={`${x}`} cx={(x + 0.46) * u} cy={(y + 0.62 + 0.22 * thin) * u} rx={rx * u} ry={ry * u} fill={spot} />)}
+      {look.stage === 2 ? <Ellipse cx={-0.02 * u} cy={-0.2 * u} rx={0.1 * u} ry={0.06 * u} fill={dim(tint.udder, look)} ink={ink * 0.8} inkColour={garden.ink} /> : null}
+      <View pointerEvents="none" style={[styles.abs, { left: BODY.left * u, top: top * u, width: BODY.w * u, height: h * u, borderRadius: 0.27 * u, backgroundColor: hide, borderWidth: ink, borderColor: garden.ink, overflow: "hidden" }]}>
+        {look.stage === 0 ? null : SPOTS.map(([x, y, rx, ry]) => <Ellipse key={`${x}`} cx={(x - BODY.left) * u} cy={(y - top) * u} rx={rx * u} ry={ry * u} fill={spot} />)}
       </View>
     </>
   );
@@ -90,20 +89,20 @@ const CowHead = ({ u, look }: { u: number; look: Look }) => {
   const hide = dim(look.stage === 0 ? tint.calf : tint.cow, look);
   return (
     <>
-      <Box x={0.42 * u} y={-0.84 * u} w={0.14 * u} h={0.07 * u} r={0.035 * u} fill={hide} ink={ink} turn={-25} />
-      {look.stage === 2 ? <Box x={0.53 * u} y={-0.92 * u} w={0.05 * u} h={0.1 * u} r={0.025 * u} fill={dim(tint.horn, look)} ink={ink * 0.8} turn={20} /> : null}
-      <Ellipse cx={0.56 * u} cy={-0.72 * u} rx={0.15 * u} ry={0.17 * u} fill={hide} ink={ink} inkColour={garden.ink} ramp />
-      <Ellipse cx={0.62 * u} cy={-0.62 * u} rx={0.11 * u} ry={0.08 * u} fill={dim(tint.muzzle, look)} ink={ink * 0.8} inkColour={garden.ink} />
-      <Ellipse cx={0.64 * u} cy={-0.62 * u} rx={0.015 * u} ry={0.02 * u} fill={garden.ink} />
-      <Ellipse cx={0.6 * u} cy={-0.77 * u} rx={0.02 * u} ry={look.mood === "frail" ? 0.007 * u : 0.025 * u} fill={garden.ink} />
+      <Box x={0.45 * u} y={-0.76 * u} w={0.15 * u} h={0.08 * u} r={0.04 * u} fill={hide} ink={ink} turn={-25} />
+      {look.stage === 2 ? <Box x={0.56 * u} y={-0.85 * u} w={0.055 * u} h={0.1 * u} r={0.027 * u} fill={dim(tint.horn, look)} ink={ink * 0.8} turn={20} /> : null}
+      <Ellipse cx={0.6 * u} cy={-0.64 * u} rx={0.17 * u} ry={0.18 * u} fill={hide} ink={ink} inkColour={garden.ink} ramp />
+      <Ellipse cx={0.66 * u} cy={-0.53 * u} rx={0.12 * u} ry={0.085 * u} fill={dim(tint.muzzle, look)} ink={ink * 0.8} inkColour={garden.ink} />
+      <Ellipse cx={0.69 * u} cy={-0.53 * u} rx={0.016 * u} ry={0.022 * u} fill={garden.ink} />
+      <Ellipse cx={0.64 * u} cy={-0.69 * u} rx={0.022 * u} ry={look.mood === "frail" ? 0.008 * u : 0.027 * u} fill={garden.ink} />
     </>
   );
 };
 
 const CowTail = ({ u, look }: { u: number; look: Look }) => (
   <>
-    <Box x={0} y={0.14 * u} w={0.035 * u} h={0.28 * u} r={u} fill={dim(tint.cowLeg, look)} ink={0} />
-    <Ellipse cx={0} cy={0.3 * u} rx={0.04 * u} ry={0.06 * u} fill={dim(tint.spot, look)} />
+    <Box x={0} y={0.12 * u} w={0.04 * u} h={0.24 * u} r={u} fill={dim(tint.cowLeg, look)} ink={0} />
+    <Ellipse cx={0} cy={0.26 * u} rx={0.045 * u} ry={0.065 * u} fill={dim(tint.spot, look)} />
   </>
 );
 
@@ -181,7 +180,22 @@ const GRAINS: readonly [number, number][] = [
   [0.42, 0.72],
 ];
 
-export type PenAnimal = { id: string; kind: Kind; stage: Stage; progress: number; mood: Mood; ready: boolean; note?: string; fresh: boolean };
+export type PenAnimal = { id: string; kind: Kind; name: string; stage: Stage; progress: number; mood: Mood; ready: boolean; note?: string; fresh: boolean };
+
+const paceOf = (mood: Mood) => (mood === "frail" || mood === "gone" ? null : mood === "hungry" ? PACE.hungry : PACE.fed);
+const NAME_H = 15;
+const DRAWN_AT: Record<Kind, number> = { chicken: 1.9, cow: 1.4 };
+const TOP_OF: Record<Kind, number> = { chicken: -0.62, cow: -0.88 };
+
+const sizeOf = (look: Look) => (look.stage === 2 ? 1 : 0.5 + 0.42 * Math.min(1, look.progress));
+
+type Tag = { bottom: number; top: number; w: number; name: number };
+const tagOf = (a: PenAnimal, base: number): Tag => {
+  const bottom = TOP_OF[a.kind] * base * DRAWN_AT[a.kind] * sizeOf(a);
+  const badge = a.mood === "hungry" || a.mood === "frail" || a.ready ? 0.36 * base + 16 : 0;
+  const name = Array.from(a.name).length * 5.8 + 14;
+  return { bottom, top: bottom - NAME_H - badge, w: Math.max(name, badge > 0 ? 0.34 * base + 14 : 0), name };
+};
 
 type Point = { x: number; y: number; scale: number };
 
@@ -215,6 +229,10 @@ const Critter = ({
   feeding,
   onFed,
   onLeft,
+  others,
+  part,
+  zone,
+  tag,
 }: {
   a: PenAnimal;
   pen: PenCorners;
@@ -226,9 +244,13 @@ const Critter = ({
   feeding: number | null;
   onFed: () => void;
   onLeft: (id: string) => void;
+  others: readonly { seed: number; pace: number | null; zone: Zone; tag: Tag }[];
+  part: "body" | "tag";
+  zone: Zone;
+  tag: Tag;
 }) => {
   const seed = useMemo(() => seedOf(a.id), [a.id]);
-  const pace = a.mood === "frail" || a.mood === "gone" ? null : a.mood === "hungry" ? PACE.hungry : PACE.fed;
+  const pace = paceOf(a.mood);
   const arrive = useSharedValue(a.fresh && live ? 0 : 1);
   useEffect(() => {
     if (arrive.value >= 1) return;
@@ -240,17 +262,17 @@ const Critter = ({
   useEffect(() => {
     if (!leaving) return;
     if (!live) {
-      onLeft(id);
+      if (part === "body") onLeft(id);
       return;
     }
     leave.value = withTiming(1, { duration: LEAVE_MS, easing: Easing.linear }, (finished) => {
-      if (finished) runOnJS(onLeft)(id);
+      if (finished && part === "body") runOnJS(onLeft)(id);
     });
     return () => cancelAnimation(leave);
-  }, [leaving, live, leave, onLeft, id]);
+  }, [leaving, live, leave, onLeft, id, part]);
   const feed = useSharedValue(1);
   useEffect(() => {
-    if (feeding === null) return;
+    if (feeding === null || part !== "body") return;
     if (!live) {
       onFed();
       return;
@@ -260,9 +282,9 @@ const Critter = ({
       if (finished) runOnJS(onFed)();
     });
     return () => cancelAnimation(feed);
-  }, [feeding, live, feed, onFed]);
+  }, [feeding, live, feed, onFed, part]);
   const place = useAnimatedStyle(() => {
-    const w = wanderAt(seed, clock.value, pace);
+    const w = wanderAt(seed, clock.value, pace, zone);
     let p = penPoint(pen, w.u, w.v);
     const k = arrive.value;
     let hop = 0;
@@ -286,14 +308,14 @@ const Critter = ({
   });
   const facing = useAnimatedStyle(() => {
     const l = leave.value;
-    const left = l > 0 ? exit.x < gate.x : wanderAt(seed, clock.value, pace).left;
+    const left = l > 0 ? exit.x < gate.x : wanderAt(seed, clock.value, pace, zone).left;
     return { transform: [{ scaleX: left ? -1 : 1 }] };
   });
   const full = base * DRAWN_AT[a.kind];
   const u = full * sizeOf(a);
-  const neck = a.kind === "cow" ? { x: 0.42 * u, y: -0.7 * u } : { x: 0.12 * u, y: -0.34 * u };
+  const neck = a.kind === "cow" ? { x: 0.44 * u, y: -0.6 * u } : { x: 0.12 * u, y: -0.34 * u };
   const head = useAnimatedStyle(() => {
-    const w = wanderAt(seed, clock.value, pace);
+    const w = wanderAt(seed, clock.value, pace, zone);
     const eating = feed.value < 1 ? Math.abs(Math.sin(feed.value * Math.PI * 6)) * Math.min(1, feed.value * 4) : 0;
     const frail = a.mood === "frail" ? 0.6 : 0;
     const peck = a.kind === "cow" ? Math.min(1, w.idle * 3) * (1 - Math.max(0, (w.idle - 0.8) * 5)) * 0.8 : peckAt(clock.value, seed) * (w.walking ? 0 : 1);
@@ -307,42 +329,63 @@ const Critter = ({
     const drop = Math.min(1, k / 0.3);
     return { opacity: k > 0.85 ? (1 - k) / 0.15 : 1, transform: [{ translateY: -(1 - drop * drop) * 0.9 * u }, { scale: 0.6 + 0.4 * drop }] };
   });
+  const nameShown = useAnimatedStyle(() => {
+    const mine = wanderAt(seed, clock.value, pace, zone);
+    const p = penPoint(pen, mine.u, mine.v);
+    for (const o of others) {
+      const w = wanderAt(o.seed, clock.value, o.pace, o.zone);
+      const q = penPoint(pen, w.u, w.v);
+      if (Math.abs(p.x - q.x) < (o.tag.w + tag.w) / 2 && p.y + tag.top < q.y + o.tag.bottom && q.y + o.tag.top < p.y + tag.bottom) return { opacity: 0 };
+    }
+    return { opacity: 1 };
+  });
   const look: Look = { stage: a.stage, progress: a.progress, mood: a.mood };
-  const badgeY = (a.kind === "cow" ? -1.0 : -0.62) * u;
+  const badgeY = TOP_OF[a.kind] * u;
   const feedPile = a.kind === "cow" ? "hay" : "grain";
   return (
-    <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-${a.kind}-${a.stage}-${a.mood}${a.ready ? "-ready" : ""}`}>
-      <Animated.View style={[styles.abs, facing]}>
-        {a.kind === "cow" ? (
-          <>
-            <Animated.View style={[styles.abs, { left: -0.46 * u, top: -0.78 * u, transformOrigin: "top" } as ViewStyle, tail]}>
-              <CowTail u={u} look={look} />
-            </Animated.View>
-            <CowBody u={u} look={look} />
-          </>
-        ) : (
-          <HenBody u={u} look={look} />
-        )}
-        <Animated.View style={[styles.abs, head]}>{a.kind === "cow" ? <CowHead u={u} look={look} /> : <HenHead u={u} look={look} />}</Animated.View>
-        <Animated.View style={[styles.abs, { left: (a.kind === "cow" ? 0.6 : 0.3) * u - 0.2 * full, top: -0.36 * full }, food]}>
-          <FeedThumb feed={feedPile} size={0.4 * full} />
+    part === "body" ? (
+      <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-${a.kind}-${a.stage}-${a.mood}${a.ready ? "-ready" : ""}`}>
+        <Animated.View style={[styles.abs, facing]}>
+          {a.kind === "cow" ? (
+            <>
+              <Animated.View style={[styles.abs, { left: -0.5 * u, top: -0.66 * u, transformOrigin: "top" } as ViewStyle, tail]}>
+                <CowTail u={u} look={look} />
+              </Animated.View>
+              <CowBody u={u} look={look} />
+            </>
+          ) : (
+            <HenBody u={u} look={look} />
+          )}
+          <Animated.View style={[styles.abs, head]}>{a.kind === "cow" ? <CowHead u={u} look={look} /> : <HenHead u={u} look={look} />}</Animated.View>
+          <Animated.View style={[styles.abs, { left: (a.kind === "cow" ? 0.6 : 0.3) * u - 0.2 * full, top: -0.36 * full }, food]}>
+            <FeedThumb feed={feedPile} size={0.4 * full} />
+          </Animated.View>
         </Animated.View>
       </Animated.View>
-      {a.mood === "hungry" || a.mood === "frail" ? <Badge y={badgeY}><Bowl u={base} /></Badge> : a.ready ? <Badge y={badgeY}>{a.kind === "cow" ? <Bottle u={base} /> : <NestEgg u={base} />}</Badge> : null}
-      {a.note ? (
-        <View style={[styles.note, { top: 4 }]}>
-          <Text style={styles.noteText} numberOfLines={1}>
-            {a.note}
-          </Text>
+    ) : (
+      <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-tag-${a.id}`}>
+        <View style={[styles.stack, { bottom: -badgeY }]}>
+          {a.mood === "hungry" || a.mood === "frail" ? <Bowl u={base} /> : a.ready ? a.kind === "cow" ? <Bottle u={base} /> : <NestEgg u={base} /> : null}
+          <Animated.View style={[styles.name, nameShown]}>
+            <Text style={styles.nameText} numberOfLines={1}>
+              {a.name}
+            </Text>
+          </Animated.View>
         </View>
-      ) : null}
-    </Animated.View>
+        {a.note ? (
+          <View style={[styles.note, { top: 4 }]}>
+            <Text style={styles.noteText} numberOfLines={1}>
+              {a.note}
+            </Text>
+          </View>
+        ) : null}
+      </Animated.View>
+    )
   );
 };
 
-const Badge = ({ y, children }: { y: number; children: ReactNode }) => <View style={[styles.badgeAt, { bottom: -y }]}>{children}</View>;
-
 export const PenAnimals = memo(function PenAnimals({
+  slots,
   pen,
   gate,
   exit,
@@ -352,6 +395,7 @@ export const PenAnimals = memo(function PenAnimals({
   onFed,
   onLeft,
 }: {
+  slots: number;
   pen: PenCorners;
   gate: Point;
   exit: Point;
@@ -363,24 +407,33 @@ export const PenAnimals = memo(function PenAnimals({
 }) {
   const clock = usePhase(live);
   const base = (pen.backLeft.scale + pen.frontRight.scale) / 2;
+  const zones = useMemo(() => animals.map((_, i) => zoneOf(i, Math.max(slots, animals.length))), [animals, slots]);
+  const tags = useMemo(() => animals.map((a) => tagOf(a, base)), [animals, base]);
+  const before = useMemo(
+    () => animals.map((_, i) => animals.slice(0, i).flatMap((o, j) => (o.mood === "gone" ? [] : [{ seed: seedOf(o.id), pace: paceOf(o.mood), zone: zones[j], tag: tags[j] }]))),
+    [animals, zones, tags]
+  );
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {animals.map((a) => (
-        <Critter key={a.id} a={a} pen={pen} gate={gate} exit={exit} base={base} clock={clock} live={live} feeding={feeding?.id === a.id ? feeding.key : null} onFed={onFed} onLeft={onLeft} />
-      ))}
+      {(["body", "tag"] as const).flatMap((part) =>
+        animals.map((a, i) => (
+          <Critter key={`${part}-${a.id}`} a={a} part={part} pen={pen} gate={gate} exit={exit} base={base} clock={clock} live={live} feeding={feeding?.id === a.id ? feeding.key : null} onFed={onFed} onLeft={onLeft} others={before[i]} zone={zones[i]} tag={tags[i]} />
+        ))
+      )}
     </View>
   );
 });
 
-export const animalAt = (pen: PenCorners, id: string, mood: Mood, phase: number) => {
-  const pace = mood === "frail" || mood === "gone" ? null : mood === "hungry" ? PACE.hungry : PACE.fed;
-  const w = wanderAt(seedOf(id), phase, pace);
+export const animalAt = (pen: PenCorners, id: string, mood: Mood, phase: number, zone: Zone) => {
+  const w = wanderAt(seedOf(id), phase, paceOf(mood), zone);
   return penPoint(pen, w.u, w.v);
 };
 
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
-  badgeAt: { position: "absolute", left: -40, width: 80, alignItems: "center" },
+  stack: { position: "absolute", left: -60, width: 120, alignItems: "center", gap: 2 },
+  name: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: tint.namePill, maxWidth: 110 },
+  nameText: { color: tint.nameText, fontSize: 9.5, fontWeight: "700" },
   badge: { alignItems: "center", justifyContent: "center", borderRadius: 999, backgroundColor: tint.badge, borderWidth: 2, borderColor: garden.ink },
   bowl: { backgroundColor: tint.bowl, borderWidth: 2, borderColor: garden.ink, borderTopWidth: 3 },
   egg: { backgroundColor: tint.egg, borderWidth: 2, borderColor: garden.ink, marginBottom: -4 },
@@ -404,7 +457,7 @@ export const AnimalThumb = memo(function AnimalThumb({ kind, stage, size, mood =
       <View style={[styles.abs, { left: size / 2 - (kind === "cow" ? 0.06 : 0.04) * u, top: size * 0.9, transform: [{ scale: sizeOf(look) }], transformOrigin: "bottom" } as ViewStyle]}>
         {kind === "cow" ? (
           <>
-            <View style={[styles.abs, { left: -0.46 * u, top: -0.78 * u }]}>
+            <View style={[styles.abs, { left: -0.5 * u, top: -0.66 * u }]}>
               <CowTail u={u} look={look} />
             </View>
             <CowBody u={u} look={look} />

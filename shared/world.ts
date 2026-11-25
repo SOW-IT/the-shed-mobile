@@ -352,7 +352,7 @@ export const OBSTACLES = [
   { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
   // The notice board on the left: your notifications and the admins' notices.
   { id: "notices", x: -3.0, z: -6.0, rx: 0.65, rz: 0.4 },
-  { id: "josh", x: 3.05, z: 2.75, rx: 0.4, rz: 0.3 },
+  { id: "josh", x: 2.75, z: -2.75, rx: 0.4, rz: 0.3 },
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
@@ -1009,8 +1009,8 @@ export const FARMER = {
   id: "npc:josh",
   name: "Josh Kim",
   place: "garden",
-  x: 3.05,
-  z: 2.75,
+  x: 2.75,
+  z: -2.75,
   heading: -0.35,
   look: {
     v: LOOK_VERSION,

@@ -477,9 +477,9 @@ const buildBackyard = (cam: Camera, yard: Yard): Scene => {
   for (let z = -16; z <= 10; z += 2) {
     g.groundQuad([[-9, z - 0.5], [9, z - 0.5], [9, z + 0.5], [-9, z + 0.5]], c.stripe);
   }
-  g.groundQuad([[-0.7, 3.4], [0.7, 3.4], [0.9, 8], [-0.9, 8]], c.path, 0.004);
+  g.groundQuad([[-0.7, 2.8], [0.7, 2.8], [0.9, 8], [-0.9, 8]], c.path, 0.004);
   g.groundQuad([[-0.55, -10.4], [0.55, -10.4], [0.65, -4.2], [-0.65, -4.2]], c.path, 0.004);
-  for (const z of [4.05, 1.4, -1.4, -4.2]) g.groundQuad([[-3.8, z - 0.5], [3.8, z - 0.5], [3.8, z + 0.5], [-3.8, z + 0.5]], c.path, 0.004);
+  for (const z of [3.4, 1.0, -1.4, -3.95]) g.groundQuad([[-3.8, z - 0.45], [3.8, z - 0.45], [3.8, z + 0.45], [-3.8, z + 0.45]], c.path, 0.004);
   for (const [x, z, s] of YARD_TREES) g.groundDisc(x - 0.9 * s, z - 0.6 * s, 1.3 * s, 1.0 * s, garden.shadow);
   const halfW = PLOT_SIZE.w / 2;
   const halfD = PLOT_SIZE.d / 2;

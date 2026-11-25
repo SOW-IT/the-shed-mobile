@@ -52,7 +52,7 @@ import { CropThumb, FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, Pri
 import { BUILDING_IDS, FREE_PLOTS, PENS, PLOT_SIZE, PLOTS, plotPrice, type BuildingId, type CropId, type Stage } from "@shared/farm";
 import { animalFor, buildingFor, BUILDINGS } from "@shared/animals";
 import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
-import { penPoint, phaseAt, type PenCorners } from "./animalMotion";
+import { penPoint, phaseAt, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -614,7 +614,7 @@ export const Garden = ({
   if (farmerHere) {
     const figure = figureFor(cam, FARMER_POSE);
     actors.push({ depth: figure.foot.depth, key: FARMER.id, node: <Avatar figure={figure} pose={FARMER_POSE} look={FARMER.look} t={0} seed={5} doing={FARMER_CHEER} /> });
-    const head = cam.project([FARMER.x, headTop(FARMER.look) + 0.35, FARMER.z]);
+    const head = cam.project([FARMER.x, headTop(FARMER.look), FARMER.z]);
     actors.push({ depth: figure.foot.depth, key: `${FARMER.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={FARMER_TAG} me={false} emoteRise={0} /> });
   }
   if (place === "campfire") {
@@ -689,7 +689,7 @@ export const Garden = ({
       actors.push({
         depth: pen.middle.depth,
         key: `animals-${id}`,
-        node: <PenAnimals pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} />,
+        node: <PenAnimals slots={BUILDINGS[id].capacity} pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} />,
       });
     }
     if (yard.card) {
@@ -700,7 +700,9 @@ export const Garden = ({
       const { id, good } = yard.collecting;
       const animal = yard.animals.find((a) => a.id === id);
       if (animal) {
-        const at = animalAt(pens[buildingFor(animal.kind)].corners, id, animal.mood, phaseAt(serverNow()));
+        const building = buildingFor(animal.kind);
+        const here = yard.animals.filter((a) => buildingFor(a.kind) === building);
+        const at = animalAt(pens[building].corners, id, animal.mood, phaseAt(serverNow()), zoneOf(here.indexOf(animal), Math.max(BUILDINGS[building].capacity, here.length)));
         farmLabels.push(
           <FlyingCrop key={`collect-${yard.collecting.key}`} from={{ x: at.x, y: at.y - 0.4 * at.scale }} to={farm?.bagAt ?? { x: 54, y: 30 }} live={live} onDone={yard.onCollected}>
             <GoodThumb good={good} size={48} />
@@ -1105,7 +1107,7 @@ const penScreens = (cam: ReturnType<typeof makeCamera>): Record<BuildingId, PenS
     const gate = cam.project([pen.x, 0, pen.front + 0.3]);
     const exit = cam.project([pen.x + (id === "coop" ? -4.6 : 4.6), 0, pen.front + 1.2]);
     const middle = cam.project([pen.x, 0, (pen.front + pen.back) / 2]);
-    const top = cam.project([pen.x, 1.1, pen.front]);
+    const top = cam.project([pen.house.x, 3.4, pen.house.z]);
     const house = cam.project([pen.house.x, 1.2, pen.house.z + pen.house.d / 2]);
     const left = cam.project([pen.x - pen.w / 2 - 0.1, 0, pen.front]).x;
     const right = cam.project([pen.x + pen.w / 2 + 0.1, 0, pen.front]).x;
@@ -1132,9 +1134,10 @@ const yardAtScreen = (cam: ReturnType<typeof makeCamera>, pens: Record<BuildingI
     if (!yard[id]) return yard.mine ? { kind: "building", id } : null;
     const phase = phaseAt(Date.now());
     let best: { id: string; d: number } | null = null;
-    for (const animal of yard.animals) {
-      if (buildingFor(animal.kind) !== id || animal.mood === "gone") continue;
-      const at = animalAt(pen.corners, animal.id, animal.mood, phase);
+    const here = yard.animals.filter((a) => buildingFor(a.kind) === id);
+    for (const [slot, animal] of here.entries()) {
+      if (animal.mood === "gone") continue;
+      const at = animalAt(pen.corners, animal.id, animal.mood, phase, zoneOf(slot, Math.max(BUILDINGS[id].capacity, here.length)));
       const d = Math.hypot(at.x - x, at.y - 0.35 * at.scale - y);
       if (d <= ANIMAL_REACH * at.scale && (!best || d < best.d)) best = { id: animal.id, d };
     }
@@ -1143,7 +1146,7 @@ const yardAtScreen = (cam: ReturnType<typeof makeCamera>, pens: Record<BuildingI
   return null;
 };
 
-const ANIMAL_REACH = 0.75;
+const ANIMAL_REACH = 1.1;
 
 const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
 const NPC_TAG = "☕ Sijin Y.";
