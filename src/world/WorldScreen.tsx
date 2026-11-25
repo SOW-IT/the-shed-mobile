@@ -255,8 +255,9 @@ export const WorldScreen = ({
   const farm = useFarm({ roomId: world.roomId, inBackyard });
   const minuteNow = useMinuteClock(world.serverNow, inBackyard);
   const [yardNow, setYardNow] = useState(0);
-  const farmNow = Math.max(minuteNow, yardNow);
   const animals = useAnimals({ roomId: world.roomId, inBackyard });
+  const yardLatest = latestYardTime(animals.view?.animals);
+  const farmNow = Math.max(minuteNow, yardNow, yardLatest);
   const [animalTrip, setAnimalTrip] = useState<{ id: string; since: number } | null>(null);
   const [yardCard, setYardCard] = useState<{ at: BuildingId; id: string | null; extra: string | null; key: number } | null>(null);
   const [feeding, setFeeding] = useState<{ id: string; key: number } | null>(null);
@@ -585,6 +586,8 @@ export const WorldScreen = ({
     setBuildingOffer(null);
     setPenSheet(null);
     setArrivals(new Set());
+    setFeeding(null);
+    setCollecting(null);
     setPlotCard(null);
     setPickPlot(null);
     setOfferOpen(false);
@@ -849,6 +852,7 @@ export const WorldScreen = ({
       return;
     }
     world.walkTo(spot.x, spot.z);
+    setAnimalTrip(null);
     setPlotTrip({ plot, since: Date.now() });
   };
   useEffect(() => {
@@ -1713,6 +1717,9 @@ export const WorldScreen = ({
     </View>
   );
 };
+
+const latestYardTime = (animals: readonly { feedings: readonly { at: number }[]; collectedAt?: number }[] | undefined) =>
+  (animals ?? []).reduce((latest, a) => Math.max(latest, a.collectedAt ?? 0, ...a.feedings.map((f) => f.at)), 0);
 
 const PAD_SETTLE_MS = 150;
 const PLOT_CARD_MS = 4000;
