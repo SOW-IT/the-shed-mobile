@@ -2,13 +2,13 @@ import { describe, expect, test } from "vitest";
 import { headerPlacement, titleInsets, type ScreenHeader } from "./screenHeader";
 
 const header: ScreenHeader = {
-  title: "Churches",
-  icon: "business-outline",
-  action: { label: "Add", onPress: () => {} },
+  title: "Devotionals",
+  icon: "book-outline",
+  action: { label: "Today", onPress: () => {} },
 };
 
 describe("headerPlacement", () => {
-  test("on a phone the title and action go in the top bar, and the page shows neither", () => {
+  test("on a phone the title and Today go in the top bar, and the page shows neither", () => {
     expect(headerPlacement(false, header)).toEqual({ topBar: header, page: null });
   });
 
@@ -22,7 +22,8 @@ describe("headerPlacement", () => {
   });
 
   test("a title with no action keeps the action out", () => {
-    expect(headerPlacement(false, { title: "Insights" }).topBar).toEqual({ title: "Insights" });
+    expect(headerPlacement(false, { title: "Churches" }).topBar).toEqual({ title: "Churches" });
+    expect(headerPlacement(true, { title: "Churches" }).page).toEqual({ title: "Churches" });
   });
 });
 

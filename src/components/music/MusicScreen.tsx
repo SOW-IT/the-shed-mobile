@@ -5,6 +5,7 @@ import {
   Card,
   ConfirmDialog,
   errorMessage,
+  FooterAction,
   LoadingState,
   Muted,
   Screen,
@@ -18,6 +19,7 @@ import { staffOnlyMessage } from "@shared/staffOnly";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApprovedPlaylistTab } from "./ApprovedPlaylistTab";
 import { MyRequestsTab } from "./MyRequestsTab";
 import { ToReviewTab } from "./ToReviewTab";
@@ -30,6 +32,7 @@ import { PraiseManagersTab } from "./PraiseManagersCard";
 
 export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
   const convex = useConvex();
+  const insets = useSafeAreaInsets();
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -228,17 +231,16 @@ export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
           if (key === "toReview") reviewLoadMoreRef.current?.();
         }}
         floating={<Toast toast={toast} />}
-        header={{
-          title: "Praise List",
-          icon: "musical-notes-outline",
-          action: {
-            label: addsDirectly ? "Add" : "Request",
-            onPress: openNewRequest,
-            accessibilityLabel: addsDirectly ? "Add to the playlist" : "Make a request",
-            testID: "music-new-request",
-          },
-          info: { onPress: () => setGuideOpen(true), accessibilityLabel: "How the Praise List works" },
-        }}
+        floatingAboveFooter
+        header={{ title: "Praise List", icon: "musical-notes-outline" }}
+        footer={
+          <FooterAction
+            title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
+            onPress={openNewRequest}
+            onInfo={() => setGuideOpen(true)}
+            bottomOffset={onBack ? insets.bottom : 0}
+          />
+        }
       />
 
       <NewMusicRequestSheet
