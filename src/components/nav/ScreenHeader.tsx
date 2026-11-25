@@ -2,52 +2,27 @@ import { AppIcon, type AppIconName } from "@/components/ui/icon";
 import { useWideLayout } from "@/components/nav/layout";
 import { headerPlacement, type ScreenHeader as ScreenHeaderSpec } from "@/lib/screenHeader";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 export type ScreenHeader = ScreenHeaderSpec<AppIconName>;
 
-const HeaderActions = ({ header }: { header: ScreenHeader }) => {
+const HeaderAction = ({ header }: { header: ScreenHeader }) => {
   const t = useAppTheme();
-  const { action, info } = header;
-  if (!action && !info) return null;
+  const { action } = header;
+  if (!action) return null;
   return (
-    <View style={styles.actions}>
-      {info ? (
-        <Pressable
-          onPress={info.onPress}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={info.accessibilityLabel}
-          testID="screen-header-info"
-          style={({ pressed }) => pressed && { opacity: 0.6 }}
-        >
-          <Ionicons name="information-circle-outline" size={24} color={t.text} />
-        </Pressable>
-      ) : null}
-      {action ? (
-        <Pressable
-          onPress={action.onPress}
-          disabled={action.disabled}
-          hitSlop={6}
-          accessibilityRole="button"
-          accessibilityLabel={action.accessibilityLabel ?? action.label}
-          accessibilityState={{ disabled: !!action.disabled }}
-          testID={action.testID ?? "screen-header-action"}
-          style={({ pressed }) => [
-            styles.action,
-            { backgroundColor: t.primary },
-            action.disabled && styles.disabled,
-            pressed && { opacity: 0.8 },
-          ]}
-        >
-          {action.icon === null ? null : <AppIcon name={action.icon ?? "add"} size={16} color={t.onPrimary} />}
-          <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]} numberOfLines={1}>
-            {action.label}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
+    <Pressable
+      onPress={action.onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel ?? action.label}
+      testID={action.testID ?? "screen-header-action"}
+      style={({ pressed }) => [styles.action, { backgroundColor: t.primary }, pressed && { opacity: 0.8 }]}
+    >
+      <Text style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]} numberOfLines={1}>
+        {action.label}
+      </Text>
+    </Pressable>
   );
 };
 
@@ -70,7 +45,7 @@ const PageHeader = ({ header }: { header: ScreenHeader }) => {
           {header.title}
         </Text>
       </View>
-      <HeaderActions header={header} />
+      <HeaderAction header={header} />
     </View>
   );
 };
@@ -79,23 +54,17 @@ export const useScreenHeader = (header: ScreenHeader | undefined) => {
   const { topBar, page } = headerPlacement(useWideLayout(), header);
   return {
     topBarTitle: topBar ? <TopBarTitle title={topBar.title} /> : undefined,
-    topBarRight: topBar ? <HeaderActions header={topBar} /> : undefined,
+    topBarRight: topBar?.action ? <HeaderAction header={topBar} /> : undefined,
     pageHeader: page ? <PageHeader header={page} /> : null,
   };
 };
 
 const styles = StyleSheet.create({
-  actions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   action: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    paddingLeft: spacing.sm,
-    paddingRight: spacing.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: 7,
     borderRadius: radius.full,
   },
-  disabled: { opacity: 0.45 },
   page: {
     flexDirection: "row",
     alignItems: "center",

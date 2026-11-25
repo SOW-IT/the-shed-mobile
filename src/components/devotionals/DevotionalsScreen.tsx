@@ -36,7 +36,6 @@ export const DevotionalsScreen = ({ onBack }: { onBack?: () => void }) => {
     icon: "book-outline",
     action: {
       label: "Today",
-      icon: null,
       onPress: () => router.push(`/devotionals/${today}`),
       accessibilityLabel: "Open today's devotional",
       testID: "devotionals-today",
