@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.5] - 2026-11-25
+## [2.13.6] - 2026-11-25
 
 ### Changed
 - **Mystic Man goes faster and chains obstacles after 10,000 points.** Up
