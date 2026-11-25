@@ -1,5 +1,5 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { birdX, FLAPPY, flap, newFlappy, stepFlappy, type FlappyState } from "@/lib/games/flappy";
+import { birdX, FLAPPY, flap, flappyAt, newFlappy, stepFlappy, type FlappyState } from "@/lib/games/flappy";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
@@ -124,11 +124,13 @@ export const FlappyGame = ({
   onLeaderboard,
   active = true,
   guard,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
   guard?: LeaveGuard;
+  startScore?: number;
 }) => {
   const session = useGameSession<FlappyState>("flappy");
   const look = useGameLook("flappy");
@@ -136,14 +138,14 @@ export const FlappyGame = ({
   const [board, setBoard] = useState<Size | null>(null);
   const { width, height } = board ?? PHONE_BOARD;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
-  const latest = useLatest({ session, width, height });
+  const latest = useLatest({ session, width, height, startScore });
   const scene = run ?? preview;
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
 
   const tap = () => {
-    const { session: current, width: w, height: h } = latest.current;
-    if (current.phase === "ready" && w > 0) current.begin(flap(newFlappy(w, h, newSeed())));
+    const { session: current, width: w, height: h, startScore: from } = latest.current;
+    if (current.phase === "ready" && w > 0) current.begin(flap(from ? flappyAt(w, h, newSeed(), from) : newFlappy(w, h, newSeed())), !!from);
     else current.setRun((state) => state && flap(state));
   };
 

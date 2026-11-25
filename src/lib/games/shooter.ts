@@ -19,6 +19,17 @@ export const SHOOTER = {
   pointsPerSecond: 10,
   /** How far outside the board enemies appear and are forgotten. */
   margin: 40,
+  hardFromSeconds: 75,
+  waveSeconds: 30,
+  tighteningWaves: 10,
+  spawnFloor: 0.18,
+  fireFloor: 0.55,
+  bulletGrowth: 40,
+  enemyGrowth: 25,
+  firstBigShare: 0.2,
+  mostBigShare: 0.45,
+  ringBullets: 10,
+  ringSpeedShare: 0.75,
 } as const;
 
 export type Bullet = { id: number; x: number; y: number; vx: number; vy: number };
@@ -31,6 +42,7 @@ export type Enemy = {
   vy: number;
   hp: number;
   fireIn: number;
+  volleys?: number;
 };
 
 export type ShooterState = {
@@ -87,15 +99,32 @@ export const moveShooter = (state: ShooterState, dx: number, dy: number): Shoote
 const shooterScore = (time: number, killPoints: number) =>
   Math.floor(time * SHOOTER.pointsPerSecond) + killPoints;
 
-/** Seconds between enemies: about one a second at first, three a second later. */
-export const spawnInterval = (time: number) => Math.max(0.3, 1.1 - time * 0.012);
+export const shooterWave = (time: number) =>
+  time < SHOOTER.hardFromSeconds ? 0 : 1 + Math.floor((time - SHOOTER.hardFromSeconds) / SHOOTER.waveSeconds);
 
-const fireInterval = (time: number) => Math.max(0.75, 2.2 - time * 0.02);
-const bulletSpeed = (time: number) => Math.min(320, 170 + time * 2);
+export const tightening = (time: number) => shooterWave(time) / (shooterWave(time) + SHOOTER.tighteningWaves);
+
+const growth = (time: number) => Math.log1p(shooterWave(time) / 2);
+
+/** Seconds between enemies: about one a second at first, three a second later. */
+export const spawnInterval = (time: number) =>
+  Math.max(0.3, 1.1 - time * 0.012) - (0.3 - SHOOTER.spawnFloor) * tightening(time);
+
+export const fireInterval = (time: number) =>
+  Math.max(0.75, 2.2 - time * 0.02) - (0.75 - SHOOTER.fireFloor) * tightening(time);
+export const bulletSpeed = (time: number) => Math.min(320, 170 + time * 2) + SHOOTER.bulletGrowth * growth(time);
+export const enemySpeedUp = (time: number) => Math.min(80, time * 1.2) + SHOOTER.enemyGrowth * growth(time);
+export const bigShare = (time: number) =>
+  SHOOTER.firstBigShare + (SHOOTER.mostBigShare - SHOOTER.firstBigShare) * tightening(time);
+
+export const PATTERN_FROM = { double: 120, ring: 150, wideFan: 240, burst: 360 } as const;
+
+export const patternsAt = (time: number) =>
+  (Object.keys(PATTERN_FROM) as (keyof typeof PATTERN_FROM)[]).filter((pattern) => time >= PATTERN_FROM[pattern]);
 
 const spawnEnemy = (state: ShooterState): Enemy => {
-  const big = state.time > 25 && random(state) < 0.2;
-  const speed = between(state, 70, 120) + Math.min(80, state.time * 1.2);
+  const big = state.time > 25 && random(state) < bigShare(state.time);
+  const speed = between(state, 70, 120) + enemySpeedUp(state.time);
   const edge = random(state);
   const m = SHOOTER.margin;
   const id = state.nextId++;
@@ -117,18 +146,36 @@ const spawnEnemy = (state: ShooterState): Enemy => {
   };
 };
 
+const FAN = [-0.4, -0.2, 0, 0.2, 0.4];
+const WIDE_FAN = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
+const DOUBLE = [-0.08, 0.08];
+const BURST = [-0.12, 0, 0.12];
+
+export const volleyOf = (enemy: Pick<Enemy, "kind" | "volleys">, time: number): { spread: number[]; ring: boolean } => {
+  if (enemy.kind === "small") {
+    if (time >= PATTERN_FROM.burst) return { spread: BURST, ring: false };
+    return { spread: time >= PATTERN_FROM.double ? DOUBLE : [0], ring: false };
+  }
+  if (time >= PATTERN_FROM.ring && (enemy.volleys ?? 0) % 2 === 1) return { spread: [], ring: true };
+  return { spread: time >= PATTERN_FROM.wideFan ? WIDE_FAN : FAN, ring: false };
+};
+
 const fireAt = (state: ShooterState, enemy: Enemy): Bullet[] => {
   const dx = state.player.x - enemy.x;
   const dy = state.player.y - enemy.y;
   const angle = Math.atan2(dy, dx);
   const speed = bulletSpeed(state.time);
-  const spread = enemy.kind === "big" ? [-0.4, -0.2, 0, 0.2, 0.4] : [0];
-  return spread.map((offset) => ({
+  const volley = volleyOf(enemy, state.time);
+  const ringSpeed = speed * SHOOTER.ringSpeedShare;
+  const shots = volley.ring
+    ? Array.from({ length: SHOOTER.ringBullets }, (_, i) => ({ angle: angle + (2 * Math.PI * (i + 0.5)) / SHOOTER.ringBullets, speed: ringSpeed }))
+    : volley.spread.map((offset) => ({ angle: angle + offset, speed }));
+  return shots.map((shot) => ({
     id: state.nextId++,
     x: enemy.x,
     y: enemy.y,
-    vx: Math.cos(angle + offset) * speed,
-    vy: Math.sin(angle + offset) * speed,
+    vx: Math.cos(shot.angle) * shot.speed,
+    vy: Math.sin(shot.angle) * shot.speed,
   }));
 };
 
@@ -139,6 +186,11 @@ const radiusOf = (enemy: Enemy) => (enemy.kind === "big" ? SHOOTER.bigRadius : S
 
 const near = (ax: number, ay: number, bx: number, by: number, distance: number) =>
   (ax - bx) ** 2 + (ay - by) ** 2 < distance ** 2;
+
+export const shooterAt = (width: number, height: number, seed: number, score: number): ShooterState => {
+  const time = score / SHOOTER.pointsPerSecond;
+  return { ...newShooter(width, height, seed), time, score };
+};
 
 export const stepShooter = (previous: ShooterState, dt: number): ShooterState => {
   if (previous.over) return previous;
@@ -179,7 +231,7 @@ export const stepShooter = (previous: ShooterState, dt: number): ShooterState =>
     const fireIn = enemy.fireIn - dt;
     if (fireIn > 0) return { ...enemy, fireIn };
     bullets.push(...fireAt(state, enemy));
-    return { ...enemy, fireIn: fireIn + fireInterval(state.time) };
+    return { ...enemy, fireIn: fireIn + fireInterval(state.time), volleys: (enemy.volleys ?? 0) + 1 };
   });
 
   const spent = new Set<number>();

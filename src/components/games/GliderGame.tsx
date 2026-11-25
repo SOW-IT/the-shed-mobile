@@ -368,6 +368,7 @@ export const GliderGame = ({
   active = true,
   guard,
   scene,
+  startScore: startWorld,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
@@ -375,6 +376,7 @@ export const GliderGame = ({
   guard?: LeaveGuard;
   /** Test builds: a still moment of a run, for screenshots. */
   scene?: GliderPreview;
+  startScore?: number;
 }) => {
   const session = useGameSession<GliderState>("glider");
   const look = useGameLook("glider");
@@ -383,9 +385,9 @@ export const GliderGame = ({
   const [board, setBoard] = useState<Size | null>(null);
   const { width, height } = board ?? PHONE_BOARD;
   const aspect = width / height;
-  const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect)), [scene, aspect]);
+  const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect, startWorld ?? 1)), [scene, aspect, startWorld]);
   const inputOn = active && !session.paused;
-  const latest = useLatest({ session, aspect });
+  const latest = useLatest({ session, aspect, startWorld });
 
   useGameLoop(phase === "playing" && inputOn, (dt) => setRun((state) => state && advance(state, dt, stepGlider)));
   // Input switched off (the leave dialog, another screen in front): a
@@ -395,9 +397,9 @@ export const GliderGame = ({
   }, [inputOn, setRun]);
 
   const press = (down: boolean) => {
-    const { session: current, aspect: ratio } = latest.current;
+    const { session: current, aspect: ratio, startWorld: from } = latest.current;
     if (current.phase === "ready") {
-      if (down) current.begin(hold(newGlider(newSeed(), ratio), true));
+      if (down) current.begin(hold(newGlider(newSeed(), ratio, from ?? 1), true), !!from);
       return;
     }
     current.setRun((state) => state && hold(state, down));

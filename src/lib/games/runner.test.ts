@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { SCORE_LIMITS } from "../../../shared/games";
 import { GAME_VIEWS } from "./playArea";
 import {
+  apex,
+  clearableLength,
   comboChance,
   comboGap,
   duck,
@@ -20,20 +22,25 @@ import {
   minimumGap,
   newRunner,
   onGround,
+  PHRASES,
+  phrasesAt,
   practiceStart,
+  REACH_SHARE,
   RUNNER,
   runnerAt,
   runnerSpeed,
   sliding,
+  SLACK_GONE_SCORE,
   stepRunner,
   timeAtScore,
+  TRIPLE_FROM_SCORE,
   type PatternKind,
   type RunnerState,
 } from "./runner";
 
 const FRAME = 1 / 60;
 const PHONE_BOARD = GAME_VIEWS.runner.size;
-const KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "beam", "hang"];
+const KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "triple", "beam", "hang"];
 const DUCKS: readonly PatternKind[] = ["beam", "hang"];
 
 const moveFor = (kind: PatternKind) => (kind === "rock" ? hop : DUCKS.includes(kind) ? duck : jump);
@@ -152,8 +159,8 @@ describe("Mystic Man past 10,000", () => {
     expect(runs).toEqual(golden);
   });
 
-  test("the speed climbs from 1200 at 10,000 points to 1500 at 20,000, then creeps on toward 2000 without reaching it", () => {
-    expect([RUNNER.cruiseSpeed, RUNNER.topSpeed, RUNNER.ceilingSpeed]).toEqual([1200, 1500, 2000]);
+  test("the speed climbs from 1200 at 10,000 points to 1500 at 20,000, then keeps rising past 2000 by a little more each stretch", () => {
+    expect([RUNNER.cruiseSpeed, RUNNER.topSpeed, RUNNER.ceilingSpeed]).toEqual([1200, 1500, 2900]);
     let state = newRunner(760, 3);
     const marks = [HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 25_000, 30_000];
     const at = new Map<number, number>();
@@ -167,23 +174,27 @@ describe("Mystic Man past 10,000", () => {
     expect(at.get(HARDEST_SCORE)).toBeGreaterThan(1499);
     expect(at.get(HARDEST_SCORE)).toBeLessThan(1501);
     expect(at.get(25_000)).toBeGreaterThan(1500);
-    expect(at.get(30_000)).toBeGreaterThan(at.get(25_000) ?? Infinity);
-    expect(at.get(30_000)).toBeLessThan(1600);
-    const later = [50_000, 100_000, 1_000_000].map((score) => runnerSpeed(timeAtScore(score)));
-    expect(later[0]).toBeGreaterThan(at.get(30_000) ?? Infinity);
-    expect(later[1]).toBeGreaterThan(later[0]);
-    expect(later[2]).toBeGreaterThan(later[1]);
-    expect(later[2]).toBeLessThan(RUNNER.ceilingSpeed);
-    expect(RUNNER.ceilingSpeed / RUNNER.stride).toBeLessThan(SCORE_LIMITS.runner.perSecond);
+    expect(at.get(30_000)).toBeGreaterThan((at.get(25_000) ?? Infinity) + 40);
+    expect(at.get(30_000)).toBeGreaterThan(1600);
+    const later = [50_000, 75_000, 100_000, 200_000, 1_000_000].map((score) => runnerSpeed(timeAtScore(score)));
+    expect(later[0]).toBeGreaterThan((at.get(30_000) ?? Infinity) + 100);
+    later.slice(1).forEach((speed, i) => expect(speed).toBeGreaterThan(later[i] + 50));
+    expect(later[2]).toBeGreaterThan(1900);
+    expect(later[2]).toBeLessThan(2100);
+    expect(later[4]).toBeLessThanOrEqual(RUNNER.ceilingSpeed);
+    expect(runnerSpeed(1e9)).toBe(RUNNER.ceilingSpeed);
+    expect(RUNNER.ceilingSpeed / RUNNER.stride).toBeLessThan(SCORE_LIMITS[2].runner.perSecond);
   });
 
   test("a run started at a score has the time, speed and distance a run reaching it would", () => {
     let state = newRunner(760, 5);
-    while (state.score < 17_500) state = ignoringHits(state);
-    const jumped = runnerAt(760, 5, 17_500);
-    expect(jumped.score).toBe(17_500);
-    expect(jumped.time).toBeCloseTo(state.time, 1);
-    expect(jumped.speed).toBeCloseTo(state.speed, 0);
+    for (const mark of [17_500, 30_000, 100_000]) {
+      while (state.score < mark) state = ignoringHits(state);
+      const jumped = runnerAt(760, 5, mark);
+      expect(jumped.score).toBe(mark);
+      expect(jumped.time).toBeCloseTo(state.time, 1);
+      expect(jumped.speed).toBeCloseTo(state.speed, 0);
+    }
     expect(hardness(timeAtScore(HARD_FROM_SCORE))).toBeCloseTo(0, 6);
     expect(["15000", undefined, "", "abc", "-5", "1.5", "0", "9999999"].map(practiceStart)).toEqual([
       15_000,
@@ -203,7 +214,7 @@ describe("Mystic Man past 10,000", () => {
     const times = scores.map(timeAtScore);
     const rises = (values: number[]) => values.slice(1).every((v, i) => v > values[i]);
     expect(rises(times.map(comboChance))).toBe(true);
-    expect(rises(times.map((t) => -gapSlack(t)))).toBe(true);
+    expect(rises(times.slice(0, 6).map((t) => -gapSlack(t)))).toBe(true);
     expect(rises(times.map((t) => -comboGap("rock", "rock", 1, t)))).toBe(true);
     expect(times.map(longestCombo).slice(1).every((n, i) => n >= longestCombo(times[i]))).toBe(true);
     expect(longestCombo(times[0])).toBe(MAX_COMBO);
@@ -212,7 +223,9 @@ describe("Mystic Man past 10,000", () => {
     expect(longestCombo(times[7])).toBeGreaterThan(HARDEST_COMBO);
     expect(gapSlack(times[4])).toBeCloseTo(0.1);
     expect(comboChance(times[8])).toBeLessThan(1);
-    expect(gapSlack(times[8])).toBeGreaterThan(0);
+    expect(gapSlack(times[5])).toBeGreaterThan(0);
+    expect(gapSlack(timeAtScore(SLACK_GONE_SCORE))).toBe(0);
+    expect(gapSlack(times[8])).toBe(0);
     for (const t of times) expect(comboGap("rock", "rock", 1, t)).toBeGreaterThan(comboGap("rock", "rock", 1, Infinity));
 
     const [easy, middle, hardest, later, much] = [HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 50_000, 100_000].map(sample);
@@ -226,7 +239,7 @@ describe("Mystic Man past 10,000", () => {
     expect(meanGapSeconds(later)).toBeLessThan(meanGapSeconds(hardest));
   });
 
-  test.each([HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 25_000, 30_000, 50_000, 100_000])(
+  test.each([HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 25_000, 30_000, 50_000, 75_000, 100_000])(
     "at %i a perfect player clears every chain, a little early or late too, and no gap is under the reaction and jump time",
     (score) => {
       let chained = 0;
@@ -240,7 +253,7 @@ describe("Mystic Man past 10,000", () => {
             const gap = after.front - before.back;
             const floor = after.fromChain
               ? comboGap(before.kind, after.kind, before.speed, Infinity)
-              : minimumGap(before.speed);
+              : minimumGap(before.speed, Infinity);
             expect(gap).toBeGreaterThanOrEqual(floor - 1);
             if (after.fromChain) chained++;
           }
@@ -252,14 +265,126 @@ describe("Mystic Man past 10,000", () => {
 
   test("at 1500, the speed at 20,000, every pattern leaves 0.3 s to react after it comes into view on every screen, and still 0.2 s at 100,000", () => {
     const top = timeAtScore(HARDEST_SCORE);
-    const much = timeAtScore(100_000);
-    const budgets: Record<string, number> = {};
+    const budgets: Record<number, Record<string, number>> = {};
     for (const kind of KINDS) {
       for (let seed = 1; seed <= 12; seed++) {
         expect(latestMove(PHONE_BOARD, top, kind, seed), kind).toBeGreaterThanOrEqual(0.3);
-        budgets[kind] = Math.min(budgets[kind] ?? Infinity, latestMove(PHONE_BOARD, much, kind, seed));
+        for (const score of [30_000, 50_000, 100_000]) {
+          const worst = budgets[score] ?? (budgets[score] = {});
+          worst[kind] = Math.min(worst[kind] ?? Infinity, latestMove(PHONE_BOARD, timeAtScore(score), kind, seed));
+        }
       }
     }
-    for (const kind of KINDS) expect(budgets[kind], kind).toBeGreaterThanOrEqual(0.2);
+    for (const kind of KINDS) {
+      expect(budgets[30_000][kind], kind).toBeGreaterThanOrEqual(0.26);
+      expect(budgets[50_000][kind], kind).toBeGreaterThanOrEqual(0.23);
+      expect(budgets[100_000][kind], kind).toBeGreaterThanOrEqual(0.2);
+    }
+  });
+});
+
+describe("Mystic Man past 20,000 (v2)", () => {
+  const MARKS = [HARDEST_SCORE, 30_000, 50_000, 75_000, 100_000];
+
+  const meanCombo = (runs: Spawn[][]) => {
+    let chains = 0;
+    let inChains = 0;
+    for (const run of runs) {
+      for (const spawn of run) {
+        if (!spawn.chained) continue;
+        inChains++;
+        if (!spawn.fromChain) chains++;
+      }
+    }
+    return inChains / Math.max(1, chains);
+  };
+
+  const spareSeconds = (runs: Spawn[][]) => {
+    const spare = runs.flatMap((spawns) =>
+      spawns.slice(1).map((after, k) => {
+        const before = spawns[k];
+        const floor = after.fromChain ? comboGap(before.kind, after.kind, before.speed, Infinity) : minimumGap(before.speed, Infinity);
+        return (after.front - before.back - floor) / before.speed;
+      })
+    );
+    return spare.reduce((sum, value) => sum + value, 0) / spare.length;
+  };
+
+  test("every stretch from 20,000 to 100,000 is faster, leaves less room for a mistake, and chains longer and tighter than the one before", () => {
+    const runs = MARKS.map(sample);
+    const speeds = MARKS.map((score) => runnerSpeed(timeAtScore(score)));
+    const rate = runs.map(perSecond);
+    const gaps = runs.map(meanGapSeconds);
+    const spare = runs.map(spareSeconds);
+    const shares = runs.map(share);
+    const times = MARKS.map(timeAtScore);
+    const reactions = times.map((t) => comboGap("rock", "rock", 1, t));
+    const floors = times.map((t) => minimumGap(1, t) + gapSlack(t));
+    const chains = times.map(longestCombo);
+    for (let i = 1; i < MARKS.length; i++) {
+      const at = `${MARKS[i - 1]} to ${MARKS[i]}`;
+      expect(speeds[i], at).toBeGreaterThan(speeds[i - 1]);
+      expect(spare[i], at).toBeLessThan(spare[i - 1]);
+      expect(rate[i], at).toBeGreaterThan(rate[0] * 1.1);
+      expect(gaps[i], at).toBeLessThan(gaps[0] * 0.95);
+      expect(shares[i], at).toBeGreaterThanOrEqual(shares[i - 1]);
+      expect(reactions[i], at).toBeLessThan(reactions[i - 1]);
+      expect(floors[i], at).toBeLessThan(floors[i - 1]);
+      expect(chains[i], at).toBeGreaterThan(chains[i - 1] + 4);
+      expect(comboChance(times[i]), at).toBeGreaterThan(comboChance(times[i - 1]));
+    }
+    expect(spare[1]).toBeLessThan(spare[0] * 0.7);
+    expect(spare[2]).toBeLessThan(spare[1] * 0.7);
+    expect(meanCombo(runs[2])).toBeGreaterThan(meanCombo(runs[0]));
+  }, 60_000);
+
+  test("past 40,000 the break between chains has no slack left, and the time to react after a landing keeps shrinking toward 0.2 s", () => {
+    const at = [SLACK_GONE_SCORE, 50_000, 75_000, 100_000, 1_000_000].map(timeAtScore);
+    const reaction = (t: number) => minimumGap(1, t) - 40 - (2 * RUNNER.jumpSpeed) / RUNNER.gravity;
+    expect(reaction(at[0])).toBeCloseTo(0.3, 6);
+    at.slice(1).forEach((t, i) => expect(reaction(t)).toBeLessThan(reaction(at[i])));
+    for (const t of at) expect(gapSlack(t)).toBe(0);
+    expect(reaction(Infinity)).toBeCloseTo(0.2, 6);
+    expect(reaction(at[4])).toBeGreaterThan(0.2);
+  });
+
+  test("new combinations join at 25,000, 30,000, 40,000, 50,000, 75,000 and 100,000, and turn up in play", () => {
+    expect(phrasesAt(timeAtScore(HARDEST_SCORE))).toEqual([]);
+    expect(PHRASES.map((phrase) => phrase.from)).toEqual([25_000, 40_000, 50_000, 75_000, 100_000]);
+    PHRASES.forEach((phrase, i) => {
+      expect(phrasesAt(timeAtScore(phrase.from - 100))).toHaveLength(i);
+      expect(phrasesAt(timeAtScore(phrase.from))).toHaveLength(i + 1);
+    });
+    const counts = (score: number) => {
+      const seen: Partial<Record<PatternKind, number>> = {};
+      for (const run of sample(score)) for (const spawn of run) seen[spawn.kind] = (seen[spawn.kind] ?? 0) + 1;
+      return seen;
+    };
+    expect(counts(HARDEST_SCORE).triple).toBeUndefined();
+    expect(counts(TRIPLE_FROM_SCORE - 500).triple).toBeUndefined();
+    expect(counts(TRIPLE_FROM_SCORE).triple).toBeGreaterThan(5);
+    const runOf = (kinds: readonly PatternKind[], spawns: Spawn[]) =>
+      spawns.some((_, i) => kinds.every((kind, k) => spawns[i + k]?.kind === kind && (k === 0 || spawns[i + k].fromChain)));
+    for (const phrase of PHRASES) {
+      const runs = sample(phrase.from + 1_000);
+      expect(runs.some((spawns) => runOf(phrase.kinds, spawns)), phrase.name).toBe(true);
+    }
+  }, 60_000);
+
+  test("a triple is three rocks a hop can't clear, spread as far as the big jump allows", () => {
+    for (const score of [TRIPLE_FROM_SCORE, 50_000, 100_000]) {
+      const time = timeAtScore(score);
+      for (let seed = 1; seed <= 30; seed++) {
+        const state: RunnerState = { ...newRunner(PHONE_BOARD, seed), time, speed: runnerSpeed(time), nextIn: Infinity };
+        const group = makePattern(state, "triple", 300);
+        expect(group).toHaveLength(3);
+        expect(new Set(group.map((o) => o.group)).size).toBe(1);
+        const height = group[0].height;
+        expect(height - RUNNER.forgive).toBeGreaterThan(apex(RUNNER.hopSpeed));
+        const span = Math.max(...group.map((o) => o.x + o.width)) - group[0].x;
+        expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, state.speed) + 1);
+        expect(group[1].x - (group[0].x + group[0].width)).toBeGreaterThanOrEqual(60);
+      }
+    }
   });
 });

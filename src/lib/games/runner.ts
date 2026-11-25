@@ -27,7 +27,8 @@ export const RUNNER = {
   speedGain: 9,
   cruiseSpeed: 1200,
   topSpeed: 1500,
-  ceilingSpeed: 2000,
+  surge: 22,
+  ceilingSpeed: 2900,
   /** Distance per point. */
   stride: 12,
   /** The floating beam: over a slide, into a standing head; a big jump clears it too. */
@@ -44,7 +45,7 @@ export const RUNNER = {
 export const HIT_WIDTH = RUNNER.width - RUNNER.forgive * 2;
 
 export type ObstacleKind = "rock" | "tall" | "wide" | "beam" | "hang";
-export type PatternKind = "rock" | "tall" | "wide" | "double" | "beam" | "hang";
+export type PatternKind = "rock" | "tall" | "wide" | "double" | "triple" | "beam" | "hang";
 
 export type Obstacle = {
   id: number;
@@ -172,11 +173,30 @@ const HARD_RAMP_SECONDS =
   ((HARDEST_SCORE - HARD_FROM_SCORE) * RUNNER.stride) / ((RUNNER.cruiseSpeed + RUNNER.topSpeed) / 2);
 
 const HARDEST_SECONDS = HARD_FROM_SECONDS + HARD_RAMP_SECONDS;
-const BEYOND_SECONDS = 400;
+const BEYOND_SECONDS = 60;
+const SURGE_EASE_SECONDS = 10;
+const SURGE_TOP_SECONDS =
+  ((RUNNER.ceilingSpeed - RUNNER.topSpeed) / RUNNER.surge + Math.sqrt(SURGE_EASE_SECONDS)) ** 2 - SURGE_EASE_SECONDS;
 
 export const hardness = (time: number) => Math.min(1, Math.max(0, (time - HARD_FROM_SECONDS) / HARD_RAMP_SECONDS));
 
-const beyondHardest = (time: number) => 1 - Math.exp(-Math.max(0, time - HARDEST_SECONDS) / BEYOND_SECONDS);
+const pastHardest = (time: number) => Math.max(0, time - HARDEST_SECONDS);
+
+const beyondHardest = (time: number) => {
+  const past = pastHardest(time);
+  return past === Infinity ? 1 : past / (past + BEYOND_SECONDS);
+};
+
+const surgeSpeed = (past: number) =>
+  RUNNER.topSpeed +
+  RUNNER.surge * (Math.sqrt(Math.min(past, SURGE_TOP_SECONDS) + SURGE_EASE_SECONDS) - Math.sqrt(SURGE_EASE_SECONDS));
+
+const surgeDistance = (past: number) => {
+  const rising = Math.min(past, SURGE_TOP_SECONDS);
+  const root = Math.sqrt(SURGE_EASE_SECONDS);
+  const climb = RUNNER.surge * ((2 / 3) * ((rising + SURGE_EASE_SECONDS) ** 1.5 - SURGE_EASE_SECONDS ** 1.5) - root * rising);
+  return RUNNER.topSpeed * rising + climb + RUNNER.ceilingSpeed * Math.max(0, past - SURGE_TOP_SECONDS);
+};
 
 const ease = (easy: number, hardest: number, limit: number, time: number) =>
   easy + (hardest - easy) * hardness(time) + (limit - hardest) * beyondHardest(time);
@@ -184,20 +204,19 @@ const ease = (easy: number, hardest: number, limit: number, time: number) =>
 export const runnerSpeed = (time: number) =>
   time < HARD_FROM_SECONDS
     ? Math.min(RUNNER.cruiseSpeed, RUNNER.startSpeed + time * RUNNER.speedGain)
-    : ease(RUNNER.cruiseSpeed, RUNNER.topSpeed, RUNNER.ceilingSpeed, time);
+    : time < HARDEST_SECONDS
+      ? ease(RUNNER.cruiseSpeed, RUNNER.topSpeed, RUNNER.topSpeed, time)
+      : surgeSpeed(pastHardest(time));
 
 const distanceAt = (time: number) => {
   const rising = Math.min(time, CRUISE_FROM_SECONDS);
   const cruising = Math.min(Math.max(0, time - CRUISE_FROM_SECONDS), HARD_FROM_SECONDS - CRUISE_FROM_SECONDS);
   const surging = Math.min(Math.max(0, time - HARD_FROM_SECONDS), HARD_RAMP_SECONDS);
-  const beyond = Math.max(0, time - HARDEST_SECONDS);
-  const creep = (RUNNER.ceilingSpeed - RUNNER.topSpeed) * (beyond - BEYOND_SECONDS * beyondHardest(time));
   return (
     (rising * (RUNNER.startSpeed + runnerSpeed(rising))) / 2 +
     cruising * RUNNER.cruiseSpeed +
     (surging * (RUNNER.cruiseSpeed + runnerSpeed(HARD_FROM_SECONDS + surging))) / 2 +
-    beyond * RUNNER.topSpeed +
-    creep
+    surgeDistance(pastHardest(time))
   );
 };
 
@@ -213,6 +232,23 @@ export const timeAtScore = (score: number) => {
   }
   return high;
 };
+
+export const SLACK_GONE_SCORE = 40_000;
+const SLACK_GONE_SECONDS = timeAtScore(SLACK_GONE_SCORE);
+export const TRIPLE_FROM_SCORE = 30_000;
+const TRIPLE_FROM_SECONDS = timeAtScore(TRIPLE_FROM_SCORE);
+
+export const PHRASES: readonly { name: string; from: number; kinds: readonly PatternKind[] }[] = [
+  { name: "weave", from: 25_000, kinds: ["hang", "rock", "hang", "rock"] },
+  { name: "staircase", from: 40_000, kinds: ["rock", "tall", "rock", "tall", "rock"] },
+  { name: "switchback", from: 50_000, kinds: ["beam", "tall", "hang", "double"] },
+  { name: "tunnel", from: 75_000, kinds: ["hang", "beam", "hang", "triple", "rock"] },
+  { name: "gauntlet", from: 100_000, kinds: ["triple", "hang", "triple", "beam", "triple"] },
+];
+const PHRASE_SECONDS = PHRASES.map((phrase) => timeAtScore(phrase.from));
+const PHRASE_SHARE = 0.35;
+
+export const phrasesAt = (time: number) => PHRASES.filter((_, i) => time >= PHRASE_SECONDS[i]);
 
 export const practiceStart = (value: string | undefined) => {
   const score = Number(value);
@@ -248,6 +284,7 @@ const PATTERN_RULES = {
   wide: { height: [26, 34] },
   // Two rocks back to back, each out of a hop's reach.
   double: { height: [Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6), 88], width: [18, 24], gap: [10, 24] },
+  triple: { height: [Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6), 104], width: [18, 26], gap: [60, 120] },
   hang: { width: [30, 48] },
 } as const;
 
@@ -264,8 +301,8 @@ const COMBO_GROWTH_SECONDS = 15;
 export const MAX_COMBO = 10;
 export const HARDEST_COMBO = 16;
 const HARDEST_COMBO_CHANCE = 0.9;
-const COMBO_CHANCE_LIMIT = 0.97;
-const LONGER_COMBO_SECONDS = 20;
+const COMBO_CHANCE_LIMIT = 0.98;
+const LONGER_COMBO_SECONDS = 12;
 
 /** The longest combo that can come at this point in a run, or 0 before they start. */
 export const longestCombo = (time: number) =>
@@ -273,7 +310,7 @@ export const longestCombo = (time: number) =>
     ? 0
     : Math.min(MAX_COMBO, 2 + Math.floor((time - COMBO_FROM_SECONDS) / COMBO_GROWTH_SECONDS)) +
       Math.round((HARDEST_COMBO - MAX_COMBO) * hardness(time)) +
-      Math.floor(Math.max(0, time - HARDEST_SECONDS) / LONGER_COMBO_SECONDS);
+      Math.floor(pastHardest(time) / LONGER_COMBO_SECONDS);
 
 /** How often the next pattern is a combo: a quarter at first, up to two thirds. */
 export const comboChance = (time: number) =>
@@ -282,6 +319,9 @@ export const comboChance = (time: number) =>
 
 /** Each pattern of a combo, weighted: mostly hops, which lead into the rest. */
 const COMBO_KINDS: readonly PatternKind[] = ["rock", "rock", "rock", "tall", "wide", "double", "beam", "hang", "hang"];
+const LATE_COMBO_KINDS: readonly PatternKind[] = [...COMBO_KINDS, "triple"];
+
+const pick = <T>(state: RunnerState, from: readonly T[]) => from[Math.floor(random(state) * from.length) % from.length];
 
 /** Which pattern, or combo, comes next. */
 const patternsFor = (state: RunnerState): readonly PatternKind[] => {
@@ -289,7 +329,14 @@ const patternsFor = (state: RunnerState): readonly PatternKind[] => {
   if (longest < 2 || random(state) >= comboChance(state.time)) return [patternFor(state)];
   // Mostly as long as it gets by now, sometimes one shorter.
   const length = Math.max(2, longest - (random(state) < 0.35 ? 1 : 0));
-  return Array.from({ length }, () => COMBO_KINDS[Math.floor(random(state) * COMBO_KINDS.length) % COMBO_KINDS.length]);
+  const phrases = phrasesAt(state.time);
+  const kinds = state.time >= TRIPLE_FROM_SECONDS ? LATE_COMBO_KINDS : COMBO_KINDS;
+  const combo: PatternKind[] = [];
+  while (combo.length < length) {
+    if (phrases.length > 0 && random(state) < PHRASE_SHARE) combo.push(...pick(state, phrases).kinds);
+    else combo.push(pick(state, kinds));
+  }
+  return combo;
 };
 
 /** Which single pattern can appear, by seconds into the run. */
@@ -297,6 +344,7 @@ const patternFor = (state: RunnerState): PatternKind => {
   const roll = random(state);
   if (state.time < 5) return "rock";
   if (state.time < 12) return roll < 0.55 ? "rock" : roll < 0.75 ? "tall" : "beam";
+  if (state.time >= TRIPLE_FROM_SECONDS && random(state) < 0.2) return "triple";
   if (roll < 0.28) return "rock";
   if (roll < 0.43) return "tall";
   if (roll < 0.58) return "wide";
@@ -348,6 +396,21 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number): O
         base({ kind: "rock", x: x + first + gap, width: second, height, bottom: 0 }),
       ];
     }
+    case "triple": {
+      const r = PATTERN_RULES.triple;
+      const widths = [whole(state, ...r.width), whole(state, ...r.width), whole(state, ...r.width)];
+      const rolled = whole(state, ...r.gap);
+      const reach = (height: number) => REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s);
+      const solid = widths[0] + widths[1] + widths[2];
+      let height = whole(state, ...r.height);
+      while (height > r.height[0] && solid + 2 * rolled > reach(height)) height -= 2;
+      const gap = Math.max(10, Math.min(rolled, Math.floor((reach(height) - solid) / 2)));
+      return [
+        base({ kind: "rock", x, width: widths[0], height, bottom: 0 }),
+        base({ kind: "rock", x: x + widths[0] + gap, width: widths[1], height, bottom: 0 }),
+        base({ kind: "rock", x: x + widths[0] + widths[1] + 2 * gap, width: widths[2], height, bottom: 0 }),
+      ];
+    }
     case "beam":
       return [base({ kind: "beam", x, width: 46, height: RUNNER.highHeight, bottom: RUNNER.highBottom })];
     case "hang":
@@ -372,11 +435,23 @@ export const patternSpan = (obstacles: readonly Obstacle[]) =>
  * the next pattern and act, at the current speed. Never shorter than that,
  * so a slide-only pattern can't come where a landing leaves no time to duck.
  */
-export const minimumGap = (speed: number) => speed * (airtime(RUNNER.jumpSpeed) + REACTION_SECONDS) + 40;
+const GAP_REACTION_CUT = 0.1;
 
-export const gapSlack = (time: number) => ease(0.5, 0.1, 0, time);
+const gapCut = (time: number) => {
+  const past = Math.max(0, time - SLACK_GONE_SECONDS);
+  return past === Infinity ? 1 : past / (past + BEYOND_SECONDS);
+};
 
-const gapAfter = (state: RunnerState) => minimumGap(state.speed) + state.speed * between(state, 0, gapSlack(state.time));
+export const minimumGap = (speed: number, time = 0) =>
+  speed * (airtime(RUNNER.jumpSpeed) + REACTION_SECONDS - GAP_REACTION_CUT * gapCut(time)) + 40;
+
+export const gapSlack = (time: number) =>
+  time < HARDEST_SECONDS
+    ? ease(0.5, 0.1, 0.1, time)
+    : 0.1 * Math.max(0, 1 - pastHardest(time) / (SLACK_GONE_SECONDS - HARDEST_SECONDS));
+
+const gapAfter = (state: RunnerState) =>
+  minimumGap(state.speed, state.time) + state.speed * between(state, 0, gapSlack(state.time));
 
 const DUCKS: readonly PatternKind[] = ["hang", "beam"];
 /** The jump each pattern takes: the hop, the big jump, or none (a slide). */
@@ -446,7 +521,7 @@ export const stepRunner = (previous: RunnerState, dt: number): RunnerState => {
   return state;
 };
 
-const PATTERN_KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "beam", "hang"];
+const PATTERN_KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "triple", "beam", "hang"];
 export const isPatternKind = (value: string): value is PatternKind => (PATTERN_KINDS as readonly string[]).includes(value);
 
 /**

@@ -26,19 +26,36 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   },
 };
 
+export const GAME_VERSIONS = [1, 2] as const;
+export type GameVersion = (typeof GAME_VERSIONS)[number];
+export const GAME_VERSION: GameVersion = 2;
+
+export const isGameVersion = (value: unknown): value is GameVersion =>
+  (GAME_VERSIONS as readonly unknown[]).includes(value);
+
+export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
+
 /**
  * The most points a run can earn per second it lasted, with room to spare,
  * and the most a run can score at all. The server turns away a score above
  * either, so a typo'd or tampered score can't top the leaderboard.
  */
-export const SCORE_LIMITS: Record<GameId, { perSecond: number; max: number }> = {
-  shooter: { perSecond: 1000, max: 5_000_000 },
-  runner: { perSecond: 200, max: 2_000_000 },
-  flappy: { perSecond: 60, max: 1_000_000 },
-  // Swoop's own rules cap these: a run can't fly faster than the bird's top
-  // speed, or past the world where even that can't beat the sunset
-  // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
-  glider: { perSecond: 1000, max: 500_000 },
+export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: number; max: number }>> = {
+  1: {
+    shooter: { perSecond: 1000, max: 5_000_000 },
+    runner: { perSecond: 200, max: 2_000_000 },
+    flappy: { perSecond: 60, max: 1_000_000 },
+    // Swoop's own rules cap these: a run can't fly faster than the bird's top
+    // speed, or past the world where even that can't beat the sunset
+    // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
+    glider: { perSecond: 1000, max: 500_000 },
+  },
+  2: {
+    shooter: { perSecond: 1000, max: 5_000_000 },
+    runner: { perSecond: 250, max: 2_000_000 },
+    flappy: { perSecond: 60, max: 1_000_000 },
+    glider: { perSecond: 1000, max: 2_000_000 },
+  },
 };
 
 /**
@@ -65,6 +82,7 @@ export type QueuedScore = {
   /** Made on the phone when the run ends; retries send the same one. */
   runId: string;
   game: GameId;
+  version?: GameVersion;
   score: number;
   durationMs: number;
   playedAt: number;
@@ -74,11 +92,12 @@ export type QueuedScore = {
 export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
+  if (entry.version !== undefined && !isGameVersion(entry.version)) return "That isn't a version of the game.";
   if (!Number.isInteger(entry.score) || entry.score < 1) return "A score is a whole number above zero.";
   if (!Number.isFinite(entry.durationMs) || entry.durationMs <= 0 || entry.durationMs > MAX_RUN_MS) {
     return "That run's length isn't believable.";
   }
-  const limit = SCORE_LIMITS[entry.game];
+  const limit = SCORE_LIMITS[versionOf(entry.version)][entry.game];
   if (entry.score > limit.max) return "That score is over the game's limit.";
   if (entry.score > SCORE_SLACK + (limit.perSecond * entry.durationMs) / 1000) {
     return "That score is too high for how long the run lasted.";

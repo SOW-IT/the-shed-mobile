@@ -86,6 +86,7 @@ type WorldRules = {
   oddity: number;
   steepest: number;
   late: number;
+  harsh: number;
 };
 
 const degrees = (d: number) => (d * Math.PI) / 180;
@@ -109,14 +110,33 @@ export const roughness = (world: number) => {
   return n < 2 ? 0 : 1 - Math.exp(-(n - 1) / ROUGHENING_WORLDS) + STEP * stepsTaken(whole);
 };
 
+export const HARSH_FROM = 8;
+const HARSH_WORLDS = 12;
+
+export const harshness = (world: number) => {
+  const whole = Math.max(1, Math.floor(world));
+  return whole < HARSH_FROM ? 0 : 1 - Math.exp(-(whole - HARSH_FROM + 1) / HARSH_WORLDS);
+};
+
+const CAP_DAY = 50;
+const DAY_CUT = 1;
+export const FLOOR_DAY = 38;
+
+const dayFor = (whole: number, length: number, pace: number) => {
+  const n = whole - 1;
+  if (whole < HARSH_FROM) return Math.max(34 - 2 * n, Math.round(length / pace));
+  return Math.max(FLOOR_DAY, CAP_DAY - DAY_CUT * (whole - HARSH_FROM + 1));
+};
+
 export const worldRules = (world: number): WorldRules => {
   const whole = Math.max(1, Math.floor(world));
   const n = whole - 1;
   const rough = roughness(whole);
+  const harsh = harshness(whole);
   const late = stepsTaken(whole) + Math.max(0, 1 - Math.exp(-(whole - STEP_WORLDS[1]) / ROUGHENING_WORLDS));
   const length = 8000 + 1200 * Math.min(n, LONGEST_WORLD - 1);
   const pace = EASY_PACE - ((EASY_PACE - ROUGH_PACE) * rough) / (1 + 2 * STEP);
-  const day = Math.max(34 - 2 * n, Math.round(length / pace));
+  const day = dayFor(whole, length, pace);
   const gentle = Math.min(n, 2);
   return {
     world: n + 1,
@@ -126,11 +146,12 @@ export const worldRules = (world: number): WorldRules => {
     span: NARROWEST_SPAN + (WIDEST_SPAN - NARROWEST_SPAN) * Math.max(0, 1 - n / NARROWING_WORLDS) ** 1.25,
     squeeze: 0.04 * gentle + 0.2 * rough,
     drop: 200 + 20 * gentle + 160 * rough,
-    bumpiness: 0.12 + 0.05 * gentle + 0.28 * rough,
-    tolerance: degrees(Math.max(10, 30 - 2 * n)),
-    oddity: n < 2 ? 0 : 0.1 + 0.42 * rough,
-    steepest: GENTLE_SLOPE + ((GLIDER.maxSlope - GENTLE_SLOPE) * late) / 3,
+    bumpiness: Math.min(whole < HARSH_FROM ? Infinity : 0.45, 0.12 + 0.05 * gentle + 0.28 * rough),
+    tolerance: degrees(Math.max(10, 30 - 2 * n) - 3 * harsh),
+    oddity: n < 2 ? 0 : Math.min(0.97, 0.1 + 0.42 * rough + 0.15 * harsh),
+    steepest: whole < HARSH_FROM ? GENTLE_SLOPE + ((GLIDER.maxSlope - GENTLE_SLOPE) * late) / 3 : GLIDER.maxSlope - 0.2 * (1 - harsh),
     late,
+    harsh,
   };
 };
 
@@ -139,20 +160,38 @@ export type HillPoint = { x: number; y: number };
 
 const worldSeed = (seed: number, world: number) => (seed ^ Math.imul(world, 0x9e3779b1)) | 0;
 
-export const HILL_SHAPES = ["double", "cliff", "ramp", "plateau", "uneven"] as const;
+export const HILL_SHAPES = ["double", "cliff", "ramp", "plateau", "uneven", "gorge", "jagged", "drop", "wall"] as const;
 type HillShape = (typeof HILL_SHAPES)[number];
 type ShapedStretch = { shape: HillShape; from: number; to: number };
 
-const LATE_FAVOURS: Record<HillShape, number> = { double: 1, cliff: 1, ramp: -0.6, plateau: -0.8, uneven: 1 };
+export const FIRST_WORLD: Record<HillShape, number> = {
+  double: 3,
+  cliff: 3,
+  ramp: 3,
+  plateau: 3,
+  uneven: 3,
+  gorge: 8,
+  jagged: 9,
+  drop: 10,
+  wall: 11,
+};
 
-const pickShape = (roll: number, late: number): HillShape => {
-  const weights = HILL_SHAPES.map((shape) => Math.max(0.1, 1 + LATE_FAVOURS[shape] * late));
+const LATE_FAVOURS: Record<HillShape, number> = { double: 1, cliff: 1, ramp: -0.6, plateau: -0.8, uneven: 1, gorge: 0, jagged: 0, drop: 0, wall: 0 };
+
+const shapeWeight = (shape: HillShape, rules: WorldRules) => {
+  if (rules.world < FIRST_WORLD[shape]) return 0;
+  if (FIRST_WORLD[shape] >= HARSH_FROM) return 0.4 + 5 * rules.harsh;
+  return Math.max(0.1, 1 + LATE_FAVOURS[shape] * rules.late);
+};
+
+const pickShape = (roll: number, rules: WorldRules): HillShape => {
+  const weights = HILL_SHAPES.map((shape) => shapeWeight(shape, rules));
   let left = roll * weights.reduce((sum, weight) => sum + weight, 0);
   for (let i = 0; i < HILL_SHAPES.length; i++) {
     left -= weights[i];
     if (left < 0) return HILL_SHAPES[i];
   }
-  return HILL_SHAPES[HILL_SHAPES.length - 1];
+  return HILL_SHAPES[0];
 };
 
 const buildWorld = (seed: number, world: number, start: number) => {
@@ -165,17 +204,24 @@ const buildWorld = (seed: number, world: number, start: number) => {
   let y: number = GLIDER.peak;
   let steepDown = false;
   let previousShape: HillShape | null = null;
-  const run = (rise: number) => slopeRun(rise, rules.steepest);
+  const run = (rise: number) => Math.max(slopeRun(rise, rules.steepest), rules.harsh > 0 ? bendRun(rise) : 0);
   const recovery = 1 + rules.late;
+  const flat = 1 - 0.8 * rules.harsh;
   const to = (nextX: number, nextY: number) => {
     x = nextX;
     y = nextY;
     points.push({ x, y });
   };
-  // Valley and hilltop pairs until the world is long enough; the pair that
-  // gets there climbs back to the standard height.
+  const climb = (top: number, up: number, steps: number) => {
+    const dip = Math.min(30 + 60 * rules.harsh, (top - y) / (steps + 1));
+    const rise = (top - y + dip * (steps - 1)) / steps;
+    for (let i = 0; i < steps; i++) {
+      const crest = i === steps - 1 ? top : y + rise;
+      to(x + Math.max(up / steps, run(crest - y)), crest);
+      if (i < steps - 1) to(x + run(dip) * 1.1, y - dip);
+    }
+  };
   for (let last = false; !last; ) {
-    // A run down into a valley, then a climb out of it, shorter by the squeeze.
     const down = Math.max(120, vary(rules.span));
     const up = Math.max(100, vary(rules.span) * (1 - rules.squeeze));
     last = x + down + up >= start + rules.length;
@@ -184,24 +230,29 @@ const buildWorld = (seed: number, world: number, start: number) => {
     const shape: HillShape | null = again
       ? "uneven"
       : roomy && rules.oddity > 0 && random(rng) < rules.oddity
-        ? pickShape(random(rng), rules.late)
+        ? pickShape(random(rng), rules)
         : null;
     previousShape = shape;
     const from = x;
-    const deepness = shape === "uneven" ? (random(rng) < 0.5 ? 0.45 : 1.6) : 1;
+    const deepness =
+      shape === "uneven" ? (random(rng) < 0.5 ? 0.45 : 1.6) : shape === "gorge" ? 1.5 + 0.6 * rules.harsh : 1;
     let valley = Math.max(GLIDER.floor, Math.min(y - 40, y - vary(rules.drop) * deepness));
+    if (shape === "drop") valley = Math.max(GLIDER.floor, Math.min(y - 40, y - vary(rules.drop) * (1.4 + 0.6 * rules.harsh)));
     if (last) valley = Math.min(valley, GLIDER.peak - 60);
-    const steep = steepDown || shape === "cliff";
+    const steep = steepDown || shape === "cliff" || shape === "gorge" || shape === "drop";
     steepDown = false;
     to(x + (steep ? run(y - valley) * 1.05 : Math.max(down, run(y - valley))), valley);
-    if (shape === "cliff") to(x + (down * 1.2) / recovery, y);
-    const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling, Math.max(y + 40, y + vary(rules.drop)));
-    to(x + Math.max(shape === "ramp" ? up * 2.2 : up, run(top - y)), top);
+    if (shape === "cliff") to(x + (down * 1.2 * flat) / recovery, y);
+    const tall = shape === "wall" ? 1.3 + 0.4 * rules.harsh : shape === "drop" ? 0.45 : 1;
+    const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling, Math.max(y + 40, y + vary(rules.drop) * tall));
+    if (shape === "jagged") climb(top, up, 2 + Math.round(3 * rules.harsh));
+    else if (shape === "gorge" || shape === "wall") to(x + run(top - y) * 1.02, top);
+    else to(x + Math.max(shape === "ramp" ? up * 2.2 : up, run(top - y)), top);
     if (shape === "ramp") steepDown = true;
-    if (shape === "plateau") to(x + (up * 0.9) / recovery, y);
+    if (shape === "plateau") to(x + (up * 0.9 * flat) / recovery, y);
     if (shape === "double") {
-      const dip = Math.min(70 * recovery, (top - valley) * 0.35);
-      const hump = Math.max((up * 0.6) / Math.sqrt(recovery), run(dip), 90);
+      const dip = Math.min(70 * recovery * (1 + rules.harsh), (top - valley) * (0.35 + 0.25 * rules.harsh));
+      const hump = Math.max((up * 0.6 * flat) / Math.sqrt(recovery), run(dip), 90 * flat);
       to(x + hump, top - dip);
       to(x + hump, top);
     }
@@ -223,6 +274,10 @@ export const worldShapes = (seed: number, world: number, start: number): ShapedS
 
 /** The shortest run a half wave of this height can have and stay under the steepest slope. */
 const slopeRun = (rise: number, steepest: number) => (Math.abs(rise) * Math.PI) / (2 * steepest);
+
+const SHARPEST_BEND = 0.075;
+
+const bendRun = (rise: number) => Math.sqrt((Math.abs(rise) * Math.PI * Math.PI) / (2 * SHARPEST_BEND));
 
 /** The index of the point at or before x: the start of x's half wave. */
 const spanAt = (points: readonly HillPoint[], x: number) => {

@@ -1,6 +1,6 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
 import { newSeed, random } from "@/lib/games/random";
-import { moveShooter, newShooter, SHOOTER, stepShooter, type ShooterState } from "@/lib/games/shooter";
+import { moveShooter, newShooter, SHOOTER, shooterAt, stepShooter, type ShooterState } from "@/lib/games/shooter";
 import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
@@ -110,11 +110,13 @@ export const ShooterGame = ({
   onLeaderboard,
   active = true,
   guard,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
   guard?: LeaveGuard;
+  startScore?: number;
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
@@ -123,7 +125,7 @@ export const ShooterGame = ({
   const world = run ? { width: run.width, height: run.height } : board;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
   const [scale, setScale] = useState(1);
-  const latest = useLatest({ session, width, height, scale });
+  const latest = useLatest({ session, width, height, scale, startScore });
   const keys = useRef(new Set<string>());
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => {
@@ -138,8 +140,8 @@ export const ShooterGame = ({
   });
 
   const startIfReady = () => {
-    const { session: current, width: w, height: h } = latest.current;
-    if (current.phase === "ready" && w > 0) current.begin(newShooter(w, h, newSeed()));
+    const { session: current, width: w, height: h, startScore: from } = latest.current;
+    if (current.phase === "ready" && w > 0) current.begin(from ? shooterAt(w, h, newSeed(), from) : newShooter(w, h, newSeed()), !!from);
   };
 
   const [responder] = useState(() => {
