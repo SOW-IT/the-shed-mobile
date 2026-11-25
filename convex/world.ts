@@ -11,6 +11,7 @@ import {
   cleanLine,
   cleanPoke,
   OFFLINE_LIST_SIZE,
+  OFFLINE_ALL_MAX,
   POKE_EVERY_MS,
   POKED_GAP_MS,
   arrivalSpot,
@@ -71,8 +72,9 @@ import { shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
+import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
-import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
+import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { cafeMoved, cafeSat } from "./cafeGames";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -192,6 +194,19 @@ const markSeen = async (ctx: MutationCtx, email: string, name: string, now: numb
   const row = await visitorOf(ctx, email);
   if (row) await ctx.db.patch("worldVisitors", row._id, { name, lastSeenAt: now, ...leftAt });
   else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now, ...leftAt });
+};
+
+/** Notes where someone was when they went to a home, so its door takes them back there. */
+const rememberHomeFrom = async (ctx: MutationCtx, email: string, name: string, from: Place, now: number) => {
+  const row = await visitorOf(ctx, email);
+  if (row) await ctx.db.patch("worldVisitors", row._id, { homeFrom: from });
+  else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now, homeFrom: from });
+};
+
+/** Where a home's door takes someone: back where they came from, else the Garden. */
+export const homeBackTo = async (ctx: Ctx, email: string): Promise<Place> => {
+  const from = (await visitorOf(ctx, email))?.homeFrom;
+  return from !== undefined && isPlace(from) && from !== HOME ? from : WORLD_PLACE;
 };
 
 type Arrival = { place: Place; owner?: string; roomId?: Id<"worldRooms">; spot: { x: number; z: number } };
@@ -483,10 +498,12 @@ const FRESH_IN_ROOM = {
   reply: undefined,
   answered: undefined,
   away: undefined,
+  playing: undefined,
   reading: undefined,
   seat: undefined,
   typing: undefined,
   path: undefined,
+  heading: undefined,
 };
 
 export const join = mutation({
@@ -622,7 +639,9 @@ export const move = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
+      heading: undefined,
       away: undefined,
+      playing: undefined,
       reading: undefined,
       seat: undefined,
       moveBucket: token.bucket,
@@ -653,7 +672,9 @@ export const sit = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
+      heading: undefined,
       away: undefined,
+      playing: undefined,
       reading: undefined,
       seat: seat.id,
       moveBucket: token.bucket,
@@ -702,17 +723,36 @@ export const travel = mutation({
     const cap = to === HOME ? HOME_CAP : ROOM_CAP;
     const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;
     if (from === to && here.owner === owner && !joinable) {
-      const { fromX, fromZ, toX, toZ, startedAt, path } = state;
-      return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, ...(path ? { path } : {}), serverNow: now };
+      const { fromX, fromZ, toX, toZ, startedAt, path, heading } = state;
+      return {
+        ok: true as const,
+        roomId: here._id,
+        instance: here.instance,
+        place: from,
+        fromX,
+        fromZ,
+        toX,
+        toZ,
+        startedAt,
+        ...(path ? { path } : {}),
+        ...(heading === undefined ? {} : { heading }),
+        serverNow: now,
+      };
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const room = joinable ?? (await roomFor(ctx, to, owner));
     if (!room) throw new ConvexError("Their home is full. Try again in a bit.");
     await switchRoom(ctx, member, here, room, to);
-    const spot = await landIn(ctx, room, from === to ? posAt(state, now) : arrivalSpot(from, to), now, member._id);
-    const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
-    await ctx.db.patch("worldState", state._id, { ...walk, ...FRESH_IN_ROOM, actBucket: token.bucket });
+    if (to === HOME && from !== HOME) await rememberHomeFrom(ctx, email, member.name, from, now);
+    // Through a pad: on the pad back to where you came from, facing into the
+    // room (or the nearest clear spot when someone's on it), the same for
+    // everyone watching.
+    const arrival = from === to ? null : arrivalSpot(from, to);
+    const spot = await landIn(ctx, room, arrival ?? posAt(state, now), now, member._id);
+    const heading = arrival?.heading;
+    const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now, ...(heading === undefined ? {} : { heading }) };
+    await ctx.db.patch("worldState", state._id, { ...FRESH_IN_ROOM, ...walk, actBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, roomId: room._id, instance: room.instance, place: to, ...walk, serverNow: now };
   },
@@ -821,17 +861,18 @@ export const places = query({
 });
 
 export const away = mutation({
-  args: { at: v.union(v.literal("arcade"), v.null()) },
+  args: { at: v.union(v.literal("arcade"), v.null()), game: v.optional(v.string()) },
   returns: done,
-  handler: async (ctx, { at }) => {
+  handler: async (ctx, { at, game }) => {
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
-    if ((state.away ?? null) === at) return { ok: true as const, serverNow: now };
-    if (at === null) await ctx.db.patch("worldState", state._id, { away: undefined });
+    const playing = at !== null && game !== undefined && isGameId(game) ? game : undefined;
+    if ((state.away ?? null) === at && state.playing === playing) return { ok: true as const, serverNow: now };
+    if (at === null) await ctx.db.patch("worldState", state._id, { away: undefined, playing: undefined });
     else {
       const token = spend("act", state, now);
       if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-      await ctx.db.patch("worldState", state._id, { away: at, actBucket: token.bucket });
+      await ctx.db.patch("worldState", state._id, { away: at, playing, actBucket: token.bucket });
     }
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
@@ -1307,6 +1348,7 @@ export const state = query({
       // after the other person accepted someone else's too.
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
+      playing: v.optional(v.string()),
       reading: v.optional(v.boolean()),
       seat: v.optional(v.string()),
       typing: v.optional(v.number()),
@@ -1318,9 +1360,9 @@ export const state = query({
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
+    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
+    return { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat, typing: typingAt };
   },
 });
 
@@ -1653,6 +1695,75 @@ export const offlineStaff = query({
       page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }
     return { ...result, page };
+  },
+});
+
+/** lastSeen rows the offline list reads at most, newest first. */
+const OFFLINE_SEEN_SCAN = 1000;
+/** Staff profiles it reads at most for people never seen online. */
+const OFFLINE_NEVER_SCAN = 2000;
+
+/**
+ * Everyone with a staff profile this year who isn't in the garden, most
+ * recently online in the app first, then people never seen, by name. Not
+ * you, not anyone in the garden, nobody blocked either way. It returns at
+ * most `limit` people with their looks, and whether there are more, so the
+ * list starts short and grows on "Show all".
+ */
+export const offlineRecent = query({
+  args: { limit: v.number() },
+  returns: v.object({
+    people: v.array(
+      v.object({ id: v.id("staffProfiles"), name: v.string(), lastOnlineAt: v.union(v.number(), v.null()), look: worldLookValidator })
+    ),
+    more: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
+    const year = currentStaffYear();
+    const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
+    const away = async (other: string) => other !== email && !(await memberByEmail(ctx, other)) && !(await isBlocked(other));
+    const found: { profile: Doc<"staffProfiles">; lastOnlineAt: number | null }[] = [];
+    const listed = new Set<string>();
+    let more = false;
+    let scanned = 0;
+    for await (const row of ctx.db.query("lastSeen").withIndex("by_at").order("desc")) {
+      if (scanned++ === OFFLINE_SEEN_SCAN) break;
+      if (listed.has(row.email)) continue;
+      const profile = await getProfile(ctx, row.email, year);
+      if (!profile || !(await away(profile.email))) continue;
+      if (found.length === limit) {
+        more = true;
+        break;
+      }
+      listed.add(profile.email);
+      found.push({ profile, lastOnlineAt: row.at });
+    }
+    if (!more) {
+      scanned = 0;
+      for await (const profile of ctx.db.query("staffProfiles").withIndex("by_year_and_name", (q) => q.eq("year", year))) {
+        if (scanned++ === OFFLINE_NEVER_SCAN) break;
+        if (listed.has(profile.email)) continue;
+        const seen = await ctx.db
+          .query("lastSeen")
+          .withIndex("by_email", (q) => q.eq("email", profile.email))
+          .first();
+        if (seen || !(await away(profile.email))) continue;
+        if (found.length === limit) {
+          more = true;
+          break;
+        }
+        listed.add(profile.email);
+        found.push({ profile, lastOnlineAt: null });
+      }
+    }
+    const people = [];
+    for (const { profile, lastOnlineAt } of found) {
+      const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
+      people.push({ id: profile._id, name: profileName(profile), lastOnlineAt, look });
+    }
+    return { people, more };
   },
 });
 

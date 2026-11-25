@@ -23,10 +23,8 @@ import {
   type PingReading,
   type PingBars,
   TYPING_REFRESH_MS,
-  pathAhead,
   posAt,
   type Walk,
-  type Waypoint,
 } from "@shared/world";
 import { findPath } from "@shared/worldPath";
 import { homeObstacles } from "@shared/home";
@@ -40,7 +38,8 @@ import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { fillLoading, useDormant } from "./dormant";
-import { carryGait, restingGait, type Gait } from "./gait";
+import { blendIn, headFor, type LocalWalk } from "./blend";
+import { restingGait, type Gait } from "./gait";
 import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -66,6 +65,7 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
   away?: "arcade";
+  playing?: string;
   reading?: boolean;
   seat?: string;
   typing?: number;
@@ -79,31 +79,6 @@ export const PENDING = "pending:";
 const COALESCE_MS = 150;
 const HOLD_ROUTE_MS = 100;
 const HOLD_SAME_SPOT = 0.3;
-const SAME_SPOT = 0.05;
-const TOO_FAR_TO_BLEND = 3;
-
-type LocalWalk = Walk & { gait: Gait };
-
-const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number, path?: readonly Waypoint[]): LocalWalk => {
-  const from = walk ? posAt(walk, now) : to;
-  const cleanPath = path && path.length > 0 ? path : undefined;
-  const next: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
-  return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
-};
-
-const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
-  const { fromX, fromZ, toX, toZ, startedAt, path } = server;
-  const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}) };
-  if (!walk) return { ...theirs, gait: restingGait(theirs) };
-  if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
-  const here = posAt(walk, now);
-  const there = posAt(theirs, now);
-  if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
-    return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
-  }
-  return headFor(walk, { x: toX, z: toZ }, now, pathAhead(theirs, now));
-};
-
 /**
  * Counts of what this phone sent, for measuring the write budget. Tests and
  * the verify run read it from `globalThis.__shedWorld`.
@@ -247,7 +222,8 @@ export const useWorld = (
   away = false,
   arrival?: { poke?: string; invite?: string },
   tickEverySecond = true,
-  reading = false
+  reading = false,
+  game?: string
 ) => {
   const convex = useConvex();
   const joinM = useMutation(api.world.join);
@@ -391,7 +367,7 @@ export const useWorld = (
     let stillWanted = true;
     let retry: ReturnType<typeof setTimeout> | null = null;
     const tell = () => {
-      awayM({ at: away ? "arcade" : null })
+      awayM(away ? { at: "arcade", ...(game === undefined ? {} : { game }) } : { at: null })
         .then((reply) => {
           if (stillWanted && !reply.ok) retry = setTimeout(tell, reply.retryInMs);
         })
@@ -402,7 +378,7 @@ export const useWorld = (
       stillWanted = false;
       if (retry) clearTimeout(retry);
     };
-  }, [session, away, awayM]);
+  }, [session, away, game, awayM]);
 
   const toldReading = useRef(false);
   useEffect(() => {
@@ -738,8 +714,8 @@ export const useWorld = (
         holding.current = false;
         if (timer.current) clearTimeout(timer.current);
         timer.current = null;
-        const { fromX, fromZ, toX, toZ, startedAt } = reply;
-        const arrived = { fromX, fromZ, toX, toZ, startedAt };
+        const { fromX, fromZ, toX, toZ, startedAt, heading } = reply;
+        const arrived: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(heading === undefined ? {} : { heading }) };
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
         setMySeat(null);
@@ -952,7 +928,7 @@ export const useWorld = (
   const myBars = pingMs === null ? null : pingBars(pingMs);
   const people: WorldMember[] = useMemo(() => members.map((m) => {
     const row = states[m.memberId] as
-      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "reading" | "seat" | "typing">)
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "playing" | "reading" | "seat" | "typing">)
       | null
       | undefined
       | Error;
@@ -970,6 +946,7 @@ export const useWorld = (
       reply: state?.reply,
       answered: state?.answered,
       away: state?.away,
+      playing: state?.playing,
       reading: state?.reading,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,
@@ -1013,6 +990,7 @@ export const useWorld = (
     place: session?.place ?? ("garden" as Place),
     placeCounts,
     home: session?.place === "home" ? (home ?? null) : null,
+    homeLoading: session?.place === "home" && home === undefined,
     invite,
     ping: pingMs,
     travel,

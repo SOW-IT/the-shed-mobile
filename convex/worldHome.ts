@@ -18,7 +18,7 @@ import {
 import { fullBucket, takeToken, NPC } from "../shared/world";
 import { ensureWallet, walletOf } from "./coins";
 import { optionalEmail } from "./model";
-import { homeOf, homeRowOf, memberByEmail, nameFor, requireMe, placeOf } from "./world";
+import { homeBackTo, homeOf, homeRowOf, memberByEmail, nameFor, requireMe, placeOf } from "./world";
 import { worldPlacedValidator } from "./worldData";
 
 const homeRow = homeRowOf;
@@ -28,7 +28,14 @@ export const home = query({
   args: { roomId: v.id("worldRooms") },
   returns: v.union(
     v.null(),
-    v.object({ ownerName: v.string(), mine: v.boolean(), wallpaper: v.string(), items: v.array(worldPlacedValidator) })
+    v.object({
+      ownerName: v.string(),
+      mine: v.boolean(),
+      wallpaper: v.string(),
+      items: v.array(worldPlacedValidator),
+      // Where the door takes the caller: the place they came from.
+      backTo: v.optional(v.string()),
+    })
   ),
   handler: async (ctx, { roomId }) => {
     const email = await optionalEmail(ctx);
@@ -42,6 +49,7 @@ export const home = query({
       mine: room.owner === email,
       wallpaper: wallpaperOr(row?.wallpaper),
       items: row?.items ?? [],
+      backTo: await homeBackTo(ctx, email),
     };
   },
 });
