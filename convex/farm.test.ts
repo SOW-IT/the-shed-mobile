@@ -141,6 +141,32 @@ describe("the backyard", () => {
     await expect(asUser(t, BEN).mutation(api.world.travel, { to: "backyard", invite })).rejects.toThrow(/run out/);
   });
 
+  test("an invite can't be carried through a door, and the door doesn't let a blocked guest through", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await asUser(t, BEN).mutation(api.world.join, { backyard: true });
+    await go(t, BEN, "home");
+    await go(t, BEN, "backyard", { door: true });
+    const invite = await t.run((ctx) => ctx.db.insert("worldInvites", { owner: ANNA, ownerName: "Anna", guest: BEN, at: Date.now(), expiresAt: Date.now() + DAY_MS }));
+    await expect(asUser(t, BEN).mutation(api.world.travel, { to: "home", invite, door: true })).rejects.toThrow(/isn't a way in/);
+    expect((await memberOf(t, BEN)).room?.owner).toBe(BEN);
+    await go(t, BEN, "garden");
+    await go(t, BEN, "home", { invite });
+    await asUser(t, ANNA).mutation(api.world.block, { memberId: (await memberOf(t, BEN)).member!._id });
+    later(5000);
+    await expect(asUser(t, BEN).mutation(api.world.travel, { to: "backyard", door: true })).rejects.toThrow(/run out/);
+  });
+
+  test("someone blocked can't farm in that backyard", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "lettuce" });
+    await visit(t, ANNA, BEN);
+    await asUser(t, ANNA).mutation(api.world.block, { memberId: (await memberOf(t, BEN)).member!._id });
+    later(DAY_MS);
+    await expect(asUser(t, BEN).mutation(api.farm.water, { plot: 0 })).rejects.toThrow(/can't do that here/);
+  });
+
   test("a full backyard turns people away", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);

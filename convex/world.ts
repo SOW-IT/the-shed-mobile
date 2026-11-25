@@ -732,9 +732,11 @@ export const travel = mutation({
       const inviteId = args.invite === undefined ? null : ctx.db.normalizeId("worldInvites", args.invite);
       const invite = inviteId && (await ctx.db.get("worldInvites", inviteId));
       if (args.invite !== undefined && (!invite || invite.guest !== email)) throw new ConvexError("That invite isn't yours.");
+      if (invite && args.door === true) throw new ConvexError("That isn't a way in.");
       const throughDoor = args.door === true && isPrivatePlace(from) && from !== to && here.owner !== undefined;
       owner = invite ? invite.owner : throughDoor ? here.owner! : email;
-      if (!throughDoor && !(await mayEnterHome(ctx, owner, email, now))) throw new ConvexError("That invite has run out. Ask them for another.");
+      const allowed = owner === email || (throughDoor ? !(await blockedEither(ctx, owner, email)) : await mayEnterHome(ctx, owner, email, now));
+      if (!allowed) throw new ConvexError("That invite has run out. Ask them for another.");
     }
     const cap = isPrivatePlace(to) ? HOME_CAP : ROOM_CAP;
     const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;

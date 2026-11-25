@@ -232,6 +232,11 @@ export const PlotOffer = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setError(null);
+  }
   const short = price !== null && balance < price;
   const buy = async () => {
     setBusy(true);

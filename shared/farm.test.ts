@@ -116,6 +116,7 @@ describe("the plant card", () => {
   test("says the crop, the time left and the wilts", () => {
     expect(plantCard(tomato([day(2) + 1]), day(2) + 2 * HOUR)).toBe("Tomato · 3 days left · wilted 1×");
     expect(plantCard(tomato([]), AT)).toBe("Tomato · 4 days left");
+    expect(plantCard(tomato([]), AT - 30_000)).toBe("Tomato · 4 days left");
     expect(plantCard({ crop: "lettuce", plantedAt: AT, waterings: [] }, AT + 20 * HOUR)).toBe("Lettuce · 4h left");
     expect(plantCard({ crop: "lettuce", plantedAt: AT, waterings: [] }, day(1))).toBe("Lettuce · ready");
     expect(plantCard(tomato([]), day(5))).toBe("Tomato · died · wilted 3×");

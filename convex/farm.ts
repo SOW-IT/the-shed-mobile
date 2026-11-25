@@ -22,7 +22,7 @@ import { BACKYARD, NPC } from "../shared/world";
 import { ensureWallet } from "./coins";
 import { ensureFarm, farmOf } from "./farmData";
 import { type Ctx, optionalEmail, requireEmail } from "./model";
-import { memberByEmail, nameFor, ownerOf, placeOf, requireMe } from "./world";
+import { blockedEither, memberByEmail, nameFor, ownerOf, placeOf, requireMe } from "./world";
 
 const REMIND_BATCH = 50;
 
@@ -46,6 +46,7 @@ const inBackyard = async (ctx: MutationCtx) => {
   const me = await requireMe(ctx);
   const owner = placeOf(me.member) === BACKYARD ? await ownerOf(ctx, me.member) : null;
   if (!owner) throw new ConvexError("Go to the backyard first.");
+  if (await blockedEither(ctx, owner, me.email)) throw new ConvexError("You can't do that here.");
   return { ...me, owner };
 };
 

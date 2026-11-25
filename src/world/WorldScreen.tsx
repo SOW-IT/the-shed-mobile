@@ -253,6 +253,7 @@ export const WorldScreen = ({
   const [bagOpen, setBagOpen] = useState(false);
   const [pickPlot, setPickPlot] = useState<number | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
   const [plotTrip, setPlotTrip] = useState<{ plot: number; since: number } | null>(null);
   const [plotCard, setPlotCard] = useState<{ plot: number; key: number } | null>(null);
   const [watering, setWatering] = useState<{ plot: number; key: number } | null>(null);
@@ -693,6 +694,7 @@ export const WorldScreen = ({
     setPerson(null);
     setApproach(null);
     setPropTrip(null);
+    setPlotTrip(null);
     setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
@@ -720,6 +722,7 @@ export const WorldScreen = ({
     setPerson(null);
     setApproach(null);
     setSeatTrip(null);
+    setPlotTrip(null);
     setTray(false);
     const spot = OBJECT_SPOTS[kind];
     const mePose = myPoseNow();
@@ -792,7 +795,10 @@ export const WorldScreen = ({
     setSeatTrip(null);
     if (plot >= farmView.plots) {
       setPlotTrip(null);
-      if (farmView.mine) setOfferOpen(true);
+      if (farmView.mine) {
+        setOffer({ plot: farmView.plots, price: plotPrice(farmView.plots) });
+        setOfferOpen(true);
+      }
       return;
     }
     if (plantOn(plot)) setPlotCard({ plot, key: Date.now() });
@@ -828,6 +834,14 @@ export const WorldScreen = ({
     const id = setTimeout(() => setPlotCard(null), PLOT_CARD_MS);
     return () => clearTimeout(id);
   }, [plotCard]);
+  const describePlot = (plot: number): string | null => {
+    if (!farmView) return null;
+    if (plot >= farmView.plots) return farmView.mine ? `Plot ${plot + 1}, locked, ${plotPrice(plot)} coins` : null;
+    const plant = plantOn(plot);
+    if (!plant) return `Plot ${plot + 1}, empty`;
+    const g = growth(plant, farmNow);
+    return `${plantCard(plant, farmNow)}${g.thirsty ? ", needs water" : ""}`;
+  };
   const plantPicked = (plot: number, crop: CropId) => {
     setPickPlot(null);
     setPlanting({ plot, crop, key: Date.now() });
@@ -837,7 +851,6 @@ export const WorldScreen = ({
       setNote(problem);
     });
   };
-  const nextPlot = farmView?.plots ?? 0;
   const gardenFarm: GardenFarm | null = farmView
     ? {
         plots: farmView.plots,
@@ -852,6 +865,7 @@ export const WorldScreen = ({
         onFlown: clearFlying,
         planting,
         onPlanted: clearPlanting,
+        describe: describePlot,
       }
     : null;
 
@@ -870,6 +884,7 @@ export const WorldScreen = ({
     setPerson(null);
     setApproach(null);
     setPropTrip(null);
+    setPlotTrip(null);
     setSeatTrip(null);
     const { world: latest } = live.current;
     const at = latest.serverNow();
@@ -1030,8 +1045,8 @@ export const WorldScreen = ({
       <PlotOffer
         open={offerOpen}
         top={insets.top + TOP_BAR_GAP}
-        plot={nextPlot}
-        price={plotPrice(nextPlot)}
+        plot={offer.plot}
+        price={offer.price}
         balance={wallet?.balance ?? 0}
         onBuy={async () => {
           const problem = await farm.buyPlot();
@@ -1236,6 +1251,7 @@ export const WorldScreen = ({
           setPerson(null);
           setApproach(null);
           setPropTrip(null);
+          setPlotTrip(null);
           setSeatTrip(null);
           world.holdStart(x, z);
         }}
@@ -1250,6 +1266,7 @@ export const WorldScreen = ({
           }
           setTray(false);
           setPropTrip(null);
+          setPlotTrip(null);
           setSeatTrip(null);
           setPerson((current) => (current === memberId ? null : memberId));
         }}

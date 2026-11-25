@@ -69,7 +69,8 @@ const daysOf = (crop: string) => (isCrop(crop) ? CROPS[crop].days : 1);
 
 const stageAt = (progress: number): Stage => (progress < 0.25 ? "seed" : progress < 0.6 ? "sprout" : "half");
 
-export const growth = (plant: PlantTimes, now: number): Growth => {
+export const growth = (plant: PlantTimes, at: number): Growth => {
+  const now = Math.max(at, plant.plantedAt);
   const days = daysOf(plant.crop);
   const wateredIn = (start: number, end: number) => plant.waterings.find((w) => w.at >= start && w.at < end)?.at ?? null;
   let grown = 0;
@@ -162,7 +163,8 @@ export const timeLeft = (ms: number): string => {
 
 export const cropLabel = (crop: string) => (isCrop(crop) ? CROPS[crop].label : "Plant");
 
-export const plantCard = (plant: PlantTimes, now: number): string => {
+export const plantCard = (plant: PlantTimes, at: number): string => {
+  const now = Math.max(at, plant.plantedAt);
   const g = growth(plant, now);
   const status = g.stage === "ripe" ? "ready" : g.stage === "dead" ? "died" : timeLeft((g.readyAt ?? now) - now);
   return [cropLabel(plant.crop), status, ...(g.wilts > 0 ? [`wilted ${g.wilts}×`] : [])].join(" · ");

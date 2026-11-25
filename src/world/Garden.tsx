@@ -88,6 +88,7 @@ export type GardenFarm = {
   onFlown: () => void;
   planting: { plot: number; crop: CropId; key: number } | null;
   onPlanted: () => void;
+  describe: (plot: number) => string | null;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
@@ -780,6 +781,32 @@ export const Garden = ({
     });
   }
   const layered = layerOrder(actors);
+  const targets: { key: string; label: string; x: number; y: number; onActivate: () => void }[] = [];
+  people.forEach((p, i) => {
+    const pose = poses[i];
+    if (!pose || p.me) return;
+    const at = cam.project([pose.x, 0.8, pose.z]);
+    targets.push({ key: `a11y-${p.memberId}`, label: worldName(p.name), x: at.x, y: at.y, onActivate: () => onTapPerson(p.memberId) });
+  });
+  for (const pad of padSpots) {
+    const at = cam.project([pad.x, 0, pad.z]);
+    targets.push({ key: `a11y-pad-${pad.to}`, label: `Go to ${PLACE_TITLES[pad.to]}`, x: at.x, y: at.y, onActivate: () => {
+      onHoldStart(pad.x, pad.z);
+      onHoldEnd(pad.x, pad.z);
+    } });
+  }
+  if (npcHere && onTapNpc) {
+    const at = cam.project([NPC.x, 0.8, NPC.z]);
+    targets.push({ key: "a11y-npc", label: `${NPC.name}, shop`, x: at.x, y: at.y, onActivate: onTapNpc });
+  }
+  if (farm && place === BACKYARD) {
+    for (const spot of PLOTS) {
+      const label = farm.describe(spot.index);
+      if (!label) continue;
+      const at = cam.project([spot.x, 0.3, spot.z]);
+      targets.push({ key: `a11y-plot-${spot.index}`, label, x: at.x, y: at.y, onActivate: () => farm.onTapPlot(spot.index) });
+    }
+  }
 
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
@@ -832,6 +859,18 @@ export const Garden = ({
       </View>
       </View>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {targets.map((target) => (
+          <View
+            key={target.key}
+            pointerEvents="none"
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={target.label}
+            accessibilityActions={ACTIVATE}
+            onAccessibilityAction={target.onActivate}
+            style={[styles.target, { left: target.x - TARGET / 2, top: target.y - TARGET / 2 }]}
+          />
+        ))}
         {asks.map((p, i) => {
           const pose = poses[people.indexOf(p)];
           if (!pose || !p.ask) return null;
@@ -915,6 +954,8 @@ type Hit =
   | { kind: "floor" }
   | { kind: "ground" };
 const ITEM = "item:";
+const TARGET = 44;
+const ACTIVATE = [{ name: "activate" as const }];
 const PLANT_HEIGHT = 1.6;
 const PLANT_SCALE = 2.1;
 
@@ -1046,6 +1087,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1, overflow: "hidden" },
   away: { opacity: 0.45 },
   padLabel: { position: "absolute", width: PAD_LABEL_WIDTH, alignItems: "center" },
+  target: { position: "absolute", width: TARGET, height: TARGET },
   padLabelText: {
     fontSize: 11.5,
     fontWeight: "700",
