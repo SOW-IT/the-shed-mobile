@@ -84,6 +84,14 @@ export interface AppTheme {
   errorText: string;
   surfaceEdge: ViewStyle;
   shadowFloat: ViewStyle;
+  devoCalendar: {
+    neutral: { bg: string; text: string; subtext: string; border: string };
+    zero: { bg: string; text: string; subtext: string; border: string };
+    low: { bg: string; text: string; subtext: string; border: string };
+    mid: { bg: string; text: string; subtext: string; border: string };
+    high: { bg: string; text: string; subtext: string; border: string };
+    full: { bg: string; text: string; subtext: string; border: string; glow: string };
+  };
 }
 
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -148,6 +156,20 @@ const light: AppTheme = {
   errorText: "#7C3015",
   surfaceEdge: { borderWidth: 1, borderColor: "#E4E1CD" },
   shadowFloat: lightShadowFloat,
+  devoCalendar: {
+    neutral: { bg: "#F3F1E3", text: "#56665E", subtext: "#87938B", border: "#DCD9C4" },
+    zero: { bg: "#F8D8D2", text: "#7B1F19", subtext: "#982B23", border: "#E9A99E" },
+    low: { bg: "#F9E2CC", text: "#7A3610", subtext: "#964618", border: "#E9BC94" },
+    mid: { bg: "#F5ECC2", text: "#5F4907", subtext: "#785D0E", border: "#DFCE82" },
+    high: { bg: "#D9EED4", text: "#1B522D", subtext: "#2A6B3E", border: "#A8D5A0" },
+    full: {
+      bg: "#267346",
+      text: "#FFFFFF",
+      subtext: "#E4F7EA",
+      border: "#1A5733",
+      glow: "rgba(38, 115, 70, 0.28)",
+    },
+  },
 };
 
 const dark: AppTheme = {
@@ -187,6 +209,20 @@ const dark: AppTheme = {
   errorText: "#F2D4C6",
   surfaceEdge: { borderWidth: 1, borderColor: "#1F3A35" },
   shadowFloat: darkShadowFloat,
+  devoCalendar: {
+    neutral: { bg: "#19332F", text: "#A6BAAF", subtext: "#71877C", border: "#2A4842" },
+    zero: { bg: "#4F221D", text: "#FFD7D0", subtext: "#F5ADA2", border: "#803B33" },
+    low: { bg: "#522F1B", text: "#FFE1C4", subtext: "#F4BD8E", border: "#854F2D" },
+    mid: { bg: "#4A3F19", text: "#FAF0B8", subtext: "#E6D27B", border: "#7D6B2A" },
+    high: { bg: "#1D4933", text: "#D9F5E1", subtext: "#A4DEB7", border: "#347553" },
+    full: {
+      bg: "#2E8555",
+      text: "#FFFFFF",
+      subtext: "#E4F7EA",
+      border: "#6FD199",
+      glow: "rgba(111, 209, 153, 0.34)",
+    },
+  },
 };
 
 // Colours that are the same in both themes. Lint keeps colour literals in

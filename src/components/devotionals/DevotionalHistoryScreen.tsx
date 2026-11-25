@@ -1,6 +1,6 @@
 import { ChromeScreen } from "@/components/ChromeScreen";
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { Btn, Card, IconButton, LoadingState, Muted, ReadableColumn, Segmented } from "@/components/ui";
+import { Btn, Card, IconButton, LoadingState, Muted, ReadableColumn, Segmented, TabBar } from "@/components/ui";
 import { useLocalDevotionals } from "@/lib/devotionalStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -12,10 +12,11 @@ import {
   todayDevotionalDate,
 } from "@shared/devotionals";
 import { useConvexAuth, useQuery } from "convex/react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
+import { DevotionalGroupsTab } from "./DevotionalGroupsTab";
 
 const WEEKDAYS = [
   { key: "mon", label: "M" },
@@ -52,6 +53,7 @@ const weekHeading = (week: readonly string[]) => `${dayLabel(week[0])} - ${dayLa
 export const DevotionalHistoryScreen = () => {
   const t = useAppTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const me = useQuery(api.directory.me, isAuthenticated ? {} : "skip");
   const email = me?.email ?? null;
@@ -59,9 +61,18 @@ export const DevotionalHistoryScreen = () => {
 
   const today = todayDevotionalDate();
   const [ty, tm] = today.split("-").map(Number);
+  const [tab, setTab] = useState<"history" | "groups">(
+    params.tab === "groups" ? "groups" : "history"
+  );
   const [view, setView] = useState<"month" | "week">("month");
   const [{ year, month }, setPeriod] = useState({ year: ty, month: tm });
   const [weekAnchor, setWeekAnchor] = useState(today);
+
+  const groupsSummary = useQuery(
+    api.devotionalGroups.mySummary,
+    isAuthenticated ? { today } : "skip"
+  );
+  const inviteCount = groupsSummary?.invites.length ?? 0;
 
   const activeWeek = weekOf(weekAnchor);
   const [wy1, wm1] = activeWeek[0].split("-").map(Number);
@@ -130,6 +141,19 @@ export const DevotionalHistoryScreen = () => {
             <Btn title="Today" onPress={() => openDay(today)} />
           </View>
 
+          <TabBar
+            segments={[
+              { key: "history", label: "History" },
+              { key: "groups", label: "Groups", badge: inviteCount > 0 ? inviteCount : undefined },
+            ]}
+            active={tab}
+            onChange={(next) => setTab(next as "history" | "groups")}
+          />
+
+          {tab === "groups" ? (
+            <DevotionalGroupsTab />
+          ) : (
+            <>
           <Pressable
             onPress={() => openDay(today)}
             accessibilityRole="button"
@@ -302,6 +326,8 @@ export const DevotionalHistoryScreen = () => {
           )}
 
           {monthRows === undefined ? <Muted>Loading...</Muted> : null}
+            </>
+          )}
         </View>
       </ReadableColumn>
     </ChromeScreen>

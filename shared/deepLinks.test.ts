@@ -22,4 +22,11 @@ describe("push deep links", () => {
     expect(isAllowedDeepLink("/worlds")).toBe(false);
     expect(isAllowedDeepLink("/gamesx")).toBe(false);
   });
+
+  test("devotional group invites and reminders open devotionals", () => {
+    expect(isAllowedDeepLink("/devotionals")).toBe(true);
+    expect(isAllowedDeepLink("/devotionals/2026-11-25")).toBe(true);
+    expect(isAllowedDeepLink("/devotionals/groups/abc123")).toBe(true);
+    expect(isAllowedDeepLink("/devotionalsx")).toBe(false);
+  });
 });

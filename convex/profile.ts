@@ -100,6 +100,7 @@ export const get = query({
       email,
       isMe,
       reminderEmails: isMe ? user?.reminderEmails !== false : null,
+      devotionalReminders: isMe ? user?.devotionalReminders !== false : null,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
@@ -125,6 +126,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
     email: "",
     isMe: true,
     reminderEmails: user.reminderEmails !== false,
+    devotionalReminders: user.devotionalReminders !== false,
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
@@ -161,6 +163,16 @@ export const setReminderEmails = mutation({
   handler: async (ctx, { enabled }) => {
     const user = await requireOwnUser(ctx);
     await ctx.db.patch("users", user._id, { reminderEmails: enabled ? undefined : false });
+    return null;
+  },
+});
+
+export const setDevotionalReminders = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { enabled }) => {
+    const user = await requireOwnUser(ctx);
+    await ctx.db.patch("users", user._id, { devotionalReminders: enabled ? undefined : false });
     return null;
   },
 });
