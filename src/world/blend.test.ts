@@ -6,6 +6,14 @@ import { drawnPose, TURN_MS } from "./gait";
 const NOW = 10_000;
 
 describe("blending the server's walk into this phone's", () => {
+  test("a walk to the lectern from another of your devices keeps its heading, so you end facing the room", () => {
+    const local = headFor(null, { x: 1.3, z: -6 }, NOW - 5000);
+    const toLectern: Walk = { fromX: 1.3, fromZ: -6, toX: 1.3, toZ: -9.2, startedAt: NOW, heading: 0 };
+    const blended = blendIn(local, toLectern, NOW);
+    expect(blended.heading).toBe(0);
+    expect(drawnPose(blended, blended.gait, NOW + 60_000)).toMatchObject({ walking: false, heading: 0 });
+  });
+
   test("an arrival seen while a local walk ends at the same spot turns the drawn character to the server's heading", () => {
     const local = headFor(null, { x: 1, z: 1 }, NOW - 5000);
     const arrival: Walk = { fromX: 1, fromZ: 1, toX: 1, toZ: 1, startedAt: NOW, heading: -Math.PI / 2 };

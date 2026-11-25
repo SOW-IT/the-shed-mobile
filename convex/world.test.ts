@@ -25,6 +25,7 @@ import {
   portalReached,
   ELSEWHERE_NAMES,
   SEATS,
+  STANDS,
   PLACE_OBSTACLES,
   clampTarget,
   INTERACT_RADIUS,
@@ -435,6 +436,33 @@ describe("places", () => {
     expect((await stateRow(t, a.memberId))!.seat).toBeUndefined();
     const pew = SEATS.chapel[0];
     expect(await anna.mutation(api.world.sit, { seat: pew.id })).toMatchObject({ ok: true, toX: pew.x, toZ: pew.z });
+  });
+
+  test("standing at the lectern walks you behind it, facing the room, for everyone watching", async () => {
+    const { t, anna, ben, a } = await two();
+    await expect(anna.mutation(api.world.move, { toX: 0, toZ: 0, stand: "lectern" })).rejects.toThrow(/somewhere you can stand/);
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    later(60_000);
+    await standAt(t, a.memberId, 0, 0);
+    const lectern = STANDS.chapel[0];
+    const stood = await anna.mutation(api.world.move, { toX: 0, toZ: 5, stand: "lectern" });
+    expect(stood).toMatchObject({ ok: true, fromX: 0, fromZ: 0, toX: lectern.x, toZ: lectern.z, heading: 0 });
+    expect(await ben.query(api.world.state, { memberId: a.memberId })).toMatchObject({ toX: lectern.x, toZ: lectern.z, heading: 0 });
+    await expect(anna.mutation(api.world.move, { toX: 0, toZ: 0, stand: "pulpit" })).rejects.toThrow(/somewhere you can stand/);
+    // The app's path is kept, but a waypoint inside the lectern is moved out of it.
+    later(60_000);
+    const lecternBox = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
+    const round = await anna.mutation(api.world.move, { toX: 0, toZ: 0, stand: "lectern", path: [{ x: lecternBox.x, z: lecternBox.z }, { x: lectern.x, z: lectern.z }] });
+    if (!round.ok) throw new Error("move refused");
+    expect(round.path![0]).toEqual(clampTarget(lecternBox.x, lecternBox.z, "chapel"));
+    expect(round.path![0]).not.toEqual({ x: lecternBox.x, z: lecternBox.z });
+
+    later(60_000);
+    const off = await anna.mutation(api.world.move, { toX: 0, toZ: 0 });
+    expect(off).toMatchObject({ ok: true });
+    expect(off).not.toHaveProperty("heading");
+    expect((await stateRow(t, a.memberId))!.heading).toBeUndefined();
   });
 
   test("sitting shares the walking rate limit", async () => {

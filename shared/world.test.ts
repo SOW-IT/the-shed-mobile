@@ -89,6 +89,9 @@ import {
   isAskKind,
   isDuelPick,
   SEAT_TURN,
+  PEW_TURN,
+  STANDS,
+  standIn,
   towardCamera,
 } from "./world";
 
@@ -571,6 +574,19 @@ describe("sitting turns toward the camera", () => {
     }
   });
 
+  test("every pew seat turns 60 degrees off the camera, toward the aisle, so the face shows", () => {
+    const pews = SEATS.chapel.filter((s) => s.id.startsWith("pew"));
+    expect(pews).toHaveLength(24);
+    for (const s of pews) {
+      expect(Math.abs(s.heading)).toBeCloseTo(Math.PI - PEW_TURN);
+      expect(Math.abs(s.heading)).toBeCloseTo(Math.abs(seat("cafe", "table-a-left").heading));
+      // Person.tsx draws the face when cos(heading) > 0.15; this is 0.5.
+      expect(Math.cos(s.heading)).toBeGreaterThan(0.45);
+      // Turned toward the aisle: a left pew (x < 0) faces +x, a right pew -x.
+      expect(Math.sign(Math.sin(s.heading))).toBe(s.x < 0 ? 1 : -1);
+    }
+  });
+
   test("the two stools at a café table still face each other, both turned toward the camera", () => {
     for (const table of ["table-a", "table-b", "table-c"]) {
       const left = seat("cafe", `${table}-left`);
@@ -587,6 +603,38 @@ describe("sitting turns toward the camera", () => {
     expect(seat("campfire", "log-right-0").heading).toBeCloseTo(-Math.PI / 3);
     expect(seat("campfire", "log-back-0").heading).toBe(0);
     expect(seat("beach", "towel-0").heading).toBe(0);
+  });
+});
+
+describe("standing behind the lectern", () => {
+  const lectern = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
+  const stand = standIn("chapel", "lectern")!;
+
+  test("the spot is behind the lectern, clear of it and the piano, facing the pews and the camera", () => {
+    expect(stand.heading).toBe(0);
+    expect(stand.x).toBe(lectern.x);
+    expect(stand.z).toBeLessThan(lectern.z - lectern.rz);
+    expect(clampTarget(stand.x, stand.z, "chapel")).toEqual({ x: stand.x, z: stand.z });
+    const pews = PLACE_OBSTACLES.chapel.filter((o) => o.id.startsWith("pew"));
+    for (const pew of pews) expect(pew.z).toBeGreaterThan(stand.z);
+  });
+
+  test("only the Chapel has it", () => {
+    expect(standIn("garden", "lectern")).toBeNull();
+    expect(standIn("chapel", "pulpit")).toBeNull();
+    expect(standIn("chapel", undefined)).toBeNull();
+    for (const place of PLACES) if (place !== "chapel") expect(STANDS[place]).toHaveLength(0);
+  });
+
+  test("a walk with a heading faces it once it ends, and the way it goes until then", () => {
+    const walk = { fromX: 1.3, fromZ: -6, toX: stand.x, toZ: stand.z, startedAt: 0, heading: stand.heading };
+    expect(posAt(walk, 1).heading).toBeCloseTo(Math.PI);
+    expect(posAt(walk, 60_000)).toMatchObject({ walking: false, heading: 0 });
+    const around = { ...walk, fromX: -1, path: [{ x: 0, z: -9.6 }, { x: stand.x, z: stand.z }] };
+    expect(posAt(around, 1).walking).toBe(true);
+    expect(posAt(around, 60_000)).toMatchObject({ walking: false, heading: 0 });
+    const { heading: _, ...plain } = around;
+    expect(posAt(plain, 60_000).heading).toBeCloseTo(Math.atan2(stand.x - 0, stand.z + 9.6));
   });
 });
 

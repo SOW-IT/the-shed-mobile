@@ -6,10 +6,18 @@ const TOO_FAR_TO_BLEND = 3;
 
 export type LocalWalk = Walk & { gait: Gait };
 
-export const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number, path?: readonly Waypoint[]): LocalWalk => {
+export const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number, path?: readonly Waypoint[], heading?: number): LocalWalk => {
   const from = walk ? posAt(walk, now) : to;
   const cleanPath = path && path.length > 0 ? path : undefined;
-  const next: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
+  const next: Walk = {
+    fromX: from.x,
+    fromZ: from.z,
+    toX: to.x,
+    toZ: to.z,
+    startedAt: now,
+    ...(cleanPath ? { path: cleanPath } : {}),
+    ...(heading === undefined ? {} : { heading }),
+  };
   return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
 };
 
@@ -26,5 +34,5 @@ export const blendIn = (walk: LocalWalk | null, server: Walk, now: number): Loca
   if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
     return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
   }
-  return headFor(walk, { x: toX, z: toZ }, now, pathAhead(theirs, now));
+  return headFor(walk, { x: toX, z: toZ }, now, pathAhead(theirs, now), heading);
 };
