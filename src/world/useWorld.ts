@@ -23,10 +23,8 @@ import {
   type PingReading,
   type PingBars,
   TYPING_REFRESH_MS,
-  pathAhead,
   posAt,
   type Walk,
-  type Waypoint,
 } from "@shared/world";
 import { findPath } from "@shared/worldPath";
 import { homeObstacles } from "@shared/home";
@@ -40,7 +38,8 @@ import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { fillLoading, useDormant } from "./dormant";
-import { carryGait, restingGait, type Gait } from "./gait";
+import { blendIn, headFor, type LocalWalk } from "./blend";
+import { restingGait, type Gait } from "./gait";
 import { subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -80,31 +79,6 @@ export const PENDING = "pending:";
 const COALESCE_MS = 150;
 const HOLD_ROUTE_MS = 100;
 const HOLD_SAME_SPOT = 0.3;
-const SAME_SPOT = 0.05;
-const TOO_FAR_TO_BLEND = 3;
-
-type LocalWalk = Walk & { gait: Gait };
-
-const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: number, path?: readonly Waypoint[]): LocalWalk => {
-  const from = walk ? posAt(walk, now) : to;
-  const cleanPath = path && path.length > 0 ? path : undefined;
-  const next: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
-  return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
-};
-
-const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
-  const { fromX, fromZ, toX, toZ, startedAt, path, heading } = server;
-  const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}), ...(heading === undefined ? {} : { heading }) };
-  if (!walk) return { ...theirs, gait: restingGait(theirs) };
-  if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
-  const here = posAt(walk, now);
-  const there = posAt(theirs, now);
-  if (Math.hypot(here.x - there.x, here.z - there.z) > TOO_FAR_TO_BLEND) {
-    return { ...theirs, gait: carryGait({ walk, gait: walk.gait }, theirs, now) };
-  }
-  return headFor(walk, { x: toX, z: toZ }, now, pathAhead(theirs, now));
-};
-
 /**
  * Counts of what this phone sent, for measuring the write budget. Tests and
  * the verify run read it from `globalThis.__shedWorld`.
@@ -1016,6 +990,7 @@ export const useWorld = (
     place: session?.place ?? ("garden" as Place),
     placeCounts,
     home: session?.place === "home" ? (home ?? null) : null,
+    homeLoading: session?.place === "home" && home === undefined,
     invite,
     ping: pingMs,
     travel,
