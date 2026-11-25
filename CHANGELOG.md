@@ -16,6 +16,9 @@ All notable changes to **The SHED** mobile app. This project follows
   pair of places with pads between them, both ways. Everyone else in the
   room sees you arrive in the same spot facing the same way. If someone is
   already standing on the pad, you arrive just beside it, still facing in.
+  A pad at the front of a place, whose name sits above it, moves its name
+  beside the pad while someone stands on it, so it doesn't sit on their
+  name tag.
   Arriving on a pad doesn't send you back; walk off and onto it again to
   go back. A home, a poke, an invite or opening the World arrive where they
   did before.

@@ -206,11 +206,25 @@ export const Garden = ({
         ? PORTALS[place].map((pad) => {
             const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
             const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
-            const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+            const up = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM;
+            const at = up ? { x: above.x, y: above.y - 14 } : below;
+            // Someone standing on a pad whose name sits above it (they arrive
+            // there) would wear the name on their own: it moves beside the pad.
+            const middle = cam.project([pad.x, 0, pad.z]);
+            const reach = PORTAL_RADIUS * middle.scale + PAD_LABEL_BESIDE_GAP;
+            const toRight = pad.x <= 0;
             return {
               to: pad.to,
+              x: pad.x,
+              z: pad.z,
+              up,
               left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
               top: at.y - 10,
+              beside: {
+                left: toRight ? middle.x + reach : middle.x - reach - PAD_LABEL_WIDTH,
+                top: middle.y - 10,
+                alignItems: toRight ? ("flex-start" as const) : ("flex-end" as const),
+              },
             };
           })
         : [],
@@ -706,10 +720,12 @@ export const Garden = ({
         <Layer prims={scene.backdrop} />
         {padSpots.map((pad) => {
           const here = placeCounts?.[pad.to] ?? 0;
+          const stoodOn = pad.up && poses.some((pose) => pose && !pose.walking && Math.hypot(pose.x - pad.x, pose.z - pad.z) <= PORTAL_RADIUS);
           return (
             <View
               key={`pad-${pad.to}`}
-              style={[styles.padLabel, { left: pad.left, top: pad.top }]}
+              style={[styles.padLabel, stoodOn ? pad.beside : { left: pad.left, top: pad.top }]}
+              testID={stoodOn ? `world-pad-label-beside-${pad.to}` : undefined}
             >
               <Text style={styles.padLabelText} numberOfLines={1}>
                 {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
@@ -810,6 +826,7 @@ const SEATED_WITHIN = 0.25;
 const SHOUTS = new Set<string>(Object.values(DUEL_PICKS).map((pick) => pick.icon));
 const AWAY_STATUS = "🕹️ Playing";
 const PAD_LABEL_WIDTH = 132;
+const PAD_LABEL_BESIDE_GAP = 8;
 const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;
