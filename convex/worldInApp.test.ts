@@ -121,6 +121,24 @@ describe("In the app", () => {
     await expect(t.query(api.world.inApp, { limit: 10, tick: 0 })).rejects.toThrow(/signed in/);
   });
 
+  test("someone past the first page by last seen but with a newer heartbeat still makes the first page", async () => {
+    const t = newConvex();
+    const people = Array.from({ length: 12 }, (_, i) => ({ email: `p${String(i).padStart(2, "0")}@sow.org.au`, name: `P${String(i).padStart(2, "0")}` }));
+    await staff(t, [{ email: ANNA, name: "Anna" }, { email: "zed@sow.org.au", name: "Zed" }, ...people]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("lastSeen", { email: "zed@sow.org.au", at: Date.now() - 20 * 60_000 });
+      await ctx.db.insert("appPresence", { email: "zed@sow.org.au", appSeenAt: Date.now() - 4 * 60_000 });
+      for (const [i, p] of people.entries()) await ctx.db.insert("lastSeen", { email: p.email, at: Date.now() - (5 + i) * 60_000 });
+    });
+    const first = await asUser(t, ANNA).query(api.world.offlineRecent, { limit: OFFLINE_FIRST, skipInApp: true, tick: 0 });
+    expect(first.people.map((p) => p.name)).toEqual(["Zed", ...people.slice(0, 9).map((p) => p.name)]);
+    expect(first.people[0].lastOnlineAt).toBe(Date.now() - 4 * 60_000);
+    expect(first.more).toBe(true);
+    const all = await asUser(t, ANNA).query(api.world.offlineRecent, { limit: OFFLINE_ALL_MAX, skipInApp: true, tick: 0 });
+    expect(all.people.map((p) => p.name)).toEqual(["Zed", ...people.map((p) => p.name)]);
+    expect(all.more).toBe(false);
+  });
+
   test("drops someone to the offline list, with their last seen, once the window passes without a heartbeat", async () => {
     const t = newConvex();
     await staff(t, [

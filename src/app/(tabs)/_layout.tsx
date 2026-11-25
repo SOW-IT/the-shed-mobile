@@ -5,7 +5,6 @@ import { useBadgeSync } from "@/hooks/useBadgeSync";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
-import { useAppPresence } from "@/hooks/useAppPresence";
 import { BOTTOM_TAB_HEIGHT, radius, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -162,7 +161,6 @@ export default function TabsLayout() {
     signedInAs: me?.email ?? null,
   });
   useReportAppVersion();
-  useAppPresence();
   useBadgeSync(me === undefined ? undefined : !!me?.profile);
 
   const isStaff = !!me?.profile;

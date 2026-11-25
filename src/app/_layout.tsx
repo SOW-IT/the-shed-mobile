@@ -4,6 +4,7 @@ import { ErrorReporter } from "@/components/ErrorReporter";
 import { OtaAutoUpdate } from "@/components/OtaAutoUpdate";
 import { DevotionalSync } from "@/components/devotionals/DevotionalSync";
 import { GameScoreSync } from "@/components/games/GameScoreSync";
+import { AppPresence } from "@/hooks/useAppPresence";
 import { OfflineGames, OfflineScreen } from "@/components/games/OfflineGames";
 import { OfflinePill } from "@/components/games/OfflinePill";
 import { AppSidebar } from "@/components/nav/AppSidebar";
@@ -227,6 +228,7 @@ export default function RootLayout() {
               >
                 <AuthGate />
                 <ErrorReporter />
+                <AppPresence />
                 <GameScoreSync />
                 <DevotionalSync />
                 <AppUpdatePrompt />

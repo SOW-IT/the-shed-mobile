@@ -66,11 +66,16 @@ const Section = ({ children }: { children: string }) => <Text style={styles.sect
 
 
 const useInAppTick = (active: boolean) => {
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useState(() => inAppTick(Date.now()));
   useEffect(() => {
     if (!active) return;
-    const id = setInterval(() => setTick(inAppTick(Date.now())), IN_APP_TICK_MS);
-    return () => clearInterval(id);
+    const refresh = () => setTick(inAppTick(Date.now()));
+    const soon = setTimeout(refresh, 0);
+    const id = setInterval(refresh, IN_APP_TICK_MS);
+    return () => {
+      clearTimeout(soon);
+      clearInterval(id);
+    };
   }, [active]);
   return tick;
 };
@@ -297,7 +302,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={glass.muted} />
       </Pressable>
       {open && list === undefined ? <Text style={styles.note}>Loading…</Text> : null}
-      {open && list?.people.length === 0 ? <Text style={styles.note}>Everyone on staff is here right now.</Text> : null}
+      {open && list?.people.length === 0 ? <Text style={styles.note}>Nobody else right now.</Text> : null}
       {open && list && list.people.length > 0 ? (
         <Text style={styles.note}>{waitMs > 0 ? pokeWaitNote(waitMs) : "Poke someone to invite them in. One poke an hour."}</Text>
       ) : null}

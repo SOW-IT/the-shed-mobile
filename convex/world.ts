@@ -1741,6 +1741,7 @@ const inAppEmails = async (ctx: Ctx, now: number) => {
   const rows = await ctx.db
     .query("appPresence")
     .withIndex("by_appSeenAt", (q) => q.gt("appSeenAt", now - IN_APP_MS))
+    .order("desc")
     .take(IN_APP_SCAN);
   for (const row of rows) emails.add(row.email);
   return emails;
@@ -1796,13 +1797,25 @@ export const offlineRecent = query({
         found.push({ profile, lastOnlineAt: null });
       }
     }
+    const seenFloor = found.at(-1)?.lastOnlineAt ?? 0;
     for (const entry of found) {
       const appSeenAt = (await appPresenceOf(ctx, entry.profile.email))?.appSeenAt;
       if (appSeenAt !== undefined && appSeenAt > (entry.lastOnlineAt ?? 0)) entry.lastOnlineAt = appSeenAt;
     }
+    if (more) {
+      scanned = 0;
+      for await (const row of ctx.db.query("appPresence").withIndex("by_appSeenAt", (q) => q.gt("appSeenAt", seenFloor)).order("desc")) {
+        if (scanned++ === IN_APP_SCAN) break;
+        if (listed.has(row.email)) continue;
+        const profile = await getProfile(ctx, row.email, year);
+        if (!profile || !(await away(profile.email))) continue;
+        listed.add(profile.email);
+        found.push({ profile, lastOnlineAt: row.appSeenAt });
+      }
+    }
     found.sort((a, b) => (b.lastOnlineAt ?? 0) - (a.lastOnlineAt ?? 0));
     const people = [];
-    for (const { profile, lastOnlineAt } of found) {
+    for (const { profile, lastOnlineAt } of found.slice(0, limit)) {
       const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
       people.push({ id: profile._id, name: profileName(profile), lastOnlineAt, look });
     }

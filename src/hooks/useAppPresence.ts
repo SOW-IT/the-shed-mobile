@@ -4,7 +4,7 @@ import { AppState } from "react-native";
 import { APP_PING_MS } from "@shared/appPresence";
 import { api } from "../../convex/_generated/api";
 
-export const useAppPresence = () => {
+const useAppPresence = () => {
   const { isAuthenticated } = useConvexAuth();
   const heartbeat = useMutation(api.presence.appHeartbeat);
   const away = useMutation(api.presence.appAway);
@@ -33,4 +33,9 @@ export const useAppPresence = () => {
       stop();
     };
   }, [isAuthenticated, heartbeat, away]);
+};
+
+export const AppPresence = () => {
+  useAppPresence();
+  return null;
 };
