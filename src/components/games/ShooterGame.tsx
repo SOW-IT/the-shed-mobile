@@ -178,6 +178,7 @@ export const ShooterGame = ({
     <GameFrame
       game="shooter"
       background={c.sky}
+      statusBar="light"
       session={session}
       score={run?.score ?? 0}
       world={world}

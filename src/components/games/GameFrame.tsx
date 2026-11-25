@@ -48,6 +48,8 @@ const RESTART_LOCK_MS = 700;
 
 const PRACTICE_NOTE = "Practice run. Not saved.";
 
+const SCREEN_REACH = 4000;
+
 type Run = { over: boolean; score: number; time: number };
 
 /**
@@ -318,7 +320,7 @@ export const GameFrame = ({
       >
       <View style={content}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
-      <StatusBar hidden={phase === "playing"} style={statusBar} animated />
+      <StatusBar hidden={phase === "playing"} style={phase === "over" ? "light" : statusBar} animated />
       <View onLayout={onChromeLayout}>
       <View style={styles.bar}>
         <Pressable
@@ -367,10 +369,11 @@ export const GameFrame = ({
             </View>
           </View>
         ) : null}
+        {phase === "over" && result ? <View pointerEvents="none" style={[styles.screenDim, { backgroundColor: g.scrim }]} testID="game-over-dim" /> : null}
         {phase === "over" && result ? (
           short && !wide ? (
             <SharpScrollView
-              style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
+              style={StyleSheet.absoluteFill}
               contentContainerStyle={styles.overlayScroll}
               testID="game-over"
             >
@@ -378,7 +381,7 @@ export const GameFrame = ({
             </SharpScrollView>
           ) : (
             <View
-              style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide, { backgroundColor: g.scrim }]}
+              style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide]}
               testID="game-over"
             >
               {overCard}
@@ -456,6 +459,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  screenDim: { position: "absolute", top: -SCREEN_REACH, bottom: -SCREEN_REACH, left: -SCREEN_REACH, right: -SCREEN_REACH },
   overlayWide: { padding: spacing.md },
   overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: {

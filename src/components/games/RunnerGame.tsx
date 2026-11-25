@@ -314,6 +314,7 @@ export const RunnerGame = ({
     <GameFrame
       game="runner"
       background={c.sky}
+      statusBar="light"
       session={session}
       score={run?.score ?? 0}
       world={run ? { width: run.width, height: runHeight } : board}
