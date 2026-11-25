@@ -2,14 +2,16 @@ import { Btn, Field } from "@/components/ui";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
-import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
-import { useMutation, useQuery } from "convex/react";
+import { isPlace, MAX_POKE_LENGTH, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
+import { useMutation, useQueries, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
 import { glass, signal } from "./palette";
+import { joinPages } from "./offlinePages";
 import { useWorldName } from "./settings";
 import { problem } from "./Sheets";
 import type { WorldMember } from "./useWorld";
@@ -61,18 +63,27 @@ const PersonRow = memo(function PersonRow({
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 
+type OfflineRecent = FunctionReturnType<typeof api.world.offlineRecent>;
+
+const pageArgs = (after: string | undefined): Record<string, string | number> => (after === undefined ? { limit: OFFLINE_FIRST } : { limit: OFFLINE_FIRST, after });
+
 const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [open, setOpen] = useState(startOpen);
   const [now, setNow] = useState(0);
-  // The 10 most recently online at first; "Show all" asks for the rest.
-  const [limit, setLimit] = useState(OFFLINE_FIRST);
-  const fetched = useQuery(api.world.offlineRecent, open ? { limit } : "skip");
-  // Keep the first 10 showing while "Show all" fetches the rest.
-  const [kept, setKept] = useState(fetched);
-  if (fetched !== undefined && fetched !== kept) setKept(fetched);
-  const offline = fetched ?? (open ? kept : undefined);
+  const [afters, setAfters] = useState<(string | undefined)[]>([undefined]);
+  const results = useQueries(
+    open
+      ? Object.fromEntries(afters.map((after, i) => [`page${i}`, { query: api.world.offlineRecent, args: pageArgs(after) }]))
+      : {}
+  );
+  const pages = afters.map((_, i): OfflineRecent | undefined => {
+    const result: unknown = results[`page${i}`];
+    if (result instanceof Error) throw result;
+    return result as OfflineRecent | undefined;
+  });
+  const offline = open ? joinPages(pages) : undefined;
   const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
-  const list = wait && offline ? { people: offline.people, more: offline.more, pokeAgainAt: wait.pokeAgainAt } : undefined;
+  const list = wait && offline ? { people: offline.people, next: offline.next, loading: offline.loading, pokeAgainAt: wait.pokeAgainAt } : undefined;
   const poke = useMutation(api.world.pokeStaff);
   const inviteHome = useMutation(api.world.inviteStaff);
   const [writingTo, setWritingTo] = useState<string | null>(null);
@@ -115,7 +126,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       <Pressable
         onPress={() => {
           setNow(Date.now());
-          if (open) setLimit(OFFLINE_FIRST);
+          if (open) setAfters([undefined]);
           setOpen((was) => !was);
         }}
         accessibilityRole="button"
@@ -145,7 +156,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                   <Text style={styles.name} numberOfLines={1}>
                     {worldName(p.name)}
                   </Text>
-                  <Text style={styles.where}>{p.lastOnlineAt === null ? "Not online yet" : `Online ${timeAgo(p.lastOnlineAt, now)}`}</Text>
+                  <Text style={styles.where}>{p.lastOnlineAt === null ? "Not seen yet" : `Seen ${timeAgo(p.lastOnlineAt, now)}`}</Text>
                 </View>
                 {writingTo === p.id ? null : (
                   <>
@@ -203,9 +214,10 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
             </View>
           ))
         : null}
-      {open && list?.more && limit < OFFLINE_ALL_MAX ? (
+      {open && list?.loading ? <Text style={styles.note}>Loading…</Text> : null}
+      {open && list?.next !== undefined ? (
         <View testID="world-offline-more" style={styles.more}>
-          <GlassPill label="Show all" icon="chevron-down" onPress={() => setLimit(OFFLINE_ALL_MAX)} />
+          <GlassPill label="Show more" icon="chevron-down" onPress={() => setAfters((was) => [...was, list.next])} />
         </View>
       ) : null}
     </View>
