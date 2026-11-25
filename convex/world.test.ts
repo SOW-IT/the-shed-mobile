@@ -113,6 +113,14 @@ describe("join and leave", () => {
     expect((await rows(t)).members).toMatchObject([{ name: "Ben Ng" }]);
   });
 
+  test("a name that's only an email's first.last shows as First Last", async () => {
+    const t = newConvex();
+    await t.run((ctx) => ctx.db.insert("users", { email: "jo.bloggs@sow.org.au", name: "jo.bloggs" }));
+    await asUser(t, "jo.bloggs@sow.org.au").mutation(api.world.join, {});
+    await asUser(t, "sam.lee@sow.org.au").mutation(api.world.join, {});
+    expect((await rows(t)).members.map((m) => m.name).sort()).toEqual(["Jo Bloggs", "Sam Lee"]);
+  });
+
   test("a full room opens the next instance, and an empty one goes", async () => {
     const t = newConvex();
     for (let i = 0; i < ROOM_CAP; i++) await asUser(t, `p${i}@sow.org.au`).mutation(api.world.join, {});

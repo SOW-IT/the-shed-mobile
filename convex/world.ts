@@ -67,7 +67,7 @@ import {
   type StateBucket,
   JOINED_WORLD,
 } from "../shared/world";
-import { shortName } from "../shared/names";
+import { accountName, shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
@@ -92,7 +92,7 @@ export const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
     .query("users")
     .withIndex("email", (q) => q.eq("email", email))
     .first();
-  return user?.name?.trim() || email.split("@")[0];
+  return accountName(user?.name, email);
 };
 
 const savedLook = (ctx: Ctx, email: string) =>
@@ -1624,7 +1624,7 @@ export const pokeStaff = mutation({
   },
 });
 
-const profileName = (profile: Doc<"staffProfiles">) => profile.name?.trim() || profile.email.split("@")[0];
+const profileName = (profile: Doc<"staffProfiles">) => accountName(profile.name, profile.email);
 
 /**
  * Everyone with a staff profile this year who isn't in the garden, by name,
