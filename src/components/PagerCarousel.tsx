@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, type GestureResponderEvent, StyleSheet, View } from "react-native";
 import type { PagerCarouselProps } from "@/components/PagerScreen";
-import { swipeStep } from "@/lib/swipe";
+import { swipePage } from "@/lib/swipePage";
 
 const touchPoint = (e: GestureResponderEvent) => {
   const touch = e.nativeEvent.changedTouches?.[0] ?? e.nativeEvent;
@@ -44,7 +44,9 @@ export const PagerCarousel = ({ tabs, activeKey, onActiveKeyChange, renderPage, 
         start.current = null;
         if (!from) return;
         const to = touchPoint(e);
-        const next = index + swipeStep(to.x - from.x, to.y - from.y);
+        const dx = to.x - from.x;
+        const sideways = Math.abs(dx) > Math.abs(to.y - from.y) * 1.5;
+        const next = sideways ? index + swipePage(dx, 0) : index;
         if (next !== index && tabs[next]) onActiveKeyChange(tabs[next].key);
       }}
     >
