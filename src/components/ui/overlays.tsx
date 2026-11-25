@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, RefObject, useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -22,6 +23,7 @@ import { useRegisterModal } from "./modalPresence";
 import { FastModal, Muted, Row, Txt } from "./primitives";
 import { RevealFocusedInputContext } from "./revealFocus";
 import { styles } from "./styles";
+import { useSwipeToClose } from "./swipeToClose";
 
 export const dismissKeyboard = (): Promise<void> => {
   if (!Keyboard.isVisible()) return Promise.resolve();
@@ -133,6 +135,7 @@ export const Sheet = ({
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   useRegisterModal(visible);
+  const swipe = useSwipeToClose(visible, onClose);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     if (Platform.OS !== "ios" || !visible) return;
@@ -207,7 +210,7 @@ export const Sheet = ({
 
   const header =
     retainedTitle !== undefined && retainedTitle !== "" ? (
-      <View style={styles.optionSheetHeader}>
+      <View style={styles.optionSheetHeader} testID="sheet-header" {...swipe.headerHandlers}>
         <Text
           style={[typography.headline, { color: t.text, flex: 1 }]}
           numberOfLines={2}
@@ -220,6 +223,7 @@ export const Sheet = ({
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Close"
+          testID="sheet-close"
           style={({ pressed }) => [
             styles.optionSheetClose,
             { backgroundColor: t.ghost },
@@ -247,7 +251,7 @@ export const Sheet = ({
             tall && { paddingTop: Math.max(spacing.xl, insets.top + spacing.sm) },
           ]}
         >
-          <View style={[styles.dialog, tall && { maxHeight: "100%" }, { backgroundColor: t.card }]}>
+          <Animated.View style={[styles.dialog, tall && { maxHeight: "100%" }, { backgroundColor: t.card }, swipe.dragStyle]}>
             {header}
             {scrollable ? (
               <ScrollView
@@ -261,6 +265,8 @@ export const Sheet = ({
                 onScroll={(e) => {
                   scrollY.current = e.nativeEvent.contentOffset.y;
                 }}
+                onScrollEndDrag={swipe.onScrollEndDrag}
+                testID="sheet-list"
                 onLayout={(e) => {
                   viewportHeight.current = e.nativeEvent.layout.height;
                   if (Keyboard.isVisible()) revealFocusedInput();
@@ -290,7 +296,7 @@ export const Sheet = ({
                 {retainedFooter}
               </View>
             ) : null}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </FastModal>
