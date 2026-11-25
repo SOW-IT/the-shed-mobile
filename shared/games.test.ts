@@ -1,19 +1,26 @@
 import { describe, expect, test } from "vitest";
 import {
+  bestsFromRuns,
+  bestsToSync,
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
   NO_BESTS,
+  parseBestRuns,
   parseBests,
   parseQueue,
   removeSettled,
+  runsOf,
   SCORE_LIMITS,
   SCORES_RESET_AT,
   scoreProblem,
+  shownBests,
   stringifyBests,
+  submittableFor,
   withBest,
+  withBestRun,
   type QueuedScore,
   playingLabel,
   playingLine,
@@ -163,5 +170,98 @@ describe("who's playing what", () => {
     expect(playingLabel("runner")).toBe("Playing Mystic Man");
     expect(playingLabel("chess")).toBeNull();
     expect(playingLabel(undefined)).toBeNull();
+  });
+});
+
+describe("bests across devices", () => {
+  const local = { ...NO_BESTS, flappy: 40, runner: 900 };
+
+  test("the server's best wins over a lower one on this device, and a higher local one is kept", () => {
+    expect(shownBests(local, [{ game: "flappy", score: 75 }, { game: "runner", score: 300 }, { game: "old", score: 9 }])).toEqual({ ...local, flappy: 75 });
+    expect(shownBests(local, [])).toEqual(local);
+  });
+
+  test("signed out or offline, the device's bests show as they are", () => {
+    expect(shownBests(local, null)).toBe(local);
+    expect(shownBests(local, undefined)).toBe(local);
+  });
+
+  const ANNA = "anna@sow.org.au";
+  const BEN = "ben@sow.org.au";
+
+  test("a higher local best of yours, still in range, is sent once through the usual queue", () => {
+    const best = entry({ runId: "run-best-1", score: 900 });
+    const accounts = withBestRun(withBestRun({}, ANNA, entry({ runId: "run-low-1", score: 100 }), NOW), ANNA, best, NOW);
+    expect(accounts).toEqual({ [ANNA]: { runner: best } });
+    expect(withBestRun(accounts, ANNA, entry({ runId: "run-lower", score: 800 }), NOW)).toBe(accounts);
+    const runs = runsOf(accounts, ANNA);
+    expect(bestsToSync(runs, [{ game: "runner", score: 300 }], [], NOW)).toEqual([best]);
+    expect(bestsToSync(runs, [], [], NOW)).toEqual([best]);
+    expect(bestsToSync(runs, [{ game: "runner", score: 900 }], [], NOW)).toEqual([]);
+    expect(bestsToSync(runs, [], [best], NOW)).toEqual([]);
+    expect(bestsToSync(runs, [], [], NOW, new Set(["run-best-1"]))).toEqual([]);
+    expect(shownBests(bestsFromRuns(runs), [{ game: "runner", score: 300 }])).toEqual({ ...NO_BESTS, runner: 900 });
+  });
+
+  test("on a shared phone, someone else's best is never shown or sent as yours", () => {
+    const annas = entry({ runId: "run-anna-1", score: 900 });
+    const signedOut = entry({ runId: "run-nobody-1", score: 950 });
+    const accounts = withBestRun(withBestRun({}, ANNA, annas, NOW), null, signedOut, NOW);
+    expect(runsOf(accounts, BEN)).toEqual({});
+    expect(runsOf(accounts, null)).toEqual({});
+    expect(bestsToSync(runsOf(accounts, BEN), [], [], NOW)).toEqual([]);
+    expect(shownBests(bestsFromRuns(runsOf(accounts, BEN)), [{ game: "runner", score: 40 }])).toEqual({ ...NO_BESTS, runner: 40 });
+    const bens = entry({ runId: "run-ben-1", score: 100 });
+    expect(runsOf(withBestRun(accounts, BEN, bens, NOW), BEN)).toEqual({ runner: bens });
+  });
+
+  test("a local best the server would turn away isn't kept or sent", () => {
+    const tooFast = entry({ runId: "run-fast-1", score: 900_000, durationMs: 1000 });
+    expect(bestsToSync({ runner: tooFast }, [], [], NOW)).toEqual([]);
+    expect(withBestRun({}, ANNA, tooFast, NOW)).toEqual({});
+    const stale = entry({ runId: "run-old-1", playedAt: NOW - MAX_SCORE_AGE_MS - 1 });
+    expect(bestsToSync({ runner: stale }, [], [], NOW)).toEqual([]);
+  });
+
+  test("a best from before its game's reset, or too old to publish, gives way to a lower newer one", () => {
+    const beforeReset = entry({ runId: "run-reset-1", score: 5000, playedAt: SCORES_RESET_AT.runner! - 1 });
+    const aged = entry({ runId: "run-aged-1", score: 5000, game: "flappy", durationMs: 600_000, playedAt: NOW - MAX_SCORE_AGE_MS - 1 });
+    const held = { [ANNA]: { runner: beforeReset, flappy: aged } };
+    const newer = entry({ runId: "run-new-1", score: 120 });
+    expect(runsOf(withBestRun(held, ANNA, newer, NOW), ANNA).runner).toEqual(newer);
+    const newerFlap = entry({ runId: "run-new-2", game: "flappy", score: 30 });
+    expect(runsOf(withBestRun(held, ANNA, newerFlap, NOW), ANNA).flappy).toEqual(newerFlap);
+    expect(parseBestRuns(JSON.stringify(held), NOW)).toEqual({});
+  });
+
+  test("saved best runs read back per account, dropping anything unusable", () => {
+    const best = entry({ runId: "run-best-1", score: 900 });
+    expect(parseBestRuns(JSON.stringify({ [ANNA]: { runner: best, flappy: best, shooter: { score: 3 } }, [BEN]: "x" }), NOW)).toEqual({ [ANNA]: { runner: best } });
+    expect(parseBestRuns("null", NOW)).toEqual({});
+    expect(parseBestRuns("{", NOW)).toEqual({});
+  });
+});
+
+describe("queued runs on a shared phone", () => {
+  const ANNA = "anna@sow.org.au";
+  const BEN = "ben@sow.org.au";
+
+  test("each account keeps its own queued best, and only its own runs and signed-out runs are sent for it", () => {
+    const annas = entry({ runId: "run-anna-1", score: 500, account: ANNA });
+    const bens = entry({ runId: "run-ben-1", score: 100, account: BEN });
+    const nobodys = entry({ runId: "run-nobody-1", score: 50, game: "flappy" });
+    const queue = [annas, bens, nobodys].reduce<QueuedScore[]>((q, run) => enqueueScore(q, run, NOW), []);
+    expect(queue).toEqual([annas, bens, nobodys]);
+    const { account: _anna, ...annaSent } = annas;
+    const { account: _ben, ...benSent } = bens;
+    expect(submittableFor(queue, ANNA)).toEqual([annaSent, nobodys]);
+    expect(submittableFor(queue, BEN)).toEqual([benSent, nobodys]);
+    expect(submittableFor(queue, "cara@sow.org.au")).toEqual([nobodys]);
+    expect(submittableFor(queue, ANNA).every((run) => !("account" in run))).toBe(true);
+  });
+
+  test("a saved queue keeps who each run belongs to", () => {
+    const annas = entry({ runId: "run-anna-1", account: ANNA });
+    expect(parseQueue(JSON.stringify([annas, { ...annas, runId: "run-bad-1", account: 7 }]))).toEqual([annas]);
   });
 });
