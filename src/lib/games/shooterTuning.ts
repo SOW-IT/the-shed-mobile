@@ -1,0 +1,16 @@
+export const SHOOTER_V2 = {
+  fromSeconds: 75,
+  waveSeconds: 30,
+  wavesToHalfway: 10,
+  spawnFloor: 0.18,
+  fireFloor: 0.55,
+  bulletSpeedGrowth: 40,
+  enemySpeedGrowth: 25,
+  mostBigShare: 0.45,
+  patternFrom: { double: 120, ring: 150, wideFan: 240, burst: 360 },
+  doubleSpread: [-0.08, 0.08],
+  burstSpread: [-0.12, 0, 0.12],
+  wideFanSpread: [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6],
+  ringBullets: 10,
+  ringSpeedShare: 0.75,
+} as const;

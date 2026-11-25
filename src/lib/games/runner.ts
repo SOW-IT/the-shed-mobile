@@ -7,6 +7,7 @@
 // appears, so the right input always clears it (see `PATTERN_RULES` and the
 // clearability test).
 import { between, random } from "./random";
+import { RUNNER_V2 } from "./runnerTuning";
 
 export const RUNNER = {
   x: 56,
@@ -27,8 +28,8 @@ export const RUNNER = {
   speedGain: 9,
   cruiseSpeed: 1200,
   topSpeed: 1500,
-  surge: 22,
-  ceilingSpeed: 2900,
+  surge: RUNNER_V2.speed.surge,
+  ceilingSpeed: RUNNER_V2.speed.cap,
   /** Distance per point. */
   stride: 12,
   /** The floating beam: over a slide, into a standing head; a big jump clears it too. */
@@ -173,8 +174,8 @@ const HARD_RAMP_SECONDS =
   ((HARDEST_SCORE - HARD_FROM_SCORE) * RUNNER.stride) / ((RUNNER.cruiseSpeed + RUNNER.topSpeed) / 2);
 
 const HARDEST_SECONDS = HARD_FROM_SECONDS + HARD_RAMP_SECONDS;
-const BEYOND_SECONDS = 60;
-const SURGE_EASE_SECONDS = 10;
+const BEYOND_SECONDS = RUNNER_V2.beyondSeconds;
+const SURGE_EASE_SECONDS = RUNNER_V2.speed.surgeEaseSeconds;
 const SURGE_TOP_SECONDS =
   ((RUNNER.ceilingSpeed - RUNNER.topSpeed) / RUNNER.surge + Math.sqrt(SURGE_EASE_SECONDS)) ** 2 - SURGE_EASE_SECONDS;
 
@@ -233,30 +234,19 @@ export const timeAtScore = (score: number) => {
   return high;
 };
 
-export const SLACK_GONE_SCORE = 40_000;
+export const SLACK_GONE_SCORE = RUNNER_V2.gap.slackGoneScore;
 const SLACK_GONE_SECONDS = timeAtScore(SLACK_GONE_SCORE);
-export const TRIPLE_FROM_SCORE = 30_000;
+export const TRIPLE_FROM_SCORE = RUNNER_V2.unlockScores.triple;
 
-export const PHRASES: readonly { name: string; from: number; kinds: readonly PatternKind[] }[] = [
-  { name: "weave", from: 25_000, kinds: ["hang", "rock", "hang", "rock"] },
-  { name: "staircase", from: 40_000, kinds: ["rock", "tall", "rock", "tall", "rock"] },
-  { name: "switchback", from: 50_000, kinds: ["beam", "tall", "hang", "double"] },
-  { name: "tunnel", from: 75_000, kinds: ["hang", "beam", "hang", "triple", "rock"] },
-  { name: "gauntlet", from: 100_000, kinds: ["triple", "hang", "triple", "beam", "triple"] },
-];
-export const VARIETY_FROM_SCORE = 5_000;
+export const PHRASES: readonly { name: string; from: number; kinds: readonly PatternKind[] }[] = RUNNER_V2.phrases;
+export const VARIETY_FROM_SCORE = RUNNER_V2.spread.fromScore;
 const VARIETY_FROM_SECONDS = timeAtScore(VARIETY_FROM_SCORE);
-const SPREAD_SECONDS = 100;
+const SPREAD_SECONDS = RUNNER_V2.spread.seconds;
 
 export const sizeSpread = (time: number) =>
   time < VARIETY_FROM_SECONDS ? 0 : 1 - Math.exp(-(time - VARIETY_FROM_SECONDS) / SPREAD_SECONDS);
 
-export const PATTERN_FROM_SCORE: Partial<Record<PatternKind, number>> = {
-  bar: VARIETY_FROM_SCORE,
-  twin: 10_000,
-  stair: 15_000,
-  triple: TRIPLE_FROM_SCORE,
-};
+export const PATTERN_FROM_SCORE: Partial<Record<PatternKind, number>> = RUNNER_V2.unlockScores;
 const LATE_KINDS = (Object.keys(PATTERN_FROM_SCORE) as PatternKind[]).map((kind) => ({
   kind,
   from: timeAtScore(PATTERN_FROM_SCORE[kind] ?? 0),
@@ -265,7 +255,7 @@ const LATE_KINDS = (Object.keys(PATTERN_FROM_SCORE) as PatternKind[]).map((kind)
 export const lateKindsAt = (time: number) => LATE_KINDS.filter((late) => time >= late.from).map((late) => late.kind);
 
 const PHRASE_SECONDS = PHRASES.map((phrase) => timeAtScore(phrase.from));
-const PHRASE_SHARE = 0.35;
+const PHRASE_SHARE = RUNNER_V2.phraseShare;
 
 export const phrasesAt = (time: number) => PHRASES.filter((_, i) => time >= PHRASE_SECONDS[i]);
 
@@ -284,40 +274,23 @@ export const runnerAt = (width: number, seed: number, score: number): RunnerStat
 /** How much of a jump's reach a pattern may use, so a human has slack. */
 export const REACH_SHARE = 0.75;
 /** Seconds to see the next pattern and act, on top of landing a big jump. */
-const REACTION_SECONDS = 0.3;
+const REACTION_SECONDS = RUNNER_V2.gap.reaction;
 /** Within a combo, seconds between landing one move and starting the next. */
-const COMBO_REACTION_SECONDS = 0.25;
-const HARDEST_COMBO_REACTION_SECONDS = 0.15;
-const LEAST_COMBO_REACTION_SECONDS = 0.1;
+const COMBO_REACTION_SECONDS = RUNNER_V2.combo.reaction.start;
+const HARDEST_COMBO_REACTION_SECONDS = RUNNER_V2.combo.reaction.at20k;
+const LEAST_COMBO_REACTION_SECONDS = RUNNER_V2.combo.reaction.floor;
 
-const HOP_HEIGHT = apex(RUNNER.hopSpeed);
+type Range = readonly [number, number];
+type Spread = readonly [Range, Range];
 
 /**
  * What each pattern asks for, as heights and lengths that follow from the
  * physics. A hop pattern fits under the hop's reach; a big pattern is out of
  * the hop's reach (taller, or longer) but inside the big jump's.
  */
-const TALL_LEAST = Math.ceil(HOP_HEIGHT + RUNNER.forgive + 10);
-const DOUBLE_LEAST = Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6);
+const PATTERN_RULES = RUNNER_V2.sizes;
 
-type Range = readonly [number, number];
-type Spread = readonly [Range, Range];
-
-const PATTERN_RULES = {
-  rock: { height: [[22, 34], [16, 46]], width: [[18, 28], [14, 40]] },
-  tall: { height: [[TALL_LEAST, 104], [TALL_LEAST, 104]], width: [[22, 30], [16, 44]] },
-  wide: { height: [[26, 34], [22, 44]] },
-  // Two rocks back to back, each out of a hop's reach.
-  double: { height: [[DOUBLE_LEAST, 88], [DOUBLE_LEAST, 104]], width: [[18, 24], [16, 32]], gap: [[10, 24], [10, 60]] },
-  triple: { height: [[DOUBLE_LEAST, 104], [DOUBLE_LEAST, 104]], width: [[18, 26], [16, 34]], gap: [[60, 120], [40, 140]] },
-  stair: { height: [[DOUBLE_LEAST, 88], [DOUBLE_LEAST, 96]], rise: [[12, 20], [12, 28]], width: [[18, 24], [16, 30]], gap: [[10, 20], [10, 40]] },
-  beam: { width: [[46, 46], [40, 80]], height: [[RUNNER.highHeight, RUNNER.highHeight], [18, 28]], bottom: [[RUNNER.highBottom, RUNNER.highBottom], [31, 40]] },
-  bar: { width: [[70, 140], [70, 340]], height: [[20, 22], [18, 26]], bottom: [[34, 34], [32, 38]] },
-  hang: { width: [[30, 48], [24, 120]], bottom: [[RUNNER.hangBottom, RUNNER.hangBottom], [30, 38]] },
-  twin: { width: [[24, 36], [20, 48]], gap: [[24, 40], [16, 70]] },
-} as const satisfies Record<string, Record<string, Spread>>;
-
-const DUCK_LEAD_SECONDS = 0.2;
+const DUCK_LEAD_SECONDS = RUNNER_V2.duckLeadSeconds;
 
 export const slideReach = (speed: number) => speed * (RUNNER.slideSeconds - DUCK_LEAD_SECONDS) - HIT_WIDTH;
 
@@ -337,9 +310,9 @@ export const COMBO_FROM_SECONDS = 15;
 const COMBO_GROWTH_SECONDS = 15;
 export const MAX_COMBO = 10;
 export const HARDEST_COMBO = 16;
-const HARDEST_COMBO_CHANCE = 0.9;
-const COMBO_CHANCE_LIMIT = 0.98;
-const LONGER_COMBO_SECONDS = 12;
+const HARDEST_COMBO_CHANCE = RUNNER_V2.combo.chanceAt20k;
+const COMBO_CHANCE_LIMIT = RUNNER_V2.combo.chanceLimit;
+const LONGER_COMBO_SECONDS = RUNNER_V2.combo.longerEverySeconds;
 
 /** The longest combo that can come at this point in a run, or 0 before they start. */
 export const longestCombo = (time: number) =>
@@ -391,7 +364,7 @@ const patternFor = (state: RunnerState): PatternKind => {
   return "hang";
 };
 
-const LATE_SHARE = 0.1;
+const LATE_SHARE = RUNNER_V2.lateShare;
 
 const whole = (state: RunnerState, low: number, high: number) => Math.round(between(state, low, high));
 
@@ -512,7 +485,7 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number, ch
 export const patternSpan = (obstacles: readonly Obstacle[]) =>
   Math.max(...obstacles.map((o) => o.x + o.width)) - Math.min(...obstacles.map((o) => o.x));
 
-const GAP_REACTION_CUT = 0.1;
+const GAP_REACTION_CUT = RUNNER_V2.gap.reactionCut;
 
 const gapCut = (time: number) => {
   const past = Math.max(0, time - SLACK_GONE_SECONDS);

@@ -3,6 +3,7 @@
 // second survived and for every enemy shot down. Pure: each step takes a
 // state and returns the next.
 import { between, random } from "./random";
+import { SHOOTER_V2 } from "./shooterTuning";
 
 export const SHOOTER = {
   /** The plane's hit circle. Small on purpose: you dodge with the core. */
@@ -19,17 +20,17 @@ export const SHOOTER = {
   pointsPerSecond: 10,
   /** How far outside the board enemies appear and are forgotten. */
   margin: 40,
-  hardFromSeconds: 75,
-  waveSeconds: 30,
-  tighteningWaves: 10,
-  spawnFloor: 0.18,
-  fireFloor: 0.55,
-  bulletGrowth: 40,
-  enemyGrowth: 25,
+  hardFromSeconds: SHOOTER_V2.fromSeconds,
+  waveSeconds: SHOOTER_V2.waveSeconds,
+  tighteningWaves: SHOOTER_V2.wavesToHalfway,
+  spawnFloor: SHOOTER_V2.spawnFloor,
+  fireFloor: SHOOTER_V2.fireFloor,
+  bulletGrowth: SHOOTER_V2.bulletSpeedGrowth,
+  enemyGrowth: SHOOTER_V2.enemySpeedGrowth,
   firstBigShare: 0.2,
-  mostBigShare: 0.45,
-  ringBullets: 10,
-  ringSpeedShare: 0.75,
+  mostBigShare: SHOOTER_V2.mostBigShare,
+  ringBullets: SHOOTER_V2.ringBullets,
+  ringSpeedShare: SHOOTER_V2.ringSpeedShare,
 } as const;
 
 export type Bullet = { id: number; x: number; y: number; vx: number; vy: number };
@@ -117,7 +118,7 @@ export const enemySpeedUp = (time: number) => Math.min(80, time * 1.2) + SHOOTER
 export const bigShare = (time: number) =>
   SHOOTER.firstBigShare + (SHOOTER.mostBigShare - SHOOTER.firstBigShare) * tightening(time);
 
-export const PATTERN_FROM = { double: 120, ring: 150, wideFan: 240, burst: 360 } as const;
+export const PATTERN_FROM = SHOOTER_V2.patternFrom;
 
 export const patternsAt = (time: number) =>
   (Object.keys(PATTERN_FROM) as (keyof typeof PATTERN_FROM)[]).filter((pattern) => time >= PATTERN_FROM[pattern]);
@@ -147,11 +148,11 @@ const spawnEnemy = (state: ShooterState): Enemy => {
 };
 
 const FAN = [-0.4, -0.2, 0, 0.2, 0.4];
-const WIDE_FAN = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
-const DOUBLE = [-0.08, 0.08];
-const BURST = [-0.12, 0, 0.12];
+const WIDE_FAN = SHOOTER_V2.wideFanSpread;
+const DOUBLE = SHOOTER_V2.doubleSpread;
+const BURST = SHOOTER_V2.burstSpread;
 
-export const volleyOf = (enemy: Pick<Enemy, "kind" | "volleys">, time: number): { spread: number[]; ring: boolean } => {
+export const volleyOf = (enemy: Pick<Enemy, "kind" | "volleys">, time: number): { spread: readonly number[]; ring: boolean } => {
   if (enemy.kind === "small") {
     if (time >= PATTERN_FROM.burst) return { spread: BURST, ring: false };
     return { spread: time >= PATTERN_FROM.double ? DOUBLE : [0], ring: false };

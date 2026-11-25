@@ -1,6 +1,7 @@
 // Flap: tap to flap through the gaps in the pipes. Ten points a gap, and a
 // point a second for staying alive. Pure: each step takes a state and returns
 // the next. y grows downward, as on screen.
+import { FLAPPY_V2 } from "./flappyTuning";
 import { between, random } from "./random";
 
 export const FLAPPY = {
@@ -24,16 +25,16 @@ export const FLAPPY = {
   farthestSpacing: 300,
   varietyScore: 400,
   leastJumpShare: 0.6,
-  hardFromScore: 1000,
-  levelScore: 1000,
-  hardTopSpeed: 228,
-  floorGap: 120,
-  hardClosestSpacing: 230,
-  widestSpacing: 380,
-  spacingTail: 2.5,
-  hardReachShare: 1.6,
-  tighteningLevels: 8,
-  hardJumpShare: 0.25,
+  hardFromScore: FLAPPY_V2.fromScore,
+  levelScore: FLAPPY_V2.levelScore,
+  hardTopSpeed: FLAPPY_V2.topSpeed,
+  floorGap: FLAPPY_V2.gapFloor,
+  hardClosestSpacing: FLAPPY_V2.closestSpacing,
+  widestSpacing: FLAPPY_V2.widestSpacing,
+  spacingTail: FLAPPY_V2.spacingLean,
+  hardReachShare: FLAPPY_V2.mostReachShare,
+  tighteningLevels: FLAPPY_V2.levelsToHalfway,
+  hardJumpShare: FLAPPY_V2.extraJumpShare,
 } as const;
 
 export type Pipe = { id: number; x: number; gapTop: number; gapHeight: number; passed: boolean };
@@ -122,7 +123,7 @@ export const spacingAt = (score: number, roll: number) => {
 
 const nextSpace = (state: FlappyState) => spacingAt(state.score, random(state));
 
-const REACH_AHEAD = 50;
+const REACH_AHEAD = FLAPPY_V2.reachAheadScore;
 
 export const gapReach = (space: number, score: number) => {
   const reach = reachShare(space, pipeSpeed(score + REACH_AHEAD), 1 + (FLAPPY.hardReachShare - 1) * tightening(score));
