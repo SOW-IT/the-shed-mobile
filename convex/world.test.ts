@@ -15,6 +15,7 @@ import {
   DUEL_FIRST_MS,
   DUEL_PICK_CHANGES,
   DUEL_REVEAL_MS,
+  LEAVE_GRACE_MS,
   arrivalSpot,
   ELSEWHERE_NAMES,
   SEATS,
@@ -1740,14 +1741,34 @@ describe("join and leave lines", () => {
     expect((await ben.query(api.world.chatLog, { roomId: a.roomId }))![1]).toMatchObject({ name: "anna", text: "joined the World", kind: "join", here: true });
   });
 
-  test("leaving writes a left line only when the last visit ends", async () => {
+  const delivered = new WeakMap<T, Set<string>>();
+  const sayLeftLines = async (t: T) => {
+    const done = delivered.get(t) ?? new Set<string>();
+    delivered.set(t, done);
+    const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const due = jobs.filter((job) => job.name.includes("sayLeft") && !done.has(job._id) && job.scheduledTime <= Date.now() + 100);
+    for (const job of due) {
+      expect(job.scheduledTime - job.args[0].leftAt).toBeCloseTo(LEAVE_GRACE_MS, -2);
+      done.add(job._id);
+      await t.mutation(internal.world.sayLeft, job.args[0]);
+    }
+    return due.length;
+  };
+
+  test("leaving writes a left line a minute later, only when the last visit ends", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
     await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.join, {});
     await anna.mutation(api.world.leave, {});
-    expect(await systemLines(t)).toEqual(["anna joined the World"]);
+    expect(await sayLeftLines(t)).toBe(0);
     await anna.mutation(api.world.leave, {});
+    expect(await systemLines(t)).toEqual(["anna joined the World"]);
+    later(LEAVE_GRACE_MS - 1000);
+    expect(await sayLeftLines(t)).toBe(0);
+    later(1000);
+    expect(await sayLeftLines(t)).toBe(1);
+    expect(await sayLeftLines(t)).toBe(0);
     expect(await systemLines(t)).toEqual(["anna joined the World", "anna left"]);
   });
 
@@ -1757,7 +1778,60 @@ describe("join and leave lines", () => {
     await anna.mutation(api.world.join, {});
     later(PRESENCE_TTL_MS + 1000);
     await t.mutation(internal.world.sweep, {});
+    later(LEAVE_GRACE_MS);
+    await sayLeftLines(t);
     expect(await systemLines(t)).toEqual(["anna joined the World", "anna left"]);
+  });
+
+  test("dropping out and coming straight back writes no line, by leaving or by the sweep", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    for (let i = 0; i < 3; i++) {
+      await anna.mutation(api.world.leave, {});
+      later(1000);
+      await anna.mutation(api.world.join, {});
+      later(20_000);
+    }
+    await anna.mutation(api.world.travel, { to: "chapel" });
+    await anna.mutation(api.world.leave, {});
+    later(5000);
+    const back = await anna.mutation(api.world.join, {});
+    expect(back.place).toBe("chapel");
+    later(PRESENCE_TTL_MS + 1000);
+    await t.mutation(internal.world.sweep, {});
+    later(LEAVE_GRACE_MS - 1000);
+    await anna.mutation(api.world.join, {});
+    later(LEAVE_GRACE_MS);
+    expect(await sayLeftLines(t)).toBe(5);
+    expect(await systemLines(t)).toEqual(["anna joined the World"]);
+  });
+
+  test("back after the grace writes the left line and a new joined line", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.leave, {});
+    later(LEAVE_GRACE_MS);
+    await sayLeftLines(t);
+    await anna.mutation(api.world.join, {});
+    expect(await systemLines(t)).toEqual(["anna joined the World", "anna left", "anna joined the World"]);
+  });
+
+  test("leaving, coming back and leaving again inside the grace writes one left line", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.leave, {});
+    later(5000);
+    await anna.mutation(api.world.join, {});
+    later(5000);
+    await anna.mutation(api.world.leave, {});
+    later(LEAVE_GRACE_MS);
+    expect(await sayLeftLines(t)).toBe(2);
+    const lines = await t.run((ctx) => ctx.db.query("worldChat").collect());
+    expect(lines.filter((row) => row.kind !== undefined).map((row) => `${row.name} ${row.text}`)).toEqual(["anna joined the World", "anna left"]);
+    expect(lines[1]).toMatchObject({ place: "garden", email: ANNA });
   });
 
   test("travelling and deleting an account write no line", async () => {

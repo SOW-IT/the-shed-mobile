@@ -1,12 +1,21 @@
 import { expect, test } from "vitest";
 import { shortName } from "../../shared/names";
-import { lineWhere, pickView, saidLabel, systemLine } from "./view";
+import { canDrawOn, lineWhere, pickView, saidLabel, systemLine } from "./view";
 
-test("offline or Android always shows the list; otherwise VoiceOver picks it", () => {
+test("offline, a screen reader or a phone that can't draw it shows the list", () => {
   expect(pickView({ offline: true, screenReader: false })).toBe("list");
   expect(pickView({ offline: false, screenReader: true })).toBe("list");
   expect(pickView({ offline: false, screenReader: false })).toBe("garden");
   expect(pickView({ offline: false, screenReader: false, canDraw: false })).toBe("list");
+});
+
+test("Android 10 and later draw the World; older Android gets the list", () => {
+  expect(canDrawOn("android", 34)).toBe(true);
+  expect(canDrawOn("android", 29)).toBe(true);
+  expect(canDrawOn("android", 28)).toBe(false);
+  expect(canDrawOn("ios", "18.0")).toBe(true);
+  expect(canDrawOn("web", "")).toBe(true);
+  expect(pickView({ offline: false, screenReader: false, canDraw: canDrawOn("android", 35) })).toBe("garden");
 });
 
 test("a line from another place says where it was said, for screen readers too", () => {

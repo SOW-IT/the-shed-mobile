@@ -10,6 +10,7 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
@@ -33,6 +34,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
@@ -123,6 +125,8 @@ export const PagerScreen = ({
   topBarRight?: ReactNode;
 }) => {
   const t = useAppTheme();
+  const frameRef = useRef<ViewInstance>(null);
+  const keyboardInset = useKeyboardInset(frameRef, false);
   const wide = useWideLayout();
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
@@ -346,7 +350,7 @@ export const PagerScreen = ({
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background }}
+        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
         contentContainerStyle={[
           styles.page,
           { paddingTop: spacing.md + topBarInset },
@@ -367,7 +371,7 @@ export const PagerScreen = ({
   };
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
-      <View style={[styles.screen, { backgroundColor: t.background }]}>
+      <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
         <View style={{ height: insets.top + tabBarHeight + (wide && onBack ? backRowHeight : 0) }} />
         <PagerCarousel
           tabs={tabs}
