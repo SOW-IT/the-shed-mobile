@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   applyMove,
+  CAFE_CHALLENGE_MS,
+  CAFE_TURN_MS,
   boxEdges,
   boxesWon,
   CAFE_GAME_ORDER,
@@ -49,6 +51,11 @@ const withCells = (kind: CafeGameKind, marks: Record<number, number>, turn: Side
 };
 
 describe("the games", () => {
+  test("a move gets a minute and a challenge half that", () => {
+    expect(CAFE_TURN_MS).toBe(60_000);
+    expect(CAFE_CHALLENGE_MS).toBe(30_000);
+  });
+
   test("four games with plain names, in picker order", () => {
     expect(CAFE_GAME_ORDER.map((kind) => CAFE_GAMES[kind].label)).toEqual(["Four in a Row", "Tic-tac-toe", "Dots and Boxes", "Five in a Row"]);
     expect(isCafeGameKind("fourInARow")).toBe(true);

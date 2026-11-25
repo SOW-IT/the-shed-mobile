@@ -6,11 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.55] - 2026-11-25
+## [2.13.1] - 2026-11-25
 
 ### Added
 - **Table games in the Café.** Play Four in a Row, Tic-tac-toe, Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
-- **The board opens over the World** with you and them on either side of "vs", whose turn it is and a 30-second timer. Every game is one round. Counters drop, marks and stones pop in, lines draw along and the winning line lights up. Missing a turn passes it; missing two in a row loses. At the end you see who won, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't. Battery saver turns the motion off.
+- **The board opens over the World** with you and them on either side of "vs", whose turn it is and a one-minute timer for each move. Every game is one round. Counters drop, marks and stones pop in, lines draw along and the winning line lights up. Missing a turn passes it; missing two in a row loses. At the end you see who won, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't. Battery saver turns the motion off.
 - **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players (just the game's icon when they sit together), and People says "Playing Four in a Row".
 - **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
 

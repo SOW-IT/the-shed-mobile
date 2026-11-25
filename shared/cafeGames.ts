@@ -11,7 +11,7 @@ export const CAFE_GAME_ORDER: readonly CafeGameKind[] = ["fourInARow", "ticTacTo
 export const isCafeGameKind = (value: unknown): value is CafeGameKind => typeof value === "string" && Object.hasOwn(CAFE_GAMES, value);
 export const CAFE_PLACE = "cafe";
 
-export const CAFE_TURN_MS = 30_000;
+export const CAFE_TURN_MS = 60_000;
 export const CAFE_CHALLENGE_MS = 30_000;
 export const CAFE_AWAY_GRACE_MS = 20_000;
 export const CAFE_QUIET_MS = 5 * 60_000;
