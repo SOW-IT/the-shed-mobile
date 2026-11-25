@@ -2,7 +2,7 @@
 // point a second for staying alive. Pure: each step takes a state and returns
 // the next. y grows downward, as on screen.
 import { FLAPPY_V2 } from "./flappyTuning";
-import { blend } from "./glider";
+import { blend, colourAt } from "./glider";
 import { between, random } from "./random";
 
 export const FLAPPY = {
@@ -31,11 +31,8 @@ export type FlappyState = {
   nextIn: number;
   nextId: number;
   seed: number;
-  pipeShadeSince: number;
-  skySince: number;
+  passedAt: number;
 };
-
-const LONG_AGO = -1e9;
 
 export const newFlappy = (width: number, height: number, seed: number): FlappyState => ({
   width,
@@ -50,8 +47,7 @@ export const newFlappy = (width: number, height: number, seed: number): FlappySt
   nextIn: width * 0.55,
   nextId: 1,
   seed,
-  pipeShadeSince: LONG_AGO,
-  skySince: LONG_AGO,
+  passedAt: 0,
 });
 
 export const birdX = (state: FlappyState) => state.width * FLAPPY.xShare;
@@ -111,35 +107,53 @@ const hitsPipe = (state: FlappyState, pipe: Pipe) => {
   return state.y - r < pipe.gapTop || state.y + r > pipe.gapTop + pipe.gapHeight;
 };
 
-export const pipeShadeStep = (pipes: number) =>
-  Math.min(FLAPPY_V2.pipeShadeSteps, Math.floor(Math.max(0, pipes) / FLAPPY_V2.pipeShadeEvery));
+const easeInOut = (t: number) => t * t * (3 - 2 * t);
 
-export const skyStep = (pipes: number) => Math.min(FLAPPY_V2.skySteps, Math.floor(Math.max(0, pipes) / FLAPPY_V2.skyEvery));
+export const pipesFlown = (state: Pick<FlappyState, "gaps" | "time" | "passedAt">) =>
+  state.gaps + Math.min(1, Math.max(0, ((state.time - state.passedAt) * pipeSpeed(state.gaps)) / FLAPPY_V2.spacing));
 
-const fading = (step: number, since: number, time: number) =>
-  step - 1 + Math.min(1, Math.max(0, (time - since) / FLAPPY_V2.fadeSeconds));
+export const dayPassed = (pipes: number) => easeInOut(Math.min(1, Math.max(0, pipes) / FLAPPY_V2.sunsetPipe));
 
-export const shades = (state: Pick<FlappyState, "gaps" | "time" | "pipeShadeSince" | "skySince">) => {
-  const pipe = pipeShadeStep(state.gaps);
-  const sky = skyStep(state.gaps);
-  const skyShare = sky === 0 ? 0 : fading(sky, state.skySince, state.time) / FLAPPY_V2.skySteps;
-  return {
-    pipe: pipe === 0 ? 0 : fading(pipe, state.pipeShadeSince, state.time) / FLAPPY_V2.pipeShadeSteps,
-    sky: skyShare,
-    ground: skyShare,
-    stars: sky >= FLAPPY_V2.starsFromSkyStep,
-  };
+export type FlappyPalette = {
+  sky: readonly (readonly [number, string])[];
+  sun: string;
+  sunset: string;
+  cloud: string;
+  pipe: string;
+  pipeSunset: string;
+  pipeShadow: string;
+  ground: string;
+  groundSunset: string;
+  grass: string;
+  grassSunset: string;
 };
 
-export const skyStops = (colours: readonly string[]) =>
-  FLAPPY_V2.skyStopsAt.map((at, i) => [at, colours[Math.min(i, colours.length - 1)]] as const);
+const between2 = (from: readonly [number, number], to: readonly [number, number], t: number) =>
+  [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t] as const;
 
-export const pipeRim = (body: string, light: string) => blend(body, light, FLAPPY_V2.rimLift);
+export const flappyColours = (pipes: number, palette: FlappyPalette) => {
+  const day = dayPassed(pipes);
+  const sky = colourAt(palette.sky, FLAPPY_V2.skyFrom + (FLAPPY_V2.skyTo - FLAPPY_V2.skyFrom) * day);
+  const pipe = blend(palette.pipe, palette.pipeSunset, FLAPPY_V2.pipeDeepen * day);
+  const [sunX, sunY] = between2(FLAPPY_V2.sunStart, FLAPPY_V2.sunEnd, day);
+  return {
+    day,
+    sky,
+    cloud: blend(palette.cloud, sky, FLAPPY_V2.cloudTint * day),
+    pipe,
+    outline: blend(pipe, palette.pipeShadow, FLAPPY_V2.outlineDepth),
+    ground: blend(palette.ground, palette.groundSunset, FLAPPY_V2.groundTint * day),
+    grass: blend(palette.grass, palette.grassSunset, FLAPPY_V2.groundTint * day),
+    sun: blend(palette.sun, palette.sunset, Math.max(0, (day - FLAPPY_V2.sunsetFrom) / (1 - FLAPPY_V2.sunsetFrom))),
+    sunX,
+    sunY,
+  };
+};
 
 export const flappyAt = (width: number, height: number, seed: number, pipes: number): FlappyState => {
   const gaps = Math.max(0, Math.floor(pipes));
   const time = (gaps * FLAPPY_V2.spacing) / pipeSpeed(gaps);
-  return { ...newFlappy(width, height, seed), gaps, time, score: flappyScore(gaps) };
+  return { ...newFlappy(width, height, seed), gaps, time, passedAt: time, score: flappyScore(gaps) };
 };
 
 export const stepFlappy = (previous: FlappyState, dt: number): FlappyState => {
@@ -162,8 +176,7 @@ export const stepFlappy = (previous: FlappyState, dt: number): FlappyState => {
     if (!pipe.passed && pipe.x + FLAPPY.pipeWidth < x - FLAPPY.radius) {
       pipe.passed = true;
       state.gaps += 1;
-      if (pipeShadeStep(state.gaps) > pipeShadeStep(state.gaps - 1)) state.pipeShadeSince = state.time;
-      if (skyStep(state.gaps) > skyStep(state.gaps - 1)) state.skySince = state.time;
+      state.passedAt = state.time;
     }
   }
   state.nextIn -= travelled;

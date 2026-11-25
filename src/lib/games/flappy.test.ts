@@ -12,18 +12,16 @@ import {
   MAX_GAP_DROP,
   MAX_GAP_RISE,
   newFlappy,
-  pipeRim,
-  pipeShadeStep,
+  dayPassed,
+  flappyColours,
+  pipesFlown,
   pipeSpeed,
-  shades,
-  skyStep,
-  skyStops,
+  type FlappyPalette,
   stepFlappy,
   type FlappyState,
   type Pipe,
 } from "./flappy";
 import { FLAPPY_V2 } from "./flappyTuning";
-import { blend } from "./glider";
 
 const FRAME = 1 / 60;
 const TAP_FRAMES = 9;
@@ -184,57 +182,93 @@ describe("Flap v2 pipes", () => {
   );
 });
 
-/* eslint-disable no-restricted-syntax -- the shading maths is checked on plain sample colours, not the game's palette */
-const SAMPLE = ["#000000", "#111111", "#222222", "#333333", "#444444", "#555555"];
-const DAY_PIPE = "#40a050";
-const DARK_PIPE = "#103018";
-const LIGHT = "#c0ffd0";
+/* eslint-disable no-restricted-syntax -- the colour maths is checked on a sample palette, not the game's own */
+const PALETTE: FlappyPalette = {
+  sky: [
+    [0, "#f0c0a0"],
+    [0.14, "#90d0e0"],
+    [0.6, "#90d0e0"],
+    [0.78, "#f0c070"],
+    [0.91, "#e07060"],
+    [1, "#202040"],
+  ],
+  sun: "#ffe8a0",
+  sunset: "#ff9050",
+  cloud: "#e8f8f8",
+  pipe: "#50a060",
+  pipeSunset: "#407848",
+  pipeShadow: "#103020",
+  ground: "#d8c088",
+  groundSunset: "#c89060",
+  grass: "#80a050",
+  grassSunset: "#808840",
+};
 /* eslint-enable no-restricted-syntax */
 
 const brightness = (hex: string) => [1, 3, 5].reduce((sum, at) => sum + parseInt(hex.slice(at, at + 2), 16), 0) / (3 * 255);
+const warmth = (hex: string) => parseInt(hex.slice(1, 3), 16) - parseInt(hex.slice(5, 7), 16);
 
-describe("Flap v2 colours", () => {
-  test("the pipes go a step darker every 10 pipes, darkest from 100", () => {
-    expect([0, 9, 10, 50, 100, 500].map(pipeShadeStep)).toEqual([0, 0, 1, 5, 10, 10]);
+describe("Flap v2 colours: an afternoon passing into sunset", () => {
+  const MARKS = [0, 100, 200, 500, 1000];
+  const at = (pipes: number) => flappyColours(pipes, PALETTE);
+
+  test("the day eases in and out, reaches sunset at pipe 500 and holds there", () => {
+    expect(dayPassed(0)).toBe(0);
+    expect(dayPassed(FLAPPY_V2.sunsetPipe)).toBe(1);
+    expect(dayPassed(1000)).toBe(1);
+    expect(dayPassed(100)).toBeGreaterThan(0.05);
+    expect(dayPassed(100)).toBeLessThan(0.2);
+    expect(dayPassed(250)).toBeCloseTo(0.5, 9);
+    for (let pipes = 1; pipes <= FLAPPY_V2.sunsetPipe; pipes++) {
+      expect(dayPassed(pipes)).toBeGreaterThan(dayPassed(pipes - 1));
+      expect(dayPassed(pipes) - dayPassed(pipes - 1)).toBeLessThan(0.004);
+    }
   });
 
-  test("the sky goes a step darker every 50 pipes, night at 500, with stars near the end", () => {
-    expect([0, 10, 49, 50, 100, 200, 500, 5000].map(skyStep)).toEqual([0, 0, 0, 1, 2, 4, 10, 10]);
-    expect(shades({ gaps: 350, time: 9, pipeShadeSince: 0, skySince: 0 }).stars).toBe(false);
-    expect(shades({ gaps: 400, time: 9, pipeShadeSince: 0, skySince: 0 }).stars).toBe(true);
+  test("the sky warms from day blue at 0 through 100 and 200 to sunset at 500, the same at 1000, never night", () => {
+    const skies = MARKS.map((pipes) => at(pipes).sky);
+    expect(skies[0]).toBe(PALETTE.sky[2][1]);
+    expect(warmth(skies[1])).toBeGreaterThan(warmth(skies[0]));
+    expect(warmth(skies[2])).toBeGreaterThan(warmth(skies[1]));
+    expect(warmth(skies[3])).toBeGreaterThan(warmth(skies[2]));
+    expect(skies[3]).toBe(PALETTE.sky[4][1]);
+    expect(skies[4]).toBe(skies[3]);
+    expect(at(1000)).toEqual(at(500));
+    expect(brightness(skies[3])).toBeGreaterThan(0.45);
   });
 
-  test("a new step fades in over a second", () => {
-    const at = (time: number) => shades({ gaps: 50, time, pipeShadeSince: 3, skySince: 3 });
-    expect(at(3).sky).toBe(0);
-    expect(at(3.5).sky).toBeCloseTo(0.5 / FLAPPY_V2.skySteps, 9);
-    expect(at(3 + FLAPPY_V2.fadeSeconds).sky).toBeCloseTo(1 / FLAPPY_V2.skySteps, 9);
-    expect(at(60).sky).toBeCloseTo(1 / FLAPPY_V2.skySteps, 9);
-    expect(at(3.5).pipe).toBeCloseTo(4.5 / FLAPPY_V2.pipeShadeSteps, 9);
-    expect(shades({ gaps: 0, time: 1, pipeShadeSince: -1e9, skySince: -1e9 })).toEqual({ pipe: 0, sky: 0, ground: 0, stars: false });
+  test("the pipes deepen gently toward sunset, never near black, and their outline is always darker than the body", () => {
+    const pipes = MARKS.map((count) => at(count));
+    for (let i = 1; i < 4; i++) expect(brightness(pipes[i].pipe)).toBeLessThan(brightness(pipes[i - 1].pipe));
+    expect(pipes[4].pipe).toBe(pipes[3].pipe);
+    expect(brightness(pipes[1].pipe)).toBeGreaterThan(0.97 * brightness(pipes[0].pipe));
+    expect(brightness(pipes[3].pipe)).toBeGreaterThan(0.3);
+    for (const colours of pipes) {
+      expect(brightness(colours.outline)).toBeLessThan(brightness(colours.pipe) - 0.08);
+      expect(Math.abs(brightness(colours.outline) - brightness(colours.sky))).toBeGreaterThan(0.15);
+    }
   });
 
-  test("the ground darkens in the sky's steps, and the pipe rim in the pipe's, at 0, 100, 300 and 500", () => {
-    const at = (pipes: number) => shades(flappyAt(390, 700, 1, pipes));
-    expect([0, 100, 300, 500].map((pipes) => at(pipes).ground)).toEqual([0, 0.2, 0.6, 1]);
-    for (const pipes of [0, 100, 300, 500]) expect(at(pipes).ground).toBe(at(pipes).sky);
-    expect([0, 100, 300, 500].map((pipes) => at(pipes).pipe)).toEqual([0, 1, 1, 1]);
-    const stops = skyStops(SAMPLE);
-    expect(stops.map(([where]) => where)).toEqual([...FLAPPY_V2.skyStopsAt]);
-    expect(stops.map(([, colour]) => colour)).toEqual(SAMPLE);
-    const rims = [0, 100, 300, 500].map((pipes) => {
-      const body = blend(DAY_PIPE, DARK_PIPE, at(pipes).pipe);
-      const rim = pipeRim(body, LIGHT);
-      expect(brightness(rim)).toBeGreaterThan(brightness(body));
-      expect(brightness(rim) - brightness(body)).toBeLessThan(0.3 * (brightness(LIGHT) - brightness(body)));
-      return brightness(rim);
-    });
-    expect(rims[1]).toBeLessThan(rims[0]);
-    expect(rims[2]).toBe(rims[1]);
-    expect(rims[3]).toBe(rims[1]);
+  test("the ground and the sun go with the day: the ground warms, the sun sinks and reddens", () => {
+    const [noon, , , sunset] = MARKS.map((count) => at(count));
+    expect(noon.ground).toBe(PALETTE.ground);
+    expect(sunset.ground).toBe(PALETTE.groundSunset);
+    expect(sunset.grass).toBe(PALETTE.grassSunset);
+    expect(noon.sun).toBe(PALETTE.sun);
+    expect(sunset.sun).toBe(PALETTE.sunset);
+    expect(sunset.sunY).toBeGreaterThan(noon.sunY);
+    expect(sunset.sunX).toBeGreaterThan(noon.sunX);
   });
 
-  test("passing the pipe that starts a step starts its fade", () => {
+  test("within a pipe the day moves on smoothly, from one pass to the next", () => {
+    const state = flappyAt(390, 700, 1, 200);
+    expect(pipesFlown(state)).toBe(200);
+    const half = (FLAPPY_V2.spacing / pipeSpeed(200)) / 2;
+    expect(pipesFlown({ ...state, time: state.time + half })).toBeCloseTo(200.5, 9);
+    expect(pipesFlown({ ...state, time: state.time + 60 })).toBe(201);
+  });
+
+  test("passing a pipe marks when, so the day carries on from there", () => {
     let state: FlappyState = { ...newFlappy(390, 700, 1), gaps: 49, nextIn: Infinity };
     state = {
       ...state,
@@ -242,18 +276,18 @@ describe("Flap v2 colours", () => {
     };
     const next = stepFlappy({ ...state, time: 12 }, FRAME);
     expect(next.gaps).toBe(50);
-    expect(next.skySince).toBeCloseTo(12 + FRAME, 9);
-    expect(next.pipeShadeSince).toBeCloseTo(12 + FRAME, 9);
+    expect(next.passedAt).toBeCloseTo(12 + FRAME, 9);
+    expect(pipesFlown(next)).toBe(50);
   });
 });
 
 describe("Flap v2 test-only start", () => {
-  test("a run started at a pipe count has that many pipes and that score, and no fade under way", () => {
+  test("a run started at a pipe count has that many pipes and that score, and the day that far on", () => {
     for (const pipes of [1, 10, 100, 500]) {
       const state = flappyAt(390, 700, 4, pipes);
       expect(state.gaps).toBe(pipes);
       expect(state.score).toBe(pipes);
-      expect(shades(state).sky).toBe(skyStep(pipes) / FLAPPY_V2.skySteps);
+      expect(pipesFlown(state)).toBe(pipes);
     }
     let state = flap(flappyAt(390, 700, 4, 300));
     for (let i = 0; i < 120; i++) state = stepFlappy({ ...state, y: 300, vy: 0 }, FRAME);

@@ -1,8 +1,18 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { birdX, FLAPPY, flap, flappyAt, newFlappy, pipeRim, shades, skyStops, stepFlappy, type FlappyState } from "@/lib/games/flappy";
+import {
+  birdX,
+  FLAPPY,
+  flap,
+  flappyAt,
+  flappyColours,
+  newFlappy,
+  pipesFlown,
+  stepFlappy,
+  type FlappyPalette,
+  type FlappyState,
+} from "@/lib/games/flappy";
 import { FLAPPY_V2 } from "@/lib/games/flappyTuning";
-import { blend, colourAt } from "@/lib/games/glider";
-import { newSeed, random } from "@/lib/games/random";
+import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
@@ -15,6 +25,7 @@ import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./Ga
 import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
+const g = fixedColours.games.glider;
 const PHONE_BOARD = { width: GAME_VIEWS.flappy.size, height: 700 };
 const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
@@ -26,30 +37,21 @@ const CLOUDS = [
 
 const HEAD = FLAPPY.radius * 2 + 8;
 
-const STARS = (() => {
-  const rng = { seed: 23 };
-  return Array.from({ length: 28 }, (_, i) => ({ id: i, x: random(rng), y: random(rng) * 0.6, size: i % 4 === 0 ? 3 : 2 }));
-})();
-
-const SKY = skyStops(c.skyColours);
-const GROUND = skyStops(c.groundColours);
-const GRASS = skyStops(c.grassColours);
-
-const tones = (state: FlappyState) => {
-  const shade = shades(state);
-  const sky = colourAt(SKY, shade.sky);
-  const pipe = blend(c.pipe, c.pipeDark, shade.pipe);
-  return {
-    sky,
-    cloud: blend(c.cloud, sky, shade.sky * FLAPPY_V2.cloudFade),
-    pipe,
-    pipeEdge: pipeRim(pipe, c.pipeRim),
-    ground: colourAt(GROUND, shade.ground),
-    grass: colourAt(GRASS, shade.ground),
-    stars: shade.stars,
-    dark: shade.sky >= FLAPPY_V2.darkSkyFrom,
-  };
+const PALETTE: FlappyPalette = {
+  sky: g.sky,
+  sun: g.sun,
+  sunset: g.sunset,
+  cloud: c.cloud,
+  pipe: c.pipe,
+  pipeSunset: c.pipeSunset,
+  pipeShadow: c.pipeShadow,
+  ground: c.ground,
+  groundSunset: c.groundSunset,
+  grass: c.grass,
+  grassSunset: c.grassSunset,
 };
+
+const tones = (state: FlappyState) => flappyColours(pipesFlown(state), PALETTE);
 
 const BirdSprite = ({ flapping }: { flapping: boolean }) => (
   <View style={[styles.sprite, { backgroundColor: c.bird }]}>
@@ -101,19 +103,23 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
   const floor = state.height - FLAPPY.groundHeight;
   const grassShift = -((state.time * 160) % 24);
   const tone = tones(state);
+  const sunSize = state.width * FLAPPY_V2.sunSize;
   return (
     <>
-      {tone.stars
-        ? STARS.map((star) => (
-            <View
-              key={`star-${star.id}`}
-              style={[
-                styles.star,
-                { backgroundColor: c.star, width: star.size, height: star.size, left: star.x * state.width, top: star.y * floor },
-              ]}
-            />
-          ))
-        : null}
+      <View
+        testID="flappy-sun"
+        style={[
+          styles.sun,
+          {
+            width: sunSize,
+            height: sunSize,
+            borderRadius: sunSize / 2,
+            backgroundColor: tone.sun,
+            left: tone.sunX * state.width - sunSize / 2,
+            top: tone.sunY * floor - sunSize / 2,
+          },
+        ]}
+      />
       {CLOUDS.map((cloud) => (
         <View
           key={cloud.id}
@@ -127,7 +133,7 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
       {state.pipes.map((pipe) => (
         <View key={pipe.id} style={[styles.pipeColumn, { transform: [{ translateX: pipe.x }] }]}>
           <View
-            style={[styles.pipe, { height: pipe.gapTop, backgroundColor: tone.pipe, borderColor: tone.pipeEdge }]}
+            style={[styles.pipe, { height: pipe.gapTop, backgroundColor: tone.pipe, borderColor: tone.outline }]}
           />
           <View
             style={[
@@ -136,7 +142,7 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
                 top: pipe.gapTop + pipe.gapHeight,
                 height: Math.max(0, floor - pipe.gapTop - pipe.gapHeight),
                 backgroundColor: tone.pipe,
-                borderColor: tone.pipeEdge,
+                borderColor: tone.outline,
               },
             ]}
           />
@@ -209,8 +215,7 @@ export const FlappyGame = ({
     <GameFrame
       game="flappy"
       background={tone.sky}
-      ink={tone.dark ? c.nightInk : c.eye}
-      statusBar={tone.dark ? "light" : "auto"}
+      ink={c.eye}
       session={session}
       score={run?.score ?? 0}
       world={run ? { width: run.width, height: run.height } : board}
@@ -235,7 +240,7 @@ export const FlappyGame = ({
 
 const styles = StyleSheet.create({
   cloud: { position: "absolute", height: 28, borderRadius: 14, opacity: 0.9 },
-  star: { position: "absolute", borderRadius: 2, opacity: 0.8 },
+  sun: { position: "absolute" },
   pipeColumn: { position: "absolute", left: 0, top: 0, bottom: 0, width: FLAPPY.pipeWidth },
   pipe: {
     position: "absolute",
