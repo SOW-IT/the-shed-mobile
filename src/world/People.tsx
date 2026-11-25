@@ -3,6 +3,7 @@ import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { playingLabel } from "@shared/games";
+import { IN_APP_TICK_MS, inAppTick } from "@shared/appPresence";
 import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
@@ -63,21 +64,19 @@ const PersonRow = memo(function PersonRow({
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 
 
-const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
-  const [open, setOpen] = useState(startOpen);
-  const [asked, setAsked] = useState(startOpen);
-  if (startOpen !== asked) {
-    setAsked(startOpen);
-    if (startOpen) setOpen(true);
-  }
+const useInAppTick = (active: boolean) => {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setTick(inAppTick(Date.now())), IN_APP_TICK_MS);
+    return () => clearInterval(id);
+  }, [active]);
+  return tick;
+};
+
+const usePokes = (active: boolean) => {
   const [now, setNow] = useState(0);
-  const [limit, setLimit] = useState(OFFLINE_FIRST);
-  const fetched = useQuery(api.world.offlineRecent, open ? { limit } : "skip");
-  const [kept, setKept] = useState(fetched);
-  if (fetched !== undefined && fetched !== kept) setKept(fetched);
-  const offline = fetched ?? (open ? kept : undefined);
-  const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
-  const list = wait && offline ? { people: offline.people, more: offline.more && limit < OFFLINE_ALL_MAX, loading: fetched === undefined, pokeAgainAt: wait.pokeAgainAt } : undefined;
+  const wait = useQuery(api.world.pokeWait, active ? {} : "skip");
   const poke = useMutation(api.world.pokeStaff);
   const inviteHome = useMutation(api.world.inviteStaff);
   const [writingTo, setWritingTo] = useState<string | null>(null);
@@ -87,10 +86,10 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const worldName = useWorldName();
-  const waitMs = list ? list.pokeAgainAt - now : 0;
-  const pokeAgainAt = list?.pokeAgainAt;
+  const pokeAgainAt = wait?.pokeAgainAt;
+  const waitMs = pokeAgainAt === undefined ? 0 : pokeAgainAt - now;
   useEffect(() => {
-    if (!open || pokeAgainAt === undefined) return;
+    if (!active || pokeAgainAt === undefined) return;
     const refresh = () => setNow(Date.now());
     const soon = setTimeout(refresh, 0);
     const whenAllowed = setTimeout(refresh, Math.max(0, pokeAgainAt - Date.now()) + 250);
@@ -98,7 +97,14 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       clearTimeout(soon);
       clearTimeout(whenAllowed);
     };
-  }, [open, pokeAgainAt]);
+  }, [active, pokeAgainAt]);
+  const write = (to: string, invite: boolean) => {
+    setError(null);
+    setSent(null);
+    setMessage("");
+    setInviting(invite);
+    setWritingTo(to);
+  };
   const send = async (profileId: Id<"staffProfiles">, name: string) => {
     setBusy(true);
     setError(null);
@@ -115,11 +121,167 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       setBusy(false);
     }
   };
+  return {
+    now,
+    setNow,
+    loaded: wait !== undefined,
+    waitMs,
+    writingTo,
+    inviting,
+    message,
+    setMessage,
+    busy,
+    error,
+    sent,
+    write,
+    cancel: () => setWritingTo(null),
+    send,
+  };
+};
+
+type Pokes = ReturnType<typeof usePokes>;
+
+const AwayRow = ({
+  person,
+  status,
+  pokes,
+  testID,
+}: {
+  person: { id: Id<"staffProfiles">; name: string; look: Look };
+  status: ReactNode;
+  pokes: Pokes;
+  testID?: string;
+}) => {
+  const worldName = useWorldName();
+  const writing = pokes.writingTo === person.id;
+  return (
+    <View style={styles.offlineRow} testID={testID}>
+      <View style={styles.offlineHead}>
+        <Bust look={person.look} size={32} />
+        <View style={styles.grow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {worldName(person.name)}
+          </Text>
+          {status}
+        </View>
+        {writing ? null : (
+          <>
+            <GlassPill
+              icon="mail"
+              disabled={pokes.waitMs > 0}
+              accessibilityLabel={`Invite ${worldName(person.name)} to your home`}
+              testID={`world-invite-offline-${person.id}`}
+              onPress={() => pokes.write(person.id, true)}
+            />
+            <GlassPill
+              label="Poke"
+              icon="notifications-outline"
+              disabled={pokes.waitMs > 0}
+              accessibilityLabel={`Poke ${worldName(person.name)}`}
+              onPress={() => pokes.write(person.id, false)}
+            />
+          </>
+        )}
+      </View>
+      {writing ? (
+        <View style={styles.compose}>
+          <Field
+            label="Message (optional)"
+            value={pokes.message}
+            onChangeText={pokes.setMessage}
+            placeholder={pokes.inviting ? "Come over to my home." : "Come and join me here."}
+            maxLength={MAX_POKE_LENGTH}
+            autoCapitalize="sentences"
+            testID="world-poke-message"
+          />
+          {pokes.error ? <Text style={styles.error}>{pokes.error}</Text> : null}
+          <View style={styles.pokeButtons}>
+            <View style={styles.grow}>
+              <Btn title="Cancel" variant="tonal" onPress={pokes.cancel} />
+            </View>
+            <View style={styles.grow}>
+              <Btn
+                title={pokes.inviting ? "Send invite" : "Send poke"}
+                icon={pokes.inviting ? "mail-outline" : "notifications-outline"}
+                loading={pokes.busy}
+                onPress={() => void pokes.send(person.id, person.name)}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+const pokeWaitNote = (waitMs: number) => `You can poke again in ${Math.min(60, Math.ceil(waitMs / 60_000))} min.`;
+
+const ShowMore = ({ testID, onPress }: { testID: string; onPress: () => void }) => (
+  <View testID={testID} style={styles.more}>
+    <GlassPill label="Show more" icon="chevron-down" onPress={onPress} />
+  </View>
+);
+
+const InAppList = ({ visible }: { visible: boolean }) => {
+  const [limit, setLimit] = useState(OFFLINE_FIRST);
+  const tick = useInAppTick(visible);
+  const fetched = useQuery(api.world.inApp, visible ? { limit, tick } : "skip");
+  const [kept, setKept] = useState(fetched);
+  if (fetched !== undefined && fetched !== kept) setKept(fetched);
+  const list = visible ? (fetched ?? kept) : undefined;
+  const shown = !!list && list.people.length > 0;
+  const pokes = usePokes(shown);
+  if (!list || !shown) return null;
+  const more = list.more && limit < OFFLINE_ALL_MAX && fetched !== undefined;
+  return (
+    <View style={styles.offline} testID="world-in-app">
+      <View style={styles.toggle}>
+        <Ionicons name="phone-portrait-outline" size={16} color={glass.muted} />
+        <Text style={[styles.section, styles.grow]}>In the app</Text>
+      </View>
+      {pokes.waitMs > 0 ? <Text style={styles.note}>{pokeWaitNote(pokes.waitMs)}</Text> : null}
+      {pokes.sent ? <Text style={styles.sent}>{pokes.sent}</Text> : null}
+      {list.people.map((p) => (
+        <AwayRow
+          key={p.id}
+          person={p}
+          pokes={pokes}
+          testID={`world-in-app-${p.id}`}
+          status={
+            <View style={styles.status}>
+              <View style={styles.inAppDot} />
+              <Text style={styles.where}>In the app</Text>
+            </View>
+          }
+        />
+      ))}
+      {fetched === undefined ? <Text style={styles.note}>Loading…</Text> : null}
+      {more ? <ShowMore testID="world-in-app-more" onPress={() => setLimit((was) => Math.min(OFFLINE_ALL_MAX, was + OFFLINE_FIRST))} /> : null}
+    </View>
+  );
+};
+
+const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
+  const [open, setOpen] = useState(startOpen);
+  const [asked, setAsked] = useState(startOpen);
+  if (startOpen !== asked) {
+    setAsked(startOpen);
+    if (startOpen) setOpen(true);
+  }
+  const [limit, setLimit] = useState(OFFLINE_FIRST);
+  const tick = useInAppTick(open);
+  const fetched = useQuery(api.world.offlineRecent, open ? { limit, skipInApp: true, tick } : "skip");
+  const [kept, setKept] = useState(fetched);
+  if (fetched !== undefined && fetched !== kept) setKept(fetched);
+  const offline = fetched ?? (open ? kept : undefined);
+  const pokes = usePokes(open);
+  const list = pokes.loaded && offline ? { people: offline.people, more: offline.more && limit < OFFLINE_ALL_MAX, loading: fetched === undefined } : undefined;
+  const { now, waitMs } = pokes;
   return (
     <View style={styles.offline}>
       <Pressable
         onPress={() => {
-          setNow(Date.now());
+          pokes.setNow(Date.now());
           if (open) setLimit(OFFLINE_FIRST);
           setOpen((was) => !was);
         }}
@@ -136,83 +298,22 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       {open && list === undefined ? <Text style={styles.note}>Loading…</Text> : null}
       {open && list?.people.length === 0 ? <Text style={styles.note}>Everyone on staff is here right now.</Text> : null}
       {open && list && list.people.length > 0 ? (
-        <Text style={styles.note}>
-          {waitMs > 0 ? `You can poke again in ${Math.min(60, Math.ceil(waitMs / 60_000))} min.` : "Poke someone to invite them in. One poke an hour."}
-        </Text>
+        <Text style={styles.note}>{waitMs > 0 ? pokeWaitNote(waitMs) : "Poke someone to invite them in. One poke an hour."}</Text>
       ) : null}
-      {open && sent ? <Text style={styles.sent}>{sent}</Text> : null}
+      {open && pokes.sent ? <Text style={styles.sent}>{pokes.sent}</Text> : null}
       {open
         ? list?.people.map((p) => (
-            <View key={p.id} style={styles.offlineRow}>
-              <View style={styles.offlineHead}>
-                <Bust look={p.look} size={32} />
-                <View style={styles.grow}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {worldName(p.name)}
-                  </Text>
-                  <Text style={styles.where}>{p.lastOnlineAt === null ? "Not seen yet" : `Seen ${timeAgo(p.lastOnlineAt, now)}`}</Text>
-                </View>
-                {writingTo === p.id ? null : (
-                  <>
-                    <GlassPill
-                      icon="mail"
-                      disabled={waitMs > 0}
-                      accessibilityLabel={`Invite ${worldName(p.name)} to your home`}
-                      testID={`world-invite-offline-${p.id}`}
-                      onPress={() => {
-                        setError(null);
-                        setSent(null);
-                        setMessage("");
-                        setInviting(true);
-                        setWritingTo(p.id);
-                      }}
-                    />
-                    <GlassPill
-                      label="Poke"
-                      icon="notifications-outline"
-                      disabled={waitMs > 0}
-                      accessibilityLabel={`Poke ${worldName(p.name)}`}
-                      onPress={() => {
-                        setError(null);
-                        setSent(null);
-                        setMessage("");
-                        setInviting(false);
-                        setWritingTo(p.id);
-                      }}
-                    />
-                  </>
-                )}
-              </View>
-              {writingTo === p.id ? (
-                <View style={styles.compose}>
-                  <Field
-                    label="Message (optional)"
-                    value={message}
-                    onChangeText={setMessage}
-                    placeholder={inviting ? "Come over to my home." : "Come and join me here."}
-                    maxLength={MAX_POKE_LENGTH}
-                    autoCapitalize="sentences"
-                    testID="world-poke-message"
-                  />
-                  {error ? <Text style={styles.error}>{error}</Text> : null}
-                  <View style={styles.pokeButtons}>
-                    <View style={styles.grow}>
-                      <Btn title="Cancel" variant="tonal" onPress={() => setWritingTo(null)} />
-                    </View>
-                    <View style={styles.grow}>
-                      <Btn title={inviting ? "Send invite" : "Send poke"} icon={inviting ? "mail-outline" : "notifications-outline"} loading={busy} onPress={() => void send(p.id, p.name)} />
-                    </View>
-                  </View>
-                </View>
-              ) : null}
-            </View>
+            <AwayRow
+              key={p.id}
+              person={p}
+              pokes={pokes}
+              status={<Text style={styles.where}>{p.lastOnlineAt === null ? "Not seen yet" : `Seen ${timeAgo(p.lastOnlineAt, now)}`}</Text>}
+            />
           ))
         : null}
       {open && list?.loading ? <Text style={styles.note}>Loading…</Text> : null}
       {open && list?.more && !list.loading ? (
-        <View testID="world-offline-more" style={styles.more}>
-          <GlassPill label="Show more" icon="chevron-down" onPress={() => setLimit((was) => Math.min(OFFLINE_ALL_MAX, was + OFFLINE_FIRST))} />
-        </View>
+        <ShowMore testID="world-offline-more" onPress={() => setLimit((was) => Math.min(OFFLINE_ALL_MAX, was + OFFLINE_FIRST))} />
       ) : null}
     </View>
   );
@@ -351,6 +452,9 @@ export const PeoplePanel = ({
             </Animated.View>
           ))}
           <Animated.View style={itemStyle(overlay, next())}>
+            <InAppList visible={overlay.mounted} />
+          </Animated.View>
+          <Animated.View style={itemStyle(overlay, next())}>
             <OfflineList startOpen={pokeListOpen} />
           </Animated.View>
           {blocked && blocked.length > 0 ? (
@@ -409,4 +513,6 @@ const styles = StyleSheet.create({
   compose: { gap: 8 },
   pokeButtons: { flexDirection: "row", gap: 8 },
   more: { alignItems: "center" },
+  status: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
+  inAppDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: signal.fair },
 });

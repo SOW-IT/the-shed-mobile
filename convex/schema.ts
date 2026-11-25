@@ -593,6 +593,13 @@ export default defineSchema({
     // The World's offline list reads this newest first.
     .index("by_at", ["at"]),
 
+  appPresence: defineTable({
+    email: v.string(),
+    appSeenAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_appSeenAt", ["appSeenAt"]),
+
   pushTokens: defineTable({
     email: v.string(),
     token: v.string(),
