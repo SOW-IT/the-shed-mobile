@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.15] - 2026-11-26
+## [2.13.18] - 2026-11-26
 
 ### Changed
 - **The arcade games are v2, and they never stop getting harder.** Each
