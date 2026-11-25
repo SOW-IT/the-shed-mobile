@@ -1,6 +1,7 @@
 import { CHAT_TTL_MS } from "@shared/world";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
+import { Platform, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
 import { gradientStyle } from "@/components/ui/Grid";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLineParts } from "./chatFormat";
@@ -93,7 +94,7 @@ export const ChatLog = ({
   };
   return (
     <View style={styles.frame}>
-      <ScrollView
+      <SharpScrollView
         ref={scroller}
         style={[styles.log, { maxHeight: shown + PAD * 2 }]}
         contentContainerStyle={styles.content}
@@ -142,7 +143,7 @@ export const ChatLog = ({
             </Text>
           );
         })}
-      </ScrollView>
+      </SharpScrollView>
       {edges.above ? <View style={[styles.fade, styles.fadeTop, gradientStyle(`linear-gradient(to bottom, ${chatLog.fade}, transparent)`)]} pointerEvents="none" testID="world-chat-fade-top" /> : null}
       {edges.below ? <View style={[styles.fade, styles.fadeBottom, gradientStyle(`linear-gradient(to top, ${chatLog.fade}, transparent)`)]} pointerEvents="none" testID="world-chat-fade-bottom" /> : null}
     </View>

@@ -1,10 +1,11 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { FURNITURE, FURNITURE_IDS, MAX_OWNED_EACH, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type WallpaperId } from "@shared/home";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { blurBehind, Bust, itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
@@ -189,7 +190,7 @@ export const ShopPanel = ({
           ))}
         </Animated.View>
         {tab === "seeds" ? (
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.grid}>
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.grid}>
             {CROP_IDS.map((id, i) => (
               <Animated.View key={id} style={itemStyle(overlay, 2 + i)}>
                 <Pressable
@@ -275,9 +276,9 @@ export const ShopPanel = ({
                 {error}
               </Text>
             ) : null}
-          </ScrollView>
+          </SharpScrollView>
         ) : tab === "sell" ? (
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
             {!anythingToSell ? (
               <Text style={styles.empty} testID="world-shop-sell-empty">
                 Nothing to sell
@@ -327,9 +328,9 @@ export const ShopPanel = ({
                 </Pressable>
               </Animated.View>
             ))}
-          </ScrollView>
+          </SharpScrollView>
         ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.grid}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.grid}>
           {ids.map((id, i) => {
             const have = owned(id);
             const out = soldOut(id);
@@ -357,7 +358,7 @@ export const ShopPanel = ({
               </Animated.View>
             );
           })}
-        </ScrollView>
+        </SharpScrollView>
         )}
         {tab === "seeds" && choice ? (
           <View style={styles.buyBar}>

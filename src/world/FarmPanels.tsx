@@ -1,10 +1,11 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { bagStacks, CROPS, seedList, stackLabel, type BuildingId, type CropId } from "@shared/farm";
 import { FARM_OFFERS_FROM as FARMER } from "./shopTabs";
 import { ANIMALS, BUILDINGS, cleanName, FEEDS, feedList, GOODS, goodsList, NAME_MAX, type AnimalId, type Mood } from "@shared/animals";
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { AnimalThumb, FeedThumb, GoodThumb, TagThumb } from "./Animals";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { CropThumb, SeedCluster } from "./Farm";
@@ -89,7 +90,7 @@ export const BagPanel = ({ open, top, bag, onClose }: { open: boolean; top: numb
       )}
     >
       {(overlay) => (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.body}>
           <Animated.View style={itemStyle(overlay, 1)}>
             <Text style={styles.section} accessibilityRole="header">
               Seeds
@@ -170,7 +171,7 @@ export const BagPanel = ({ open, top, bag, onClose }: { open: boolean; top: numb
               </View>
             ) : null}
           </View>
-        </ScrollView>
+        </SharpScrollView>
       )}
     </Panel>
   );
@@ -524,7 +525,7 @@ export const PenSheet = ({
       )}
     >
       {(overlay) => (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {here.map((a, i) => (
             <Animated.View key={a.id} style={[styles.animalRow, itemStyle(overlay, 1 + i)]} testID={`world-pen-animal-${a.id}`}>
               <AnimalThumb kind={animalKind} stage={a.stage} mood={a.mood} size={44} />
@@ -613,7 +614,7 @@ export const PenSheet = ({
             </Animated.View>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
-        </ScrollView>
+        </SharpScrollView>
       )}
     </Panel>
   );
