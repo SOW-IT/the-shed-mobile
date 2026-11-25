@@ -6,6 +6,7 @@
   "entry": [
     "src/**/*.{native,web}.tsx",
     "scripts/*.{mjs,sh}",
+    "scripts/verify/checks/*.mjs",
     "babel.config.js",
     "fingerprint.config.js"
   ],

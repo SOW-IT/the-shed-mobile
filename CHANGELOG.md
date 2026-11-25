@@ -82,7 +82,7 @@ All notable changes to **The SHED** mobile app. This project follows
   Anyone 2.12.49 already paid on that leaderboard gets only what they're
   still owed, which is usually nothing.
 
-## [2.13.1] - 2026-11-25
+## [2.13.2] - 2026-11-25
 
 ### Added
 - **Table games in the Café.** Play Four in a Row, Tic-tac-toe, Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
@@ -91,6 +91,20 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
 - **Café Games in Games, for two people on one phone.** The same four games, played offline with no timer: pass the phone between turns. Tap a name to change it; the phone remembers. Rematch lets the other player start. These games don't count towards records or coins.
 - **A warm café tabletop look** for all of it, in light linen or dark walnut to match the app's theme.
+
+## [2.13.1] - 2026-11-25
+
+### Fixed
+- **On iPhone a picker closes while its list is still moving.** After a
+  flick through the devotional Book list, tapping the close button or
+  outside the sheet did nothing until the list stopped. Now it closes
+  straight away, in the Book, Chapter and Verse pickers and every other
+  picker and sheet.
+
+### Added
+- **Swipe a sheet down to close it.** Drag a picker's or sheet's title bar
+  down, or flick it, and it closes; let go early and it springs back. On
+  iPhone, pulling a list down past its top closes it too.
 
 ## [2.13.0] - 2026-11-25
 
