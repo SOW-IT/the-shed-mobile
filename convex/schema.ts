@@ -420,7 +420,9 @@ export default defineSchema({
   worldFeeders: defineTable({
     email: v.string(),
     owner: v.string(),
-  }).index("by_email_and_owner", ["email", "owner"]),
+  })
+    .index("by_email_and_owner", ["email", "owner"])
+    .index("by_owner", ["owner"]),
 
   worldPlants: defineTable({
     owner: v.string(),
@@ -433,7 +435,9 @@ export default defineSchema({
   worldWaterers: defineTable({
     email: v.string(),
     owner: v.string(),
-  }).index("by_email_and_owner", ["email", "owner"]),
+  })
+    .index("by_email_and_owner", ["email", "owner"])
+    .index("by_owner", ["owner"]),
 
   worldWallets: defineTable({
     email: v.string(),

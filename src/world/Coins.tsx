@@ -4,7 +4,7 @@ import { ordinal, PLACE_COINS } from "@shared/coins";
 import { FARMER, NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
@@ -87,7 +87,7 @@ export const CoinsPanel = ({
   onBackyard: () => void;
 }) => {
   const reduce = useBatterySaver();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [mounted, setMounted] = useState(open);
   const [shown] = useState(() => new Animated.Value(0));
   const [spin] = useState(() => new Animated.Value(0));
@@ -120,13 +120,11 @@ export const CoinsPanel = ({
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: shown.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }) }]} />
       </Pressable>
       <Animated.View
-        style={[styles.card, { top, width: Math.min(340, width - 32), opacity: shown.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ scale }] }]}
+        style={[styles.card, { top, width: Math.min(340, width - 32), maxHeight: Math.max(320, height - top - 24), opacity: shown.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ scale }] }]}
         testID="world-coins-panel"
         accessibilityViewIsModal
       >
-        <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="world-coins-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-          <Ionicons name="close" size={18} color={hud.forest} />
-        </Pressable>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
         <View style={styles.hero}>
           {SPARKS.map((spark) => (
             <Animated.Text
@@ -189,6 +187,10 @@ export const CoinsPanel = ({
           <Bust look={NPC.look} size={36} />
           <Text style={styles.shopText}>{NPC.name.split(" ")[0]} in the Café sells furniture for your home.</Text>
         </View>
+        </ScrollView>
+        <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="world-coins-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Ionicons name="close" size={18} color={hud.forest} />
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -196,6 +198,8 @@ export const CoinsPanel = ({
 
 const styles = StyleSheet.create({
   scrim: { backgroundColor: hud.scrim },
+  scroll: { alignSelf: "stretch", flexGrow: 0 },
+  scrollBody: { alignItems: "center" },
   card: {
     position: "absolute",
     alignSelf: "center",

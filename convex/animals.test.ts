@@ -291,6 +291,20 @@ describe("visitors", () => {
     expect((await farmRow(t, ANNA))?.goods).toBeUndefined();
   });
 
+  test("someone blocked sees no yard, and a blocked feeder's name is hidden", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await visit(t, ANNA, BEN);
+    await visit(t, ANNA, CARA);
+    await t.run((ctx) => ctx.db.insert("worldAnimals", { owner: ANNA, kind: "cow", name: "Daisy", boughtAt: Date.now() - DAY_MS - HOUR, feedings: [{ at: Date.now(), email: CARA, name: "Cara" }] }));
+    const roomId = await roomOf(t, ANNA);
+    expect((await asUser(t, BEN).query(api.animals.yard, { roomId }))?.animals[0].feedings[0].by).toBe("Cara");
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: BEN, blockedEmail: CARA, blockedName: "Cara" }));
+    expect((await asUser(t, BEN).query(api.animals.yard, { roomId }))?.animals[0].feedings[0].by).toBeNull();
+    await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: BEN, blockedName: "Ben" }));
+    expect(await asUser(t, BEN).query(api.animals.yard, { roomId })).toBeNull();
+  });
+
   test("someone blocked can't feed", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
@@ -336,6 +350,7 @@ describe("renaming", () => {
     await expect(anna.mutation(api.animals.rename, { animalId: id, name: "Bessie" })).rejects.toThrow(/Get a name tag from Josh/);
     await setFarm(t, ANNA, { nameTags: 1 });
     await expect(anna.mutation(api.animals.rename, { animalId: id, name: "x".repeat(17) })).rejects.toThrow(/up to 16/);
+    await expect(anna.mutation(api.animals.rename, { animalId: id, name: "Daisy" })).rejects.toThrow(/different name/);
     expect(await anna.mutation(api.animals.rename, { animalId: id, name: "Bessie" })).toEqual({ name: "Bessie", nameTags: 0 });
     expect((await animal(t, id))?.name).toBe("Bessie");
   });
@@ -388,7 +403,7 @@ describe("Josh's feed and name tags", () => {
 });
 
 describe("selling eggs and milk", () => {
-  test("Sell all includes them for the new app, one stack sells alone, and the old app sells only crops", async () => {
+  test("Sell all includes them at Josh, one stack sells alone, and the old app at Sijin sells only crops", async () => {
     const t = newConvex();
     await atCafe(t, ANNA);
     await give(t, ANNA, 0);
@@ -396,6 +411,8 @@ describe("selling eggs and milk", () => {
     const anna = asUser(t, ANNA);
     expect(await anna.mutation(api.farm.sell, {})).toEqual({ balance: 8, coins: 8 });
     expect((await farmRow(t, ANNA))?.goods).toEqual({ egg: 3, milk: 1 });
+    await expect(anna.mutation(api.farm.sell, { goods: true })).rejects.toThrow(/Find Josh Kim in the Garden/);
+    await go(t, ANNA, "garden");
     expect(await anna.mutation(api.farm.sell, { stack: "milk", goods: true })).toEqual({ balance: 17, coins: GOODS.milk.sells });
     await setFarm(t, ANNA, { crops: { "carrot:0": 1 } });
     expect(await anna.mutation(api.farm.sell, { goods: true })).toEqual({ balance: 17 + 11 + 18, coins: 29 });
@@ -466,5 +483,18 @@ describe("account deletion", () => {
     });
     await t.mutation(internal.account.wipe, { userId });
     expect((await animal(t, id))?.feedings).toEqual([{ at: Date.now(), email: "", name: "" }]);
+  });
+
+  test("an owner's account takes the feeder and waterer rows about their farm with it", async () => {
+    const t = newConvex();
+    const userId = await t.run(async (ctx) => {
+      await ctx.db.insert("worldFeeders", { email: BEN, owner: ANNA });
+      await ctx.db.insert("worldWaterers", { email: BEN, owner: ANNA });
+      await ctx.db.insert("worldFeeders", { email: BEN, owner: CARA });
+      return await ctx.db.insert("users", { email: ANNA, name: "Anna" });
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    expect(await t.run((ctx) => ctx.db.query("worldFeeders").collect())).toMatchObject([{ owner: CARA }]);
+    expect(await t.run((ctx) => ctx.db.query("worldWaterers").collect())).toEqual([]);
   });
 });

@@ -87,11 +87,18 @@ export const useAnimals = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | 
   const buyFeedM = useMutation(api.animals.buyFeed);
   const buyNameTagM = useMutation(api.animals.buyNameTag);
 
-  const feed = useCallback((animalId: string) => attempt(() => feedM({ animalId }), "That didn't feed."), [feedM]);
+  const feed = useCallback(async (animalId: string): Promise<number | string> => {
+    try {
+      const reply = await feedM({ animalId });
+      return reply.ok ? reply.serverNow : reply.reason;
+    } catch (e) {
+      return said(e, "That didn't feed.");
+    }
+  }, [feedM]);
   const collect = useCallback(async (animalId: string) => {
     try {
       const reply = await collectM({ animalId });
-      return reply.ok ? { good: reply.good } : reply.reason;
+      return reply.ok ? { good: reply.good, serverNow: reply.serverNow } : reply.reason;
     } catch (e) {
       return said(e, "That didn't work.");
     }

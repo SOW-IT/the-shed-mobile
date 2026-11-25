@@ -112,7 +112,7 @@ export const life = (animal: AnimalTimes, at: number): Life => {
   const fedIn = new Map<number, number>();
   for (const f of animal.feedings) {
     const k = windowOf(f.at);
-    if (k >= 1 && !fedIn.has(k)) fedIn.set(k, f.at);
+    if (k >= 1 && f.at <= now && !fedIn.has(k)) fedIn.set(k, f.at);
   }
   const current = windowOf(now);
   const fedWindows = [0, ...[...fedIn.keys()].filter((k) => k <= current).sort((x, y) => x - y)];
@@ -136,7 +136,7 @@ export const life = (animal: AnimalTimes, at: number): Life => {
   const day = isGrown ? days : grown + 1;
   const stage: 0 | 1 | 2 = isGrown ? 2 : day <= days / 2 ? 0 : 1;
   const adultAt = adultWindow === null ? null : born + adultWindow * DAY_MS;
-  const latest = animal.feedings.reduce<number | null>((best, f) => (best === null || f.at > best ? f.at : best), null);
+  const latest = animal.feedings.reduce<number | null>((best, f) => (f.at <= now && (best === null || f.at > best) ? f.at : best), null);
   const readyAt = adultAt !== null && latest !== null && latest >= adultAt && latest > (animal.collectedAt ?? -Infinity) && goneWindow === null ? latest : null;
   return {
     window: current,

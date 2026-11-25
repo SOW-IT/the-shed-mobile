@@ -23,7 +23,7 @@ import { ensureWallet } from "./coins";
 import { asOwner, atFarmShop, inBackyard, JOSH } from "./farm";
 import { animalsOf, buildingsOf, ensureFarm, farmOf, noteFeeder } from "./farmData";
 import { optionalEmail, requireEmail } from "./model";
-import { memberByEmail } from "./world";
+import { blockedEither, memberByEmail } from "./world";
 
 
 const feedingValidator = v.object({ at: v.number(), by: v.union(v.string(), v.null()), mine: v.boolean() });
@@ -37,12 +37,12 @@ const animalValidator = v.object({
   collectedAt: v.optional(v.number()),
 });
 
-const shownAnimal = (animal: Doc<"worldAnimals">, viewer: string) => ({
+const shownAnimal = (animal: Doc<"worldAnimals">, viewer: string, hidden: ReadonlySet<string>) => ({
   id: animal._id,
   kind: animal.kind,
   name: animal.name,
   boughtAt: animal.boughtAt,
-  feedings: animal.feedings.map((f) => ({ at: f.at, by: f.email === animal.owner || f.name === "" ? null : f.name, mine: f.email !== "" && f.email === viewer })),
+  feedings: animal.feedings.map((f) => ({ at: f.at, by: f.email === animal.owner || f.name === "" || hidden.has(f.email) ? null : f.name, mine: f.email !== "" && f.email === viewer })),
   ...(animal.collectedAt === undefined ? {} : { collectedAt: animal.collectedAt }),
 });
 
@@ -65,13 +65,18 @@ export const yard = query({
     const room = await ctx.db.get("worldRooms", roomId);
     if (!me || me.roomId !== roomId || room?.place !== BACKYARD || !room.owner) return null;
     const owner = room.owner;
+    if (await blockedEither(ctx, owner, email)) return null;
     const kinds = new Set((await buildingsOf(ctx, owner)).map((b) => b.kind));
     const mine = owner === email;
+    const animals = await animalsOf(ctx, owner);
+    const feeders = new Set(animals.flatMap((a) => a.feedings.map((f) => f.email)).filter((e) => e !== "" && e !== owner && e !== email));
+    const hidden = new Set<string>();
+    for (const feeder of feeders) if (await blockedEither(ctx, email, feeder)) hidden.add(feeder);
     return {
       mine,
       coop: kinds.has("coop"),
       barn: kinds.has("barn"),
-      animals: (await animalsOf(ctx, owner)).map((animal) => shownAnimal(animal, email)),
+      animals: animals.map((animal) => shownAnimal(animal, email, hidden)),
       wandered: mine ? ((await farmOf(ctx, owner))?.wandered ?? []) : [],
     };
   },
@@ -206,6 +211,7 @@ export const rename = mutation({
     const email = await requireEmail(ctx);
     const animal = await animalThere(ctx, email, args.animalId);
     const name = nameOf(args.name);
+    if (name === animal.name) throw new ConvexError("Pick a different name.");
     if (life(animal, Date.now()).mood === "gone") throw new ConvexError(`${animal.name} wandered off.`);
     const row = await ensureFarm(ctx, email);
     const tags = row.nameTags ?? 0;

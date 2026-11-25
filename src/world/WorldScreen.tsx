@@ -28,7 +28,7 @@ import { CROPS, growth, isCrop, penStand, plantCard, plotPrice, plotStand, type 
 import { animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useDerivedValue, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -62,7 +62,8 @@ import { backFrom, exitOf, padTrip } from "./homeExit";
 import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
-import { ShopPanel, type Keeper } from "./Shop";
+import { ShopPanel } from "./Shop";
+import type { Keeper } from "./shopTabs";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
@@ -252,7 +253,9 @@ export const WorldScreen = ({
   const inBackyard = world.place === "backyard" && world.status === "in";
   const calm = useBatterySaver();
   const farm = useFarm({ roomId: world.roomId, inBackyard });
-  const farmNow = useMinuteClock(world.serverNow, inBackyard);
+  const minuteNow = useMinuteClock(world.serverNow, inBackyard);
+  const [yardNow, setYardNow] = useState(0);
+  const farmNow = Math.max(minuteNow, yardNow);
   const animals = useAnimals({ roomId: world.roomId, inBackyard });
   const [animalTrip, setAnimalTrip] = useState<{ id: string; since: number } | null>(null);
   const [yardCard, setYardCard] = useState<{ at: BuildingId; id: string | null; extra: string | null; key: number } | null>(null);
@@ -581,6 +584,7 @@ export const WorldScreen = ({
     setYardCard(null);
     setBuildingOffer(null);
     setPenSheet(null);
+    setArrivals(new Set());
     setPlotCard(null);
     setPickPlot(null);
     setOfferOpen(false);
@@ -724,6 +728,7 @@ export const WorldScreen = ({
     setApproach(null);
     setPropTrip(null);
     setPlotTrip(null);
+    setAnimalTrip(null);
     setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
@@ -752,6 +757,7 @@ export const WorldScreen = ({
     setApproach(null);
     setSeatTrip(null);
     setPlotTrip(null);
+    setAnimalTrip(null);
     setTray(false);
     const spot = OBJECT_SPOTS[kind];
     const mePose = myPoseNow();
@@ -825,6 +831,7 @@ export const WorldScreen = ({
     setSeatTrip(null);
     if (plot >= farmView.plots) {
       setPlotTrip(null);
+      setAnimalTrip(null);
       if (farmView.mine) {
         setOffer({ plot: farmView.plots, price: plotPrice(farmView.plots) });
         setOfferOpen(true);
@@ -837,6 +844,7 @@ export const WorldScreen = ({
     const mePose = myPoseNow();
     if (mePose && distance(mePose, spot) <= AT_OBJECT) {
       setPlotTrip(null);
+      setAnimalTrip(null);
       actOnPlot(plot);
       return;
     }
@@ -855,6 +863,7 @@ export const WorldScreen = ({
       const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || Date.now() - plotTrip.since > OBJECT_TRIP_MS;
       if (!arrived && !strayed) return;
       setPlotTrip(null);
+      setAnimalTrip(null);
       if (arrived) actRef.current(plotTrip.plot);
     }, 120);
     return () => clearInterval(id);
@@ -901,7 +910,8 @@ export const WorldScreen = ({
 
   const suggestName = useCallback((kind: AnimalId) => randomName(kind, Math.random()), []);
   const yardView = animals.view;
-  const shownAnimals = (yardView?.animals ?? []).filter((a) => !leftIds.has(a.id));
+  const yardAnimals = yardView?.animals;
+  const shownAnimals = useMemo(() => (yardAnimals ?? []).filter((a) => !leftIds.has(a.id)), [yardAnimals, leftIds]);
   const animalOn = (id: string) => shownAnimals.find((a) => a.id === id) ?? null;
   const feedOf = (kind: string): FeedId => (kind === "cow" ? "hay" : "grain");
   const settling = useRef(false);
@@ -938,17 +948,20 @@ export const WorldScreen = ({
     const animal = yardLive.view?.animals.find((a) => a.id === id);
     if (!animal || !yardLive.view) return;
     const l = life(animal, latest.serverNow());
-    if (l.mood === "hungry" || l.mood === "frail") {
-      setFeeding({ id, key: Date.now() });
-      void yardLive.feed(id).then((problem) => {
-        if (!problem) return;
-        setFeeding(null);
-        setNote(problem);
-      });
-    } else if (yardLive.view.mine && l.ready) {
+    if (yardLive.view.mine && l.ready) {
       void yardLive.collect(id).then((reply) => {
         if (typeof reply === "string") setNote(reply);
-        else if (isGood(reply.good)) setCollecting({ id, good: reply.good, key: Date.now() });
+        else if (isGood(reply.good)) {
+          setYardNow(reply.serverNow);
+          setCollecting({ id, good: reply.good, key: Date.now() });
+        }
+      });
+    } else if (l.mood === "hungry" || l.mood === "frail") {
+      setFeeding({ id, key: Date.now() });
+      void yardLive.feed(id).then((reply) => {
+        if (typeof reply === "number") return setYardNow(reply);
+        setFeeding(null);
+        setNote(reply);
       });
     }
   };
@@ -965,12 +978,14 @@ export const WorldScreen = ({
     setPropTrip(null);
     setSeatTrip(null);
     setPlotTrip(null);
+    setAnimalTrip(null);
     const at = buildingFor(isAnimal(animal.kind) ? animal.kind : "chicken");
     const l = life(animal, world.serverNow());
     const hungry = l.mood === "hungry" || l.mood === "frail";
-    const noFeed = hungry && (farm.bag?.feed[feedOf(animal.kind)] ?? 0) < 1;
+    const collect = yardView.mine && l.ready;
+    const noFeed = !collect && hungry && (farm.bag?.feed[feedOf(animal.kind)] ?? 0) < 1;
     setYardCard({ at, id, extra: noFeed ? `Get feed from ${FARMER.name.split(" ")[0]}` : null, key: world.serverNow() });
-    if (noFeed || !(hungry || (yardView.mine && l.ready))) return;
+    if (noFeed || !(hungry || collect)) return;
     const spot = penStand(at);
     const mine = world.people.find((p) => p.isMe);
     const mePose = mine?.walk ? posAt(mine.walk, world.serverNow()) : null;
@@ -1029,31 +1044,33 @@ export const WorldScreen = ({
     if (!animal) return null;
     return [animalCard(animal, farmNow), ...(yardCard.extra ? [yardCard.extra] : [])].join("\n");
   })();
-  const feederName = (animal: (typeof shownAnimals)[number], fedAt: number | null) => {
-    const feeding = fedAt === null ? undefined : animal.feedings.find((f) => f.at === fedAt);
-    return !feeding?.by ? null : feeding.mine ? "you" : worldName(feeding.by);
-  };
+  const penAnimals = useMemo(
+    () =>
+      shownAnimals.map((animal) => {
+        const l = life(animal, farmNow);
+        const fed = l.fedAt === null ? undefined : animal.feedings.find((f) => f.at === l.fedAt);
+        const by = !fed?.by ? null : fed.mine ? "you" : worldName(fed.by);
+        return {
+          id: animal.id,
+          kind: animal.kind === "cow" ? ("cow" as const) : ("chicken" as const),
+          name: animal.name,
+          stage: l.stage,
+          progress: l.progress,
+          mood: l.mood,
+          ready: l.ready,
+          fresh: arrivals.has(animal.id),
+          label: animalLabel(animal, farmNow),
+          ...(by ? { note: `Fed by ${by}` } : {}),
+        };
+      }),
+    [shownAnimals, farmNow, arrivals, worldName]
+  );
   const gardenYard: GardenYard | null = yardView
     ? {
         coop: yardView.coop,
         barn: yardView.barn,
         mine: yardView.mine,
-        animals: shownAnimals.map((animal) => {
-          const l = life(animal, farmNow);
-          const by = feederName(animal, l.fedAt);
-          return {
-            id: animal.id,
-            kind: animal.kind === "cow" ? ("cow" as const) : ("chicken" as const),
-            name: animal.name,
-            stage: l.stage,
-            progress: l.progress,
-            mood: l.mood,
-            ready: l.ready,
-            fresh: arrivals.has(animal.id),
-            label: animalLabel(animal, farmNow),
-            ...(by ? { note: `Fed by ${by}` } : {}),
-          };
-        }),
+        animals: penAnimals,
         card: yardCard && yardCardText ? { at: yardCard.at, text: yardCardText } : null,
         feeding,
         collecting,
@@ -1081,6 +1098,7 @@ export const WorldScreen = ({
     setApproach(null);
     setPropTrip(null);
     setPlotTrip(null);
+    setAnimalTrip(null);
     setSeatTrip(null);
     const { world: latest } = live.current;
     const at = latest.serverNow();
@@ -1497,6 +1515,7 @@ export const WorldScreen = ({
           setApproach(null);
           setPropTrip(null);
           setPlotTrip(null);
+          setAnimalTrip(null);
           setSeatTrip(null);
           world.holdStart(x, z);
         }}
@@ -1512,6 +1531,7 @@ export const WorldScreen = ({
           setTray(false);
           setPropTrip(null);
           setPlotTrip(null);
+          setAnimalTrip(null);
           setSeatTrip(null);
           setPerson((current) => (current === memberId ? null : memberId));
         }}

@@ -1,8 +1,8 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { bagStacks, CROPS, seedList, stackLabel, type BuildingId, type CropId } from "@shared/farm";
-import { FARMER } from "@shared/world";
-import { ANIMALS, BUILDINGS, FEEDS, feedList, GOODS, goodsList, NAME_MAX, type AnimalId, type Mood } from "@shared/animals";
+import { FARM_OFFERS_FROM as FARMER } from "./shopTabs";
+import { ANIMALS, BUILDINGS, cleanName, FEEDS, feedList, GOODS, goodsList, NAME_MAX, type AnimalId, type Mood } from "@shared/animals";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { AnimalThumb, FeedThumb, GoodThumb, TagThumb } from "./Animals";
@@ -439,6 +439,11 @@ const Fact = ({ icon, text }: { icon: ComponentProps<typeof Ionicons>["name"]; t
   </View>
 );
 
+const changed = (was: string, now: string) => {
+  const name = cleanName(now);
+  return name !== null && name !== was;
+};
+
 type SheetAnimal = { id: string; kind: string; name: string; status: string; stage: 0 | 1 | 2; mood: Mood };
 
 export const PenSheet = ({
@@ -540,15 +545,16 @@ export const PenSheet = ({
                         if (!problem) setRenaming(null);
                       })
                     }
-                    disabled={busy || nameTags < 1}
+                    disabled={busy || nameTags < 1 || !changed(a.name, renaming.name)}
                     accessibilityRole="button"
                     accessibilityLabel="Rename, uses one name tag"
                     testID="world-rename-save"
-                    style={({ pressed }) => [styles.tagButton, (busy || nameTags < 1) && styles.buyOff, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.tagButton, (busy || nameTags < 1 || !changed(a.name, renaming.name)) && styles.buyOff, pressed && styles.pressed]}
                   >
                     <TagThumb size={22} />
                     <Text style={styles.tagButtonText}>{nameTags}</Text>
                   </Pressable>
+                  <Close onPress={() => setRenaming(null)} />
                 </View>
               ) : (
                 <>

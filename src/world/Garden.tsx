@@ -248,6 +248,8 @@ export const Garden = ({
   const barn = yard?.barn === true;
   const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined, { plots, coop, barn }), [cam, place, home, plots, coop, barn]);
   const pens = useMemo(() => (cam && place === BACKYARD ? penScreens(cam) : null), [cam, place]);
+  const yardAnimals = yard?.animals;
+  const penHerds = useMemo(() => ({ coop: (yardAnimals ?? []).filter((a) => a.kind === "chicken"), barn: (yardAnimals ?? []).filter((a) => a.kind === "cow") }), [yardAnimals]);
   const propActors = useMemo(
     () =>
       scene
@@ -684,8 +686,7 @@ export const Garden = ({
         if (yard.mine) farmLabels.push(<PriceTag key={`price-${id}`} x={pen.middle.x} y={pen.middle.y} price={BUILDINGS[id].price} />);
         continue;
       }
-      const kind = animalFor(id);
-      const here = yard.animals.filter((a) => a.kind === kind);
+      const here = penHerds[id];
       actors.push({
         depth: pen.middle.depth,
         key: `animals-${id}`,
@@ -702,7 +703,7 @@ export const Garden = ({
       if (animal) {
         const building = buildingFor(animal.kind);
         const here = yard.animals.filter((a) => buildingFor(a.kind) === building);
-        const at = animalAt(pens[building].corners, id, animal.mood, phaseAt(serverNow()), zoneOf(here.indexOf(animal), Math.max(BUILDINGS[building].capacity, here.length)));
+        const at = animalAt(pens[building].corners, id, animal.mood, phaseAt(yard.collecting.key), zoneOf(here.indexOf(animal), Math.max(BUILDINGS[building].capacity, here.length)));
         farmLabels.push(
           <FlyingCrop key={`collect-${yard.collecting.key}`} from={{ x: at.x, y: at.y - 0.4 * at.scale }} to={farm?.bagAt ?? { x: 54, y: 30 }} live={live} onDone={yard.onCollected}>
             <GoodThumb good={good} size={48} />

@@ -274,7 +274,10 @@ const Critter = ({
   }, [leaving, live, leave, onLeft, id, part]);
   const feed = useSharedValue(1);
   useEffect(() => {
-    if (feeding === null || part !== "body") return;
+    if (feeding === null || part !== "body") {
+      feed.value = 1;
+      return;
+    }
     if (!live) {
       onFed();
       return;
@@ -283,7 +286,10 @@ const Critter = ({
     feed.value = withTiming(1, { duration: FEED_MS, easing: Easing.linear }, (finished) => {
       if (finished) runOnJS(onFed)();
     });
-    return () => cancelAnimation(feed);
+    return () => {
+      cancelAnimation(feed);
+      feed.value = 1;
+    };
   }, [feeding, live, feed, onFed, part]);
   const place = useAnimatedStyle(() => {
     const w = wanderAt(seed, clock.value, pace, zone);
@@ -367,7 +373,7 @@ const Critter = ({
     ) : part === "badge" ? (
       <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-badge-${a.id}`}>
         <View style={[styles.stack, { bottom: -badgeY + tag.bottom - tag.nameTop + 2 }]}>
-          {a.mood === "hungry" || a.mood === "frail" ? <Bowl u={base} /> : a.ready ? a.kind === "cow" ? <Bottle u={base} /> : <NestEgg u={base} /> : null}
+          {a.ready ? a.kind === "cow" ? <Bottle u={base} /> : <NestEgg u={base} /> : a.mood === "hungry" || a.mood === "frail" ? <Bowl u={base} /> : null}
         </View>
       </Animated.View>
     ) : (

@@ -254,7 +254,7 @@ export const sell = mutation({
   args: { stack: v.optional(v.string()), goods: v.optional(v.boolean()) },
   returns: v.object({ balance: v.number(), coins: v.number() }),
   handler: async (ctx, { stack, goods }) => {
-    const me = await atFarmShop(ctx, { oldApps: true });
+    const me = await atFarmShop(ctx, { oldApps: goods !== true });
     const now = Date.now();
     const row = await farmOf(ctx, me.email);
     const selling = bagStacks(row?.crops ?? {}).filter((s) => stack === undefined || s.key === stack);

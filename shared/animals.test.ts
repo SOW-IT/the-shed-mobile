@@ -166,6 +166,10 @@ describe("producing", () => {
     expect(life(hen(grownHen), day(5) + HOUR)).toMatchObject({ ready: false, mood: "frail" });
   });
 
+  test("a feeding after the time asked about doesn't count yet", () => {
+    expect(life(hen([...grownHen, day(4) + 2 * HOUR]), day(4) + HOUR)).toMatchObject({ ready: false, mood: "hungry", fedAt: null });
+  });
+
   test("a wandered-off animal has nothing waiting", () => {
     expect(life(hen([...grownHen, day(4) + HOUR]), day(7)).ready).toBe(false);
   });

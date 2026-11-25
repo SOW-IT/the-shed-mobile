@@ -1,7 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { FURNITURE, FURNITURE_IDS, MAX_OWNED_EACH, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type WallpaperId } from "@shared/home";
-import { FARMER, NPC } from "@shared/world";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
@@ -15,9 +14,9 @@ import { bagStacks, CROP_IDS, CROPS, MAX_SEED_BUY, sellAllTotal, stackLabel, typ
 import { CropThumb, SeedCluster } from "./Farm";
 import { FEED_BUYS, FEED_IDS, FEEDS, GOODS, goodsList, goodsTotal, NAME_TAG_PRICE, type FeedId } from "@shared/animals";
 import { FeedThumb, GoodThumb, TagThumb } from "./Animals";
+import { KEEPERS, SHOP_TABS, type Keeper, type Tab } from "./shopTabs";
 import { Days } from "./FarmPanels";
 
-type Tab = "furniture" | "wallpaper" | "seeds" | "sell";
 type Wallet = { balance: number; items: Record<string, number>; wallpapers: string[] };
 type FarmShop = {
   crops: Record<string, number>;
@@ -31,20 +30,7 @@ type FarmShop = {
   sell: (stack?: string) => Promise<{ coins: number } | string>;
 };
 
-export type Keeper = "sijin" | "josh";
 
-const TABS: Record<Keeper, readonly { id: Tab; icon: string; label: string }[]> = {
-  sijin: [
-    { id: "furniture", icon: "🛋️", label: "Furniture" },
-    { id: "wallpaper", icon: "🖼️", label: "Wallpaper" },
-  ],
-  josh: [
-    { id: "seeds", icon: "🌱", label: "Seeds and feed" },
-    { id: "sell", icon: "🧺", label: "Sell" },
-  ],
-};
-
-const KEEPERS = { sijin: NPC, josh: FARMER } as const;
 
 const Price = ({ amount }: { amount: number }) => (
   <View style={styles.price}>
@@ -74,15 +60,24 @@ export const ShopPanel = ({
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
-  const [tabs, setTabs] = useState<{ keeper: Keeper; tab: Tab }>({ keeper, tab: TABS[keeper][0].id });
-  if (tabs.keeper !== keeper) setTabs({ keeper, tab: TABS[keeper][0].id });
-  const tab = tabs.keeper === keeper ? tabs.tab : TABS[keeper][0].id;
+  const [tabs, setTabs] = useState<{ keeper: Keeper; tab: Tab }>({ keeper, tab: SHOP_TABS[keeper][0].id });
+  if (tabs.keeper !== keeper) setTabs({ keeper, tab: SHOP_TABS[keeper][0].id });
+  const tab = tabs.keeper === keeper ? tabs.tab : SHOP_TABS[keeper][0].id;
   const setTab = (next: Tab) => setTabs({ keeper, tab: next });
   const who = KEEPERS[keeper];
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [many, setMany] = useState(1);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setError(null);
+      setPicked(null);
+      setMany(1);
+    }
+  }
   const buy = useMutation(api.worldHome.buy);
   if (!overlay.mounted) return null;
   const panelWidth = Math.min(440, width - 28);
@@ -171,7 +166,7 @@ export const ShopPanel = ({
           </Pressable>
         </Animated.View>
         <Animated.View style={[styles.tabs, itemStyle(overlay, 1)]}>
-          {TABS[keeper].map((t) => (
+          {SHOP_TABS[keeper].map((t) => (
             <Pressable
               key={t.id}
               onPress={() => {

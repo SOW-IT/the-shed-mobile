@@ -190,6 +190,14 @@ async function deleteByEmail(
       (row) => forgetFeeder(ctx, row)
     ),
     await deleteBatch(
+      await ctx.db.query("worldFeeders").withIndex("by_owner", (q) => q.eq("owner", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldFeeders", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldWaterers").withIndex("by_owner", (q) => q.eq("owner", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldWaterers", row._id)
+    ),
+    await deleteBatch(
       await ctx.db.query("worldInvites").withIndex("by_owner_and_guest", (q) => q.eq("owner", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldInvites", row._id)
     ),
