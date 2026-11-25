@@ -28,11 +28,15 @@ describe("headerPlacement", () => {
 
 describe("titleInsets", () => {
   test("keeps the usual inset on both sides while the controls are small", () => {
-    expect(titleInsets(60, 40, 24)).toEqual({ left: 60, right: 60 });
+    expect(titleInsets(60, 40, 24, 370)).toEqual({ left: 60, right: 60 });
   });
 
-  test("clears whichever side is wider, so the title never runs under a button", () => {
-    expect(titleInsets(60, 40, 130)).toEqual({ left: 60, right: 142 });
-    expect(titleInsets(60, 96.4, 30)).toEqual({ left: 109, right: 60 });
+  test("pads both sides to clear the wider one, so the title stays centred and clear of buttons", () => {
+    expect(titleInsets(60, 40, 100, 370)).toEqual({ left: 112, right: 112 });
+    expect(titleInsets(60, 96.4, 30, 370)).toEqual({ left: 109, right: 109 });
+  });
+
+  test("when centring would leave the title too little room, it centres between the controls instead", () => {
+    expect(titleInsets(60, 40, 165, 370)).toEqual({ left: 60, right: 177 });
   });
 });

@@ -383,7 +383,7 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
-  if (editorAsked && me) {
+  if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
     setEditing(true);
   }

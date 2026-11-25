@@ -25,8 +25,11 @@ export const headerPlacement = <Icon,>(wide: boolean, header: ScreenHeader<Icon>
 };
 
 const TITLE_GAP = 12;
+const MIN_TITLE_WIDTH = 120;
 
-export const titleInsets = (edge: number, leftWidth: number, rightWidth: number) => ({
-  left: Math.max(edge, Math.ceil(leftWidth) + TITLE_GAP),
-  right: Math.max(edge, Math.ceil(rightWidth) + TITLE_GAP),
-});
+export const titleInsets = (edge: number, leftWidth: number, rightWidth: number, barWidth: number) => {
+  const left = Math.max(edge, Math.ceil(leftWidth) + TITLE_GAP);
+  const right = Math.max(edge, Math.ceil(rightWidth) + TITLE_GAP);
+  const even = Math.max(left, right);
+  return barWidth - 2 * even >= MIN_TITLE_WIDTH ? { left: even, right: even } : { left, right };
+};
