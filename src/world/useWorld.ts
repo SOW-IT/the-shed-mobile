@@ -92,8 +92,8 @@ const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, now: numb
 };
 
 const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
-  const { fromX, fromZ, toX, toZ, startedAt, path } = server;
-  const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}) };
+  const { fromX, fromZ, toX, toZ, startedAt, path, heading } = server;
+  const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}), ...(heading === undefined ? {} : { heading }) };
   if (!walk) return { ...theirs, gait: restingGait(theirs) };
   if (Math.hypot(walk.toX - toX, walk.toZ - toZ) < SAME_SPOT) return walk;
   const here = posAt(walk, now);
@@ -738,8 +738,8 @@ export const useWorld = (
         holding.current = false;
         if (timer.current) clearTimeout(timer.current);
         timer.current = null;
-        const { fromX, fromZ, toX, toZ, startedAt } = reply;
-        const arrived = { fromX, fromZ, toX, toZ, startedAt };
+        const { fromX, fromZ, toX, toZ, startedAt, heading } = reply;
+        const arrived: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(heading === undefined ? {} : { heading }) };
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
         setMySeat(null);

@@ -466,6 +466,7 @@ const FRESH_IN_ROOM = {
   seat: undefined,
   typing: undefined,
   path: undefined,
+  heading: undefined,
 };
 
 export const join = mutation({
@@ -600,6 +601,7 @@ export const move = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
+      heading: undefined,
       away: undefined,
       reading: undefined,
       seat: undefined,
@@ -631,6 +633,7 @@ export const sit = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
+      heading: undefined,
       away: undefined,
       reading: undefined,
       seat: seat.id,
@@ -679,8 +682,21 @@ export const travel = mutation({
     const cap = to === HOME ? HOME_CAP : ROOM_CAP;
     const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;
     if (from === to && here.owner === owner && !joinable) {
-      const { fromX, fromZ, toX, toZ, startedAt, path } = state;
-      return { ok: true as const, roomId: here._id, instance: here.instance, place: from, fromX, fromZ, toX, toZ, startedAt, ...(path ? { path } : {}), serverNow: now };
+      const { fromX, fromZ, toX, toZ, startedAt, path, heading } = state;
+      return {
+        ok: true as const,
+        roomId: here._id,
+        instance: here.instance,
+        place: from,
+        fromX,
+        fromZ,
+        toX,
+        toZ,
+        startedAt,
+        ...(path ? { path } : {}),
+        ...(heading === undefined ? {} : { heading }),
+        serverNow: now,
+      };
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
@@ -688,9 +704,14 @@ export const travel = mutation({
     if (!room) throw new ConvexError("Their home is full. Try again in a bit.");
     await switchRoom(ctx, member, here, room, to);
     if (to === HOME && from !== HOME) await rememberHomeFrom(ctx, email, member.name, from, now);
-    const spot = await landIn(ctx, room, from === to ? posAt(state, now) : arrivalSpot(from, to), now, member._id);
-    const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
-    await ctx.db.patch("worldState", state._id, { ...walk, ...FRESH_IN_ROOM, actBucket: token.bucket });
+    // Through a pad: on the pad back to where you came from, facing into the
+    // room (or the nearest clear spot when someone's on it), the same for
+    // everyone watching.
+    const arrival = from === to ? null : arrivalSpot(from, to);
+    const spot = await landIn(ctx, room, arrival ?? posAt(state, now), now, member._id);
+    const heading = arrival?.heading;
+    const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now, ...(heading === undefined ? {} : { heading }) };
+    await ctx.db.patch("worldState", state._id, { ...FRESH_IN_ROOM, ...walk, actBucket: token.bucket });
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, roomId: room._id, instance: room.instance, place: to, ...walk, serverNow: now };
   },
@@ -1296,9 +1317,9 @@ export const state = query({
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
+    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
+    return { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
   },
 });
 

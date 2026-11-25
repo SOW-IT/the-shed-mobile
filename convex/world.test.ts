@@ -16,6 +16,12 @@ import {
   DUEL_PICK_CHANGES,
   DUEL_REVEAL_MS,
   arrivalSpot,
+  ARRIVE_APART,
+  fullBucket,
+  PLACES,
+  PORTALS,
+  portalAt,
+  portalReached,
   ELSEWHERE_NAMES,
   SEATS,
   PLACE_OBSTACLES,
@@ -278,7 +284,7 @@ describe("places", () => {
     expect(await anna.query(api.world.places, {})).toEqual({ garden: 2, chapel: 0, campfire: 0, cafe: 0, beach: 0 });
   });
 
-  test("travelling moves you to a room of that place, beside the way back", async () => {
+  test("travelling moves you to a room of that place, on the way back", async () => {
     const { t, anna, ben, a, b } = await two();
     await standAt(t, a.memberId, 0, 0);
     await standAt(t, b.memberId, 1, 0);
@@ -288,7 +294,7 @@ describe("places", () => {
     later(1000);
     const moved = await anna.mutation(api.world.travel, { to: "chapel" });
     const spot = arrivalSpot("garden", "chapel");
-    expect(moved).toMatchObject({ ok: true, place: "chapel", instance: 1, toX: spot.x, toZ: spot.z, fromX: spot.x, fromZ: spot.z });
+    expect(moved).toMatchObject({ ok: true, place: "chapel", instance: 1, toX: spot.x, toZ: spot.z, fromX: spot.x, fromZ: spot.z, heading: spot.heading });
     if (!moved.ok) throw new Error("travel refused");
     expect(moved.roomId).not.toBe(a.roomId);
     expect(await anna.query(api.world.roster, { roomId: a.roomId })).toBeNull();
@@ -299,6 +305,74 @@ describe("places", () => {
     expect(await anna.query(api.world.places, {})).toMatchObject({ garden: 1, chapel: 1 });
     expect((await ben.query(api.world.roster, { roomId: b.roomId }))!.members).toHaveLength(1);
     expect(await ben.query(api.world.state, { memberId: a.memberId })).toBeNull();
+  });
+
+  test("every pad, both ways: you land on the pad back, facing into the room, for everyone to see", async () => {
+    const { t, anna, ben, a } = await two();
+    const fresh = (memberId: Id<"worldMembers">) =>
+      t.run(async (ctx) => {
+        const row = (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", memberId)).unique())!;
+        await ctx.db.patch("worldState", row._id, { actBucket: fullBucket("act", Date.now()) });
+      });
+    for (const from of PLACES) {
+      for (const pad of PORTALS[from]) {
+        await fresh(a.memberId);
+        await anna.mutation(api.world.travel, { to: from });
+        await fresh(a.memberId);
+        const moved = await anna.mutation(api.world.travel, { to: pad.to });
+        if (!moved.ok) throw new Error("travel refused");
+        const back = PORTALS[pad.to].find((p) => p.to === from)!;
+        const { heading } = arrivalSpot(from, pad.to);
+        expect(heading, `${from} to ${pad.to}`).toBeDefined();
+        const landed = { fromX: back.x, fromZ: back.z, toX: back.x, toZ: back.z, heading };
+        expect(moved, `${from} to ${pad.to}`).toMatchObject(landed);
+        expect(await stateRow(t, a.memberId), `${from} to ${pad.to}`).toMatchObject(landed);
+      }
+    }
+    // Ben in the same room sees her pose as she arrived.
+    await fresh(a.memberId);
+    await anna.mutation(api.world.travel, { to: "cafe" });
+    await fresh(a.memberId);
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    const there = await anna.mutation(api.world.travel, { to: "chapel" });
+    expect(there).toMatchObject({ ok: true, toX: 3.2, toZ: 3.4, heading: -Math.PI / 2 });
+    expect(await ben.query(api.world.state, { memberId: a.memberId })).toMatchObject({ toX: 3.2, toZ: 3.4, heading: -Math.PI / 2 });
+    // Walking off forgets it.
+    await anna.mutation(api.world.move, { toX: 0, toZ: 0 });
+    expect((await ben.query(api.world.state, { memberId: a.memberId }))!.heading).toBeUndefined();
+  });
+
+  test("someone already on the pad: you land beside it, still facing into the room", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    await anna.mutation(api.world.join, {});
+    const b = await ben.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    const pad = PORTALS.chapel.find((p) => p.to === "garden")!;
+    const first = await ben.mutation(api.world.travel, { to: "chapel" });
+    expect(first).toMatchObject({ toX: pad.x, toZ: pad.z, heading: Math.PI });
+    const second = await cara.mutation(api.world.travel, { to: "chapel" });
+    if (!second.ok) throw new Error("travel refused");
+    expect(Math.hypot(second.toX - pad.x, second.toZ - pad.z)).toBeGreaterThanOrEqual(ARRIVE_APART);
+    expect(Math.hypot(second.toX - pad.x, second.toZ - pad.z)).toBeLessThan(2);
+    expect(second.heading).toBe(Math.PI);
+    expect((await stateRow(t, b.memberId))!).toMatchObject({ toX: pad.x, toZ: pad.z });
+    const third = await anna.mutation(api.world.travel, { to: "chapel" });
+    if (!third.ok) throw new Error("travel refused");
+    for (const other of [{ x: pad.x, z: pad.z }, { x: second.toX, z: second.toZ }]) {
+      expect(Math.hypot(third.toX - other.x, third.toZ - other.z)).toBeGreaterThanOrEqual(ARRIVE_APART);
+    }
+    expect(third.heading).toBe(Math.PI);
+  });
+
+  test("an arrival is standing still, so the pad under it takes nobody anywhere", async () => {
+    const { anna } = await two();
+    const moved = await anna.mutation(api.world.travel, { to: "chapel" });
+    if (!moved.ok) throw new Error("travel refused");
+    expect(portalAt("chapel", { x: moved.toX, z: moved.toZ })?.to).toBe("garden");
+    expect(portalReached("chapel", moved)).toBeNull();
   });
 
   test("going where you already are changes nothing and costs nothing", async () => {
