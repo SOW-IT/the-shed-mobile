@@ -8,7 +8,7 @@ import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
 import { needsLeaveConfirm } from "@/lib/games/leave";
 import { useNoSwipeBack } from "@/hooks/useNoSwipeBack";
-import { groundLine, type Size } from "@/lib/games/fit";
+import { cardFitScale, groundLine, type Size } from "@/lib/games/fit";
 import { fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
@@ -237,6 +237,11 @@ export const GameFrame = ({
   const [room, onRoomLayout] = useStage();
   const [chrome, onChromeLayout] = useStage();
   const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
+  const [readyCardHeight, setReadyCardHeight] = useState<number | null>(null);
+  const onReadyCardLayout = (event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    setReadyCardHeight((current) => (current === height ? current : height));
+  };
   const onLayout = (event: LayoutChangeEvent) => {
     const { y, height } = event.nativeEvent.layout;
     setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
@@ -354,7 +359,11 @@ export const GameFrame = ({
         ) : null}
         {phase === "ready" && !hideStartCard ? (
           <View style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide]} pointerEvents="box-none">
-            <View style={[styles.card, wide && styles.cardWide]} pointerEvents="box-none">
+            <View
+              style={[styles.card, wide && styles.cardWide, { transform: [{ scale: cardFitScale(readyCardHeight, stage?.height ?? null, wide ? spacing.md : spacing.xl) }] }]}
+              pointerEvents="box-none"
+              onLayout={onReadyCardLayout}
+            >
               <View style={[styles.cardMain, wide && styles.cardMainWide]} pointerEvents="none">
                 <Text style={styles.cardTitle}>{info.title}</Text>
                 <Text style={styles.cardBody}>{info.blurb}</Text>

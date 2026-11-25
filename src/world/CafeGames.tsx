@@ -9,7 +9,7 @@ import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTi
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { announce } from "./announce";
-import { challengeTitle, gameLabel, rematchWords, resultWords, secondsLeft, shownChallenge, turnWords, type CafeChallengeView } from "./cafe";
+import { challengeTitle, gameLabel, rematchWords, resultWords, secondsLeft, sheetSwipe, shownChallenge, turnWords, type CafeChallengeView } from "./cafe";
 import { CafeBoardView, CafePiece } from "@/components/games/cafe/CafeBoards";
 import { GameGlyph, GameTiles } from "@/components/games/cafe/CafeParts";
 import { useCafeTheme, type CafeTheme } from "@/components/games/cafe/cafeTheme";
@@ -17,6 +17,7 @@ import { Bust, usePresence } from "./Overlays";
 import { useBatterySaver, useWorldName } from "./settings";
 import type { Cafe } from "./useCafe";
 import { useForeground } from "./useForeground";
+import { useSwipeToClose } from "@/components/ui/swipeToClose";
 
 const TICK_MS = 1000;
 const TURN_SECONDS = CAFE_TURN_MS / 1000;
@@ -348,6 +349,14 @@ const CafeSheet = ({
   const myBoxes = boxesWon(game.board.boxes, mine);
   const theirBoxes = boxesWon(game.board.boxes, theirs);
   const winner = game.result && game.result.winner !== "draw" ? game.result.winner : null;
+  const swipe = useSwipeToClose(true, () => {
+    if (sheetSwipe(ended) === "close") {
+      onClose();
+      return true;
+    }
+    setConfirming(true);
+    return false;
+  });
   useEffect(() => {
     Keyboard.dismiss();
   }, []);
@@ -376,33 +385,35 @@ const CafeSheet = ({
           card(c),
           styles.sheet,
           { width: sheetWidth, bottom: Math.max(safe.bottom, 16), maxHeight: room },
-          calm ? { opacity: shown } : { opacity: shown, transform: [{ translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }) }] },
+          calm ? { opacity: shown, ...swipe.dragStyle } : { opacity: shown, transform: [{ translateY: Animated.add(shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }), swipe.drag) }] },
         ]}
         testID="cafe-sheet"
         accessibilityViewIsModal
       >
         <ScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
-          <View style={[styles.handle, { backgroundColor: c.handle }]} />
-          <View style={styles.sheetHead}>
-            <GameGlyph kind={kind} />
-            <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header" numberOfLines={1}>
-              {CAFE_GAMES[kind].label}
-            </Text>
-            {ended ? (
-              <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.closeRound, { backgroundColor: c.close }, pressed && styles.pressed]}>
-                <Ionicons name="close" size={16} color={c.text} />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => (confirming ? onGiveUp() : setConfirming(true))}
-                accessibilityRole="button"
-                accessibilityLabel={confirming ? "Tap again to give up" : "Give up"}
-                testID={confirming ? "cafe-give-up-yes" : "cafe-give-up"}
-                style={({ pressed }) => [styles.giveUp, { backgroundColor: confirming ? c.primary : c.pill }, pressed && styles.pressed]}
-              >
-                <Text style={[styles.giveUpText, { color: confirming ? c.onPrimary : c.pillText }]}>{confirming ? "Give up?" : "Give up"}</Text>
-              </Pressable>
-            )}
+          <View testID="cafe-sheet-header" {...swipe.headerHandlers}>
+            <View style={[styles.handle, { backgroundColor: c.handle }]} />
+            <View style={styles.sheetHead}>
+              <GameGlyph kind={kind} />
+              <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header" numberOfLines={1}>
+                {CAFE_GAMES[kind].label}
+              </Text>
+              {ended ? (
+                <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.closeRound, { backgroundColor: c.close }, pressed && styles.pressed]}>
+                  <Ionicons name="close" size={16} color={c.text} />
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => (confirming ? onGiveUp() : setConfirming(true))}
+                  accessibilityRole="button"
+                  accessibilityLabel={confirming ? "Tap again to give up" : "Give up"}
+                  testID={confirming ? "cafe-give-up-yes" : "cafe-give-up"}
+                  style={({ pressed }) => [styles.giveUp, { backgroundColor: confirming ? c.primary : c.pill }, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.giveUpText, { color: confirming ? c.onPrimary : c.pillText }]}>{confirming ? "Give up?" : "Give up"}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
           <View style={styles.versus}>
             <Player name="You" look={looks.mine} side={mine} boxes={dots ? myBoxes : null} end={false} active={myTurn} winner={winner === mine} calm={calm} testID="cafe-plate-me" />

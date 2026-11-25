@@ -1329,6 +1329,9 @@ export const pings = query({
   },
 });
 
+const withoutOldSay = <Row extends { say?: { at: number } }>(row: Row | null) =>
+  row?.say && Date.now() - row.say.at >= CHAT_TTL_MS ? { ...row, say: undefined } : row;
+
 /**
  * One member's walk, emote and line. Each phone subscribes once per person,
  * so a tap pushes one small row, not the whole room.
@@ -1358,7 +1361,7 @@ export const state = query({
     const member = await ctx.db.get("worldMembers", memberId);
     const me = member && (await meIn(ctx, member.roomId));
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
-    const row = await stateOf(ctx, memberId);
+    const row = withoutOldSay(await stateOf(ctx, memberId));
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
@@ -1871,6 +1874,24 @@ export const purgeChat = internalMutation({
   },
 });
 
+const clearOldSays = async (ctx: MutationCtx, now: number) => {
+  const oldSay = await ctx.db
+    .query("worldState")
+    .withIndex("by_say_at", (q) => q.gt("say.at", 0).lt("say.at", now - CHAT_TTL_MS))
+    .take(SWEEP_BATCH);
+  for (const row of oldSay) await ctx.db.patch("worldState", row._id, { say: undefined });
+  return oldSay.length === SWEEP_BATCH;
+};
+
+export const clearSays = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    if (await clearOldSays(ctx, Date.now())) await ctx.scheduler.runAfter(0, internal.world.clearSays, {});
+    return null;
+  },
+});
+
 /**
  * When the sweeper next needs to run: soon while anyone is in, at the next
  * expiry while only chat lines or kept rate limits are left, or never.
@@ -1917,11 +1938,7 @@ export const sweep = internalMutation({
     }
     // A line someone said long ago stays on their state row until they say
     // another; take it off once it's past the chat TTL.
-    const oldSay = await ctx.db
-      .query("worldState")
-      .withIndex("by_say_at", (q) => q.gt("say.at", 0).lt("say.at", now - CHAT_TTL_MS))
-      .take(SWEEP_BATCH);
-    for (const row of oldSay) await ctx.db.patch("worldState", row._id, { say: undefined });
+    if (await clearOldSays(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.clearSays, {});
     const oldThrottles = await ctx.db
       .query("worldThrottle")
       .withIndex("by_at", (q) => q.lt("at", now - THROTTLE_KEEP_MS))

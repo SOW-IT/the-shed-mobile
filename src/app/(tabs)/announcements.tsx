@@ -236,7 +236,7 @@ export default function AnnouncementsScreen() {
   };
 
   return (
-    <ChromeScreen floating={<Toast toast={toast} />}>
+    <ChromeScreen floating={<Toast toast={toast} />} header={{ title: "Announcements", icon: "megaphone-outline" }}>
       <View style={{ gap: spacing.md }}>
         <SectionTitle>New announcement</SectionTitle>
         <Card>

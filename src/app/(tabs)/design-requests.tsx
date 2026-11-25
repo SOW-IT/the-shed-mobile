@@ -18,7 +18,6 @@ import {
 } from "@/components/design/DesignRequestRow";
 import {
   Card,
-  FooterAction,
   LoadingState,
   Muted,
   Screen,
@@ -187,23 +186,29 @@ export default function DesignRequestsScreen() {
   const badge = (count: number) => (count > 0 ? count : undefined);
 
 
+  const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
   const tabs: PagerTab[] = [
     {
       key: "mine",
       label: "Mine",
       messageBadge: badge(unreadIn(mine)),
       render: () => (
-        <RequestList
-          rows={mine}
-          groups={MINE_GROUPS}
-          showRequester={false}
-          unread={unread}
-          footer={<EarlierRequests history={earlierMine} showRequester={false} unread={unread} />}
-          empty={{
-            title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
-            message: "For an event, make an Event Request instead.",
-          }}
-        />
+        <>
+          {noHead ? (
+            <Muted>{`There's no ${designTeam} Head for ${me.year} yet, so design requests can't be submitted. Ask an admin to set one.`}</Muted>
+          ) : null}
+          <RequestList
+            rows={mine}
+            groups={MINE_GROUPS}
+            showRequester={false}
+            unread={unread}
+            footer={<EarlierRequests history={earlierMine} showRequester={false} unread={unread} />}
+            empty={{
+              title: earlierMine.groups.length > 0 ? "Nothing this year yet" : "No design requests",
+              message: "For an event, make an Event Request instead.",
+            }}
+          />
+        </>
       ),
     },
     ...(team
@@ -242,7 +247,6 @@ export default function DesignRequestsScreen() {
       : []),
   ];
   const activeKey = tabs.some((t) => t.key === wanted) ? wanted : "mine";
-  const noHead = viewer !== undefined && viewer !== null && !viewer.hasMarketingHead;
 
   return (
     <PagerScreen
@@ -250,19 +254,17 @@ export default function DesignRequestsScreen() {
       activeKey={activeKey}
       onActiveKeyChange={setActive}
       fullWidth
-      footer={
-        <FooterAction
-          title="+ New Design Request"
-          disabled={noHead}
-          note={
-            noHead
-              ? `There's no ${designTeam} Head for ${me.year} yet, so design requests can't be submitted. Ask an admin to set one.`
-              : null
-          }
-          onPress={() => router.push("/design-requests/new")}
-        />
-      }
-      footerTabKey="mine"
+      header={{
+        title: "Design Requests",
+        icon: "color-palette-outline",
+        action: {
+          label: "Request",
+          disabled: noHead,
+          onPress: () => router.push("/design-requests/new"),
+          accessibilityLabel: "New design request",
+          testID: "design-requests-new",
+        },
+      }}
       onEndReached={(key) => {
         if (key === "mine") mineLoadMoreRef.current?.();
         if (key === "all") archiveLoadMoreRef.current?.();

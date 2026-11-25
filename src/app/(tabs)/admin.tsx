@@ -1359,6 +1359,7 @@ export default function AdminScreen() {
     <>
       <PagerScreen
         fullWidth
+        header={{ title: "Admin", icon: "settings-outline" }}
         tabs={adminTabs}
         activeKey={activeTab}
         onActiveKeyChange={(key) => {

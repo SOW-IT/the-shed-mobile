@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessSize, codeFingerprint, coveringReview, isAppCode, sensitiveReasons } from "./coderabbitGate.mjs";
+import { assessSize, codeFingerprint, coveringReview, isAppCode, reviewedCommits, sensitiveReasons, skipReason } from "./coderabbitGate.mjs";
 
 const file = (filename, changes = 10, extra = {}) => ({ filename, status: "modified", sha: `blob-${filename}`, changes, ...extra });
 
@@ -145,5 +145,44 @@ describe("codeFingerprint", () => {
 
   it("tracks a file moved out of app code", () => {
     expect(codeFingerprint([file("docs/a.ts", 0, { status: "renamed", previous_filename: "src/a.ts" })])).toContain("src/a.ts -> docs/a.ts");
+  });
+});
+
+describe("skipReason", () => {
+  it("gives the reason after the notice, or a plain one when there is none", () => {
+    expect(skipReason("Review skipped: Auto reviews are disabled on this repository.")).toBe("Auto reviews are disabled on this repository.");
+    expect(skipReason("Review skipped")).toBe("review skipped");
+    expect(skipReason("Review skipped:   ")).toBe("review skipped");
+  });
+});
+
+describe("reviewedCommits", () => {
+  const sha = (c) => c.repeat(40);
+  const summary = (text, head) => ({ text, body: `${text} Reviewing files that changed from the base of the PR and between ${sha("a")} and ${head}.` });
+
+  it("counts submitted reviews, newest first, then summaries that found nothing to add", () => {
+    expect(
+      reviewedCommits({
+        reviews: [
+          { commit: sha("1"), at: "2026-11-24T01:00:00Z" },
+          { commit: sha("2"), at: "2026-11-24T02:00:00Z" },
+          { commit: null, at: "2026-11-24T03:00:00Z" },
+        ],
+        comments: [summary("No actionable comments were generated in the recent review.", sha("3"))],
+      })
+    ).toEqual([sha("2"), sha("1"), sha("3")]);
+  });
+
+  it("leaves out a range named while a review runs, or in a rate-limit or skip notice", () => {
+    expect(
+      reviewedCommits({
+        reviews: [],
+        comments: [
+          summary("Review in progress.", sha("4")),
+          summary("Rate limited by coderabbit.ai. No actionable comments were generated in the recent review.", sha("5")),
+          summary("Review skipped: draft. No actionable comments were generated in the recent review.", sha("6")),
+        ],
+      })
+    ).toEqual([]);
   });
 });

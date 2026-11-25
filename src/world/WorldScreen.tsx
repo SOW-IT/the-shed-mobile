@@ -221,6 +221,8 @@ const PingBars = ({ ms, onPress }: { ms: number | null; onPress: () => void }) =
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
  * nearby. Shows the list view instead offline, with VoiceOver, or by choice.
  */
+const NOTE_LIVE_REGION = Platform.OS === "web" ? "none" : "polite";
+
 export const WorldScreen = ({
   onBack,
   leaveAsked = false,
@@ -329,6 +331,23 @@ export const WorldScreen = ({
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
+  const [openedFor, setOpenedFor] = useState(opening);
+  if (opening !== openedFor) {
+    setOpenedFor(opening);
+    if (opening === "poke") {
+      setEditorAsked(false);
+      setEditing(false);
+      setSheet(null);
+      setShopOpen(false);
+      setCoinsOpen(false);
+      setPlacesOpen(false);
+      setSettingsOpen(false);
+      setPeopleOpen(true);
+    } else if (opening === "character") {
+      setPeopleOpen(false);
+      setEditorAsked(true);
+    }
+  }
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
@@ -364,7 +383,7 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
-  if (editorAsked && me) {
+  if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
     setEditing(true);
   }
@@ -820,7 +839,7 @@ export const WorldScreen = ({
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
-        <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+        <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
           {note}
         </Text>
       </View>
@@ -998,11 +1017,19 @@ export const WorldScreen = ({
     />
   ) : null;
 
+  const liveNote =
+    Platform.OS === "web" ? (
+      <Text style={styles.offscreen} aria-live="polite">
+        {note ?? ""}
+      </Text>
+    ) : null;
+
   if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
     return (
       <>
+        {liveNote}
         <WorldList
           world={world}
           offline={offline}
@@ -1046,6 +1073,7 @@ export const WorldScreen = ({
 
   return (
     <View style={styles.fill}>
+      {liveNote}
       <Garden
         people={world.people.map((p) => ({
           memberId: p.memberId,
@@ -1182,7 +1210,7 @@ export const WorldScreen = ({
           />
         )}
         {note && !overlayOpen ? (
-          <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+          <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
             {note}
           </Text>
         ) : null}
@@ -1335,6 +1363,7 @@ const styles = StyleSheet.create({
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
+  offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   note: {
     backgroundColor: hud.card,
     color: hud.forest,

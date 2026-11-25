@@ -120,6 +120,7 @@ export default function OrgChartScreen() {
   return (
     <ChromeScreen
       fullWidth
+      header={{ title: "People", icon: "people-outline" }}
       floating={
         chart.availableYears.length > 1 ? (
           <FloatingYearPicker

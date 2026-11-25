@@ -6,6 +6,7 @@ import {
   previewEaseInOut,
   previewGoalMoved,
   previewNeedsFrame,
+  previewRecenters,
   type PreviewGlide,
   type PreviewSpin,
 } from "./previewMotion";
@@ -158,5 +159,14 @@ describe("previewMotion", () => {
     expect(previewEaseInOut(0)).toBe(0);
     expect(previewEaseInOut(0.5)).toBe(0.5);
     expect(previewEaseInOut(1)).toBe(1);
+  });
+
+  it("faces you again on any move to a closer shot, and keeps your turn otherwise", () => {
+    expect(previewRecenters("full", "head")).toBe(true);
+    expect(previewRecenters("full", "face")).toBe(true);
+    expect(previewRecenters("head", "face")).toBe(true);
+    expect(previewRecenters("face", "face")).toBe(false);
+    expect(previewRecenters("face", "head")).toBe(false);
+    expect(previewRecenters("head", "full")).toBe(false);
   });
 });
