@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-11-25
+
+### Changed
+- **The arcade in the World opens as a panel over the World.** Walking up to
+  the arcade cabinet, or tapping "Play a game" in the list view, shows the
+  games in a panel like Settings instead of taking you to another screen. The
+  World keeps going behind it: you can still walk, chat and tap people while
+  it's open. Close it with ✕; opening another panel or going to another place
+  closes it too. Picking a game goes into the game full screen, and leaving
+  the game brings you back to the World where you were. The leaderboard opens
+  from the panel's trophy, and the panel is still there when you come back.
+  Pressing Play on a leaderboard you opened from the World also brings you
+  back to the World afterwards, not to the Games screen.
+- **The Games list shows your coins and looks like the World.** Your coin
+  balance sits next to the Leaderboard button, in the same coin chip as the
+  World's, while you're signed in and online. The list wears the World's
+  look: its cream chips along the top, and the games in a dark glass panel
+  like the World's Settings, over the garden's sky and lawn, the same in
+  light and dark mode. The World row says who's online under its line.
+
 ## [2.12.55] - 2026-11-25
 
 ### Fixed
