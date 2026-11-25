@@ -1,22 +1,23 @@
 # verify: full
 
-- because core: src/theme.ts
+- because core: convex/_generated/api.d.ts
+- because core: convex/schema.ts
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 71s |  |
-| unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 15s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 67s |  |
+| unused code (knip) | ✔ pass | 6s |  |
+| typecheck | ✔ pass | 17s |  |
 | unit tests with coverage | ✔ pass | 34s |  |
 | verify lock | ✔ pass | 0s | free, taken at once |
-| before: local backend | ✔ pass | 20s | before functions on :3270 |
+| before: local backend | ✔ pass | 16s | before functions on :3270 |
 | before: iOS reset | ✔ pass | 1s |  |
-| before: iOS | ✔ pass | 410s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
-| after: local backend | ✔ pass | 18s | after functions on :3270 |
+| before: iOS | ⚠ warning | 498s | check passage-picker-close failed, see .verify/run/before/logs/check-passage-picker-close-ios.log Assert that id: devotional-passage-book is visible... COMPLETED Assert that id: sheet-list is visible... COMPLETED Assert that id: sheet-list is not visible... COMPLETED Assert that id: sheet-list is visible... COMPLETED |
+| after: local backend | ✔ pass | 19s | after functions on :3270 |
 | after: iOS reset | ✔ pass | 1s |  |
-| after: iOS | ✔ pass | 395s | 57 screenshots; still moving after 10 frames: admin-review, admin-all |
+| after: iOS | ✘ fail | 438s | check passage-picker-close failed, see .verify/run/after/logs/check-passage-picker-close-ios.log Assert that id: devotional-passage-book is visible... COMPLETED Assert that id: sheet-list is visible... COMPLETED Assert that id: sheet-list is not visible... COMPLETED Assert that id: sheet-list is visible... COMPLETED |
 
 ## Screenshots
 
@@ -39,17 +40,24 @@
 | ios `admin-design_requests` | <img src="before/ios/admin-design_requests.png" width="260"> | <img src="after/ios/admin-design_requests.png" width="260"> |
 | ios `admin-design_requests_new` | <img src="before/ios/admin-design_requests_new.png" width="260"> | <img src="after/ios/admin-design_requests_new.png" width="260"> |
 | ios `admin-devotionals` | <img src="before/ios/admin-devotionals.png" width="260"> | <img src="after/ios/admin-devotionals.png" width="260"> |
+| ios `admin-devotionals_devotionalDate` | <img src="before/ios/admin-devotionals_devotionalDate.png" width="260"> | <img src="after/ios/admin-devotionals_devotionalDate.png" width="260"> |
+| ios `admin-devotionals_devotionalEmptyDate` | <img src="before/ios/admin-devotionals_devotionalEmptyDate.png" width="260"> | <img src="after/ios/admin-devotionals_devotionalEmptyDate.png" width="260"> |
+| ios `admin-devotionals_tab_groups` | <img src="before/ios/admin-devotionals_tab_groups.png" width="260"> | <img src="after/ios/admin-devotionals_tab_groups.png" width="260"> |
 | ios `admin-edit_home` | <img src="before/ios/admin-edit_home.png" width="260"> | <img src="after/ios/admin-edit_home.png" width="260"> |
 | ios `admin-event_requests` | <img src="before/ios/admin-event_requests.png" width="260"> | <img src="after/ios/admin-event_requests.png" width="260"> |
 | ios `admin-event_requests_new` | <img src="before/ios/admin-event_requests_new.png" width="260"> | <img src="after/ios/admin-event_requests_new.png" width="260"> |
 | ios `admin-finance_settings` | <img src="before/ios/admin-finance_settings.png" width="260"> | <img src="after/ios/admin-finance_settings.png" width="260"> |
 | ios `admin-games` | <img src="before/ios/admin-games.png" width="260"> | <img src="after/ios/admin-games.png" width="260"> |
+| ios `admin-games_cafe` | <img src="before/ios/admin-games_cafe.png" width="260"> | <img src="after/ios/admin-games_cafe.png" width="260"> |
 | ios `admin-games_flappy` | <img src="before/ios/admin-games_flappy.png" width="260"> | <img src="after/ios/admin-games_flappy.png" width="260"> |
 | ios `admin-games_glider` | <img src="before/ios/admin-games_glider.png" width="260"> | <img src="after/ios/admin-games_glider.png" width="260"> |
 | ios `admin-games_glider_preview_dive` | <img src="before/ios/admin-games_glider_preview_dive.png" width="260"> | <img src="after/ios/admin-games_glider_preview_dive.png" width="260"> |
+| ios `admin-games_glider_preview_high` | <img src="before/ios/admin-games_glider_preview_high.png" width="260"> | <img src="after/ios/admin-games_glider_preview_high.png" width="260"> |
 | ios `admin-games_glider_preview_launch` | <img src="before/ios/admin-games_glider_preview_launch.png" width="260"> | <img src="after/ios/admin-games_glider_preview_launch.png" width="260"> |
 | ios `admin-games_glider_preview_night` | <img src="before/ios/admin-games_glider_preview_night.png" width="260"> | <img src="after/ios/admin-games_glider_preview_night.png" width="260"> |
 | ios `admin-games_glider_preview_world` | <img src="before/ios/admin-games_glider_preview_world.png" width="260"> | <img src="after/ios/admin-games_glider_preview_world.png" width="260"> |
+| ios `admin-games_glider_preview_world3` | <img src="before/ios/admin-games_glider_preview_world3.png" width="260"> | <img src="after/ios/admin-games_glider_preview_world3.png" width="260"> |
+| ios `admin-games_glider_preview_world6` | <img src="before/ios/admin-games_glider_preview_world6.png" width="260"> | <img src="after/ios/admin-games_glider_preview_world6.png" width="260"> |
 | ios `admin-games_leaderboard` | <img src="before/ios/admin-games_leaderboard.png" width="260"> | <img src="after/ios/admin-games_leaderboard.png" width="260"> |
 | ios `admin-games_leaderboard_game_glider` | <img src="before/ios/admin-games_leaderboard_game_glider.png" width="260"> | <img src="after/ios/admin-games_leaderboard_game_glider.png" width="260"> |
 | ios `admin-games_leaderboard_game_runner` | <img src="before/ios/admin-games_leaderboard_game_runner.png" width="260"> | <img src="after/ios/admin-games_leaderboard_game_runner.png" width="260"> |
@@ -74,7 +82,9 @@
 | ios `admin-root` | <img src="before/ios/admin-root.png" width="260"> | <img src="after/ios/admin-root.png" width="260"> |
 | ios `admin-world` | <img src="before/ios/admin-world.png" width="260"> | <img src="after/ios/admin-world.png" width="260"> |
 | ios `admin-world_calendar` | <img src="before/ios/admin-world_calendar.png" width="260"> | <img src="after/ios/admin-world_calendar.png" width="260"> |
+| ios `admin-world_devotionals` | <img src="before/ios/admin-world_devotionals.png" width="260"> | <img src="after/ios/admin-world_devotionals.png" width="260"> |
 | ios `admin-world_praise` | <img src="before/ios/admin-world_praise.png" width="260"> | <img src="after/ios/admin-world_praise.png" width="260"> |
+| ios `admin-world_sheet_arcade` | <img src="before/ios/admin-world_sheet_arcade.png" width="260"> | <img src="after/ios/admin-world_sheet_arcade.png" width="260"> |
 | ios `admin-world_sheet_character` | <img src="before/ios/admin-world_sheet_character.png" width="260"> | <img src="after/ios/admin-world_sheet_character.png" width="260"> |
 | ios `admin-world_sheet_poke` | <img src="before/ios/admin-world_sheet_poke.png" width="260"> | <img src="after/ios/admin-world_sheet_poke.png" width="260"> |
 | ios `out-home` | <img src="before/ios/out-home.png" width="260"> | <img src="after/ios/out-home.png" width="260"> |
