@@ -48,7 +48,11 @@ try {
   await page.goto(`${BASE}/world`);
   await page.getByTestId("world-title").waitFor();
   await me().waitFor({ state: "attached" });
-  await clickMiddle(page.getByLabel("Go to The Chapel"));
+  // Through the Garden's pad, unless an earlier run (the iOS check shares
+  // this backend and account) left you in the Chapel already.
+  await page.waitForTimeout(1500);
+  const pad = page.getByLabel("Go to The Chapel");
+  if ((await pad.count()) > 0) await clickMiddle(pad);
   await page.getByLabel(/^Lectern/).waitFor({ state: "attached" });
   await page.waitForTimeout(1500);
   await shot("arrived");

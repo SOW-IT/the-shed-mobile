@@ -15,7 +15,13 @@ appId: au.org.sow.theshed
     timeout: 60000
 - waitForAnimationToEnd:
     timeout: 5000
-- tapOn: "Go to The Chapel"
+# Through the Garden's pad, unless an earlier run (the web check shares
+# this backend and account) left you in the Chapel already.
+- runFlow:
+    when:
+      visible: "Go to The Chapel"
+    commands:
+      - tapOn: "Go to The Chapel"
 - extendedWaitUntil:
     visible: "Lectern.*"
     timeout: 30000
