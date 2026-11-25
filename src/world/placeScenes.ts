@@ -366,6 +366,9 @@ const buildHome = (cam: Camera, inside: HomeLook): Scene => {
     panel(b, -3.2, 2.7, z + 0.04, 0.08, 1.5, paper.base);
     panel(b, 3.0, 2.9, z + 0.02, 1.2, 0.9, garden.ink);
     panel(b, 3.0, 2.9, z + 0.03, 1.05, 0.75, c.frame);
+    panel(b, 0, 1.15, z + 0.02, 1.4, 2.3, garden.ink);
+    panel(b, 0, 1.1, z + 0.03, 1.2, 2.1, c.door);
+    b.ball([0.4, 1.1, z + 0.05], 0.07, garden.markerMiddle, { ink: 0.02 });
   });
   const backdrop = b.take();
 

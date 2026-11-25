@@ -119,6 +119,7 @@ export const places = {
     mat: "#B8473A",
     window: "#BFE3EE",
     frame: "#F6D365",
+    door: "#8A5A3A",
   },
   beach: {
     sky: "#BFE6F2",

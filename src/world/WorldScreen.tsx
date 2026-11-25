@@ -292,6 +292,7 @@ export const WorldScreen = ({
   const removeItemM = useMutation(api.worldHome.removeItem);
   const wallpaperM = useMutation(api.worldHome.setWallpaper);
   const myHome = world.home?.mine === true;
+  if (shopOpen && world.status === "in" && world.place !== NPC.place) setShopOpen(false);
   if (decorating && !myHome && world.status === "in") setDecorating(false);
   const [propTrip, setPropTrip] = useState<{ kind: InteractivePropId; since: number } | null>(null);
   const [seatTrip, setSeatTrip] = useState<{ seatId: string; place: Place; since: number } | null>(null);
