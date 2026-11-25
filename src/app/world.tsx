@@ -22,6 +22,9 @@ export default function World() {
   const { sheet, poke, invite } = useLocalSearchParams<{ sheet?: string; poke?: string; invite?: string }>();
   const arrival = useMemo(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined), [poke, invite]);
   const { isAuthenticated, isLoading } = useConvexAuth();
+  // Once the arcade link has opened the arcade, the route drops it, so the
+  // same link opens the arcade again (the World only acts on a change).
+  const forgetArcadeLink = useCallback(() => router.setParams({ sheet: undefined }), [router]);
   // Leave the garden while another screen (a game) covers it; come back on return.
   const [focused, setFocused] = useState(true);
   const [awayKind, setAwayKind] = useState<AwayKind | null>(null);
@@ -74,6 +77,7 @@ export default function World() {
         onLeave={leave}
         arrival={arrival}
         opening={sheet === "character" || sheet === "poke" || sheet === "arcade" ? sheet : undefined}
+        onOpeningUsed={forgetArcadeLink}
         awayGame={awayGame}
         onGame={(target) => {
           setAwayKind("arcade");

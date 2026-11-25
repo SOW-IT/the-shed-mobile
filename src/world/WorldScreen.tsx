@@ -223,6 +223,7 @@ export const WorldScreen = ({
   active = true,
   awayKind = null,
   opening,
+  onOpeningUsed,
   arrival,
 }: {
   arrival?: { poke?: string; invite?: string };
@@ -239,6 +240,11 @@ export const WorldScreen = ({
   onDevotional: () => void;
   /** A sheet to open on arrival, from a link: the character editor, the poke list or the arcade. */
   opening?: "character" | "poke" | "arcade";
+  /**
+   * The arcade link has opened the arcade. The route forgets it, so the same
+   * link opens it again later (after a game, say), not only when it changes.
+   */
+  onOpeningUsed?: () => void;
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   awayKind?: AwayKind | null;
@@ -345,6 +351,9 @@ export const WorldScreen = ({
       setEditorAsked(true);
     } else if (opening === "arcade") openArcade();
   }
+  useEffect(() => {
+    if (opening === "arcade") onOpeningUsed?.();
+  }, [opening, onOpeningUsed]);
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
