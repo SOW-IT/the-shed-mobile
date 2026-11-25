@@ -354,7 +354,7 @@ const CafeSheet = ({
                 {`${CAFE_GAMES[kind].icon}  ${CAFE_GAMES[kind].label}`}
               </Text>
               {ended ? (
-                <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+                <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.closeX, pressed && styles.pressed]}>
                   <Ionicons name="close" size={16} color={glass.text} />
                 </Pressable>
               ) : null}
@@ -530,7 +530,8 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flex: 1, color: hud.forest, fontFamily: fonts.display, fontSize: 17 },
   count: { color: hud.accent, fontSize: 20, fontWeight: "900", minWidth: 30, textAlign: "right", fontVariant: ["tabular-nums"] },
-  close: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
+  close: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: hud.primarySoft },
+  closeX: { position: "absolute", right: 0, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   games: { flexDirection: "row", flexWrap: "wrap", gap: 8, maxWidth: 340 },
   game: { flexGrow: 1, flexBasis: "45%", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 14, backgroundColor: hud.accentSoft },
   gameIcon: { fontSize: 20 },
