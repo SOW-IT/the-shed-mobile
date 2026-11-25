@@ -324,6 +324,9 @@ export default defineSchema({
     lastZ: v.optional(v.number()),
     lastPokeAt: v.optional(v.number()),
     lastPokedAt: v.optional(v.number()),
+    // The place someone was in when they went to a home, where its door
+    // takes them back. Kept after they leave the World.
+    homeFrom: v.optional(v.string()),
   })
     .index("by_email", ["email"])
     .index("by_lastSeenAt", ["lastSeenAt"]),
@@ -484,7 +487,10 @@ export default defineSchema({
   lastSeen: defineTable({
     email: v.string(),
     at: v.number(),
-  }).index("by_email", ["email"]),
+  })
+    .index("by_email", ["email"])
+    // The World's offline list reads this newest first.
+    .index("by_at", ["at"]),
 
   pushTokens: defineTable({
     email: v.string(),

@@ -119,6 +119,7 @@ export const Garden = ({
   onTapPerson,
   onTapArcade,
   onTapNoticeBoard,
+  homeExit,
   onTapNotices,
   onTapPiano,
   onTapLectern,
@@ -168,6 +169,8 @@ export const Garden = ({
   placeCounts?: Record<string, number>;
   duels?: readonly DuelView[];
   home?: HomeLook | null;
+  /** Where a home's door leads: the place you came from. */
+  homeExit?: Place;
   onTapNpc?: () => void;
   decor?: {
     selected: string | null;
@@ -210,13 +213,13 @@ export const Garden = ({
             const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
             const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
             return {
-              to: pad.to,
+              to: place === "home" && homeExit ? homeExit : pad.to,
               left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
               top: at.y - 10,
             };
           })
         : [],
-    [cam, place]
+    [cam, place, homeExit]
   );
   const npcHere = place === NPC.place;
 

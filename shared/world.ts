@@ -877,6 +877,10 @@ export const POKE_EVERY_MS = 60 * 60_000;
 export const POKED_GAP_MS = 10 * 60_000;
 export const MAX_POKE_LENGTH = 80;
 export const OFFLINE_LIST_SIZE = 30;
+/** People the World's "Not here right now" list shows at first, most recently online first. */
+export const OFFLINE_FIRST = 10;
+/** The most it shows after "Show all". */
+export const OFFLINE_ALL_MAX = 200;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;

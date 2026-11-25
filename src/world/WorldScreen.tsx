@@ -18,6 +18,7 @@ import {
   ASKS,
   type AskKind,
   type DuelPick,
+  isPlace,
   type Place,
   INVITE_CARD_MS,
   NPC,
@@ -112,6 +113,10 @@ const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
   piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
   lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
 };
+
+/** Where a home's door leads: back to the place you came from, else the Garden. */
+const exitOf = (home: { backTo?: string } | null | undefined): Place =>
+  home?.backTo !== undefined && isPlace(home.backTo) && home.backTo !== "home" ? home.backTo : "garden";
 
 const AT_OBJECT = 0.35;
 const BESIDE = 1.2;
@@ -580,7 +585,8 @@ export const WorldScreen = ({
       const pad = portalAt(latest.place, pose);
       if (!pad) return;
       triedFromWalk.current = mine.walk.startedAt;
-      goRef.current(pad.to);
+      // A home's door goes back to where you came from (the server remembers).
+      goRef.current(latest.place === "home" ? exitOf(latest.home) : pad.to);
     };
     id = setTimeout(check, Math.max(0, myArrival + PAD_SETTLE_MS - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
@@ -1014,6 +1020,7 @@ export const WorldScreen = ({
         onDecline={decline}
         declined={declined}
         home={world.home}
+        homeExit={world.place === "home" ? exitOf(world.home) : undefined}
         onTapNpc={() => {
           setPerson(null);
           setTray(false);
