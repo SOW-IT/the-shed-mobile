@@ -47,6 +47,31 @@ const throughBigSwing = () => {
 
 const bigSwing = throughBigSwing();
 
+const throughDay = (day: number) => {
+  let state = newGlider(3, ASPECT, day);
+  const run: GliderState[] = [state];
+  while (state.world === day && run.length < 60 * 240) {
+    state = stepGlider(hold({ ...state, daylight: Math.max(state.daylight, 5) }, autoHold(state)), FRAME);
+    run.push(state);
+  }
+  return run;
+};
+
+const birdPixels = (frame: GliderState) => GLIDER.radius * 2 * frame.camera.zoom * (BOARD.width / VIEW.width);
+
+describe("Swoop's bird on screen", () => {
+  test.each([10, 20, 30])("stays at least half its day 1 size all through day %i, however the ground rises and falls", (day) => {
+    const dayOne = Math.max(...frames.filter((frame) => frame.world === 1).map(birdPixels));
+    const run = throughDay(day);
+    expect(run.at(-1)!.world).toBe(day + 1);
+    for (const frame of run) {
+      expect(frame.camera.zoom).toBeGreaterThanOrEqual(VIEW.minZoom * 0.98);
+      expect(birdPixels(frame)).toBeGreaterThanOrEqual(dayOne * 0.49);
+      expect(birdPixels(frame)).toBeGreaterThanOrEqual(12);
+    }
+  });
+});
+
 describe("Swoop's background", () => {
   test("world 20's run reaches its flag and climbs and drops far more than world 1's", () => {
     const heights = (run: GliderState[]) => run.map((frame) => groundAt(frame.hills, frame.x).y);
@@ -123,12 +148,14 @@ describe.each([
     expect(quick.length).toBeLessThanOrEqual(Math.ceil(frames.length * FRAME / 60) * 3);
   });
 
-  test("keeps the bird and the ground under it in view every frame", () => {
+  test("keeps the bird in view every frame, and the ground under it whenever both fit at the widest zoom", () => {
     for (const frame of frames) {
       const view = viewSize(frame.aspect, frame.camera.zoom);
       const ground = groundAt(frame.hills, frame.x).y;
-      expect(ground).toBeGreaterThanOrEqual(frame.camera.y);
+      const fits = frame.y + GLIDER.radius * 2 + VIEW.margin - (ground - VIEW.footing) <= viewSize(frame.aspect, VIEW.minZoom).height;
+      if (fits) expect(ground).toBeGreaterThanOrEqual(frame.camera.y);
       expect(frame.y).toBeLessThanOrEqual(frame.camera.y + view.height);
+      expect(frame.y + GLIDER.radius * 2).toBeGreaterThanOrEqual(frame.camera.y);
     }
   });
 });
