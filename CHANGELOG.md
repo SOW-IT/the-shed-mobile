@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.20] - 2026-11-26
+## [2.13.19] - 2026-11-26
 
 ### Added
 - **A podium for each leaderboard's top three.** Above the scores, 1st
