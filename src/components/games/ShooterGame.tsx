@@ -4,12 +4,14 @@ import { moveShooter, newShooter, SHOOTER, stepShooter, type ShooterState } from
 import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard, fitScale, type Size } from "@/lib/games/fit";
+import type { Size } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
 
 const c = fixedColours.games.shooter;
-const MAX_BOARD = { width: 720, height: 1400 };
+const PHONE_BOARD = { width: 390, height: GAME_VIEWS.shooter.size };
 /** Arrow keys move the plane this many points a second. */
 const KEY_SPEED = 340;
 
@@ -42,7 +44,7 @@ const Stars = memo(function Stars({ width, height }: Size) {
 const Plane = ({ x, y }: { x: number; y: number }) => {
   const s = SHOOTER.planeSize;
   return (
-    <View style={[styles.entity, { width: s, height: s }, at(x, y, s)]} pointerEvents="none">
+    <View testID="shooter-plane" style={[styles.entity, { width: s, height: s }, at(x, y, s)]} pointerEvents="none">
       <View style={[styles.wings, { backgroundColor: c.wing }]} />
       <View style={[styles.fuselage, { backgroundColor: c.plane }]} />
       <View style={[styles.tail, { backgroundColor: c.wing }]} />
@@ -87,6 +89,21 @@ const Scene = ({ state }: { state: ShooterState }) => (
   </>
 );
 
+const Sky = ({ width, height }: Size) => {
+  const reach = useBoardReach();
+  return (
+    <View
+      style={[
+        styles.clip,
+        { left: -reach.left, top: -reach.top, width: width + reach.left + reach.right, height: height + reach.top + reach.bottom },
+      ]}
+      pointerEvents="none"
+    >
+      <Stars width={width + reach.left + reach.right} height={height + reach.top + reach.bottom} />
+    </View>
+  );
+};
+
 /** Sky Shooter: drag to fly; the plane fires on its own. */
 export const ShooterGame = ({
   onExit,
@@ -101,13 +118,11 @@ export const ShooterGame = ({
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
+  const world = run ? { width: run.width, height: run.height } : board;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
-  const world = run ? { width: run.width, height: run.height } : null;
-  const scale = fitScale(world, board);
+  const [scale, setScale] = useState(1);
   const latest = useLatest({ session, width, height, scale });
   const keys = useRef(new Set<string>());
 
@@ -163,23 +178,26 @@ export const ShooterGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      board={board}
       world={world}
-      onStageLayout={onStageLayout}
+      onBoard={setBoard}
+      onScale={setScale}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Touch and drag", "press an arrow key")}
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      {board ? <Stars width={world?.width ?? width} height={world?.height ?? height} /> : null}
-      {board ? <Scene state={run ?? preview} /> : null}
+      <Sky width={world?.width ?? width} height={world?.height ?? height} />
+      <View style={[styles.clip, { width: world?.width ?? width, height: world?.height ?? height }]} pointerEvents="none">
+        <Scene state={run ?? preview} />
+      </View>
     </GameFrame>
   );
 };
 
 const styles = StyleSheet.create({
   dot: { position: "absolute", left: 0, top: 0, borderRadius: 2, opacity: 0.7 },
+  clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   entity: { position: "absolute", left: 0, top: 0, alignItems: "center" },
   fuselage: { position: "absolute", width: 10, height: 30, top: 2, borderRadius: 5 },
   wings: { position: "absolute", width: 34, height: 9, top: 14, borderRadius: 4 },

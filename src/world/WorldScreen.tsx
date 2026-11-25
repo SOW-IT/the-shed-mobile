@@ -10,10 +10,10 @@ import {
   OBSTACLES,
   PLACE_OBSTACLES,
   PLACE_TITLES,
-  PLACES,
+  placeName,
   SEATS,
   pingBars,
-  portalAt,
+  portalReached,
   posAt,
   ASKS,
   type AskKind,
@@ -22,10 +22,11 @@ import {
   INVITE_CARD_MS,
   NPC,
 } from "@shared/world";
+import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
@@ -36,8 +37,9 @@ import { hud } from "./palette";
 import { popShadow } from "./popShadow";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
+import { NoticeBoardPanel } from "./NoticeBoard";
 import { PeoplePanel } from "./People";
-import { connectionLabel, DevotionalPromptDialog, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
+import { connectionLabel, DevotionalPromptDialog, LeaveDialog, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { canDrawOn, pickView } from "./view";
@@ -48,6 +50,9 @@ import { useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
+import { ArcadePanel, type ArcadeTarget } from "./ArcadePanel";
+import { arcadePlayers } from "./arcadePlayers";
+import { backFrom, exitOf } from "./homeExit";
 import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
@@ -105,12 +110,14 @@ const useKeyboardLift = (bottomInset: number) => {
 
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const NOTICEBOARD = OBSTACLES.find((o) => o.id === "noticeboard")!;
+const NOTICES = OBSTACLES.find((o) => o.id === "notices")!;
 const PIANO = PLACE_OBSTACLES.chapel.find((o) => o.id === "piano")!;
 const LECTERN = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
 
 const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
   arcade: clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9, "garden"),
   noticeboard: clampTarget(NOTICEBOARD.x - 0.2, NOTICEBOARD.z + 1.0, "garden"),
+  notices: clampTarget(NOTICES.x + 0.2, NOTICES.z + 1.0, "garden"),
   piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
   lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
 };
@@ -171,7 +178,7 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}. Places and leave`}
+      accessibilityLabel={`${label}. Outfit, home, settings and leave`}
       accessibilityState={{ expanded: open }}
       testID="world-title"
       style={({ pressed }) => [styles.title, pressed && styles.pressed]}
@@ -214,14 +221,18 @@ const PingBars = ({ ms, onPress }: { ms: number | null; onPress: () => void }) =
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
  * nearby. Shows the list view instead offline, with VoiceOver, or by choice.
  */
+const NOTE_LIVE_REGION = Platform.OS === "web" ? "none" : "polite";
+
 export const WorldScreen = ({
   onBack,
   leaveAsked = false,
   onStay,
   onLeave,
-  onArcade,
+  onGame,
+  awayGame,
   onCalendar,
   onPraise,
+  onOpenLink,
   onDevotional,
   active = true,
   awayKind = null,
@@ -233,9 +244,12 @@ export const WorldScreen = ({
   leaveAsked?: boolean;
   onStay: () => void;
   onLeave: () => void;
-  onArcade: () => void;
+  onGame: (target: ArcadeTarget) => void;
+  awayGame?: GameId;
   onCalendar: () => void;
   onPraise: () => void;
+  /** Opens an app link (a notification's) over the World, which waits. */
+  onOpenLink: (url: string) => void;
   onDevotional: () => void;
   /** A sheet to open on arrival, from a link: the character editor or the poke list. */
   opening?: "character" | "poke";
@@ -248,7 +262,7 @@ export const WorldScreen = ({
   const screenReader = useScreenReader();
   const view = pickView({ offline, screenReader, canDraw: canDrawOn(Platform.OS, Platform.Version) });
   const away = awayKind !== null;
-  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
+  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional", awayKind === "arcade" ? awayGame : undefined);
   const wallet = useCoins();
   const cafe = useCafe(world);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
@@ -256,6 +270,7 @@ export const WorldScreen = ({
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
   const [coinsOpen, setCoinsOpen] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [decorating, setDecorating] = useState(false);
   const [chosenItem, setChosenItem] = useState<string | null>(null);
   const placeItemM = useMutation(api.worldHome.placeItem);
@@ -274,6 +289,28 @@ export const WorldScreen = ({
   const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
   const [placesOpen, setPlacesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tray, setTray] = useState(false);
+  const [arcadeOpen, setArcadeOpen] = useState(false);
+  const openArcade = useCallback(() => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setShopOpen(false);
+    setSettingsOpen(false);
+    setCoinsOpen(false);
+    setBoardOpen(false);
+    setTray(false);
+    setArcadeOpen(true);
+  }, []);
+  const openBoard = useCallback(() => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setShopOpen(false);
+    setSettingsOpen(false);
+    setCoinsOpen(false);
+    setArcadeOpen(false);
+    setTray(false);
+    setBoardOpen(true);
+  }, []);
   const openCoins = () => {
     setPlacesOpen(false);
     setPeopleOpen(false);
@@ -288,12 +325,29 @@ export const WorldScreen = ({
   const keepDraft = (text: string, onlyIfEmpty = false) => {
     if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
   };
-  const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || boardOpen || editing || sheet !== null)) setArcadeOpen(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
+  const [openedFor, setOpenedFor] = useState(opening);
+  if (opening !== openedFor) {
+    setOpenedFor(opening);
+    if (opening === "poke") {
+      setEditorAsked(false);
+      setEditing(false);
+      setSheet(null);
+      setShopOpen(false);
+      setCoinsOpen(false);
+      setPlacesOpen(false);
+      setSettingsOpen(false);
+      setPeopleOpen(true);
+    } else if (opening === "character") {
+      setPeopleOpen(false);
+      setEditorAsked(true);
+    }
+  }
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
@@ -329,7 +383,7 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
-  if (editorAsked && me) {
+  if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
     setEditing(true);
   }
@@ -443,13 +497,14 @@ export const WorldScreen = ({
       const kind = propTrip.kind;
       setPropTrip(null);
       if (!arrived) return;
-      if (kind === "arcade") onArcade();
+      if (kind === "arcade") openArcade();
       else if (kind === "noticeboard") onCalendar();
+      else if (kind === "notices") openBoard();
       else if (kind === "piano") onPraise();
       else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
-  }, [propTrip, onArcade, onCalendar, onPraise]);
+  }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
 
   useEffect(() => {
     if (seatTrip === null) return;
@@ -496,6 +551,7 @@ export const WorldScreen = ({
     setPlacesOpen(false);
     setSettingsOpen(false);
     setShopOpen(false);
+    setArcadeOpen(false);
     setDecorating(false);
     setChosenItem(null);
     const veil = (toValue: number) =>
@@ -567,11 +623,18 @@ export const WorldScreen = ({
     const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, inviteEnds - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
   }, [inviteEnds]);
-  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : PLACE_TITLES[world.place];
+  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : placeName(world.place);
   const goRef = useRef(go);
   useEffect(() => {
     goRef.current = go;
   });
+  const backToPlace = leaveAsked ? backFrom(world.place, world.home, world.homeLoading) : null;
+  const backTarget = backToPlace?.kind === "travel" ? backToPlace.to : null;
+  useEffect(() => {
+    if (backTarget === null) return;
+    onStay();
+    goRef.current(backTarget);
+  }, [backTarget, onStay]);
   const myWalkStart = me?.walk?.startedAt ?? null;
   const myArrival = me?.walk ? posAt(me.walk, me.walk.startedAt).arrivesAt : null;
   useEffect(() => {
@@ -587,10 +650,11 @@ export const WorldScreen = ({
         id = setTimeout(check, Math.max(0, pose.arrivesAt + PAD_SETTLE_MS - at) + 1);
         return;
       }
-      const pad = portalAt(latest.place, pose);
+      const pad = portalReached(latest.place, mine.walk);
       if (!pad) return;
       triedFromWalk.current = mine.walk.startedAt;
-      goRef.current(pad.to);
+      // A home's door goes back to where you came from (the server remembers).
+      goRef.current(latest.place === "home" ? exitOf(latest.home) : pad.to);
     };
     id = setTimeout(check, Math.max(0, myArrival + PAD_SETTLE_MS - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
@@ -639,8 +703,9 @@ export const WorldScreen = ({
     setPropTrip({ kind, since: Date.now() });
   };
 
-  const goToArcade = () => goToObject("arcade", onArcade);
+  const goToArcade = () => goToObject("arcade", openArcade);
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
+  const goToNotices = () => goToObject("notices", openBoard);
   const goToPiano = () => goToObject("piano", onPraise);
   const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
 
@@ -701,31 +766,9 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [following]);
 
-  const hudActions: HudAction[] = !selected
+  // Only someone else is ever selected: tapping yourself opens nothing.
+  const hudActions: HudAction[] = !selected || selected.isMe
     ? []
-    : selected.isMe
-      ? [
-          {
-            id: "customize",
-            label: "Outfit",
-            hint: "Customize your character",
-            icon: "shirt-outline",
-            onPress: () => {
-              setPerson(null);
-              setEditing(true);
-            },
-          },
-          {
-            id: "emotes",
-            label: "Emotes",
-            hint: "Emotes",
-            emoji: "🌸",
-            onPress: () => {
-              setPerson(null);
-              setTray(true);
-            },
-          },
-        ]
       : [
           ...(selected.away || selected.reading
             ? []
@@ -792,11 +835,11 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || coinsOpen || peopleOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
-        <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+        <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
           {note}
         </Text>
       </View>
@@ -812,6 +855,16 @@ export const WorldScreen = ({
         safe={{ top: insets.top, bottom: insets.bottom }}
         onNote={setNote}
         onReturn={() => go("cafe")}
+      />
+      <NoticeBoardPanel
+        open={boardOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        onClose={() => setBoardOpen(false)}
+        onOpenLink={(url) => {
+          setBoardOpen(false);
+          onOpenLink(url);
+        }}
+        onNote={setNote}
       />
       <ShopPanel
         open={shopOpen}
@@ -870,6 +923,16 @@ export const WorldScreen = ({
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
       />
+      <ArcadePanel
+        open={arcadeOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        playing={arcadePlayers(world.people, worldName)}
+        onOpen={(target) => {
+          setArcadeOpen(false);
+          onGame(target);
+        }}
+        onClose={() => setArcadeOpen(false)}
+      />
       <CafePicker person={picking} look={picking ? (world.people.find((p) => p.memberId === picking.memberId)?.look ?? null) : null} top={insets.top + TOP_BAR_GAP} onPick={challengeTo} onClose={() => setPicking(null)} />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <DevotionalPromptDialog
@@ -881,7 +944,7 @@ export const WorldScreen = ({
         }}
       />
       <LeaveDialog
-        open={leaving || leaveAsked}
+        open={leaving || (leaveAsked && backFrom(world.place, world.home, world.homeLoading).kind === "leave")}
         onStay={() => {
           setLeaving(false);
           onStay();
@@ -894,18 +957,19 @@ export const WorldScreen = ({
     </>
   );
 
+  // No trips from here: you walk to a place. Outfit sits above Your home.
   const menuEntries: MenuEntry[] = [
-    ...PLACES.filter((to) => to !== world.place).map((to) => {
-      const count = world.placeCounts?.[to] ?? 0;
-      return {
-        id: to,
-        label: PLACE_TITLES[to],
-        emoji: PLACE_ICONS[to],
-        count,
-        accessibilityLabel: `Go to ${PLACE_TITLES[to]}, ${count} ${count === 1 ? "person" : "people"} there`,
-        onPress: () => go(to),
-      };
-    }),
+    {
+      id: "outfit",
+      label: "Outfit",
+      icon: "shirt-outline",
+      accessibilityLabel: "Outfit. Change your look",
+      onPress: () => {
+        setPlacesOpen(false);
+        setPerson(null);
+        setEditing(true);
+      },
+    },
     ...(myHome
       ? []
       : [
@@ -953,17 +1017,25 @@ export const WorldScreen = ({
     />
   ) : null;
 
+  const liveNote =
+    Platform.OS === "web" ? (
+      <Text style={styles.offscreen} aria-live="polite">
+        {note ?? ""}
+      </Text>
+    ) : null;
+
   if (away) return <View style={styles.fill} />;
 
   if (view === "list") {
     return (
       <>
+        {liveNote}
         <WorldList
           world={world}
           offline={offline}
           muted={muted}
           onBack={onBack}
-          onArcade={onArcade}
+          onArcade={openArcade}
           onPeople={() => setPeopleOpen(true)}
           placeTitle={placeTitle}
           extra={
@@ -973,6 +1045,7 @@ export const WorldScreen = ({
                 {world.place === NPC.place ? (
                   <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
                 ) : null}
+                <RoundButton icon="clipboard-outline" label="Notice board" onPress={openBoard} testID="world-list-notices" />
                 <RoundButton icon="settings-outline" label="Settings" onPress={() => setSettingsOpen(true)} testID="world-list-settings" />
               </View>
               {inviteCard}
@@ -1000,6 +1073,7 @@ export const WorldScreen = ({
 
   return (
     <View style={styles.fill}>
+      {liveNote}
       <Garden
         people={world.people.map((p) => ({
           memberId: p.memberId,
@@ -1033,6 +1107,12 @@ export const WorldScreen = ({
         onHoldMove={world.holdMove}
         onHoldEnd={world.holdEnd}
         onTapPerson={(memberId) => {
+          // Tapping yourself opens nothing; it only puts away what was open.
+          if (live.current.world.people.some((p) => p.isMe && p.memberId === memberId)) {
+            setTray(false);
+            setPerson(null);
+            return;
+          }
           setTray(false);
           setPropTrip(null);
           setSeatTrip(null);
@@ -1047,6 +1127,7 @@ export const WorldScreen = ({
         onKick={world.kick}
         onTapArcade={goToArcade}
         onTapNoticeBoard={goToNoticeBoard}
+        onTapNotices={goToNotices}
         onTapPiano={goToPiano}
         onTapLectern={goToLectern}
         onTapSeat={sitNear}
@@ -1055,6 +1136,7 @@ export const WorldScreen = ({
         onDecline={decline}
         declined={declined}
         home={world.home}
+        homeExit={world.place === "home" ? exitOf(world.home) : undefined}
         onTapNpc={() => {
           setPerson(null);
           setTray(false);
@@ -1097,6 +1179,8 @@ export const WorldScreen = ({
             onPress={() => {
               setPlacesOpen(false);
               setSettingsOpen(false);
+              setBoardOpen(false);
+              setPropTrip((trip) => (trip?.kind === "notices" ? null : trip));
               setPeopleOpen((was) => !was);
             }}
             testID="world-people"
@@ -1126,7 +1210,7 @@ export const WorldScreen = ({
           />
         )}
         {note && !overlayOpen ? (
-          <Text style={styles.note} accessibilityLiveRegion="polite" aria-live="polite">
+          <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
             {note}
           </Text>
         ) : null}
@@ -1279,6 +1363,7 @@ const styles = StyleSheet.create({
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
+  offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   note: {
     backgroundColor: hud.card,
     color: hud.forest,

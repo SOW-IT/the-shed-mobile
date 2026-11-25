@@ -15,6 +15,8 @@ import {
   stringifyBests,
   withBest,
   type QueuedScore,
+  playingLabel,
+  playingLine,
 } from "./games";
 
 const NOW = 1_800_000_000_000;
@@ -146,5 +148,20 @@ describe("local bests", () => {
     const bests = { ...NO_BESTS, flappy: 40 };
     expect(withBest(bests, "flappy", 30)).toBe(bests);
     expect(withBest(bests, "flappy", 41)).toEqual({ ...NO_BESTS, flappy: 41 });
+  });
+});
+
+describe("who's playing what", () => {
+  test("one name, then the first name and how many others", () => {
+    expect(playingLine([], "flappy")).toBeNull();
+    expect(playingLine(["Kate R."], "flappy")).toBe("Kate R. playing Flap");
+    expect(playingLine(["Kate R.", "Ben S."], "flappy")).toBe("Kate R. and 1 other playing Flap");
+    expect(playingLine(["Kate R.", "Ben S.", "Cy T."], "glider")).toBe("Kate R. and 2 others playing Swoop");
+  });
+
+  test("a game's label for the People list, or nothing for a game this app doesn't know", () => {
+    expect(playingLabel("runner")).toBe("Playing Mystic Man");
+    expect(playingLabel("chess")).toBeNull();
+    expect(playingLabel(undefined)).toBeNull();
   });
 });

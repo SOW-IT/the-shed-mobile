@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.6] - 2026-11-25
+## [2.13.7] - 2026-11-25
 
 ### Fixed
 - **Names that were only an email address now read as a name.** Someone with
@@ -14,6 +14,139 @@ All notable changes to **The SHED** mobile app. This project follows
   and on game leaderboards as their email's "first.last". They now show as
   "First Last", so the World's tag reads "First L.". A real name from Google
   is kept as it is.
+
+## [2.13.6] - 2026-11-25
+
+### Changed
+- **Mystic Man goes faster and chains obstacles after 10,000 points.** Up
+  to 10,000 nothing changes. From there the top speed climbs from 1200 to
+  1500 by 20,000 and then keeps creeping up towards 2000, never reaching it.
+  Obstacles come in longer, tighter chains with less of a break between
+  them, steeply up to 20,000 and a little more with every point after. Every
+  chain is still clearable at the speed it comes at.
+- **Swoop's worlds are narrower and rougher.** Worlds 1 and 2 are a quarter
+  and a fifth narrower, and the hills close in until world 5, then stay
+  that close. From world 3 the ground gets more uneven every world, with a
+  big step at world 7 and again at 8: steeper faces, deeper drops, more
+  cliffs and double humps, uneven valleys back to back and less flat ground
+  to recover on. Worlds stop getting longer at world 7, and the day is long
+  enough for good flying to finish every one. Finishing a world pays up to
+  2,500 points, from world 10 on.
+- **Flap gets less predictable as you score.** Pipes start evenly spaced,
+  then come closer together and farther apart, and each gap sits farther
+  from the last. Every gap can still be reached from the one before.
+- **Every game shows the same distance ahead on every screen.** A tablet
+  or computer draws the game bigger instead of showing more of what's
+  coming, and a small phone draws it a little smaller. Phones and tablets
+  are filled edge to edge; a screen of an unusual shape, like a wide
+  computer window for Flap, gets plain black borders.
+- **Each game's scene reaches the edges of the screen,** around the notch
+  and the home bar too, instead of stopping at a plain strip.
+
+### Fixed
+- **Swoop's sun moves smoothly and never slides back** when good flying wins
+  daylight back; it waits instead. The far hills drift slowly, as far-off
+  hills should, and no longer jump when the camera zooms.
+- **A swipe from the left edge no longer leaves the World in a browser,**
+  the same as in the games. Leave from the World's menu.
+
+## [2.13.5] - 2026-11-25
+
+### Changed
+- **Devotionals is a bottom tab.** It takes the place of the org chart,
+  with the same book icon as before. The org chart is now **People** in
+  the side menu, and links to it still open it. Signed out, People stays
+  a tab.
+- **Page titles sit in the top bar.** Churches, Praise List,
+  Reimbursements, Event Requests, Design Requests, Mentoring, Insights,
+  Announcements, Admin, Attendance and Grievances show their name in the
+  middle of the top bar, like Devotionals. Each page's main button (Add,
+  Request, Raise, Member, Event, Pairing, Mentor) is in the top bar too,
+  left of the bell, instead of at the bottom of the page. Who can use it
+  hasn't changed. On a wide screen the page shows its title and button
+  itself.
+
+### Fixed
+- **Review items left open on merged PRs (#480 to #544).** A walk the
+  system interrupts (a call, a system gesture) ends where your finger last
+  was, not where it first went down. A poke link that reaches an open World
+  closes the character editor and opens the poke list. On the web, a screen
+  reader reads each note and each new ask once, not the countdown every
+  second, and moving into a home doesn't read its old lines out. Travelling
+  to the room you're in keeps the route you were walking. The character
+  preview faces you again going from Hair to a face tab. A line said over an
+  hour ago no longer comes back from the server. Local game bests save in
+  order. A game's start card shrinks to fit a very short window instead of
+  being cut off. Verify and pr-status tooling fixes.
+- **Swipe the Café board down to close it.** Drag its handle or title down:
+  on the end card it closes like Close, and during a game it asks
+  **Give up?** first, so nobody loses a game by accident.
+
+## [2.13.4] - 2026-11-25
+
+### Added
+- **A notice board on the Garden's left.** Opposite the Calendar board,
+  a cork board shows your notifications and notices pinned up by admins.
+  Tap it and you walk over and it opens: the admins' notices first, newest
+  first, then your notifications, newest first, with new ones marked. Tap a
+  notification to mark it read and open it, the same as from the bell; back
+  brings you to the World. Admins pin a notice with **Pin a notice**, and
+  can edit it or take it down from the board. In the list view it's the
+  **Notice board** button.
+- **The campfire burns.** Its flames flicker and smoke rises and drifts
+  away. It holds still when the World is in the background, and with
+  battery saver or Reduce Motion on.
+- **The arcade opens over the World.** Walk to the cabinet and its games
+  open in a panel like People and Settings, with the leaderboard at the
+  top. Each game shows who in the World is playing it, such as "Kate R.
+  and 2 others playing Flap", and People shows "Playing Flap" next to
+  them.
+
+### Changed
+- **Tapping yourself walks there, like a tap on the ground.** Your Outfit
+  and Emotes bubble is gone; tapping someone else still opens theirs.
+  Emotes are on the flower in the chat bar.
+- **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
+  or Beach from the menu is gone: walk to their pads in the World, or go
+  with someone from People. **Outfit** sits above **Your home** and opens
+  your character, and **Leave** is still at the bottom.
+- **The place's name on its own.** The top-left button says "Garden",
+  "Café", "Chapel", "Beach" and "Campfire", without "The".
+- **No swiping out of the World.** You leave by tapping **Leave** in the
+  top-left menu. Android's back and the browser's back ask first, as the
+  list view's back arrow does. A touch at the left edge of the Garden on
+  iPhone now walks like anywhere else.
+- **Not here right now shows faces, most recently seen first.** In
+  People, each person has their World character's face and when they were
+  last seen, and the list is in that order, newest first; people who've
+  never been seen come last, by name. It shows 10 at a time, and **Show
+  more** brings the next 10.
+- **Leaving a home takes you back where you came from.** Go to a home
+  from the Café, say, and walking out the door or pressing back takes you
+  back to the Café, not the Garden. The door's sign says where it leads,
+  and it remembers after you leave the World and come back. With nowhere
+  to go back to, it leads to the Garden.
+- **Sitting shows your face.** On a chair, bench, log, pew or the couch
+  you turn about 30 degrees toward the camera. Two people at a Café table
+  still face each other.
+
+### Fixed
+- **Going through a pad puts you on the pad back, facing into the room.**
+  Walk from the Café into the Chapel and you arrive on the Chapel's Café pad
+  on its right, facing west into the Chapel; from the Garden you arrive on
+  the Chapel's Garden pad at the front, facing in. The same goes for every
+  pair of places with pads between them, both ways. Everyone else in the
+  room sees you arrive in the same spot facing the same way. If someone is
+  already standing on the pad, you arrive just beside it, still facing in.
+  A pad at the front of a place, whose name sits above it, moves its name
+  beside the pad while someone stands on it, so it doesn't sit on their
+  name tag.
+  Standing on the pad after you arrive doesn't send you back; any walk
+  that ends on a pad, even a step across the one you arrived on, takes you
+  through it. A home, a poke, an invite or opening the World arrive where they
+  did before.
+- **A hoodie's hood sits behind your head when you face the camera.** It
+  used to cover your chin.
 
 ## [2.13.3] - 2026-11-25
 

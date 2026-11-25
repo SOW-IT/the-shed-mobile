@@ -5,7 +5,8 @@
 // and Convex changes have had a CodeRabbit review (scripts/lib/coderabbitGate.mjs);
 // 1 otherwise.
 import { execFileSync } from "node:child_process";
-import { assessSize, coveringReview } from "./lib/coderabbitGate.mjs";
+import { assessSize, coveringReview, reviewedCommits, skipReason } from "./lib/coderabbitGate.mjs";
+import { requiredNotPassed } from "./lib/prChecks.mjs";
 
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8" });
 const number = process.argv[2];
@@ -26,6 +27,7 @@ const RUNNING = new Set(["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITIN
 const pending = checks.filter((c) => RUNNING.has(c.state));
 // Anything not known to be a pass or still running (STALE, a state GitHub adds later) counts as failed.
 const failed = checks.filter((c) => !PASSED.has(c.state) && !RUNNING.has(c.state));
+const missing = requiredNotPassed(checks);
 
 const query = `query($owner:String!,$repo:String!,$number:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){
   reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}nodes{id isResolved isOutdated path line comments(first:20){nodes{author{login} body url}}}}}}}`;
@@ -58,14 +60,8 @@ const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_pag
 const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {id, login: .user.login, at: .submitted_at, commit: .commit_id, body}]");
 const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
 const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
-// Evidence CodeRabbit reviewed this exact head: a review on that commit, or
-// its summary saying it reviewed up to it ("... between <base> and <head>").
-// A rate-limit notice names the head too, so it doesn't count.
-const reviewedHead =
-  reviews.some((r) => isRabbit(r.login) && r.commit === pr.headRefOid) ||
-  rabbitComments.some(
-    (c) => new RegExp(`and ${pr.headRefOid}\\b`).test(c.body) && !/rate limited|review limit reached|review skipped/i.test(c.text),
-  );
+const reviewedShas = reviewedCommits({ reviews: reviews.filter((r) => isRabbit(r.login)), comments: rabbitComments });
+const reviewedHead = reviewedShas.includes(pr.headRefOid);
 const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);
 const restriction = latest(rabbitComments.filter((c) => /rate limited|review limit reached|review skipped/i.test(c.text)));
 const cleared = latest([
@@ -75,7 +71,7 @@ const cleared = latest([
 const active = restriction && (!cleared || restriction.at > cleared.at) ? restriction : null;
 const limited = Boolean(active && /rate limited|review limit reached/i.test(active.text));
 const minutes = Number(active?.text.match(/available in:?\s*(\d+) minutes?/i)?.[1] ?? 60);
-const skipped = active && !limited ? (active.text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() ?? "review skipped") : null;
+const skipped = active && !limited ? skipReason(active.text) : null;
 
 // Does this PR need a CodeRabbit review (AGENTS.md's big-PR rule), and if so
 // has one covered the head? A review of an earlier commit covers it when the
@@ -84,12 +80,6 @@ const fileFields = "{filename, status, sha, changes, patch, previous_filename}";
 const headFiles = paged(`repos/${owner}/${repo}/pulls/${number}/files?per_page=100`, `[.[] | ${fileFields}]`);
 const override = process.argv.includes("--big") ? true : process.argv.includes("--not-big") ? false : null;
 const size = assessSize(headFiles, override);
-const reviewedShas = [
-  ...reviews.filter((r) => isRabbit(r.login) && r.commit).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")).map((r) => r.commit),
-  ...rabbitComments
-    .filter((c) => !/rate limited|review limit reached|review skipped/i.test(c.text))
-    .flatMap((c) => [...c.body.matchAll(/\band ([0-9a-f]{40})\b/g)].map((m) => m[1])),
-];
 // The reviewed commit's own changes against the base, as GitHub compares
 // them now. Null if GitHub can't (the commit is gone).
 const filesAt = (sha) => {
@@ -117,7 +107,7 @@ const coderabbit = {
 };
 const reviewOwed = size.big && !covered;
 
-const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, total: checks.length }, coderabbit };
+const status = { url: pr.url, state: pr.state, draft: pr.isDraft, head: pr.headRefOid.slice(0, 7), changedFiles: pr.changedFiles, checks: { failed, pending, missing, total: checks.length }, coderabbit };
 // Findings outside the diff live only in a review body, with no thread to
 // resolve. Reviews are incremental, so a finding on an earlier head isn't
 // repeated later: every CodeRabbit review's findings count until its id is
@@ -131,7 +121,7 @@ const bodyFindings = reviews
 const unreadBodies = bodyFindings.filter((r) => r.outsideDiff > 0 && !acked.has(r.id));
 coderabbit.bodyFindings = bodyFindings;
 
-const done = !reviewOwed && unreadBodies.length === 0 && checks.length > 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
+const done = !reviewOwed && unreadBodies.length === 0 && missing.length === 0 && failed.length === 0 && pending.length === 0 && openThreads.length === 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ ...status, done }, null, 2));
@@ -139,6 +129,7 @@ if (process.argv.includes("--json")) {
   console.log(`${pr.url} ${pr.isDraft ? "(draft) " : ""}head ${status.head}, ${pr.changedFiles} files`);
   console.log(`CI: ${checks.length - failed.length - pending.length}/${checks.length} passed, ${pending.length} running, ${failed.length} failed${checks.length === 0 ? " (no checks yet)" : ""}`);
   for (const c of failed) console.log(`  ✘ ${c.name}: ${c.url}`);
+  if (missing.length > 0) console.log(`  not passed yet: ${missing.join(", ")}`);
   if (skipped) console.log(`CodeRabbit skipped the review: ${skipped}`);
   if (limited) console.log(`CodeRabbit is rate limited; ask again after ${coderabbit.rateLimited.retryAfter} with "@coderabbitai review"`);
   console.log(`CodeRabbit: ${reviewedHead ? "has reviewed" : "has not reviewed"} head ${status.head}; ${openThreads.length} open thread(s)`);

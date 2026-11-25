@@ -50,7 +50,7 @@ const parseArgs = (argv) => {
     const name = argv[i].replace(/^--/, "");
     if (["only", "base", "device", "app"].includes(name)) {
       const value = argv[++i];
-      if (value === undefined || value.startsWith("--")) throw new Error(`--${name} needs a value`);
+      if (!value || value.startsWith("--")) throw new Error(`--${name} needs a value`);
       values[name] = value;
     }
     else flags.add(name);
@@ -674,6 +674,8 @@ const publish = (artifacts, slug) => {
   return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}, all of them at https://github.com/${repo}/blob/${commit}/${slug}/README.md`;
 };
 
+let started = false;
+
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -708,6 +710,7 @@ const main = async () => {
   }
   if (args.dryRun) return 0;
 
+  started = true;
   await stopAll();
   rmSync(BASE_TREE, { recursive: true, force: true });
   const slug = branchSlug();
@@ -807,7 +810,7 @@ const main = async () => {
   return passed ? 0 : 1;
 };
 
-const stopAndExit = (code) => stopAll().finally(() => process.exit(code));
+const stopAndExit = (code) => (started ? stopAll() : Promise.resolve()).finally(() => process.exit(code));
 process.on("SIGINT", () => stopAndExit(130));
 process.on("SIGTERM", () => stopAndExit(143));
 process.on("SIGHUP", () => stopAndExit(129));

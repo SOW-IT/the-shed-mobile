@@ -115,6 +115,7 @@ import type * as weeklyInsightsData from "../weeklyInsightsData.js";
 import type * as world from "../world.js";
 import type * as worldData from "../worldData.js";
 import type * as worldHome from "../worldHome.js";
+import type * as worldNotices from "../worldNotices.js";
 import type * as youtube from "../youtube.js";
 
 import type {
@@ -231,6 +232,7 @@ declare const fullApi: ApiFromModules<{
   world: typeof world;
   worldData: typeof worldData;
   worldHome: typeof worldHome;
+  worldNotices: typeof worldNotices;
   youtube: typeof youtube;
 }>;
 
