@@ -1,12 +1,32 @@
 import { afterEach, expect, test, vi } from "vitest";
 
-vi.mock("react-native", () => ({ Platform: { OS: "web" } }));
-vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => false }));
-vi.mock("expo-secure-store", () => ({}));
+const { saved, phone } = vi.hoisted(() => ({ saved: new Map<string, string>(), phone: { os: "web", slow: new Set<string>() } }));
 
-const saved = new Map<string, string>();
+vi.mock("react-native", () => ({
+  Platform: {
+    get OS() {
+      return phone.os;
+    },
+  },
+}));
+vi.mock("react-native-reanimated", () => ({ useReducedMotion: () => false }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: async (key: string) => saved.get(key) ?? null,
+  setItemAsync: (key: string, value: string) =>
+    new Promise<void>((resolve) =>
+      setTimeout(() => {
+        saved.set(key, value);
+        resolve();
+      }, phone.slow.has(value) ? 20 : 0)
+    ),
+  deleteItemAsync: async (key: string) => {
+    saved.delete(key);
+  },
+}));
 
 type Settings = typeof import("./settings");
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const fresh = async (
   stored: Record<string, string> = {},
@@ -28,12 +48,14 @@ const fresh = async (
   const settings = await import("./settings");
   for (const store of Object.values(settings.WORLD_SETTINGS)) store.subscribe(() => undefined);
   meanwhile?.(settings);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await settle();
   return settings;
 };
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  phone.os = "web";
+  phone.slow.clear();
 });
 
 test("a new device starts with times and ping off, motion following the phone, every tag, and names as Daniel K.", async () => {
@@ -53,6 +75,7 @@ test("each choice is saved on this device and comes back next time", async () =>
   first.WORLD_SETTINGS.motion.set("saver");
   first.WORLD_SETTINGS.nameTags.set("near");
   first.WORLD_SETTINGS.names.set("full");
+  await settle();
   expect(Object.fromEntries(saved)).toEqual({
     worldChatTimes: "on",
     worldPingMs: "on",
@@ -122,6 +145,26 @@ test("the old keys stay until the carried-over choice is saved", async () => {
   const next = await fresh(Object.fromEntries(saved));
   expect(next.WORLD_SETTINGS.names.get()).toBe("initials");
   expect(Object.fromEntries(saved)).toEqual({ worldNames: "initials" });
+});
+
+test("a Names choice made during the carry-over that fails to save keeps the old keys", async () => {
+  const { WORLD_SETTINGS } = await fresh(
+    { worldChatNames: "initials" },
+    { unwritable: ["worldNames"], meanwhile: (settings) => settings.WORLD_SETTINGS.names.set("full") }
+  );
+  expect(WORLD_SETTINGS.names.get()).toBe("full");
+  expect(Object.fromEntries(saved)).toEqual({ worldChatNames: "initials" });
+});
+
+test("on a phone, a Names choice made while the carried-over one is still saving is what's saved", async () => {
+  phone.os = "ios";
+  phone.slow.add("initials");
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "initials" });
+  expect(WORLD_SETTINGS.names.get()).toBe("initials");
+  WORLD_SETTINGS.names.set("full");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(WORLD_SETTINGS.names.get()).toBe("full");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "full" });
 });
 
 test("battery saver follows Reduce Motion until it's set by hand", async () => {

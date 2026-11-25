@@ -3,12 +3,13 @@ import { useReducedMotion } from "react-native-reanimated";
 import { readStored, removeStored, storedValue, tryWriteStored } from "../lib/deviceStorage";
 import { NAME_STYLES, styledName, type NameStyle } from "../../shared/names";
 
-const choice = <T extends string>(key: string, values: readonly T[], initial: T) => {
+const choice = <T extends string>(key: string, values: readonly T[], initial: T, save?: (key: string, value: string) => Promise<unknown>) => {
   const store = storedValue<T>({
     key,
     initial,
     restore: (saved) => (values.includes(saved as T) ? (saved as T) : null),
     serialize: (value) => value,
+    save,
   });
   return { ...store, values, initial };
 };
@@ -25,7 +26,9 @@ const namesFromOld = (players: string | null, chat: string | null): NameStyle | 
 const NAMES_KEY = "worldNames";
 
 const namesChoice = () => {
-  const store = choice(NAMES_KEY, NAME_STYLES, "short");
+  let saving = Promise.resolve(true);
+  const save = (key: string, value: string) => (saving = saving.then(() => tryWriteStored(key, value)));
+  const store = choice(NAMES_KEY, NAME_STYLES, "short", save);
   let checked = false;
   let picked = false;
   const set = (next: NameStyle) => {
@@ -35,9 +38,9 @@ const namesChoice = () => {
   const carryOver = async () => {
     const [current, players, chat] = await Promise.all([readStored(NAMES_KEY), readStored(OLD_NAME_KEYS.players), readStored(OLD_NAME_KEYS.chat)]);
     const old = current === null && !picked ? namesFromOld(players, chat) : null;
-    const carried = old ? await tryWriteStored(NAMES_KEY, old) : true;
-    if (old && !picked) store.set(old);
-    if (carried && (players !== null || chat !== null)) await Promise.all([removeStored(OLD_NAME_KEYS.players), removeStored(OLD_NAME_KEYS.chat)]);
+    if (old) store.set(old);
+    const saved = await saving;
+    if (saved && (players !== null || chat !== null)) await Promise.all([removeStored(OLD_NAME_KEYS.players), removeStored(OLD_NAME_KEYS.chat)]);
   };
   const subscribe = (listener: () => void) => {
     if (!checked) {
