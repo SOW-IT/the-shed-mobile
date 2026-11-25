@@ -1233,7 +1233,6 @@ export const WorldScreen = ({
                 view={farmView}
                 inBackyard={inBackyard}
                 now={farmNow}
-                title={placeTitle}
                 nameOf={worldName}
                 onWater={(plot) => void farm.water(plot).then((problem) => problem && setNote(problem))}
                 onHarvest={(plot) =>

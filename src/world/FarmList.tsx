@@ -26,7 +26,6 @@ export const FarmList = ({
   view,
   inBackyard,
   now,
-  title,
   nameOf,
   onWater,
   onHarvest,
@@ -38,7 +37,6 @@ export const FarmList = ({
   view: FarmView | null | undefined;
   inBackyard: boolean;
   now: number;
-  title: string;
   nameOf: (name: string) => string;
   onWater: (plot: number) => void;
   onHarvest: (plot: number) => void;
@@ -81,7 +79,7 @@ export const FarmList = ({
   return (
     <Card style={styles.card}>
       <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-farm">
-        {title}
+        Farm
       </Text>
       {Array.from({ length: view.plots }, (_, plot) => {
         const plant = view.plants.find((p) => p.plot === plot);
