@@ -28,6 +28,7 @@ import {
   Card,
   FadeInView,
   ReadableColumn,
+  FooterAction,
   LoadingState,
   Muted,
   Row,
@@ -346,24 +347,17 @@ export default function RequestsScreen() {
           if (key === "past") pastLoadMoreRef.current?.();
           if (key === "review") reviewLoadMoreRef.current?.();
         }}
-        header={{
-          title: "Reimbursements",
-          icon: "receipt-outline",
-          action: showMakeRequest
-            ? {
-                label: "Request",
-                onPress: () => {
-                  setActive("mine");
-                  openNewRequest();
-                },
-                accessibilityLabel: "Make a request",
-                testID: "reimbursements-new",
-              }
-            : null,
-          info: showMakeRequest
-            ? { onPress: () => setGuideOpen(true), accessibilityLabel: "How reimbursements work" }
-            : null,
-        }}
+        header={{ title: "Reimbursements", icon: "receipt-outline" }}
+        footer={
+          showMakeRequest ? (
+            <FooterAction
+              title="+ Make Request"
+              onPress={openNewRequest}
+              onInfo={() => setGuideOpen(true)}
+            />
+          ) : undefined
+        }
+        footerTabKey="mine"
       />
       <RequestGuideSheet
         visible={guideOpen}

@@ -19,6 +19,23 @@ All notable changes to **The SHED** mobile app. This project follows
 - **See who's watching.** Players see a small eye with a count, such as
   "2 watching", at the top of the board.
 
+## [2.13.11] - 2026-11-25
+
+### Fixed
+- **The passage picker check passes on iPhone again.** The app was already closing the Book, Chapter and Verse pickers mid-scroll (fixed in 2.13.1); the repo's own iPhone check was wrong. Its tap outside the sheet landed on the status bar, which iOS keeps for itself, so it failed even with the list still. It now taps just below the status bar, and also checks a tap below the sheet and a swipe down on the title bar while the list is moving. Its Psalms step looked for a row named exactly "Psalms" when the row reads "Psalms, 150 chapters", so that part never ran before.
+
+## [2.13.10] - 2026-11-25
+
+### Changed
+- **Each page's main button is back at the bottom.** Churches, Praise
+  List, Reimbursements, Event Requests, Design Requests, Mentoring,
+  Attendance and Grievances show their + button across the bottom of the
+  page again, with the ⓘ beside it where the page has one, instead of left
+  of the bell. Churches gets **+ Add church** there too. Page titles stay
+  in the middle of the top bar, and Devotionals keeps **Today** up there.
+  Who can use each button hasn't changed. Lists leave room at the end so
+  the last row scrolls clear of the button, on phones and wide screens.
+
 ## [2.13.8] - 2026-11-25
 
 ### Added
