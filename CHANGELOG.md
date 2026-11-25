@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.9] - 2026-11-25
+
+### Fixed
+- **The passage picker check passes on iPhone again.** The app was already closing the Book, Chapter and Verse pickers mid-scroll (fixed in 2.13.1); the repo's own iPhone check was wrong. Its tap outside the sheet landed on the status bar, which iOS keeps for itself, so it failed even with the list still. It now taps just below the status bar, and also checks a tap below the sheet and a swipe down on the title bar while the list is moving. Its Psalms step looked for a row named exactly "Psalms" when the row reads "Psalms, 150 chapters", so that part never ran before.
+
 ## [2.13.5] - 2026-11-25
 
 ### Changed
