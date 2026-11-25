@@ -11,12 +11,16 @@ const CARA = "cara@sow.org.au";
 const DAN = "dan@sow.org.au";
 const EVE = "eve@sow.org.au";
 
+const PRODUCTION_URL = "https://giant-bloodhound-191.ap-southeast-2.convex.cloud";
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(PINNED_NOW);
+  vi.stubEnv("CONVEX_CLOUD_URL", PRODUCTION_URL);
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 let n = 0;
@@ -151,5 +155,19 @@ describe("paying the standing top 3", () => {
     await backfill(t);
     expect(await gameRows(t)).toEqual([]);
     expect(await t.run((ctx) => ctx.db.query("oneOffRuns").take(10))).toHaveLength(1);
+  });
+
+  test.each([
+    ["the dev deployment", "https://successful-lynx-56.ap-southeast-2.convex.cloud"],
+    ["a preview or local deployment", "http://127.0.0.1:3210"],
+    ["a deployment with no URL", ""],
+  ])("%s pays nothing and leaves the job for production", async (_where, url) => {
+    const t = newConvex();
+    await standing(t, BEN, "flappy", 900);
+    vi.stubEnv("CONVEX_CLOUD_URL", url);
+    await backfill(t);
+    expect(await balanceOf(t, BEN)).toBe(START_COINS);
+    expect(await gameRows(t)).toEqual([]);
+    expect(await t.run((ctx) => ctx.db.query("oneOffRuns").take(10))).toEqual([]);
   });
 });

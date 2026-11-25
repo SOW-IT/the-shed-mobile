@@ -3,9 +3,14 @@ import { internalMutation } from "./_generated/server";
 import { boardOf, PLACE_COINS } from "../shared/coins";
 import { GAME_IDS } from "../shared/games";
 import { awardPlace } from "./coins";
+import { env } from "./environment";
 
 /** The `oneOffRuns` name that marks the backfill done. */
 export const TOP3_BACKFILL = "coins-top3-backfill";
+
+const PRODUCTION_DEPLOYMENT = "https://giant-bloodhound-191.";
+
+const onProduction = (): boolean => env("CONVEX_CLOUD_URL")?.startsWith(PRODUCTION_DEPLOYMENT) ?? false;
 
 /**
  * Pays the people already in a game's top 3 when 2.12.49 made places pay,
@@ -26,6 +31,7 @@ export const payStandingTop3 = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
+    if (!onProduction()) return null;
     const done = await ctx.db
       .query("oneOffRuns")
       .withIndex("by_name", (q) => q.eq("name", TOP3_BACKFILL))
