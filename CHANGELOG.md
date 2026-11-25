@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.4] - 2026-11-25
+
+### Added
+- **Swipe a sheet down to close it.** Drag the title bar of a picker or sheet down, or flick it, and it closes; let go early and it springs back. On iPhone, pulling a list down past its top closes the sheet too. This works on every picker and sheet, including the devotional Book, Chapter and Verse pickers.
+
 ## [2.12.55] - 2026-11-25
 
 ### Fixed
