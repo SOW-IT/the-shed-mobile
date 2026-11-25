@@ -88,7 +88,7 @@ export const validateDevotionalInput = (
     return { ok: false, error: `Notes can be at most ${MAX_NOTES_LENGTH} characters.` };
   }
   if (input.prayerPoints.length > MAX_PRAYER_LENGTH) {
-    return { ok: false, error: `Prayer points can be at most ${MAX_PRAYER_LENGTH} characters.` };
+    return { ok: false, error: `Prayer can be at most ${MAX_PRAYER_LENGTH} characters.` };
   }
   return {
     ok: true,
