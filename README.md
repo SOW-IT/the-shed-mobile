@@ -60,8 +60,9 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   Games, where signed-in people walk around obstacles by tapping, highlight
   interactive objects (Garden notice boards for Calendar and for your
   notifications with notices admins pin up, `convex/worldNotices.ts`; Chapel piano for Praise
-  List, Chapel pews and pulpit for daily devotionals with an open-book presence
-  icon), and chat in bubbles over their heads, 20 to a room. Drawn with plain
+  List, Chapel pews to sit on, turned to show your face, and a lectern you
+  stand behind facing the room, where a second tap opens daily devotionals with
+  an open-book presence icon), and chat in bubbles over their heads, 20 to a room. Drawn with plain
   views (no GL), one write per tap, chat kept 15 minutes, with high fives,
   emotes, a character editor, mute, block, report and a list view
   ([ADR 0021](docs/adr/0021-shed-world-garden-without-gl.md)).

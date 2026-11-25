@@ -51,6 +51,7 @@ import { FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, Wate
 import { PLOT_SIZE, PLOTS, plotPrice, type CropId, type Stage } from "@shared/farm";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
+import { myPoseLabel } from "./myPose";
 import { mouthAt } from "./talk";
 import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_GAP_MS, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
 
@@ -804,7 +805,7 @@ export const Garden = ({
     ["noticeboard", "Calendar board", onTapNoticeBoard],
     ["notices", "Notice board", onTapNotices],
     ["piano", "Piano, Praise List", onTapPiano],
-    ["lectern", "Lectern, devotional", onTapLectern],
+    ["lectern", "Lectern, stand behind it", onTapLectern],
   ];
   for (const [id, label, onActivate] of propTaps) {
     const obs = PLACE_OBSTACLES[place].find((o) => o.id === id);
@@ -820,6 +821,11 @@ export const Garden = ({
       targets.push({ key: `a11y-plot-${spot.index}`, label, x: at.x, y: at.y, onActivate: () => farm.onTapPlot(spot.index) });
     }
   }
+
+  // You: not a button, but VoiceOver (and the verify checks) can read how you're placed.
+  const myPose = me >= 0 ? poses[me] : null;
+  const meAt = myPose ? cam.project([myPose.x, 0.8, myPose.z]) : null;
+  const meLabel = myPose ? myPoseLabel(place, myPose, sitting[me] !== null) : null;
 
   const hudIndex = hudShown ? people.findIndex((p) => p.memberId === hudShown.id) : -1;
   const hudPose = hudIndex >= 0 ? poses[hudIndex] : null;
@@ -884,6 +890,15 @@ export const Garden = ({
             style={[styles.target, { left: target.x - TARGET / 2, top: target.y - TARGET / 2 }]}
           />
         ))}
+        {meAt && meLabel ? (
+          <View
+            pointerEvents="none"
+            accessible
+            accessibilityLabel={meLabel}
+            testID="world-me"
+            style={[styles.target, { left: meAt.x - TARGET / 2, top: meAt.y - TARGET / 2 }]}
+          />
+        ) : null}
         {asks.map((p, i) => {
           const pose = poses[people.indexOf(p)];
           if (!pose || !p.ask) return null;
