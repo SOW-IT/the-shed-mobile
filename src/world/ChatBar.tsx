@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Animated, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { itemStyle, popStyle, useOverlayClock } from "./Overlays";
 import { hud } from "./palette";
+import { popShadow } from "./popShadow";
 
 export const CHAT_BAR_HEIGHT = 54;
 
@@ -163,7 +164,7 @@ export const ChatBar = ({
 };
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
-const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 0 };
+const pop = popShadow();
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
