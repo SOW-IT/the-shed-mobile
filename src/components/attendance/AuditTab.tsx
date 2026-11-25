@@ -72,7 +72,6 @@ export function AuditTab({
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
-  const keyboardInset = useKeyboardInset();
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 400);
@@ -108,6 +107,7 @@ export function AuditTab({
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
   const listRef = useRef<ScrollViewInstance>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const keyboardInset = useKeyboardInset(listRef);
   const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,

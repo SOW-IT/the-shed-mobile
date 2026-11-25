@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, Text, View } from "react-native";
+import { Animated, Pressable, ScrollView, type ScrollViewInstance, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { USE_NATIVE_DRIVER, typography, useAppTheme, fixedColours } from "@/theme";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
@@ -49,7 +49,8 @@ export const Screen = ({
     onEndReachedRef.current = onEndReached;
   }, [onEndReached]);
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardInset();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const keyboardInset = useKeyboardInset(scrollRef);
   const [footerHeight, setFooterHeight] = useState(0);
   const onFooterHeightChangeRef = useRef(onFooterHeightChange);
   useEffect(() => {
@@ -62,6 +63,7 @@ export const Screen = ({
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={resolvedStickyIndices}
         automaticallyAdjustKeyboardInsets

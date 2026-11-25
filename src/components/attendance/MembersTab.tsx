@@ -51,7 +51,6 @@ export function MembersTab({
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
-  const keyboardInset = useKeyboardInset();
   const router = useRouter();
   const footerClearancePadding = usePagerFooterClearance();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
@@ -72,6 +71,7 @@ export function MembersTab({
   const scopeKey = JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]);
   const listRef = useRef<ScrollViewInstance>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const keyboardInset = useKeyboardInset(listRef);
   const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,

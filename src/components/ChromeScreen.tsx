@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
-import { ReactNode, Ref } from "react";
-import { Animated, Pressable, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { ReactNode, Ref, useRef } from "react";
+import { Animated, Pressable, type ScrollViewInstance, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { api } from "../../convex/_generated/api";
@@ -30,11 +30,12 @@ export const ChromeScreen = ({
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardInset();
+  const frameRef = useRef<ViewInstance>(null);
+  const keyboardInset = useKeyboardInset(frameRef, false);
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
   const wide = useWideLayout();
   return (
-    <View style={[styles.screen, { backgroundColor: t.background }]}>
+    <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
       <Animated.ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
