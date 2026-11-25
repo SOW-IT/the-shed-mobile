@@ -63,6 +63,11 @@ const Section = ({ children }: { children: string }) => <Text style={styles.sect
 
 const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [open, setOpen] = useState(startOpen);
+  const [asked, setAsked] = useState(startOpen);
+  if (startOpen !== asked) {
+    setAsked(startOpen);
+    if (startOpen) setOpen(true);
+  }
   const [now, setNow] = useState(0);
   // The 10 most recently online at first; "Show all" asks for the rest.
   const [limit, setLimit] = useState(OFFLINE_FIRST);
