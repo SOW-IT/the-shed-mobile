@@ -5,7 +5,7 @@ import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
 import { popShadow } from "./popShadow";
 import { Ellipse, flatQuad, quadTransform } from "./Shapes";
-import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
+import { bandOverHead, capShape, earCup, HAT_PITCH, hoodLayer, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
@@ -662,6 +662,9 @@ const AvatarView = ({
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
   };
+  const hood = () => ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
+  const hoodBehind = outfit === 5 && hoodLayer(facing) === "behind";
+  if (hoodBehind) hood();
   if (outfit === 1) {
     const dress = (grow: number) => panel(0.7, 0.1, 0.21, 0.46, grow);
     parts.push(quad(dress(ink), garden.ink, "bodyInk", 30));
@@ -779,7 +782,7 @@ const AvatarView = ({
   if (feetInFront) feet();
   arms("front");
 
-  if (outfit === 5) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
+  if (outfit === 5 && !hoodBehind) hood();
   // Hair that sits behind the head: a bun, or long hair down to the shoulders.
   if (look.hair === 1 && !hidesBun(hat)) ball("bun", head.x - side * 0.15 * s, head.y - 0.46 * s - lift, 0.17 * s, hair);
   if (look.hair === 2) {

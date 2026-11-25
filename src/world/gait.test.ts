@@ -34,6 +34,15 @@ describe("carryGait", () => {
     expect(carryGait(null, east, 5000)).toEqual(restingGait(east));
   });
 
+  test("arriving through a pad faces into the room at once, from any heading before", () => {
+    const arrived: Walk = { fromX: 3.2, fromZ: 3.4, toX: 3.2, toZ: 3.4, startedAt: 9000, heading: -Math.PI / 2 };
+    const fresh = drawnPose(arrived, restingGait(arrived), arrived.startedAt);
+    expect(fresh.heading).toBe(-Math.PI / 2);
+    expect(fresh.turning).toBe(false);
+    const seen = carryGait({ walk: east, gait: restingGait(east) }, arrived, arrived.startedAt);
+    expect(drawnPose(arrived, seen, arrived.startedAt + TURN_MS).heading).toBeCloseTo(-Math.PI / 2);
+  });
+
   test("a new walk turns from the old heading over TURN_MS", () => {
     const now = arrives + 5000;
     const north: Walk = { fromX: east.toX, fromZ: 0, toX: east.toX, toZ: -3, startedAt: now };

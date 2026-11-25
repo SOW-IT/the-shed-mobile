@@ -92,7 +92,7 @@ export const GamesMenu = ({
   intro,
   onGarden,
 }: {
-  onOpen: (target: GameId | "leaderboard") => void;
+  onOpen: (target: GameId | "leaderboard" | "cafe") => void;
   onBack?: () => void;
   intro?: ReactNode;
   /** Opens the World; left out where it can't open (offline). */
@@ -134,6 +134,7 @@ export const GamesMenu = ({
             testID={`games-open-${game}`}
           />
         ))}
+        <MenuRow icon="grid-outline" title="Café Games" detail="Two players, one phone." onPress={() => onOpen("cafe")} testID="games-open-cafe" />
       </View>
       {waiting > 0 ? (
         <Muted>

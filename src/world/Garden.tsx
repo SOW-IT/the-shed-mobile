@@ -39,10 +39,12 @@ import type { DrawnPose, Gait } from "./gait";
 import { Marker } from "./Marker";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
+import type { PlayingTag } from "./cafe";
 import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
+import { CampfireFlames } from "./Campfire";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -66,6 +68,7 @@ type GardenPerson = {
   reading?: boolean;
   seat?: string;
   typing?: number;
+  playing?: PlayingTag;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
@@ -78,6 +81,7 @@ const isInteractiveProp = (value: string | undefined): value is InteractivePropI
 /** What the camera looks at: style C's framing of the courtyard. */
 const FOCUS = { x: 0, z: -2.6 };
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
+const FIRE = PLACE_OBSTACLES.campfire.find((o) => o.id === "fire")!;
 
 const Layer = memo(function Layer({ prims }: { prims: Prim[] }) {
   return (
@@ -212,11 +216,25 @@ export const Garden = ({
         ? PORTALS[place].map((pad) => {
             const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
             const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
-            const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+            const up = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM;
+            const at = up ? { x: above.x, y: above.y - 14 } : below;
+            // Someone standing on a pad whose name sits above it (they arrive
+            // there) would wear the name on their own: it moves beside the pad.
+            const middle = cam.project([pad.x, 0, pad.z]);
+            const reach = PORTAL_RADIUS * middle.scale + PAD_LABEL_BESIDE_GAP;
+            const toRight = pad.x <= 0;
             return {
               to: place === "home" && homeExit ? homeExit : pad.to,
+              x: pad.x,
+              z: pad.z,
+              up,
               left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
               top: at.y - 10,
+              beside: {
+                left: toRight ? middle.x + reach : middle.x - reach - PAD_LABEL_WIDTH,
+                top: middle.y - 10,
+                alignItems: toRight ? ("flex-start" as const) : ("flex-end" as const),
+              },
             };
           })
         : [],
@@ -527,6 +545,10 @@ export const Garden = ({
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
   }
+  if (place === "campfire") {
+    const base = cam.project([FIRE.x, 0, FIRE.z]);
+    actors.push({ depth: base.depth - 0.001, key: "fire-flames", node: <CampfireFlames x={base.x} y={base.y} scale={base.scale} live={!paused && !saver} /> });
+  }
   if (rolled) {
     const ground = cam.project([rolled.x, 0, rolled.z]);
     actors.push({ depth: ground.depth, key: "ball", node: <BeachBall ball={rolled} cam={cam} t={t} /> });
@@ -634,7 +656,7 @@ export const Garden = ({
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : worldName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
-    const speaking = Boolean(line || waiting || emote || p.away || p.reading) || typing !== undefined;
+    const speaking = Boolean(line || waiting || emote || p.away || p.reading || p.playing) || typing !== undefined;
     if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
     actors.push({
       depth: figure.foot.depth,
@@ -651,7 +673,7 @@ export const Garden = ({
           emote={emote}
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
-          status={p.away ? AWAY_STATUS : undefined}
+          status={p.away ? AWAY_STATUS : playingStatus(p.playing, pose, poses[people.findIndex((o) => o.memberId === p.playing?.with)])}
           reading={p.reading}
           shout={chant !== undefined && SHOUTS.has(chant)}
           calm={saver}
@@ -712,10 +734,12 @@ export const Garden = ({
         <Layer prims={scene.backdrop} />
         {padSpots.map((pad) => {
           const here = placeCounts?.[pad.to] ?? 0;
+          const stoodOn = pad.up && poses.some((pose) => pose && !pose.walking && Math.hypot(pose.x - pad.x, pose.z - pad.z) <= PORTAL_RADIUS);
           return (
             <View
               key={`pad-${pad.to}`}
-              style={[styles.padLabel, { left: pad.left, top: pad.top }]}
+              style={[styles.padLabel, stoodOn ? pad.beside : { left: pad.left, top: pad.top }]}
+              testID={stoodOn ? `world-pad-label-beside-${pad.to}` : undefined}
             >
               <Text style={styles.padLabelText} numberOfLines={1}>
                 {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
@@ -816,7 +840,14 @@ const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
 const SHOUTS = new Set<string>(Object.values(DUEL_PICKS).map((pick) => pick.icon));
 const AWAY_STATUS = "🕹️ Playing";
+const PLAYING_SIDE_BY_SIDE = 2.5;
+
+const playingStatus = (playing: PlayingTag | undefined, pose: { x: number; z: number }, theirs: { x: number; z: number } | null | undefined) => {
+  if (!playing) return undefined;
+  return theirs && Math.hypot(theirs.x - pose.x, theirs.z - pose.z) < PLAYING_SIDE_BY_SIDE ? playing.icon : playing.tag;
+};
 const PAD_LABEL_WIDTH = 132;
+const PAD_LABEL_BESIDE_GAP = 8;
 const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;

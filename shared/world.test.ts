@@ -64,6 +64,7 @@ import {
   seatIn,
   arrivalSpot,
   ARRIVE_APART,
+  portalReached,
   clearSpot,
   isPlace,
   portalAt,
@@ -87,6 +88,8 @@ import {
   inWater,
   isAskKind,
   isDuelPick,
+  SEAT_TURN,
+  towardCamera,
 } from "./world";
 
 describe("posAt", () => {
@@ -111,6 +114,12 @@ describe("posAt", () => {
       heading: 0,
       arrivesAt: 0,
     });
+  });
+
+  test("standing still keeps the heading the server gave it", () => {
+    const west = -Math.PI / 2;
+    expect(posAt({ fromX: 1, fromZ: 1, toX: 1, toZ: 1, startedAt: 0, heading: west }, 5).heading).toBe(west);
+    expect(posAt({ fromX: 1, fromZ: 1, toX: 1, toZ: 1, startedAt: 0, path: [{ x: 1, z: 1 }], heading: west }, 5).heading).toBe(west);
   });
 });
 
@@ -441,17 +450,55 @@ describe("places and the pads between them", () => {
     }
   });
 
-  test("you arrive beside the pad that leads back, never on a pad", () => {
+  test("you arrive on the pad that leads back, facing into the room", () => {
+    const middle = { x: 0, z: (WALK_BOUNDS.minZ + WALK_BOUNDS.maxZ) / 2 };
+    let pairs = 0;
     for (const from of PLACES) {
       for (const pad of PORTALS[from]) {
+        const label = `${from} to ${pad.to}`;
         const spot = arrivalSpot(from, pad.to);
-        expect(portalAt(pad.to, spot)).toBeNull();
-        expect(clampTarget(spot.x, spot.z, pad.to)).toEqual(spot);
         const back = PORTALS[pad.to].find((p) => p.to === from)!;
-        expect(Math.hypot(spot.x - back.x, spot.z - back.z)).toBeLessThan(4.5);
+        expect({ x: spot.x, z: spot.z }, label).toEqual({ x: back.x, z: back.z });
+        expect(portalAt(pad.to, spot)?.to, label).toBe(from);
+        expect(clampTarget(spot.x, spot.z, pad.to), label).toEqual({ x: spot.x, z: spot.z });
+        // Facing away from the edge the pad is on: straight into the room.
+        const heading = spot.heading!;
+        const ahead = { x: Math.sin(heading), z: Math.cos(heading) };
+        expect(ahead.x * (middle.x - back.x) + ahead.z * (middle.z - back.z), label).toBeGreaterThan(0);
+        expect(Math.min(Math.abs(ahead.x), Math.abs(ahead.z)), label).toBeCloseTo(0);
+        const step = { x: back.x + ahead.x * 1.5, z: back.z + ahead.z * 1.5 };
+        expect(Math.abs(step.x), label).toBeLessThanOrEqual(halfWidthAt(step.z));
+        expect(step.z, label).toBeGreaterThanOrEqual(WALK_BOUNDS.minZ);
+        expect(step.z, label).toBeLessThanOrEqual(WALK_BOUNDS.maxZ);
+        pairs++;
       }
     }
-    expect(portalAt("beach", arrivalSpot("chapel", "beach"))).toBeNull();
+    expect(pairs).toBe(12);
+  });
+
+  test("from the Café you land on the Chapel's Café pad on its right, facing west", () => {
+    expect(arrivalSpot("cafe", "chapel")).toEqual({ x: 3.2, z: 3.4, heading: -Math.PI / 2 });
+    expect(arrivalSpot("chapel", "cafe")).toEqual({ x: 0.4, z: 7, heading: Math.PI });
+    expect(arrivalSpot("garden", "beach")).toEqual({ x: 0, z: 7, heading: Math.PI });
+    expect(arrivalSpot("beach", "garden")).toEqual({ x: 0, z: -10, heading: 0 });
+    expect(arrivalSpot("garden", "campfire")).toEqual({ x: -3.2, z: 3, heading: Math.PI / 2 });
+  });
+
+  test("with no pad back, you arrive at the spawn facing the camera, off every pad", () => {
+    const spot = arrivalSpot("chapel", "beach");
+    expect(portalAt("beach", spot)).toBeNull();
+    expect(spot.heading).toBeUndefined();
+    expect(arrivalSpot("home", "garden").heading).toBeUndefined();
+    expect(arrivalSpot("garden", HOME)).toEqual(HOME_ARRIVAL);
+  });
+
+  test("standing on the pad you arrived on takes you nowhere; walking onto one does", () => {
+    const pad = PORTALS.chapel.find((p) => p.to === "cafe")!;
+    const arrived = { fromX: pad.x, fromZ: pad.z, toX: pad.x, toZ: pad.z, startedAt: 0, heading: -Math.PI / 2 };
+    expect(portalReached("chapel", arrived)).toBeNull();
+    expect(portalReached("chapel", { ...arrived, fromX: 0, fromZ: 0 })?.to).toBe("cafe");
+    expect(portalReached("chapel", { ...arrived, fromX: pad.x - 0.3 })?.to).toBe("cafe");
+    expect(portalReached("chapel", { fromX: 0, fromZ: 0, toX: 0, toZ: 2, startedAt: 0 })).toBeNull();
   });
 
   test("each place keeps people out of its own furniture only", () => {
@@ -496,6 +543,50 @@ describe("seats", () => {
         if (a.height > 0) expect(clampTarget(a.x, a.z, place)).not.toEqual({ x: a.x, z: a.z });
       }
     }
+  });
+});
+
+describe("sitting turns toward the camera", () => {
+  const seat = (place: (typeof PLACES)[number], id: string) => SEATS[place].find((s) => s.id === id)!;
+
+  test("a seat facing away or sideways turns 30 degrees toward the camera; one already near it stays", () => {
+    expect(towardCamera(Math.PI / 2, 0)).toBeCloseTo(Math.PI / 3);
+    expect(towardCamera(-Math.PI / 2, 0)).toBeCloseTo(-Math.PI / 3);
+    expect(towardCamera(0.4, 0)).toBeCloseTo(0.4);
+    expect(towardCamera(-0.5, 0)).toBeCloseTo(-0.5);
+    expect(towardCamera(0, 0)).toBe(0);
+    expect(towardCamera(3 * Math.PI, 0)).toBeCloseTo((5 * Math.PI) / 6);
+  });
+
+  test("a seat facing straight away turns toward the middle of the room", () => {
+    expect(towardCamera(Math.PI, -2)).toBeCloseTo((5 * Math.PI) / 6);
+    expect(towardCamera(Math.PI, 2)).toBeCloseTo((-5 * Math.PI) / 6);
+    expect(Math.sin(seat("chapel", "pew-left-1.2-0").heading)).toBeGreaterThan(0);
+    expect(Math.sin(seat("chapel", "pew-right-1.2-0").heading)).toBeLessThan(0);
+  });
+
+  test("every seat shows more of the face than before: within 150 degrees of the camera", () => {
+    for (const place of PLACES) {
+      for (const s of SEATS[place]) expect(Math.abs(s.heading)).toBeLessThanOrEqual(Math.PI - SEAT_TURN + 1e-9);
+    }
+  });
+
+  test("the two stools at a café table still face each other, both turned toward the camera", () => {
+    for (const table of ["table-a", "table-b", "table-c"]) {
+      const left = seat("cafe", `${table}-left`);
+      const right = seat("cafe", `${table}-right`);
+      expect(left.heading).toBeCloseTo(Math.PI / 2 - SEAT_TURN);
+      expect(right.heading).toBeCloseTo(-Math.PI / 2 + SEAT_TURN);
+      expect(Math.sin(left.heading)).toBeGreaterThan(0);
+      expect(Math.sin(right.heading)).toBeLessThan(0);
+    }
+  });
+
+  test("logs at the campfire turn toward the camera and the fire stays in front of them", () => {
+    expect(seat("campfire", "log-left-0").heading).toBeCloseTo(Math.PI / 3);
+    expect(seat("campfire", "log-right-0").heading).toBeCloseTo(-Math.PI / 3);
+    expect(seat("campfire", "log-back-0").heading).toBe(0);
+    expect(seat("beach", "towel-0").heading).toBe(0);
   });
 });
 
@@ -613,10 +704,10 @@ describe("ping", () => {
   });
 });
 describe("arriving by a pad", () => {
-  test("never stands over a pad's name, by a pad or from the place menu", () => {
+  test("with no pad back, never stands over a pad's name", () => {
     for (const to of [...PLACES, HOME] as const) {
       for (const from of [...PLACES, HOME] as const) {
-        if (from === to) continue;
+        if (from === to || PORTALS[to].some((pad) => pad.to === from)) continue;
         expect(coversPadLabel(to, arrivalSpot(from, to)), `${from} to ${to}`).toBe(false);
       }
     }

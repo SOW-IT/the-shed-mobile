@@ -1,6 +1,7 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, askInfo, placeName, posAt } from "@shared/world";
+import { playingLabel } from "@shared/games";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -192,7 +193,7 @@ export const WorldList = ({
             : p.reading
               ? "Doing devotional"
               : p.away
-                ? "Playing at the arcade"
+                ? (playingLabel(p.playing) ?? "Playing at the arcade")
                 : "Here";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
