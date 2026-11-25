@@ -178,6 +178,7 @@ export default function InsightsScreen() {
         onActiveKeyChange={setActive}
         floating={floating}
         fullWidth
+        header={{ title: "Insights", icon: "stats-chart-outline" }}
       />
       <EditMemberSheet
         visible={memberSheetOpen}

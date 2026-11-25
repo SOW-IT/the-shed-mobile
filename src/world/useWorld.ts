@@ -714,8 +714,8 @@ export const useWorld = (
         holding.current = false;
         if (timer.current) clearTimeout(timer.current);
         timer.current = null;
-        const { fromX, fromZ, toX, toZ, startedAt, heading } = reply;
-        const arrived: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(heading === undefined ? {} : { heading }) };
+        const { fromX, fromZ, toX, toZ, startedAt, path, heading } = reply;
+        const arrived: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path ? { path } : {}), ...(heading === undefined ? {} : { heading }) };
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
         setMySeat(null);

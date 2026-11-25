@@ -532,7 +532,7 @@ export const Garden = ({
     const p = press.current;
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
-    if (p.walking) walkFrom(p.x, p.y, "end");
+    if (p.walking && p.spot) onHoldEnd(p.spot.x, p.spot.z);
     p.walking = false;
     p.hit = { kind: "ground" };
   };

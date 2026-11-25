@@ -495,12 +495,19 @@ describe("places", () => {
     await ben.mutation(api.world.travel, { to: "chapel" });
     await cara.mutation(api.world.travel, { to: "chapel" });
     await t.run(async (ctx) => {
-      for (let i = 0; i < 200; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
+      for (let i = 0; i < 201; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
       await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
     });
+    const scanned = await t.run((ctx) =>
+      ctx.db
+        .query("worldBlocks")
+        .withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", ANNA))
+        .take(201)
+    );
+    expect(scanned.map((row) => row.email)).not.toContain(CARA);
     const caraId = await t.run(async (ctx) => (await ctx.db.query("worldMembers").collect()).find((m) => m.email === CARA)!._id);
     const found = await anna.query(api.world.elsewhere, {});
-    expect(found).toMatchObject([{ place: "chapel", count: 1, names: [expect.any(String)] }]);
+    expect(found).toMatchObject([{ place: "chapel", count: 1, names: ["ben"] }]);
     expect(found[0]!.people.map((p) => p.memberId)).not.toContain(caraId);
   });
 
@@ -1352,6 +1359,48 @@ describe("review fixes", () => {
     await t.mutation(internal.world.sweep, {});
     expect((await stateRow(t, memberId))!.say).toBeUndefined();
     expect(await anna.query(api.world.state, { memberId })).not.toHaveProperty("say");
+  });
+
+  test("state leaves out a line past the chat TTL before the sweeper clears it", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const { memberId } = await anna.mutation(api.world.join, {});
+    await anna.mutation(api.world.say, { text: "hello" });
+    expect((await anna.query(api.world.state, { memberId }))!.say).toMatchObject({ text: "hello" });
+    later(CHAT_TTL_MS + 1000);
+    await anna.mutation(api.world.heartbeat, {});
+    expect((await stateRow(t, memberId))!.say).toMatchObject({ text: "hello" });
+    expect((await anna.query(api.world.state, { memberId }))!.say).toBeUndefined();
+  });
+
+  test("more expired lines on state rows than one batch are cleared in follow-up runs", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const long = Date.now() - CHAT_TTL_MS - 1000;
+    await t.run(async (ctx) => {
+      const { roomId, look } = (await ctx.db.query("worldMembers").first())!;
+      const { _id, _creationTime, ...state } = (await ctx.db.query("worldState").first())!;
+      for (let i = 0; i < 120; i++) {
+        const memberId = await ctx.db.insert("worldMembers", { roomId, email: `p${i}@sow.org.au`, name: `P${i}`, look, joinedAt: long });
+        await ctx.db.insert("worldState", { ...state, memberId, say: { text: "old", at: long + i } });
+      }
+    });
+    await t.mutation(internal.world.sweep, {});
+    const stillSaid = async () => (await t.run((ctx) => ctx.db.query("worldState").collect())).filter((row) => row.say !== undefined).length;
+    expect(await stillSaid()).toBeGreaterThan(0);
+    for (let round = 0; round < 5; round++) {
+      vi.advanceTimersByTime(10);
+      await t.finishInProgressScheduledFunctions();
+    }
+    expect(await stillSaid()).toBe(0);
+  });
+
+  test("clearSays stops when nothing is left", async () => {
+    const t = newConvex();
+    await t.mutation(internal.world.clearSays, {});
+    expect((await rows(t)).chat).toEqual([]);
   });
 
   test("expired chat is purged in follow-up runs, and the sweeper waits for the last line once the garden empties", async () => {

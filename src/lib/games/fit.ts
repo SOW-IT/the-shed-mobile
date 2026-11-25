@@ -29,3 +29,6 @@ export const groundLine = (
   groundTop: number,
   scale: number
 ): number => stage.y + (stage.height - shownHeight) / 2 + groundTop * scale;
+
+export const cardFitScale = (cardHeight: number | null, stageHeight: number | null, margin: number): number =>
+  cardHeight && stageHeight ? Math.min(1, Math.max(0, stageHeight - 2 * margin) / cardHeight) : 1;

@@ -54,7 +54,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   attendance: "Attendance",
   calendar: "Calendar",
   insights: "Insights",
-  org: "Org Chart",
+  org: "People",
   profile: "Profile",
   churches: "Churches",
   mentoring: "Mentoring",
@@ -133,7 +133,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = [];
   if (viewer.isStaff) items.push("churches", "music");
-  items.push("devotionals");
+  items.push("org");
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.canMentoring) items.push("mentoring");
   // Staff have the Calendar as a bottom tab, so Insights moves in here.
@@ -148,9 +148,9 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("attendance", "calendar");
-  items.push("org", "churches");
+  items.push(viewer.signedIn ? "devotionals" : "org", "churches");
   if (viewer.isStaff) items.push("music");
-  if (viewer.signedIn) items.push("devotionals");
+  if (viewer.signedIn) items.push("org");
   items.push("grievances");
   if (viewer.canMentoring) items.push("mentoring");
   if (viewer.isStaff) items.push("insights");

@@ -65,6 +65,11 @@ const Section = ({ children }: { children: string }) => <Text style={styles.sect
 
 const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [open, setOpen] = useState(startOpen);
+  const [asked, setAsked] = useState(startOpen);
+  if (startOpen !== asked) {
+    setAsked(startOpen);
+    if (startOpen) setOpen(true);
+  }
   const [now, setNow] = useState(0);
   const [limit, setLimit] = useState(OFFLINE_FIRST);
   const fetched = useQuery(api.world.offlineRecent, open ? { limit } : "skip");

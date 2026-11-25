@@ -80,3 +80,17 @@ export const coveringReview = ({ head, headFiles, reviewed }) => {
   const match = reviewed.find((r) => r.files && codeFingerprint(r.files) === fingerprint);
   return match ? { commit: match.sha, how: "same app and Convex changes" } : null;
 };
+
+export const skipReason = (text) => text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() || "review skipped";
+
+const RESTRICTED = /rate limited|review limit reached|review skipped/i;
+
+export const reviewedCommits = ({ reviews, comments }) => [
+  ...reviews
+    .filter((r) => r.commit)
+    .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
+    .map((r) => /** @type {string} */ (r.commit)),
+  ...comments
+    .filter((c) => /no actionable comments/i.test(c.text) && !RESTRICTED.test(c.text))
+    .flatMap((c) => [...c.body.matchAll(/\band ([0-9a-f]{40})\b/g)].map((m) => m[1])),
+];

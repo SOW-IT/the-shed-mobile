@@ -64,17 +64,17 @@ export const WorldList = ({
 
   // Read new lines from others aloud as they arrive (VoiceOver), but not the
   // history that was there when the list opened.
-  const heard = useRef<Set<string> | null>(null);
+  const heard = useRef<{ roomId: string | null; ids: Set<string> } | null>(null);
   useEffect(() => {
     if (!log) return;
-    const known = heard.current;
-    heard.current = new Set(log.map((line) => line.id));
+    const known = heard.current?.roomId === world.roomId ? heard.current.ids : null;
+    heard.current = { roomId: world.roomId, ids: new Set(log.map((line) => line.id)) };
     if (!known || Platform.OS === "web") return;
     for (const line of [...log].reverse()) {
       if (known.has(line.id) || line.isMe || muted.has(line.memberId)) continue;
       announce(saidLabel(line, names));
     }
-  }, [log, muted, names]);
+  }, [log, muted, names, world.roomId]);
 
   const place = placeTitle ?? placeName(world.place);
   const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
@@ -169,7 +169,9 @@ export const WorldList = ({
               <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-ask">
                 {info.icon} {worldName(p.name)}: {info.ask}
               </Text>
-              <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              <View aria-live="off">
+                <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              </View>
               <View style={styles.compose}>
                 <Btn title={`${info.label}!`} onPress={() => onAccept(p.memberId, askAt)} />
                 <Btn title="Not now" variant="tonal" onPress={() => onDecline(p.memberId, askAt)} />
@@ -271,7 +273,7 @@ export const WorldList = ({
           ))}
         </View>
         {note ? (
-          <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
+          <Text style={[typography.caption, { color: t.danger }]} aria-live={Platform.OS === "web" ? "off" : "polite"}>
             {note}
           </Text>
         ) : null}
