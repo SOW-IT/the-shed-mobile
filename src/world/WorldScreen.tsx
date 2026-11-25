@@ -867,7 +867,7 @@ export const WorldScreen = ({
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
       />
-      <CafePicker person={picking} top={insets.top + TOP_BAR_GAP} onPick={challengeTo} onClose={() => setPicking(null)} />
+      <CafePicker person={picking} look={picking ? (world.people.find((p) => p.memberId === picking.memberId)?.look ?? null) : null} top={insets.top + TOP_BAR_GAP} onPick={challengeTo} onClose={() => setPicking(null)} />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <DevotionalPromptDialog
         open={devotionalAsked}

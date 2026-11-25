@@ -70,8 +70,8 @@ describe("what others see", () => {
 
 describe("words on the board", () => {
   test("results say who won and why", () => {
-    expect(resultWords({ winner: "a", why: "played" }, "a", "Kate R.")).toEqual({ title: "You win!", detail: null, won: true });
-    expect(resultWords({ winner: "b", why: "timeout" }, "a", "Kate R.")).toEqual({ title: "You lose", detail: "You ran out of time.", won: false });
+    expect(resultWords({ winner: "a", why: "played" }, "a", "Kate R.")).toEqual({ title: "You win", detail: null, won: true });
+    expect(resultWords({ winner: "b", why: "timeout" }, "a", "Kate R.")).toEqual({ title: "Kate R. wins", detail: "You ran out of time.", won: false });
     expect(resultWords({ winner: "a", why: "left" }, "a", "Kate R.").detail).toBe("Kate R. left the Café.");
     expect(resultWords({ winner: "a", why: "gaveUp" }, "a", "Kate R.").detail).toBe("Kate R. gave up.");
     expect(resultWords({ winner: "draw", why: "abandoned" }, "a", "Kate R.")).toEqual({ title: "Draw", detail: "You both left.", won: false });

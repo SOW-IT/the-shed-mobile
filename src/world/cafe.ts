@@ -56,7 +56,7 @@ type GameResult = { winner: Winner; why: "played" | "timeout" | "left" | "gaveUp
 
 export const resultWords = (result: GameResult, side: Side, opponentName: string) => {
   const won = result.winner === side;
-  const title = result.winner === "draw" ? "Draw" : won ? "You win!" : "You lose";
+  const title = result.winner === "draw" ? "Draw" : won ? "You win" : `${opponentName} wins`;
   const loser = won ? opponentName : "You";
   const detail =
     result.why === "abandoned"
