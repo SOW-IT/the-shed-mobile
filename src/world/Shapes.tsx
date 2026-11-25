@@ -34,7 +34,13 @@ const FlatQuad = ({ pts, fill, radius = 0 }: { pts: readonly { x: number; y: num
       if (piece.kind === "triangle") {
         return <View key={piece.key} pointerEvents="none" style={[styles.triangle, { borderBottomColor: fill, transform: piece.transform }]} />;
       }
-      return <View key={piece.key} pointerEvents="none" style={[styles.quad, { backgroundColor: fill, borderRadius: radius, transform: piece.transform }]} />;
+      return (
+        <View
+          key={piece.key}
+          pointerEvents="none"
+          style={[styles.quad, { backgroundColor: fill, borderRadius: piece.kind === "rect" ? radius : 0, transform: piece.transform }]}
+        />
+      );
     })}
   </>
 );

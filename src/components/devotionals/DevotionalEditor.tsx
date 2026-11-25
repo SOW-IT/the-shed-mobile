@@ -43,7 +43,7 @@ import {
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { PassagePicker } from "./PassagePicker";
@@ -64,7 +64,8 @@ const formatHeadingDate = (key: string, today: string) => {
 
 export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () => void }) => {
   const t = useAppTheme();
-  const keyboardInset = useKeyboardInset();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const keyboardInset = useKeyboardInset(scrollRef);
   const offline = useOffline();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const me = useQuery(api.directory.me, isAuthenticated ? {} : "skip");
@@ -309,6 +310,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={[styles.scroll, { marginBottom: keyboardInset }]}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"

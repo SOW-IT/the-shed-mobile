@@ -34,6 +34,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
@@ -124,7 +125,8 @@ export const PagerScreen = ({
   topBarRight?: ReactNode;
 }) => {
   const t = useAppTheme();
-  const keyboardInset = useKeyboardInset();
+  const frameRef = useRef<ViewInstance>(null);
+  const keyboardInset = useKeyboardInset(frameRef, false);
   const wide = useWideLayout();
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
@@ -369,7 +371,7 @@ export const PagerScreen = ({
   };
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
-      <View style={[styles.screen, { backgroundColor: t.background }]}>
+      <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
         <View style={{ height: insets.top + tabBarHeight + (wide && onBack ? backRowHeight : 0) }} />
         <PagerCarousel
           tabs={tabs}
