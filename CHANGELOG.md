@@ -82,6 +82,11 @@ All notable changes to **The SHED** mobile app. This project follows
   Anyone 2.12.49 already paid on that leaderboard gets only what they're
   still owed, which is usually nothing.
 
+### Changed
+- **Leaderboards show the time of each best as well as the day**, in your
+  own time zone, on the small line under the name: "24 Nov, 3:42 pm", or
+  "24 Nov 2025, 3:42 pm" for an earlier year.
+
 ## [2.13.2] - 2026-11-25
 
 ### Added
