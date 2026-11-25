@@ -27,9 +27,9 @@ All notable changes to **The SHED** mobile app. This project follows
   them.
 
 ### Changed
-- **Tapping yourself opens nothing.** Your Outfit and Emotes bubble is
-  gone; tapping someone else still opens theirs. Emotes are on the flower
-  in the chat bar.
+- **Tapping yourself walks there, like a tap on the ground.** Your Outfit
+  and Emotes bubble is gone; tapping someone else still opens theirs.
+  Emotes are on the flower in the chat bar.
 - **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
   or Beach from the menu is gone: walk to their pads in the World, or go
   with someone from People. **Outfit** sits above **Your home** and opens

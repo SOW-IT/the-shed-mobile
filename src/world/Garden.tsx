@@ -44,6 +44,7 @@ import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
+import { personAt } from "./personHit";
 import { CampfireFlames } from "./Campfire";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
@@ -407,21 +408,23 @@ export const Garden = ({
   const hitAt = (x: number, y: number): Hit => {
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
-    const hits = people
-      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
-      .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
-      .map((h) => {
-        const figure = figureFor(cam, h.pose);
-        return { ...h, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
-      })
-      .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
-      .sort((a, b) => a.depth - b.depth);
+    const tapped = personAt(
+      people
+        .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
+        .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
+        .map((h) => {
+          const figure = figureFor(cam, h.pose);
+          return { ...h, me: h.p.me, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
+        }),
+      x,
+      y
+    );
     // The arcade cabinet as drawn (its faces stand well above the ground).
     // Where it and a person overlap, whichever is drawn in front wins.
     const propHit = scene.props
       .filter((prop) => isInteractiveProp(prop.tap) && x >= prop.box.left - 6 && x <= prop.box.right + 6 && y >= prop.box.top - 6 && y <= prop.box.bottom + 6)
       .sort((a, b) => a.depth - b.depth)[0];
-    if (hits[0] && !(propHit && propHit.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
+    if (tapped && !(propHit && propHit.depth < tapped.depth)) return { kind: "person", id: tapped.p.memberId };
     if (propHit && isInteractiveProp(propHit.tap)) return { kind: propHit.tap };
     if (rolled && placed && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) <= KICK_TAP_REACH) {
       const centre = cam.project([rolled.x, BALL_RADIUS, rolled.z]);
