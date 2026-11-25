@@ -6,6 +6,33 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.2] - 2026-11-25
+
+### Added
+- **A notice board on the Garden's left.** Opposite the Calendar board,
+  a cork board shows your notifications and notices pinned up by admins.
+  Tap it and you walk over and it opens: the admins' notices first, newest
+  first, then your notifications, newest first, with new ones marked. Tap a
+  notification to mark it read and open it, the same as from the bell; back
+  brings you to the World. Admins pin a notice with **Pin a notice**, and
+  can edit it or take it down from the board. In the list view it's the
+  **Notice board** button.
+
+### Changed
+- **Tapping yourself opens nothing.** Your Outfit and Emotes bubble is
+  gone; tapping someone else still opens theirs. Emotes are on the flower
+  in the chat bar.
+- **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
+  or Beach from the menu is gone: walk to their pads in the World, or go
+  with someone from People. **Outfit** sits above **Your home** and opens
+  your character, and **Leave** is still at the bottom.
+- **The place's name on its own.** The top-left button says "Garden",
+  "Café", "Chapel", "Beach" and "Campfire", without "The".
+- **No swiping out of the World.** You leave by tapping **Leave** in the
+  top-left menu. Android's back and the browser's back ask first, as the
+  list view's back arrow does. A touch at the left edge of the Garden on
+  iPhone now walks like anywhere else.
+
 ## [2.12.55] - 2026-11-25
 
 ### Fixed
