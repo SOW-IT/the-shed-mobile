@@ -10,6 +10,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import {
   ROLE_FIELD_KEY,
   orderedSelectOptions,
@@ -70,6 +71,7 @@ export function MembersTab({
   const scopeKey = JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]);
   const listRef = useRef<ScrollViewInstance>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const keyboardInset = useKeyboardInset(listRef);
   const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,
@@ -121,7 +123,7 @@ export function MembersTab({
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: t.background }}
+      style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         { paddingTop: topBarInset, paddingBottom: footerClearancePadding },

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Bust, usePresence } from "./Overlays";
 import { hud } from "./palette";
+import { popShadow } from "./popShadow";
 import { useWorldName } from "./settings";
 
 export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
@@ -53,10 +54,7 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderWidth: 2.5,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
   },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
   house: { fontSize: 20 },
