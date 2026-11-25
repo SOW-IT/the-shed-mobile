@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.7] - 2026-11-25
+## [2.13.8] - 2026-11-25
 
 ### Added
 - **A backyard farm in the World.** Every home has a back door to a
@@ -29,6 +29,15 @@ All notable changes to **The SHED** mobile app. This project follows
   water or is ready to harvest, at most once a day. Turn it off in World
   Settings.
 - **The list view's Farm section** has the same actions as the backyard.
+
+## [2.13.7] - 2026-11-25
+
+### Fixed
+- **Names that were only an email address now read as a name.** Someone with
+  no staff profile this year, such as last year's staff, showed in the World
+  and on game leaderboards as their email's "first.last". They now show as
+  "First Last", so the World's tag reads "First L.". A real name from Google
+  is kept as it is.
 
 ## [2.13.6] - 2026-11-25
 

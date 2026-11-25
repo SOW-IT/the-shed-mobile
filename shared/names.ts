@@ -29,3 +29,13 @@ export type NameStyle = (typeof NAME_STYLES)[number];
 
 export const styledName = (name: string, style: NameStyle): string =>
   style === "initials" ? initials(name) : style === "full" ? fullName(name) : shortName(name);
+
+const EMAIL_LOCAL_PART = /^[a-z]+(?:[._][a-z]+)+$/;
+
+const capitalised = (word: string) => word[0].toUpperCase() + word.slice(1);
+
+export const accountName = (name: string | null | undefined, email: string): string => {
+  const given = name?.trim();
+  const raw = given && !given.includes("@") ? given : email.split("@")[0];
+  return EMAIL_LOCAL_PART.test(raw) ? raw.split(/[._]/).map(capitalised).join(" ") : raw;
+};
