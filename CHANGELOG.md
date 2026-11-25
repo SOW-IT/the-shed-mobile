@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.13] - 2026-11-25
+## [2.13.14] - 2026-11-25
 
 ### Added
 - **Spectate a Café game.** Tap someone who's playing, in the Café or in
