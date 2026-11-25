@@ -48,15 +48,16 @@
     "src/app/e2e-auth.tsx",
     "src/components/nav/**",
     "src/components/ui/**",
+    "shared/{sheetSwipe,modalTouches}.ts",
     "src/components/{ErrorBoundary,ErrorReporter,AppUpdatePrompt,OtaAutoUpdate,ChromeScreen,PagerScreen,PagerCarousel,PagerCarousel.native,GroupedList,FilterChips,DateInputs,DateInputs.web,ReorderableList,HistoryTimeline,CommentsSheet,CommentThreadSheet,SignInPrompt,CampusMark}.tsx",
     "src/components/{useTopBarCollapse,dateTimeDisplay}.ts",
     "src/theme.ts",
     "src/fonts.ts",
     "src/env.ts",
     "src/types/**",
-    "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,otaUpdateButton,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
+    "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,otaUpdateButton,deviceStorage,navMenu,screenHeader,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
-    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
+    "src/hooks/{useRowIds,useKeyboardInset,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
     "convex/_generated/**",
     "convex/shared/**",
     "convex/tsconfig.json",
@@ -254,9 +255,9 @@
         "src/lib/games/**",
         "src/hooks/useOffline.ts",
         "convex/{gameScores,gameScoreData,gameCharacters,gamePlayers}.ts",
-        "shared/{games,gameCharacters,names,leaderboard}.ts"
+        "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
-      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
+      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
     },
     "world": {
       "files": [
@@ -268,8 +269,8 @@
         "src/components/games/{GamesMenu,CoinCounter}.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData,worldHome,coins}.ts",
-        "shared/{world,worldPath,home,coins,ball,names}.ts"
+        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData}.ts",
+        "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]
     },
@@ -282,7 +283,8 @@
         "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
         "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor}.ts"
       ],
-      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
+      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"],
+      "checks": ["passage-picker-close"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

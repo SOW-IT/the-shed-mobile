@@ -3,6 +3,7 @@ import { worldColours } from "@/worldColours";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text } from "react-native";
 import { GoldCoin } from "./GoldCoin";
+import { popShadow } from "./popShadow";
 
 const NATIVE = Platform.OS !== "web";
 const { hud, gold } = worldColours;
@@ -80,10 +81,7 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderWidth: 2.5,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
   },
   count: { fontFamily: fonts.display, fontSize: 15, color: hud.forest, minWidth: 18 },
   gain: { position: "absolute", top: 36, fontFamily: fonts.display, fontSize: 14, color: gold.text },

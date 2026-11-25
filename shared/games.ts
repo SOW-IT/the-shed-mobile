@@ -173,6 +173,8 @@ export const parseBests = (saved: string): LocalBests => {
 export const withBest = (bests: LocalBests, game: GameId, score: number): LocalBests =>
   score > bests[game] ? { ...bests, [game]: score } : bests;
 
+export const playingLabel = (game: string | undefined): string | null => (game !== undefined && isGameId(game) ? `Playing ${GAME_INFO[game].title}` : null);
+
 // Who's playing each game right now. A phone in a game marks its player
 // every PLAYING_BEAT_MS; someone not heard from for PLAYING_TTL_MS (a
 // crashed app, a phone put away) is cleared.

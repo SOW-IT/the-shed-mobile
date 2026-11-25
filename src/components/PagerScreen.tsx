@@ -1,5 +1,6 @@
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
+import { type ScreenHeader, useScreenHeader } from "@/components/nav/ScreenHeader";
 import { TopBar } from "@/components/nav/TopBar";
 import { useWideLayout } from "@/components/nav/layout";
 import { FooterHeightContext, TabBar } from "@/components/ui";
@@ -10,6 +11,7 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
@@ -33,6 +35,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
@@ -105,8 +108,7 @@ export const PagerScreen = ({
   floatingAboveFooter = false,
   fullWidth = false,
   onBack,
-  title,
-  topBarRight,
+  header,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -119,11 +121,13 @@ export const PagerScreen = ({
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
   onBack?: () => void;
-  title?: ReactNode;
-  topBarRight?: ReactNode;
+  header?: ScreenHeader;
 }) => {
   const t = useAppTheme();
+  const frameRef = useRef<ViewInstance>(null);
+  const keyboardInset = useKeyboardInset(frameRef, false);
   const wide = useWideLayout();
+  const { topBarTitle, topBarRight, pageHeader } = useScreenHeader(header);
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
@@ -346,7 +350,7 @@ export const PagerScreen = ({
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background }}
+        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
         contentContainerStyle={[
           styles.page,
           { paddingTop: spacing.md + topBarInset },
@@ -367,7 +371,7 @@ export const PagerScreen = ({
   };
   return (
     <PagerTopBarInsetContext.Provider value={topBarInset}>
-      <View style={[styles.screen, { backgroundColor: t.background }]}>
+      <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
         <View style={{ height: insets.top + tabBarHeight + (wide && onBack ? backRowHeight : 0) }} />
         <PagerCarousel
           tabs={tabs}
@@ -409,7 +413,7 @@ export const PagerScreen = ({
                 <TopBar
                   photo={me?.photo ?? null}
                   name={me?.name ?? null}
-                  title={title}
+                  title={topBarTitle}
                   right={topBarRight}
                   onBack={onBack}
                 />
@@ -418,6 +422,9 @@ export const PagerScreen = ({
             <View
               onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
             >
+              {pageHeader ? (
+                <View style={[styles.wideHeader, fullWidth && { maxWidth: "100%" as const }]}>{pageHeader}</View>
+              ) : null}
               <TabBar
                 segments={tabs}
                 active={activeKey}
@@ -487,6 +494,14 @@ const styles = StyleSheet.create({
   },
   chromeGroup: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
+  wideHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    maxWidth: 720,
+    width: "100%",
+    alignSelf: "center",
+  },
   wideBack: {
     flexDirection: "row",
     alignItems: "center",

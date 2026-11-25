@@ -199,13 +199,16 @@ so the five make a loop with the Garden to Campfire path across it.
   read of the room.
 - **Travel is one mutation.** `world.travel` moves the member row to a room
   of the target place, fixes both rooms' counts (closing the old one if it
-  empties), puts the walk beside the pad that leads back (`arrivalSpot`),
-  and clears any open ask. It spends an act token and keeps the member id,
+  empties), stands you on the pad that leads back, facing into the room
+  (`arrivalSpot`; the nearest clear spot beside it when someone is on it),
+  and clears any open ask. The facing is the walk's optional `heading`,
+  which only a still walk uses, so everyone sees the same pose. It spends an act token and keeps the member id,
   so the app only swaps its room. The server does not check that you stood
   on a pad: changing rooms gains nothing, and the list view travels from a
   button.
 - **Pads are an app rule.** The app travels when your own walk has ended
-  inside a pad (`portalAt`), once per walk, behind a short fade.
+  inside a pad (`portalReached`), once per walk, behind a short fade.
+  Standing still doesn't count, so arriving on a pad doesn't take you back.
 - **Who is where.** `world.places` gives a head count per place for the pad
   labels, and `world.elsewhere` gives the names by place for the people
   sheet, reading your blocks once instead of per person. Both rerun when

@@ -2,8 +2,9 @@ import { Btn, Field } from "@/components/ui";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
-import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { playingLabel } from "@shared/games";
+import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
+import { useMutation, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -13,8 +14,6 @@ import { glass, signal } from "./palette";
 import { useWorldName } from "./settings";
 import { problem } from "./Sheets";
 import type { WorldMember } from "./useWorld";
-
-const OFFLINE_PAGE = 25;
 
 const PersonRow = memo(function PersonRow({
   look,
@@ -63,12 +62,22 @@ const PersonRow = memo(function PersonRow({
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 
+
 const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [open, setOpen] = useState(startOpen);
+  const [asked, setAsked] = useState(startOpen);
+  if (startOpen !== asked) {
+    setAsked(startOpen);
+    if (startOpen) setOpen(true);
+  }
   const [now, setNow] = useState(0);
-  const people = usePaginatedQuery(api.world.offlineStaff, open ? {} : "skip", { initialNumItems: OFFLINE_PAGE });
+  const [limit, setLimit] = useState(OFFLINE_FIRST);
+  const fetched = useQuery(api.world.offlineRecent, open ? { limit } : "skip");
+  const [kept, setKept] = useState(fetched);
+  if (fetched !== undefined && fetched !== kept) setKept(fetched);
+  const offline = fetched ?? (open ? kept : undefined);
   const wait = useQuery(api.world.pokeWait, open ? {} : "skip");
-  const list = wait && people.status !== "LoadingFirstPage" ? { people: people.results, pokeAgainAt: wait.pokeAgainAt } : undefined;
+  const list = wait && offline ? { people: offline.people, more: offline.more && limit < OFFLINE_ALL_MAX, loading: fetched === undefined, pokeAgainAt: wait.pokeAgainAt } : undefined;
   const poke = useMutation(api.world.pokeStaff);
   const inviteHome = useMutation(api.world.inviteStaff);
   const [writingTo, setWritingTo] = useState<string | null>(null);
@@ -111,6 +120,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       <Pressable
         onPress={() => {
           setNow(Date.now());
+          if (open) setLimit(OFFLINE_FIRST);
           setOpen((was) => !was);
         }}
         accessibilityRole="button"
@@ -124,7 +134,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={glass.muted} />
       </Pressable>
       {open && list === undefined ? <Text style={styles.note}>Loading…</Text> : null}
-      {open && list?.people.length === 0 && people.status === "Exhausted" ? <Text style={styles.note}>Everyone on staff is here right now.</Text> : null}
+      {open && list?.people.length === 0 ? <Text style={styles.note}>Everyone on staff is here right now.</Text> : null}
       {open && list && list.people.length > 0 ? (
         <Text style={styles.note}>
           {waitMs > 0 ? `You can poke again in ${Math.min(60, Math.ceil(waitMs / 60_000))} min.` : "Poke someone to invite them in. One poke an hour."}
@@ -135,14 +145,12 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
         ? list?.people.map((p) => (
             <View key={p.id} style={styles.offlineRow}>
               <View style={styles.offlineHead}>
-                <View style={styles.sleeper}>
-                  <Ionicons name="person" size={16} color={glass.muted} />
-                </View>
+                <Bust look={p.look} size={32} />
                 <View style={styles.grow}>
                   <Text style={styles.name} numberOfLines={1}>
                     {worldName(p.name)}
                   </Text>
-                  <Text style={styles.where}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
+                  <Text style={styles.where}>{p.lastOnlineAt === null ? "Not seen yet" : `Seen ${timeAgo(p.lastOnlineAt, now)}`}</Text>
                 </View>
                 {writingTo === p.id ? null : (
                   <>
@@ -200,12 +208,12 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
             </View>
           ))
         : null}
-      {open && people.status === "CanLoadMore" ? (
+      {open && list?.loading ? <Text style={styles.note}>Loading…</Text> : null}
+      {open && list?.more && !list.loading ? (
         <View testID="world-offline-more" style={styles.more}>
-          <GlassPill label="Load more" icon="chevron-down" onPress={() => people.loadMore(OFFLINE_PAGE)} />
+          <GlassPill label="Show more" icon="chevron-down" onPress={() => setLimit((was) => Math.min(OFFLINE_ALL_MAX, was + OFFLINE_FIRST))} />
         </View>
       ) : null}
-      {open && people.status === "LoadingMore" ? <Text style={styles.note}>Loading more…</Text> : null}
     </View>
   );
 };
@@ -226,6 +234,7 @@ export const PeoplePanel = ({
   onClose,
   pokeListOpen = false,
   showPlaces = false,
+  playing,
 }: {
   open: boolean;
   top: number;
@@ -242,6 +251,7 @@ export const PeoplePanel = ({
   onClose: () => void;
   pokeListOpen?: boolean;
   showPlaces?: boolean;
+  playing?: ReadonlyMap<string, string>;
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
@@ -290,7 +300,7 @@ export const PeoplePanel = ({
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
-                where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
+                where={p.away ? `🕹️ ${playingLabel(p.playing) ?? "At the arcade"}` : (playing?.get(p.memberId) ?? placeLabel(place))}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
@@ -411,7 +421,6 @@ const styles = StyleSheet.create({
   toggle: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   offlineRow: { gap: 8, padding: 8, borderRadius: 16, backgroundColor: glass.row },
   offlineHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  sleeper: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   compose: { gap: 8 },
   pokeButtons: { flexDirection: "row", gap: 8 },
   more: { alignItems: "center" },

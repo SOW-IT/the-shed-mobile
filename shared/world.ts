@@ -45,6 +45,7 @@ export const HEARTBEAT_IDLE_MS = 45_000;
 /** An action marks you present only when the last mark is older than this. */
 export const PRESENCE_TOUCH_MS = 20_000;
 export const SWEEP_EVERY_MS = 30_000;
+export const LEAVE_GRACE_MS = 60_000;
 export const TYPING_MS = 6000;
 export const TYPING_REFRESH_MS = 3000;
 export const PING_PUBLISH_MS = 30_000;
@@ -225,6 +226,8 @@ export interface Walk {
   toZ: number;
   startedAt: number;
   path?: readonly Waypoint[];
+  /** Which way someone standing still faces, when the server chose it (arriving through a pad). */
+  heading?: number;
 }
 
 export interface Pose {
@@ -273,7 +276,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
       x: walk.fromX + dx * k,
       z: walk.fromZ + dz * k,
       walking: k < 1,
-      heading: dist === 0 ? 0 : Math.atan2(dx, dz),
+      heading: dist === 0 ? (walk.heading ?? 0) : Math.atan2(dx, dz),
       arrivesAt: walk.startedAt + duration,
     };
   }
@@ -287,7 +290,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
   }
   const duration = (total / WALK_SPEED) * 1000;
   const arrivesAt = walk.startedAt + duration;
-  if (total === 0) return { x: walk.toX, z: walk.toZ, walking: false, heading: 0, arrivesAt };
+  if (total === 0) return { x: walk.toX, z: walk.toZ, walking: false, heading: walk.heading ?? 0, arrivesAt };
   const elapsed = Math.max(0, now - walk.startedAt);
   if (elapsed >= duration) {
     let lastHeading = 0;
@@ -344,6 +347,8 @@ export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
+  // The notice board on the left: your notifications and the admins' notices.
+  { id: "notices", x: -3.0, z: -6.0, rx: 0.65, rz: 0.4 },
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
@@ -361,6 +366,9 @@ export const PLACE_TITLES: Record<Place, string> = {
   beach: "The Beach",
   home: "Home",
 };
+
+/** A place's name on its own, as the World's title shows it: "Garden", "Café". */
+export const placeName = (place: Place) => PLACE_TITLES[place].replace(/^The /, "");
 
 export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
   garden: OBSTACLES,
@@ -403,8 +411,11 @@ type Portal = { to: Place; x: number; z: number };
 
 export const PORTAL_RADIUS = 0.75;
 export const ELSEWHERE_NAMES = 12;
-const ARRIVE_BESIDE = 2.1;
-const MIDDLE = { x: 0, z: -1.6 };
+
+const FACING_CAMERA = 0;
+const FACING_AWAY = Math.PI;
+const FACING_RIGHT = Math.PI / 2;
+const FACING_LEFT = -Math.PI / 2;
 
 export const PORTALS: Record<Place, readonly Portal[]> = {
   garden: [
@@ -434,10 +445,17 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
-const FACING_CAMERA = 0;
-const FACING_AWAY = Math.PI;
-const FACING_RIGHT = Math.PI / 2;
-const FACING_LEFT = -Math.PI / 2;
+export const SEAT_TURN = Math.PI / 6;
+
+export const towardCamera = (heading: number, x: number, turn = SEAT_TURN) => {
+  const h = Math.atan2(Math.sin(heading), Math.cos(heading));
+  if (Math.abs(h) <= turn) return h;
+  const sign = Math.abs(Math.abs(h) - Math.PI) < 1e-9 ? (x > 0 ? -1 : 1) : Math.sign(h);
+  return sign * (Math.abs(h) - turn);
+};
+
+const faceTheCamera = (seats: Seat[]): readonly Seat[] => seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x) }));
+
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
 const STOOL_HEIGHT = 0.32;
@@ -456,21 +474,23 @@ const stools = (table: string): Seat[] => {
 };
 
 export const SEATS: Record<Place, readonly Seat[]> = {
-  garden: [
+  garden: faceTheCamera([
     { id: "blanket-0", x: 2.5, z: 2.4, heading: 0.4, height: ON_THE_GROUND },
     { id: "blanket-1", x: 3.25, z: 2.9, heading: -0.5, height: ON_THE_GROUND },
     { id: "blanket-2", x: 2.55, z: 3.45, heading: 0.2, height: ON_THE_GROUND },
-  ],
-  chapel: PLACE_OBSTACLES.chapel
-    .filter((o) => o.id.startsWith("pew"))
-    .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
-  campfire: [
+  ]),
+  chapel: faceTheCamera(
+    PLACE_OBSTACLES.chapel
+      .filter((o) => o.id.startsWith("pew"))
+      .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT))
+  ),
+  campfire: faceTheCamera([
     ...along("log-back", [[-0.5, -4.3], [0.5, -4.3]], FACING_CAMERA, LOG_HEIGHT),
     ...along("log-left", [[-2.6, -2.1], [-2.6, -1.1]], FACING_RIGHT, LOG_HEIGHT),
     ...along("log-right", [[2.6, -2.1], [2.6, -1.1]], FACING_LEFT, LOG_HEIGHT),
-  ],
-  cafe: [...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)],
-  beach: along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND),
+  ]),
+  cafe: faceTheCamera([...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)]),
+  beach: faceTheCamera(along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND)),
   home: [],
 };
 
@@ -491,20 +511,34 @@ const inBounds = (x: number, z: number) => {
 
 const inside = (o: Obstacle, p: { x: number; z: number }) => Math.hypot((p.x - o.x) / o.rx, (p.z - o.z) / o.rz) < 1;
 
-/** Where someone arriving from `from` stands in `to`: beside the pad that leads back. */
-export const arrivalSpot = (from: Place, to: Place): { x: number; z: number } => {
+/** Pads sit on an edge of their place; this is the way into the room from one. */
+const EDGE = 1;
+const intoRoom = (pad: Portal): number => {
+  if (pad.z >= WALK_BOUNDS.maxZ - EDGE) return FACING_AWAY;
+  if (pad.z <= WALK_BOUNDS.minZ + EDGE) return FACING_CAMERA;
+  return pad.x > 0 ? FACING_LEFT : FACING_RIGHT;
+};
+
+/**
+ * Where someone arriving from `from` stands in `to`: on the pad that leads
+ * back, facing into the room. With no pad back (a home, or a place menu jump
+ * between places with no pad), at the spawn, facing the camera.
+ */
+export const arrivalSpot = (from: Place, to: Place): { x: number; z: number; heading?: number } => {
   if (to === HOME) return { ...HOME_ARRIVAL };
   const pad = PORTALS[to].find((portal) => portal.to === from);
   if (!pad) return clearSpot(to, clampTarget(SPAWN.x, SPAWN.z, to), { labels: true });
-  const dx = MIDDLE.x - pad.x;
-  const dz = MIDDLE.z - pad.z;
-  const length = Math.hypot(dx, dz);
-  let spot = clampTarget(pad.x + (dx / length) * ARRIVE_BESIDE, pad.z + (dz / length) * ARRIVE_BESIDE, to);
-  for (let away = ARRIVE_BESIDE; away <= ARRIVE_BESIDE + 4 && coversPadLabel(to, spot); away += 0.3) {
-    spot = clampTarget(pad.x + (dx / length) * away, pad.z + (dz / length) * away, to);
-  }
-  return spot;
+  return { ...clampTarget(pad.x, pad.z, to), heading: intoRoom(pad) };
 };
+
+const STANDING_STILL = 0.05;
+
+/**
+ * The pad a walk ended on. Only a walk counts: standing still where you
+ * arrived, on the pad you came through, takes you nowhere.
+ */
+export const portalReached = (place: Place, walk: Walk): Portal | null =>
+  walkLength(walk) < STANDING_STILL ? null : portalAt(place, { x: walk.toX, z: walk.toZ });
 
 const PAD_LABEL_GAP = PORTAL_RADIUS + 0.45;
 const LABEL_HALF_WIDTH = 1.7;
@@ -872,6 +906,10 @@ export const POKE_EVERY_MS = 60 * 60_000;
 export const POKED_GAP_MS = 10 * 60_000;
 export const MAX_POKE_LENGTH = 80;
 export const OFFLINE_LIST_SIZE = 30;
+/** People the World's "Not here right now" list shows at first, most recently online first. */
+export const OFFLINE_FIRST = 10;
+/** The most it shows after "Show all". */
+export const OFFLINE_ALL_MAX = 200;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;

@@ -213,11 +213,14 @@ const MenuRow = ({
 export const GameRows = ({
   onOpen,
   onGarden,
+  onCafe,
   online,
   rowStyle,
 }: {
   onOpen: (target: GamesTarget) => void;
   onGarden?: () => void;
+  /** Opens Café Games (two players on one phone); left out over the World, whose Café has its own tables. */
+  onCafe?: () => void;
   online?: number;
   /** Each row's entrance, for a panel that staggers them in. */
   rowStyle?: (index: number) => object | null;
@@ -255,8 +258,18 @@ export const GameRows = ({
           style={rowStyle?.(lead + i)}
         />
       ))}
+      {onCafe ? (
+        <MenuRow
+          icon="grid"
+          title="Café Games"
+          detail="Two players, one phone."
+          onPress={onCafe}
+          testID="games-open-cafe"
+          style={rowStyle?.(lead + GAME_IDS.length)}
+        />
+      ) : null}
       {waiting > 0 ? (
-        <Animated.View style={rowStyle?.(lead + GAME_IDS.length)}>
+        <Animated.View style={rowStyle?.(lead + GAME_IDS.length + (onCafe ? 1 : 0))}>
           <Text style={styles.waiting}>
             {waiting === 1 ? "A score is" : `${waiting} scores are`} saved on this device, waiting to go on the leaderboard
             when you&apos;re online and signed in.
@@ -285,7 +298,7 @@ export const GamesMenu = ({
   intro,
   onGarden,
 }: {
-  onOpen: (target: GamesTarget) => void;
+  onOpen: (target: GamesTarget | "cafe") => void;
   onBack?: () => void;
   intro?: ReactNode;
   /** Opens the World; left out where it can't open (offline). */
@@ -326,7 +339,7 @@ export const GamesMenu = ({
         {intro}
         <View style={[styles.panel, blurBehind]}>
           <GamesPanelHeader title="Games" />
-          <GameRows onOpen={onOpen} onGarden={garden} online={online} />
+          <GameRows onOpen={onOpen} onGarden={garden} onCafe={() => onOpen("cafe")} online={online} />
         </View>
       </ScrollView>
       <OnlineBanner />

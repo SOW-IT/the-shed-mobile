@@ -6,37 +6,194 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.5] - 2026-11-25
+## [2.13.8] - 2026-11-25
 
 ### Added
 - **The Games list shows who's playing each game right now.** A game's row
   shows the faces of the people in it (their World look), with "Anna B. and
   Ben C. are playing", and past three people a count ("… and 4 others").
-  It updates live as people go in and out, in the arcade over the World and
-  on the Games screen. You show up while a game is in front of you; leaving
-  it, opening its leaderboard or putting your phone away takes you off, and
-  someone whose app closed without saying so drops off within a minute.
-  People you've blocked in the World, or who've blocked you, don't show.
+  It counts everyone in a game, not only people in the World, and updates
+  live, in the arcade over the World and on the Games screen. You show up
+  while a game is in front of you; leaving it, opening its leaderboard or
+  putting your phone away takes you off, and someone whose app closed
+  without saying so drops off within a minute. People you've blocked in the
+  World, or who've blocked you, don't show.
 
 ### Changed
-- **The arcade in the World opens as a panel over the World.** Walking up to
-  the arcade cabinet, or tapping "Play a game" in the list view, shows the
-  games in a panel like the World's Settings and place menu (the same glass
-  panel, header, close button and animation) instead of taking you to
-  another screen. The
-  World keeps going behind it: you can still walk, chat and tap people while
-  it's open. Close it with ✕; opening another panel or going to another place
-  closes it too. Picking a game goes into the game full screen, and leaving
-  the game brings you back to the World where you were. The leaderboard opens
-  from the panel's trophy, and the panel is still there when you come back.
-  Pressing Play on a leaderboard you opened from the World also brings you
-  back to the World afterwards, not to the Games screen.
+- **The World carries on behind the arcade.** The arcade's panel no longer
+  dims the World or closes when you tap beside it: you can still walk, chat
+  and tap people while it's open. Close it with ✕; opening another panel or
+  going to another place closes it too. "Play a game" in the list view opens
+  the same panel. Picking a game goes into it full screen, and leaving the
+  game, or pressing Play on a leaderboard you opened from there, brings you
+  back to the World. The leaderboard opens from the panel's trophy, and the
+  panel is still there when you come back. Your coins show in the panel on
+  a narrow phone, where it covers the World's coin chip.
 - **The Games list shows your coins and looks like the World.** Your coin
   balance sits next to the Leaderboard button, in the same coin chip as the
   World's, while you're signed in and online. The list wears the World's
   look: its cream chips along the top, and the games in a dark glass panel
-  like the World's Settings, over the garden's sky and lawn, the same in
-  light and dark mode. The World row says who's online under its line.
+  like the World's menus, over the garden's sky and lawn, the same in light
+  and dark mode. The World row says who's online under its line.
+
+## [2.13.5] - 2026-11-25
+
+### Changed
+- **Devotionals is a bottom tab.** It takes the place of the org chart,
+  with the same book icon as before. The org chart is now **People** in
+  the side menu, and links to it still open it. Signed out, People stays
+  a tab.
+- **Page titles sit in the top bar.** Churches, Praise List,
+  Reimbursements, Event Requests, Design Requests, Mentoring, Insights,
+  Announcements, Admin, Attendance and Grievances show their name in the
+  middle of the top bar, like Devotionals. Each page's main button (Add,
+  Request, Raise, Member, Event, Pairing, Mentor) is in the top bar too,
+  left of the bell, instead of at the bottom of the page. Who can use it
+  hasn't changed. On a wide screen the page shows its title and button
+  itself.
+
+### Fixed
+- **Review items left open on merged PRs (#480 to #544).** A walk the
+  system interrupts (a call, a system gesture) ends where your finger last
+  was, not where it first went down. A poke link that reaches an open World
+  closes the character editor and opens the poke list. On the web, a screen
+  reader reads each note and each new ask once, not the countdown every
+  second, and moving into a home doesn't read its old lines out. Travelling
+  to the room you're in keeps the route you were walking. The character
+  preview faces you again going from Hair to a face tab. A line said over an
+  hour ago no longer comes back from the server. Local game bests save in
+  order. A game's start card shrinks to fit a very short window instead of
+  being cut off. Verify and pr-status tooling fixes.
+- **Swipe the Café board down to close it.** Drag its handle or title down:
+  on the end card it closes like Close, and during a game it asks
+  **Give up?** first, so nobody loses a game by accident.
+
+## [2.13.4] - 2026-11-25
+
+### Added
+- **A notice board on the Garden's left.** Opposite the Calendar board,
+  a cork board shows your notifications and notices pinned up by admins.
+  Tap it and you walk over and it opens: the admins' notices first, newest
+  first, then your notifications, newest first, with new ones marked. Tap a
+  notification to mark it read and open it, the same as from the bell; back
+  brings you to the World. Admins pin a notice with **Pin a notice**, and
+  can edit it or take it down from the board. In the list view it's the
+  **Notice board** button.
+- **The campfire burns.** Its flames flicker and smoke rises and drifts
+  away. It holds still when the World is in the background, and with
+  battery saver or Reduce Motion on.
+- **The arcade opens over the World.** Walk to the cabinet and its games
+  open in a panel like People and Settings, with the leaderboard at the
+  top. Each game shows who in the World is playing it, such as "Kate R.
+  and 2 others playing Flap", and People shows "Playing Flap" next to
+  them.
+
+### Changed
+- **Tapping yourself walks there, like a tap on the ground.** Your Outfit
+  and Emotes bubble is gone; tapping someone else still opens theirs.
+  Emotes are on the flower in the chat bar.
+- **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
+  or Beach from the menu is gone: walk to their pads in the World, or go
+  with someone from People. **Outfit** sits above **Your home** and opens
+  your character, and **Leave** is still at the bottom.
+- **The place's name on its own.** The top-left button says "Garden",
+  "Café", "Chapel", "Beach" and "Campfire", without "The".
+- **No swiping out of the World.** You leave by tapping **Leave** in the
+  top-left menu. Android's back and the browser's back ask first, as the
+  list view's back arrow does. A touch at the left edge of the Garden on
+  iPhone now walks like anywhere else.
+- **Not here right now shows faces, most recently seen first.** In
+  People, each person has their World character's face and when they were
+  last seen, and the list is in that order, newest first; people who've
+  never been seen come last, by name. It shows 10 at a time, and **Show
+  more** brings the next 10.
+- **Leaving a home takes you back where you came from.** Go to a home
+  from the Café, say, and walking out the door or pressing back takes you
+  back to the Café, not the Garden. The door's sign says where it leads,
+  and it remembers after you leave the World and come back. With nowhere
+  to go back to, it leads to the Garden.
+- **Sitting shows your face.** On a chair, bench, log, pew or the couch
+  you turn about 30 degrees toward the camera. Two people at a Café table
+  still face each other.
+
+### Fixed
+- **Going through a pad puts you on the pad back, facing into the room.**
+  Walk from the Café into the Chapel and you arrive on the Chapel's Café pad
+  on its right, facing west into the Chapel; from the Garden you arrive on
+  the Chapel's Garden pad at the front, facing in. The same goes for every
+  pair of places with pads between them, both ways. Everyone else in the
+  room sees you arrive in the same spot facing the same way. If someone is
+  already standing on the pad, you arrive just beside it, still facing in.
+  A pad at the front of a place, whose name sits above it, moves its name
+  beside the pad while someone stands on it, so it doesn't sit on their
+  name tag.
+  Standing on the pad after you arrive doesn't send you back; any walk
+  that ends on a pad, even a step across the one you arrived on, takes you
+  through it. A home, a poke, an invite or opening the World arrive where they
+  did before.
+- **A hoodie's hood sits behind your head when you face the camera.** It
+  used to cover your chin.
+
+## [2.13.3] - 2026-11-25
+
+### Added
+- **Whoever was already in a game's top 3 is paid for it.** 2.12.49 paid a
+  place only when a new best reached it, so the people already 1st, 2nd or
+  3rd had nothing for their place. Within an hour of this release they're
+  paid once: 50 coins for 1st, 25 for 2nd and 10 for 3rd on each game's
+  leaderboard, with equal scores sharing a place as the leaderboard shows.
+  Anyone 2.12.49 already paid on that leaderboard gets only what they're
+  still owed, which is usually nothing.
+
+### Changed
+- **Leaderboards show the time of each best as well as the day**, in your
+  own time zone, on the small line under the name: "24 Nov, 3:42 pm", or
+  "24 Nov 2025, 3:42 pm" for an earlier year.
+
+## [2.13.2] - 2026-11-25
+
+### Added
+- **Table games in the Café.** Play Four in a Row, Tic-tac-toe, Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
+- **The board opens over the World** with you and them on either side of "vs", whose turn it is and a one-minute timer for each move. Every game is one round. Counters drop, marks and stones pop in, lines draw along and the winning line lights up. Missing a turn passes it; missing two in a row loses. At the end you see who won, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't. Battery saver turns the motion off.
+- **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players (just the game's icon when they sit together), and People says "Playing Four in a Row".
+- **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
+- **Café Games in Games, for two people on one phone.** The same four games, played offline with no timer: pass the phone between turns. Tap a name to change it; the phone remembers. Rematch lets the other player start. These games don't count towards records or coins.
+- **A warm café tabletop look** for all of it, in light linen or dark walnut to match the app's theme.
+
+## [2.13.1] - 2026-11-25
+
+### Fixed
+- **On iPhone a picker closes while its list is still moving.** After a
+  flick through the devotional Book list, tapping the close button or
+  outside the sheet did nothing until the list stopped. Now it closes
+  straight away, in the Book, Chapter and Verse pickers and every other
+  picker and sheet.
+
+### Added
+- **Swipe a sheet down to close it.** Drag a picker's or sheet's title bar
+  down, or flick it, and it closes; let go early and it springs back. On
+  iPhone, pulling a list down past its top closes it too.
+
+## [2.13.0] - 2026-11-25
+
+### Fixed
+- **The World now draws on Android phones.** Android 10 and later show the
+  Garden, the Chapel, the Campfire, the Café, the Beach and homes like an
+  iPhone does, instead of only the list of who's here and what they said.
+  Android can't show the slanted shapes the World is drawn from, so they
+  were turned off in 2.12.12; each one is now drawn as flat pieces Android
+  can show. Android 9 and older still get the list.
+- **One person no longer fills the chat log with joins and leaves.** A
+  dropped connection used to end the visit and start a new one, writing a
+  "left" and a "joined" line each time. Now the visit carries on through a
+  dropped connection, a "left" line waits a minute and isn't written if
+  they come back in that time, and coming back within that minute writes
+  no "joined" line. Moving between places still writes nothing.
+- **On Android the field you're typing in stays above the keyboard**, on
+  forms such as a grievance or an event request, in the devotional editor
+  and in the World's chat bar. Before, the keyboard covered it.
+- **The World's buttons and cards have their dark drop edge on Android**,
+  like on an iPhone.
 
 ## [2.12.55] - 2026-11-25
 

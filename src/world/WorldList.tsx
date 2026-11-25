@@ -1,6 +1,7 @@
 import { Btn, Card, EmptyState, Muted, Screen } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, PLACE_TITLES, MAX_SAY_LENGTH, askInfo, posAt } from "@shared/world";
+import { ASK_MS, CHAT_LOG_SIZE, CHAT_TTL_MS, EMOTE_TRAY, EMOTES, INTERACT_RADIUS, MAX_SAY_LENGTH, askInfo, placeName, posAt } from "@shared/world";
+import { playingLabel } from "@shared/games";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -63,19 +64,19 @@ export const WorldList = ({
 
   // Read new lines from others aloud as they arrive (VoiceOver), but not the
   // history that was there when the list opened.
-  const heard = useRef<Set<string> | null>(null);
+  const heard = useRef<{ roomId: string | null; ids: Set<string> } | null>(null);
   useEffect(() => {
     if (!log) return;
-    const known = heard.current;
-    heard.current = new Set(log.map((line) => line.id));
+    const known = heard.current?.roomId === world.roomId ? heard.current.ids : null;
+    heard.current = { roomId: world.roomId, ids: new Set(log.map((line) => line.id)) };
     if (!known || Platform.OS === "web") return;
     for (const line of [...log].reverse()) {
       if (known.has(line.id) || line.isMe || muted.has(line.memberId)) continue;
       announce(saidLabel(line, names));
     }
-  }, [log, muted, names]);
+  }, [log, muted, names, world.roomId]);
 
-  const place = placeTitle ?? PLACE_TITLES[world.place];
+  const place = placeTitle ?? placeName(world.place);
   const title = world.instance > 1 ? `${place} · ${world.instance}` : place;
 
   // Asks made of you that are open: announced once each (VoiceOver), since
@@ -168,7 +169,9 @@ export const WorldList = ({
               <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-ask">
                 {info.icon} {worldName(p.name)}: {info.ask}
               </Text>
-              <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              <View aria-live="off">
+                <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
+              </View>
               <View style={styles.compose}>
                 <Btn title={`${info.label}!`} onPress={() => onAccept(p.memberId, askAt)} />
                 <Btn title="Not now" variant="tonal" onPress={() => onDecline(p.memberId, askAt)} />
@@ -190,7 +193,7 @@ export const WorldList = ({
             : p.reading
               ? "Doing devotional"
               : p.away
-                ? "Playing at the arcade"
+                ? (playingLabel(p.playing) ?? "Playing at the arcade")
                 : "Here";
           // Close enough for a high five? If not, a way to walk over: the list
           // view (and Android, which always has it) can't tap the ground.
@@ -270,7 +273,7 @@ export const WorldList = ({
           ))}
         </View>
         {note ? (
-          <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
+          <Text style={[typography.caption, { color: t.danger }]} aria-live={Platform.OS === "web" ? "off" : "polite"}>
             {note}
           </Text>
         ) : null}

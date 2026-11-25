@@ -4,6 +4,7 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { GameId } from "../../../shared/games";
+import { CafeTableGames } from "./CafeTableGames";
 import { GAME_SCREENS } from "./gameScreens";
 import { GamesMenu, GamesNotice } from "./GamesMenu";
 import { Leaderboard } from "./Leaderboard";
@@ -46,17 +47,18 @@ export const OfflineGames = ({
   /** Whether the menu always has a back button to the app behind it. */
   canClose?: boolean;
 }) => {
-  const [view, setView] = useState<GameId | "leaderboard" | "menu">("menu");
+  const [view, setView] = useState<GameId | "leaderboard" | "cafe" | "menu">("menu");
   // The game a leaderboard was opened from, so it opens on that game's tab.
   const [boardGame, setBoardGame] = useState<GameId | undefined>(undefined);
   const toMenu = () => setView("menu");
-  const open = (target: GameId | "leaderboard") => {
+  const open = (target: GameId | "leaderboard" | "cafe") => {
     if (target === "leaderboard") setBoardGame(undefined);
     setView(target);
   };
   // Back online in a game, you show on the Games list as playing it.
-  useMarkPlaying(view === "leaderboard" || view === "menu" ? null : view, true);
+  useMarkPlaying(view === "leaderboard" || view === "menu" || view === "cafe" ? null : view, true);
   if (view === "leaderboard") return <Leaderboard onBack={toMenu} onPlay={setView} initialGame={boardGame} />;
+  if (view === "cafe") return <CafeTableGames onExit={toMenu} />;
   if (view !== "menu") {
     const game = view;
     const Game = GAME_SCREENS[game];

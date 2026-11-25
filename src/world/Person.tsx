@@ -1,10 +1,11 @@
 import { bodyScale, FULL_OUTFITS, lookPart, nudge, type EmoteId, type Look, type MutualKind, type Pose } from "@shared/world";
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
-import { Ellipse, quadTransform } from "./Shapes";
-import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
+import { popShadow } from "./popShadow";
+import { Ellipse, flatQuad, quadTransform } from "./Shapes";
+import { bandOverHead, capShape, earCup, HAT_PITCH, hoodLayer, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
@@ -127,7 +128,7 @@ export const hitBox = (f: Figure, look?: Look) => ({
   bottom: f.foot.y + 0.1 * f.s,
 });
 
-const quad = (pts: { x: number; y: number }[], fill: string, key: string, radius = 0) => (
+const quad = (pts: { x: number; y: number }[], fill: string, key: string, radius = 0) => Platform.OS === "android" ? flatQuad(pts, fill, key, radius) : (
   <View
     key={key}
     pointerEvents="none"
@@ -661,6 +662,8 @@ const AvatarView = ({
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
   };
+  const hoodBehind = outfit === 5 && hoodLayer(facing) === "behind";
+  if (hoodBehind) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, shade(shirt, -0.1));
   if (outfit === 1) {
     const dress = (grow: number) => panel(0.7, 0.1, 0.21, 0.46, grow);
     parts.push(quad(dress(ink), garden.ink, "bodyInk", 30));
@@ -778,7 +781,7 @@ const AvatarView = ({
   if (feetInFront) feet();
   arms("front");
 
-  if (outfit === 5) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
+  if (outfit === 5 && !hoodBehind) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
   // Hair that sits behind the head: a bun, or long hair down to the shoulders.
   if (look.hair === 1 && !hidesBun(hat)) ball("bun", head.x - side * 0.15 * s, head.y - 0.46 * s - lift, 0.17 * s, hair);
   if (look.hair === 2) {
@@ -1597,10 +1600,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 8,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
     marginBottom: 2,
   },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 11 },

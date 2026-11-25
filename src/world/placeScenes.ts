@@ -179,8 +179,6 @@ const buildCampfire = (cam: Camera): Scene => {
     }
     p.box(fire.x, 0.14, fire.z, 1.0, 0.2, 0.22, c.log);
     p.box(fire.x, 0.3, fire.z, 0.22, 0.2, 0.9, c.log);
-    p.ball([fire.x, 0.75, fire.z], 0.46, c.flame, { ink: 0.02, squashY: 1.25 });
-    p.ball([fire.x - 0.05, 0.68, fire.z + 0.02], 0.27, c.flameHot, { ink: 0, squashY: 1.3 });
   });
   for (const id of ["log-back", "log-left", "log-right"]) {
     const log = obstacle("campfire", id);

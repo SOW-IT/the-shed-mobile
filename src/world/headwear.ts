@@ -18,6 +18,8 @@ const toCamera = (v: HeadView): Vec3 => [-v.side * COS_PITCH, SIN_PITCH, v.facin
 
 export const depthOf = (v: HeadView, p: Vec3) => dot(p, toCamera(v));
 
+export const hoodLayer = (facing: number): "behind" | "over" => (facing >= 0 ? "behind" : "over");
+
 const across = (v: HeadView, d: Vec3): Point => ({
   x: (d[0] * v.facing + d[2] * v.side) * v.rx,
   y: -(d[1] * COS_PITCH - (-d[0] * v.side + d[2] * v.facing) * SIN_PITCH) * v.ry,

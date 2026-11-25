@@ -5,6 +5,7 @@ import { announce } from "./announce";
 import { choosing, type DuelView } from "./duel";
 import { duelWakeDelay } from "./duelTiming";
 import { hud } from "./palette";
+import { popShadow } from "./popShadow";
 
 const NATIVE = Platform.OS !== "web";
 const pickName = (pick: string) => (isDuelPick(pick) ? DUEL_PICKS[pick].label.toLowerCase() : pick);
@@ -137,10 +138,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 2.5,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
   },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   title: { flex: 1, color: hud.forest, fontSize: 15, fontWeight: "800" },

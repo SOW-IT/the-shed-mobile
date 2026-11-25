@@ -9,6 +9,7 @@ import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
 import { gold, hud } from "./palette";
+import { popShadow } from "./popShadow";
 import { useBatterySaver } from "./settings";
 
 const NATIVE = Platform.OS !== "web";
@@ -138,10 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderWidth: 3,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(5),
   },
   close: { position: "absolute", top: 10, right: 10, width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: hud.primarySoft },
   pressed: { opacity: 0.7 },

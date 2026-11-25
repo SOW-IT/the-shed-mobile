@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import {
-  playingLine,
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
@@ -16,6 +15,8 @@ import {
   stringifyBests,
   withBest,
   type QueuedScore,
+  playingLabel,
+  playingLine,
 } from "./games";
 
 const NOW = 1_800_000_000_000;
@@ -166,5 +167,13 @@ describe("playingLine", () => {
   test("is empty with nobody", () => {
     expect(playingLine([], 0)).toBe("");
     expect(playingLine([], 2)).toBe("");
+  });
+});
+
+describe("playingLabel", () => {
+  test("a game's label for the People list, or nothing for a game this app doesn't know", () => {
+    expect(playingLabel("runner")).toBe("Playing Mystic Man");
+    expect(playingLabel("chess")).toBeNull();
+    expect(playingLabel(undefined)).toBeNull();
   });
 });

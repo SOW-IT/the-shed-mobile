@@ -23,6 +23,11 @@ export type PreviewSpin = {
   touched: boolean;
 };
 
+export type PreviewShot = "full" | "head" | "face";
+const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, head: 1, face: 2 };
+
+export const previewRecenters = (from: PreviewShot, to: PreviewShot) => SHOT_CLOSENESS[to] > SHOT_CLOSENESS[from];
+
 export const previewEaseInOut = (p: number) =>
   p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
 
