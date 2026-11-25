@@ -254,9 +254,9 @@
         "src/lib/games/**",
         "src/hooks/useOffline.ts",
         "convex/{gameScores,gameScoreData,gameCharacters}.ts",
-        "shared/{games,gameCharacters,names,leaderboard}.ts"
+        "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
-      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
+      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
     },
     "world": {
       "files": [
@@ -266,8 +266,8 @@
         "src/app/world-devotionals.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill}.ts",
-        "shared/{world,worldPath,worldNotices,home,coins,ball,names}.ts"
+        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData}.ts",
+        "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]
     },

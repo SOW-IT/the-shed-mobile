@@ -17,6 +17,14 @@ All notable changes to **The SHED** mobile app. This project follows
   brings you to the World. Admins pin a notice with **Pin a notice**, and
   can edit it or take it down from the board. In the list view it's the
   **Notice board** button.
+- **The campfire burns.** Its flames flicker and smoke rises and drifts
+  away. It holds still when the World is in the background, and with
+  battery saver or Reduce Motion on.
+- **The arcade opens over the World.** Walk to the cabinet and its games
+  open in a panel like People and Settings, with the leaderboard at the
+  top. Each game shows who in the World is playing it, such as "Kate R.
+  and 2 others playing Flap", and People shows "Playing Flap" next to
+  them.
 
 ### Changed
 - **Tapping yourself opens nothing.** Your Outfit and Emotes bubble is
@@ -33,15 +41,18 @@ All notable changes to **The SHED** mobile app. This project follows
   list view's back arrow does. A touch at the left edge of the Garden on
   iPhone now walks like anywhere else.
 - **Not here right now shows faces, most recently online first.** In
-  People, each person has their World character's face, and the list runs
-  from whoever was in the app most recently; people who've never been
-  online come last, by name. It starts with 10, and **Show all** brings the
-  rest.
-- **A home's door takes you back where you came from.** Go to your home
-  (or someone's) from the Café, say, and walking out the door takes you
+  People, each person has their World character's face and when they were
+  last seen, and the list runs from whoever was in the app most recently;
+  people who've never been online come last, by name. It shows 10 at a
+  time, and **Show more** brings the next 10.
+- **Leaving a home takes you back where you came from.** Go to a home
+  from the Café, say, and walking out the door or pressing back takes you
   back to the Café, not the Garden. The door's sign says where it leads,
   and it remembers after you leave the World and come back. With nowhere
   to go back to, it leads to the Garden.
+- **Sitting shows your face.** On a chair, bench, log, pew or the couch
+  you turn about 30 degrees toward the camera. Two people at a Café table
+  still face each other.
 
 ### Fixed
 - **Going through a pad puts you on the pad back, facing into the room.**
@@ -57,8 +68,10 @@ All notable changes to **The SHED** mobile app. This project follows
   Arriving on a pad doesn't send you back; walk off and onto it again to
   go back. A home, a poke, an invite or opening the World arrive where they
   did before.
+- **A hoodie's hood sits behind your head when you face the camera.** It
+  used to cover your chin.
 
-## [2.13.1] - 2026-11-25
+## [2.13.2] - 2026-11-25
 
 ### Added
 - **Whoever was already in a game's top 3 is paid for it.** 2.12.49 paid a
@@ -68,6 +81,16 @@ All notable changes to **The SHED** mobile app. This project follows
   leaderboard, with equal scores sharing a place as the leaderboard shows.
   Anyone 2.12.49 already paid on that leaderboard gets only what they're
   still owed, which is usually nothing.
+
+## [2.13.1] - 2026-11-25
+
+### Added
+- **Table games in the Café.** Play Four in a Row, Tic-tac-toe, Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
+- **The board opens over the World** with you and them on either side of "vs", whose turn it is and a one-minute timer for each move. Every game is one round. Counters drop, marks and stones pop in, lines draw along and the winning line lights up. Missing a turn passes it; missing two in a row loses. At the end you see who won, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't. Battery saver turns the motion off.
+- **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players (just the game's icon when they sit together), and People says "Playing Four in a Row".
+- **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
+- **Café Games in Games, for two people on one phone.** The same four games, played offline with no timer: pass the phone between turns. Tap a name to change it; the phone remembers. Rematch lets the other player start. These games don't count towards records or coins.
+- **A warm café tabletop look** for all of it, in light linen or dark walnut to match the app's theme.
 
 ## [2.13.0] - 2026-11-25
 
