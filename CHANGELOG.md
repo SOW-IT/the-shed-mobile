@@ -32,6 +32,16 @@ All notable changes to **The SHED** mobile app. This project follows
   top-left menu. Android's back and the browser's back ask first, as the
   list view's back arrow does. A touch at the left edge of the Garden on
   iPhone now walks like anywhere else.
+- **Not here right now shows faces, most recently online first.** In
+  People, each person has their World character's face, and the list runs
+  from whoever was in the app most recently; people who've never been
+  online come last, by name. It starts with 10, and **Show all** brings the
+  rest.
+- **A home's door takes you back where you came from.** Go to your home
+  (or someone's) from the Café, say, and walking out the door takes you
+  back to the Café, not the Garden. The door's sign says where it leads,
+  and it remembers after you leave the World and come back. With nowhere
+  to go back to, it leads to the Garden.
 
 ## [2.12.55] - 2026-11-25
 
