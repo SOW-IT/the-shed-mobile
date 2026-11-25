@@ -1,7 +1,8 @@
 import { GameRows, GamesActions, GamesPanelHeader, type GamesTarget } from "@/components/games/GamesMenu";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { GAME_IDS } from "@shared/games";
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { blurBehind, itemStyle, popStyle, useOverlayClock } from "./Overlays";
 import { glass } from "./palette";
 
@@ -53,9 +54,9 @@ export const ArcadePanel = ({
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </GamesPanelHeader>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
           <GameRows onOpen={onOpen} nameOf={nameOf} rowStyle={(i) => itemStyle(overlay, i + 1)} />
-        </ScrollView>
+        </SharpScrollView>
       </Animated.View>
     </View>
   );

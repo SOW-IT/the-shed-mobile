@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.18] - 2026-11-26
+## [2.13.19] - 2026-11-26
 
 ### Added
 - **A podium for each leaderboard's top three.** Above the scores, 1st
@@ -52,6 +52,17 @@ All notable changes to **The SHED** mobile app. This project follows
   look: its cream chips along the top, and the games in a dark glass panel
   like the World's menus, over the garden's sky and lawn, the same in light
   and dark mode. The World row says who's online under its line.
+
+## [2.13.15] - 2026-11-26
+
+### Fixed
+- **Sharp text at the top of the Café board and the World's panels.** On an
+  iPhone with iOS 26, the system blurs whatever sits at the top edge of a
+  scrolling area. On the Café board that was the game's name and Give up,
+  smeared into a blur. The Café board, the Shop, Farm, People, Settings,
+  Arcade and notice board panels, the character editor, the chat log, the
+  decorating tray and the game-over card now keep their text sharp to the
+  edge.
 
 ## [2.13.14] - 2026-11-25
 

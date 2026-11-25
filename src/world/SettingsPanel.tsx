@@ -1,7 +1,8 @@
 import { fonts } from "@/theme";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { styledName } from "@shared/names";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock, WifiBars } from "./Overlays";
@@ -127,7 +128,7 @@ export const SettingsPanel = ({
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </Animated.View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
           <Row icon="🕑" title="Chat times" note={times === "on" ? SAMPLE_TIME : undefined} style={itemStyle(overlay, 1)}>
             <Toggle on={times === "on"} label="Chat times" onChange={(on) => setTimes(on ? "on" : "off")} testID="world-setting-chatTimes" />
           </Row>
@@ -166,7 +167,7 @@ export const SettingsPanel = ({
               ]}
             />
           </StackedRow>
-        </ScrollView>
+        </SharpScrollView>
       </Animated.View>
     </View>
   );
