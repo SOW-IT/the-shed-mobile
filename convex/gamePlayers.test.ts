@@ -72,6 +72,21 @@ describe("playing and left", () => {
     expect((await tables(t)).players).toMatchObject([{ game: "glider", since: Date.now() }]);
   });
 
+  test("switching game picks up a name changed since you went in", async () => {
+    const t = newConvex();
+    await named(t, ANNA, "Anna Bell");
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.gamePlayers.playing, { game: "runner" });
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query("users").first();
+      await ctx.db.patch("users", user!._id, { name: "Anna Bell-Cho" });
+    });
+    await anna.mutation(api.gamePlayers.playing, { game: "runner" });
+    expect((await tables(t)).players).toMatchObject([{ name: "Anna Bell" }]);
+    await anna.mutation(api.gamePlayers.playing, { game: "flappy" });
+    expect((await tables(t)).players).toMatchObject([{ game: "flappy", name: "Anna Bell-Cho" }]);
+  });
+
   test("leaving takes you off at once; leaving a game you've switched from does nothing", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);

@@ -1207,7 +1207,8 @@ export const WorldScreen = ({
         </View>
       )}
       <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">
-        {decorating ? null : (
+        {/* The chat log sits where the arcade opens; it steps aside while the arcade is open. */}
+        {decorating || arcadeOpen ? null : (
           <ChatLog
             roomId={world.status === "in" ? world.roomId : null}
             onLine={openSpeaker}

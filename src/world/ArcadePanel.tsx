@@ -1,7 +1,7 @@
 import { GameRows, GamesActions, GamesPanelHeader, type GamesTarget } from "@/components/games/GamesMenu";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { GAME_IDS } from "@shared/games";
-import { Animated, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { blurBehind, itemStyle, popStyle, useOverlayClock } from "./Overlays";
 import { glass } from "./palette";
 
@@ -66,7 +66,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 14,
     borderRadius: 24,
-    backgroundColor: glass.panel,
+    // The web blurs the World behind the glass; a phone can't, so the panel
+    // is near solid there and the World's labels don't show through its text.
+    backgroundColor: Platform.OS === "web" ? glass.panel : glass.panelSolid,
     borderWidth: 1.5,
     borderColor: glass.edge,
     paddingTop: 12,

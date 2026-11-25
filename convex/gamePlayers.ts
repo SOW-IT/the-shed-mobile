@@ -39,7 +39,8 @@ export const playing = mutation({
     const now = Date.now();
     const row = await ctx.db.query("gamePlayers").withIndex("by_email", (q) => q.eq("email", email)).first();
     if (!row) await ctx.db.insert("gamePlayers", { email, game, name: await nameFor(ctx, email), since: now });
-    else if (row.game !== game) await ctx.db.patch("gamePlayers", row._id, { game, since: now });
+    // Switching game also picks up a name changed since they went in.
+    else if (row.game !== game) await ctx.db.patch("gamePlayers", row._id, { game, since: now, name: await nameFor(ctx, email) });
     const beat = await ctx.db.query("gamePlayerBeats").withIndex("by_email", (q) => q.eq("email", email)).first();
     if (!beat) await startBeat(ctx, email, now);
     // A little under a beat, so a phone's timer running early still counts.
