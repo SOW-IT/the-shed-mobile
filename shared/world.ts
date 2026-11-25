@@ -229,7 +229,7 @@ export interface Walk {
   toZ: number;
   startedAt: number;
   path?: readonly Waypoint[];
-  /** Which way someone standing still faces, when the server chose it (arriving through a pad). */
+  /** Which way someone faces once the walk ends, when the server chose it (arriving through a pad, or at the lectern). */
   heading?: number;
 }
 
@@ -279,7 +279,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
       x: walk.fromX + dx * k,
       z: walk.fromZ + dz * k,
       walking: k < 1,
-      heading: dist === 0 ? (walk.heading ?? 0) : Math.atan2(dx, dz),
+      heading: dist === 0 || (k >= 1 && walk.heading !== undefined) ? (walk.heading ?? 0) : Math.atan2(dx, dz),
       arrivesAt: walk.startedAt + duration,
     };
   }
@@ -303,7 +303,7 @@ export const posAt = (walk: Walk, now: number): Pose => {
         break;
       }
     }
-    return { x: walk.toX, z: walk.toZ, walking: false, heading: lastHeading, arrivesAt };
+    return { x: walk.toX, z: walk.toZ, walking: false, heading: walk.heading ?? lastHeading, arrivesAt };
   }
   let remaining = (elapsed / 1000) * WALK_SPEED;
   let active = segLengths.length - 1;
@@ -466,7 +466,15 @@ export const towardCamera = (heading: number, x: number, turn = SEAT_TURN) => {
   return sign * (Math.abs(h) - turn);
 };
 
-const faceTheCamera = (seats: Seat[]): readonly Seat[] => seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x) }));
+const faceTheCamera = (seats: Seat[], turn = SEAT_TURN): readonly Seat[] =>
+  seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x, turn) }));
+
+/**
+ * A pew faces straight away from the camera, so 30 degrees still shows only
+ * the back of your head. Pews turn you 120 degrees, to 60 degrees off the
+ * camera, the same as a café stool ends up, so your face shows.
+ */
+export const PEW_TURN = (2 * Math.PI) / 3;
 
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
@@ -494,7 +502,8 @@ export const SEATS: Record<Place, readonly Seat[]> = {
   chapel: faceTheCamera(
     PLACE_OBSTACLES.chapel
       .filter((o) => o.id.startsWith("pew"))
-      .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT))
+      .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
+    PEW_TURN
   ),
   campfire: faceTheCamera([
     ...along("log-back", [[-0.5, -4.3], [0.5, -4.3]], FACING_CAMERA, LOG_HEIGHT),
@@ -509,6 +518,27 @@ export const SEATS: Record<Place, readonly Seat[]> = {
 
 export const seatIn = (place: Place, id: string | undefined): Seat | null =>
   SEATS[place].find((seat) => seat.id === id) ?? null;
+
+type Stand = { id: string; x: number; z: number; heading: number };
+
+const lectern = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
+
+/**
+ * Spots you walk to and then face a set way. Behind the Chapel's lectern you
+ * face the pews (and the camera), as whoever leads would.
+ */
+export const STANDS: Record<Place, readonly Stand[]> = {
+  garden: [],
+  chapel: [{ id: "lectern", x: lectern.x, z: lectern.z - lectern.rz - 0.35, heading: FACING_CAMERA }],
+  campfire: [],
+  cafe: [],
+  beach: [],
+  home: [],
+  backyard: [],
+};
+
+export const standIn = (place: Place, id: string | undefined): Stand | null =>
+  STANDS[place].find((stand) => stand.id === id) ?? null;
 
 export const portalAt = (place: Place, at: { x: number; z: number }): Portal | null =>
   PORTALS[place].find((portal) => Math.hypot(portal.x - at.x, portal.z - at.z) <= PORTAL_RADIUS) ?? null;

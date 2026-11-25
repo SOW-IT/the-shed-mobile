@@ -202,7 +202,10 @@ so the five make a loop with the Garden to Campfire path across it.
   empties), stands you on the pad that leads back, facing into the room
   (`arrivalSpot`; the nearest clear spot beside it when someone is on it),
   and clears any open ask. The facing is the walk's optional `heading`,
-  which only a still walk uses, so everyone sees the same pose. It spends an act token and keeps the member id,
+  which a walk takes once it ends, so everyone sees the same pose. `move`
+  sets it too when given a `stand` (`STANDS`: behind the Chapel's lectern,
+  facing the pews); the server takes the spot and the heading from that
+  table, not from the app. It spends an act token and keeps the member id,
   so the app only swaps its room. The server does not check that you stood
   on a pad: changing rooms gains nothing, and the list view travels from a
   button.

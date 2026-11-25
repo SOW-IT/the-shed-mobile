@@ -19,6 +19,7 @@ import {
   coversPadLabel,
   ELSEWHERE_NAMES,
   seatIn,
+  standIn,
   isPlace,
   PLACES,
   PLACE_TITLES,
@@ -632,21 +633,34 @@ const spend = (kind: StateBucket, state: Doc<"worldState">, now: number) =>
 /**
  * Walks to a spot: one write per tap. The walk starts where the server says
  * the person is now, so nobody can teleport, and ends inside the courtyard.
+ * With `stand` (behind the lectern), the spot and the way you then face come
+ * from the place's stands, the same for everyone watching.
  */
 export const move = mutation({
-  args: { toX: v.number(), toZ: v.number(), path: v.optional(v.array(worldWaypointValidator)) },
+  args: { toX: v.number(), toZ: v.number(), path: v.optional(v.array(worldWaypointValidator)), stand: v.optional(v.string()) },
   returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
-  handler: async (ctx, { toX, toZ, path }) => {
+  handler: async (ctx, { toX, toZ, path, stand: standId }) => {
     const { member, state } = await requireMe(ctx);
+    const place = placeOf(member);
+    const stand = standId === undefined ? null : standIn(place, standId);
+    if (standId !== undefined && !stand) throw new ConvexError("That isn't somewhere you can stand.");
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const from = posAt(state, now);
-    const place = placeOf(member);
     const extra = await obstaclesIn(ctx, member);
-    const to = clampTarget(toX, toZ, place, extra);
+    const to = stand ?? clampTarget(toX, toZ, place, extra);
     const cleanPath = sanitizePath(path, place, extra);
-    const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
+    const heading = stand?.heading;
+    const walk = {
+      fromX: from.x,
+      fromZ: from.z,
+      toX: to.x,
+      toZ: to.z,
+      startedAt: now,
+      ...(cleanPath ? { path: cleanPath } : {}),
+      ...(heading === undefined ? {} : { heading }),
+    };
     await ctx.db.patch("worldState", state._id, {
       fromX: walk.fromX,
       fromZ: walk.fromZ,
@@ -654,7 +668,7 @@ export const move = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
-      heading: undefined,
+      heading,
       away: undefined,
       playing: undefined,
       reading: undefined,

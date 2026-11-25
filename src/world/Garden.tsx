@@ -804,7 +804,7 @@ export const Garden = ({
     ["noticeboard", "Calendar board", onTapNoticeBoard],
     ["notices", "Notice board", onTapNotices],
     ["piano", "Piano, Praise List", onTapPiano],
-    ["lectern", "Lectern, devotional", onTapLectern],
+    ["lectern", "Lectern, stand behind it", onTapLectern],
   ];
   for (const [id, label, onActivate] of propTaps) {
     const obs = PLACE_OBSTACLES[place].find((o) => o.id === id);

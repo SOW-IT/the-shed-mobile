@@ -27,6 +27,20 @@ describe("drawnPose", () => {
     expect(pose.heading).toBeCloseTo(Math.PI / 2);
     expect(pose.turning).toBe(false);
   });
+
+  test("a walk that ends facing a set way (the lectern) turns there on arrival, not before", () => {
+    const toLectern: Walk = { ...east, heading: 0 };
+    const gait = restingGait(toLectern);
+    expect(drawnPose(toLectern, gait, arrives - 1).heading).toBeCloseTo(Math.PI / 2);
+    const turning = drawnPose(toLectern, gait, arrives + TURN_MS / 2);
+    expect(turning.turning).toBe(true);
+    expect(turning.heading).toBeGreaterThan(0);
+    expect(turning.heading).toBeLessThan(Math.PI / 2);
+    const settled = drawnPose(toLectern, gait, arrives + TURN_MS);
+    expect(settled.heading).toBeCloseTo(0);
+    expect(settled.turning).toBe(false);
+    expect(drawnPose(toLectern, gait, arrives + 60_000)).toMatchObject({ heading: 0, strideAmp: 0, walking: false });
+  });
 });
 
 describe("carryGait", () => {
