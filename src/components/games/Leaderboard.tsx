@@ -2,7 +2,7 @@ import { useOffline } from "@/hooks/useOffline";
 import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
-import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, styles as shared, TabBar } from "@/components/ui";
+import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, Segmented, styles as shared, TabBar } from "@/components/ui";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { leaderboardDate, leaderboardName, withRanks } from "@/lib/games/leaderboardRanks";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -13,7 +13,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
-import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
+import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameId, type GameVersion } from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -24,13 +24,20 @@ const PAGE_SIZE = 25;
  */
 const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
 
-const Board = ({ game }: { game: GameId }) => {
+const versionSegments = (game: GameId) =>
+  ([GAME_VERSION, 1] as const).map((version) => ({
+    key: String(version),
+    label: VERSION_LABELS[version],
+    accessibilityLabel: `${GAME_INFO[game].title} ${VERSION_LABELS[version]} leaderboard`,
+  }));
+
+const Board = ({ game, version }: { game: GameId; version: GameVersion }) => {
   const t = useAppTheme();
   const { isAuthenticated } = useConvexAuth();
-  const me = useQuery(api.gameScores.myLeaderboardPlace, { game });
+  const me = useQuery(api.gameScores.myLeaderboardPlace, { game, version });
   const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(api.gameScores.leaderboardPage, {
-    scopeKey: `leaderboard:${game}:${isAuthenticated ? "signed-in" : "signed-out"}`,
-    args: (cursor) => ({ game, paginationOpts: { numItems: PAGE_SIZE, cursor } }),
+    scopeKey: `leaderboard:${game}:v${version}:${isAuthenticated ? "signed-in" : "signed-out"}`,
+    args: (cursor) => ({ game, version, paginationOpts: { numItems: PAGE_SIZE, cursor } }),
     rowsOf: (result) => result.page,
     keyOf: (row) => row.id,
   });
@@ -102,6 +109,8 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const offline = useOffline();
   const localBest = useLocalBests()[game];
   const waiting = useScoreQueue().some((queued) => queued.game === game);
+  const [version, setVersion] = useState<GameVersion>(GAME_VERSION);
+  const current = version === GAME_VERSION;
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -110,17 +119,25 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
-      <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
-        <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
-          On this device: best {localBest.toLocaleString()}
-          {waiting ? ", waiting to be published" : ""}
-        </Text>
-        {!isAuthenticated && !isLoading ? (
+      <Segmented
+        pill
+        segments={versionSegments(game)}
+        active={String(version)}
+        onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
+      />
+      {current ? (
+        <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
           <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
-            Sign in and your scores go on the leaderboard.
+            On this device: best {localBest.toLocaleString()}
+            {waiting ? ", waiting to be published" : ""}
           </Text>
-        ) : null}
-      </View>
+          {!isAuthenticated && !isLoading ? (
+            <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
+              Sign in and your scores go on the leaderboard.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {offline ? (
         <EmptyState
           icon="cloud-offline-outline"
@@ -128,7 +145,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
           message="Your scores are saved on this device until you're back online."
         />
       ) : (
-        <Board game={game} />
+        <Board key={version} game={game} version={version} />
       )}
     </ScrollView>
   );

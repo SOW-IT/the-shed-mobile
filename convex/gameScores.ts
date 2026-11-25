@@ -2,7 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/games";
+import { MAX_SCORES_PER_SUBMIT, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
 import { PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
@@ -20,10 +20,26 @@ const PODIUM_LIMIT = 200;
 const queuedScoreValidator = v.object({
   runId: v.string(),
   game: gameIdValidator,
+  version: v.optional(v.number()),
   score: v.number(),
   durationMs: v.number(),
   playedAt: v.number(),
 });
+
+const versionArg = v.optional(v.number());
+
+const storedVersion = (version: GameVersion) => (version === 1 ? undefined : version);
+
+const boardVersion = (version: number | undefined): GameVersion => (version === 2 ? 2 : 1);
+
+const bestOf = (ctx: Ctx, email: string, game: GameId, version: GameVersion) =>
+  ctx.db
+    .query("gameScores")
+    .withIndex("by_email_and_game_and_version", (q) => q.eq("email", email).eq("game", game).eq("version", storedVersion(version)))
+    .unique();
+
+const board = (ctx: Ctx, game: GameId, version: GameVersion) =>
+  ctx.db.query("gameScores").withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)));
 
 /**
  * Publishes runs a phone saved, keeping each person's best per game. The
@@ -50,7 +66,8 @@ export const submitScores = mutation({
     const accepted: string[] = [];
     const rejected: { runId: string; reason: string }[] = [];
     const coins: ({ runId: string } & RunPayout)[] = [];
-    for (const entry of scores) {
+    for (const raw of scores) {
+      const entry = { ...raw, version: raw.version as GameVersion | undefined };
       const reason = scoreProblem(entry, now);
       if (reason) {
         rejected.push({ runId: entry.runId, reason });
@@ -58,22 +75,21 @@ export const submitScores = mutation({
       }
       accepted.push(entry.runId);
       if (coins.some((c) => c.runId === entry.runId)) continue;
+      const version = versionOf(entry.version);
       const before = await paidForRun(ctx, email, entry.runId);
-      const best = await ctx.db
-        .query("gameScores")
-        .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", entry.game))
-        .unique();
-      const run = { ...entry, updatedAt: now };
+      const best = await bestOf(ctx, email, entry.game, version);
+      const run = { ...entry, version: storedVersion(version), updatedAt: now };
       const newBest = !best || (best.runId !== entry.runId && entry.score > best.score);
       if (newBest) {
-        const beaten = beatenInTop(await podiumOf(ctx, entry.game, entry.score), email, best?.score ?? null, entry.score);
+        const beaten = beatenInTop(await podiumOf(ctx, entry.game, version, entry.score), email, best?.score ?? null, entry.score);
         if (beaten.length > 0) {
           await ctx.scheduler.runAfter(0, internal.gameScores.tellBeaten, { game: entry.game, by: email, beaten });
         }
         if (best) await ctx.db.patch("gameScores", best._id, run);
         else await ctx.db.insert("gameScores", { email, ...run });
       }
-      const paid = before ?? (newBest ? await awardPlace(ctx, email, entry, await topPlace(ctx, entry.game, entry.score), now) : null);
+      const paid =
+        before ?? (newBest ? await awardPlace(ctx, email, { ...entry, version }, await topPlace(ctx, entry.game, version, entry.score), now) : null);
       if (paid) coins.push({ runId: entry.runId, ...paid });
     }
     return { accepted, rejected, coins };
@@ -84,25 +100,21 @@ export const submitScores = mutation({
  * The place a score holds on its game's board, as the board numbers it
  * (equal scores share a place), or past the paying places when it's below 3rd.
  */
-const topPlace = async (ctx: Ctx, game: GameId, score: number): Promise<number> => {
+const topPlace = async (ctx: Ctx, game: GameId, version: GameVersion, score: number): Promise<number> => {
   const ahead = await ctx.db
     .query("gameScores")
-    .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", score))
+    .withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)).gt("score", score))
     .take(PLACE_COINS.length);
   return ahead.length + 1;
 };
 
-const podiumOf = async (ctx: Ctx, game: GameId, score: number) => {
-  const top = await ctx.db
-    .query("gameScores")
-    .withIndex("by_game_and_score", (q) => q.eq("game", game))
-    .order("desc")
-    .take(PLACE_COINS.length);
+const podiumOf = async (ctx: Ctx, game: GameId, version: GameVersion, score: number) => {
+  const top = await board(ctx, game, version).order("desc").take(PLACE_COINS.length);
   const lowest = top.length > 0 ? top[top.length - 1].score : null;
   if (lowest === null || lowest >= score) return [];
   return await ctx.db
     .query("gameScores")
-    .withIndex("by_game_and_score", (q) => q.eq("game", game).gte("score", lowest))
+    .withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)).gte("score", lowest))
     .order("desc")
     .take(PODIUM_LIMIT);
 };
@@ -134,18 +146,16 @@ const entryValidator = v.object({
  * a signed-out caller has no best of their own here.
  */
 export const leaderboard = query({
-  args: { game: gameIdValidator },
+  args: { game: gameIdValidator, version: versionArg },
   returns: v.object({
     top: v.array(entryValidator),
     me: meValidator,
   }),
-  handler: async (ctx, { game }) => {
+  handler: async (ctx, args) => {
+    const { game } = args;
+    const version = boardVersion(args.version);
     const email = await optionalEmail(ctx);
-    const rows = await ctx.db
-      .query("gameScores")
-      .withIndex("by_game_and_score", (q) => q.eq("game", game))
-      .order("desc")
-      .take(LEADERBOARD_SIZE);
+    const rows = await board(ctx, game, version).order("desc").take(LEADERBOARD_SIZE);
     const top = [];
     for (const row of rows) {
       top.push({
@@ -158,20 +168,17 @@ export const leaderboard = query({
         isMe: email !== null && row.email === email,
       });
     }
-    return { top, me: email ? await placeOf(ctx, email, game) : null };
+    return { top, me: email ? await placeOf(ctx, email, game, version) : null };
   },
 });
 
 /** Someone's best at a game and their place, or null before they've a score. */
-const placeOf = async (ctx: Ctx, email: string, game: GameId) => {
-  const mine = await ctx.db
-    .query("gameScores")
-    .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", game))
-    .unique();
+const placeOf = async (ctx: Ctx, email: string, game: GameId, version: GameVersion) => {
+  const mine = await bestOf(ctx, email, game, version);
   if (!mine) return null;
   const ahead = await ctx.db
     .query("gameScores")
-    .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", mine.score))
+    .withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)).gt("score", mine.score))
     .take(RANK_LIMIT);
   return { score: mine.score, rank: ahead.length < RANK_LIMIT ? ahead.length + 1 : null };
 };
@@ -182,17 +189,13 @@ const placeOf = async (ctx: Ctx, email: string, game: GameId) => {
  * place across pages too. Anyone can read it, as with `leaderboard`.
  */
 export const leaderboardPage = query({
-  args: { game: gameIdValidator, paginationOpts: paginationOptsValidator },
-  handler: async (ctx, { game, paginationOpts }) => {
+  args: { game: gameIdValidator, version: versionArg, paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { game, version, paginationOpts }) => {
     if (paginationOpts.numItems > MAX_PAGE_SIZE) {
       throw new ConvexError(`Ask for at most ${MAX_PAGE_SIZE} scores at a time.`);
     }
     const email = await optionalEmail(ctx);
-    const result = await ctx.db
-      .query("gameScores")
-      .withIndex("by_game_and_score", (q) => q.eq("game", game))
-      .order("desc")
-      .paginate(paginationOpts);
+    const result = await board(ctx, game, boardVersion(version)).order("desc").paginate(paginationOpts);
     const page = [];
     for (const row of result.page) {
       page.push({
@@ -209,11 +212,11 @@ export const leaderboardPage = query({
 
 /** The caller's best at a game and their place, for the top of the leaderboard. */
 export const myLeaderboardPlace = query({
-  args: { game: gameIdValidator },
+  args: { game: gameIdValidator, version: versionArg },
   returns: meValidator,
-  handler: async (ctx, { game }) => {
+  handler: async (ctx, { game, version }) => {
     const email = await optionalEmail(ctx);
-    return email ? await placeOf(ctx, email, game) : null;
+    return email ? await placeOf(ctx, email, game, boardVersion(version)) : null;
   },
 });
 
@@ -244,13 +247,10 @@ export const RESET_BATCH = 500;
  * `npx convex run gameScores:resetScores '{"game":"runner","title":"…","body":"…"}'`.
  */
 export const resetScores = internalMutation({
-  args: { game: gameIdValidator, title: v.string(), body: v.string() },
+  args: { game: gameIdValidator, version: versionArg, title: v.string(), body: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const rows = await ctx.db
-      .query("gameScores")
-      .withIndex("by_game_and_score", (q) => q.eq("game", args.game))
-      .take(RESET_BATCH);
+    const rows = await board(ctx, args.game, boardVersion(args.version)).take(RESET_BATCH);
     for (const row of rows) await ctx.db.delete("gameScores", row._id);
     if (rows.length > 0) {
       await ctx.scheduler.runAfter(0, internal.push.sendMany, {

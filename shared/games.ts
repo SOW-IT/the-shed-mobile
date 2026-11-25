@@ -33,6 +33,10 @@ export const GAME_VERSION: GameVersion = 2;
 export const isGameVersion = (value: unknown): value is GameVersion =>
   (GAME_VERSIONS as readonly unknown[]).includes(value);
 
+export const VERSION_LABELS: Record<GameVersion, string> = { 1: "v1 (legacy)", 2: "v2" };
+
+export const UPDATE_TO_PLAY = "Update The SHED to keep playing.";
+
 export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
 
 /**
@@ -93,6 +97,7 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
   if (entry.version !== undefined && !isGameVersion(entry.version)) return "That isn't a version of the game.";
+  if (versionOf(entry.version) !== GAME_VERSION) return UPDATE_TO_PLAY;
   if (!Number.isInteger(entry.score) || entry.score < 1) return "A score is a whole number above zero.";
   if (!Number.isFinite(entry.durationMs) || entry.durationMs <= 0 || entry.durationMs > MAX_RUN_MS) {
     return "That run's length isn't believable.";
@@ -141,6 +146,7 @@ const isQueuedScore = (value: unknown): value is QueuedScore => {
     typeof entry.runId === "string" &&
     typeof entry.game === "string" &&
     isGameId(entry.game) &&
+    (entry.version === undefined || isGameVersion(entry.version)) &&
     typeof entry.score === "number" &&
     typeof entry.durationMs === "number" &&
     typeof entry.playedAt === "number"

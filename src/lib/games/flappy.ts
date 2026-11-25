@@ -26,13 +26,14 @@ export const FLAPPY = {
   leastJumpShare: 0.6,
   hardFromScore: 1000,
   levelScore: 1000,
-  speedGrowth: 30,
+  hardTopSpeed: 228,
   floorGap: 120,
-  tightestSpacing: 150,
-  tightFarthestSpacing: 240,
+  hardClosestSpacing: 230,
+  widestSpacing: 380,
+  spacingTail: 2.5,
+  hardReachShare: 1.6,
   tighteningLevels: 8,
   hardJumpShare: 0.25,
-  hardDropCut: 0.25,
 } as const;
 
 export type Pipe = { id: number; x: number; gapTop: number; gapHeight: number; passed: boolean };
@@ -84,7 +85,7 @@ export const flapLevel = (score: number) =>
 export const tightening = (score: number) => flapLevel(score) / (flapLevel(score) + FLAPPY.tighteningLevels);
 
 export const pipeSpeed = (score: number) =>
-  FLAPPY.startSpeed + (FLAPPY.topSpeed - FLAPPY.startSpeed) * ramp(score) + FLAPPY.speedGrowth * Math.log1p(flapLevel(score) / 2);
+  FLAPPY.startSpeed + (FLAPPY.topSpeed - FLAPPY.startSpeed) * ramp(score) + (FLAPPY.hardTopSpeed - FLAPPY.topSpeed) * tightening(score);
 export const gapHeight = (score: number) =>
   FLAPPY.widestGap - (FLAPPY.widestGap - FLAPPY.narrowestGap) * ramp(score) - (FLAPPY.narrowestGap - FLAPPY.floorGap) * tightening(score);
 
@@ -99,28 +100,33 @@ export const MAX_GAP_DROP = 320;
 
 export const variety = (score: number) => 1 - Math.exp(-Math.max(0, score) / FLAPPY.varietyScore);
 
-export const reachShare = (space: number, speed: number = FLAPPY.topSpeed) =>
-  Math.min(1, ((space - FLAPPY.pipeWidth) / (FLAPPY.spacing - FLAPPY.pipeWidth)) * (FLAPPY.topSpeed / Math.max(FLAPPY.topSpeed, speed)));
+export const reachShare = (space: number, speed: number = FLAPPY.topSpeed, most = 1) =>
+  Math.min(most, ((space - FLAPPY.pipeWidth) / (FLAPPY.spacing - FLAPPY.pipeWidth)) * (FLAPPY.topSpeed / Math.max(FLAPPY.topSpeed, speed)));
 
 export const spacingRange = (score: number) => {
   const v = variety(score);
   const t = tightening(score);
+  const low = FLAPPY.spacing - (FLAPPY.spacing - FLAPPY.closestSpacing) * v;
+  const high = FLAPPY.spacing + (FLAPPY.farthestSpacing - FLAPPY.spacing) * v;
   return {
-    low: FLAPPY.spacing - (FLAPPY.spacing - FLAPPY.closestSpacing) * v - (FLAPPY.closestSpacing - FLAPPY.tightestSpacing) * t,
-    high: FLAPPY.spacing + (FLAPPY.farthestSpacing - FLAPPY.spacing) * v - (FLAPPY.farthestSpacing - FLAPPY.tightFarthestSpacing) * t,
+    low: low + (FLAPPY.hardClosestSpacing - low) * t,
+    high: high + (FLAPPY.widestSpacing - high) * t,
+    lean: 1 + FLAPPY.spacingTail * t,
   };
 };
 
-const nextSpace = (state: FlappyState) => {
-  const { low, high } = spacingRange(state.score);
-  return between(state, low, high);
+export const spacingAt = (score: number, roll: number) => {
+  const { low, high, lean } = spacingRange(score);
+  return low + (high - low) * roll ** (1 / lean);
 };
+
+const nextSpace = (state: FlappyState) => spacingAt(state.score, random(state));
 
 const REACH_AHEAD = 50;
 
 export const gapReach = (space: number, score: number) => {
-  const reach = reachShare(space, pipeSpeed(score + REACH_AHEAD));
-  return { rise: MAX_GAP_RISE * reach, drop: MAX_GAP_DROP * reach * (1 - FLAPPY.hardDropCut * tightening(score)) };
+  const reach = reachShare(space, pipeSpeed(score + REACH_AHEAD), 1 + (FLAPPY.hardReachShare - 1) * tightening(score));
+  return { rise: MAX_GAP_RISE * reach, drop: MAX_GAP_DROP * reach };
 };
 
 export const leastJump = (score: number) =>

@@ -547,9 +547,11 @@ export default defineSchema({
     durationMs: v.number(),
     playedAt: v.number(),
     updatedAt: v.number(),
+    version: v.optional(v.number()),
   })
-    .index("by_email_and_game", ["email", "game"])
-    .index("by_game_and_score", ["game", "score"]),
+    .index("by_game_and_score", ["game", "score"])
+    .index("by_email_and_game_and_version", ["email", "game", "version"])
+    .index("by_game_and_version_and_score", ["game", "version", "score"]),
 
   appUpdatePolicy: defineTable({
     platform: v.union(v.literal("ios"), v.literal("android")),

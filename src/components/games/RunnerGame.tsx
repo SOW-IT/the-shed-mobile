@@ -6,11 +6,13 @@ import {
   jump,
   newRunner,
   onGround,
+  previewRange,
   previewWith,
   RUNNER,
   runnerAt,
   sliding,
   stepRunner,
+  timeAtScore,
   type Obstacle,
   type PatternKind,
   type RunnerState,
@@ -38,6 +40,7 @@ const GROUND = 48;
 const SWIPE = 12;
 /** Holding the jump key this long turns the hop into the big jump. */
 const HOLD_MS = 110;
+const BAR_STRIPE = 16;
 const JUMP_KEYS = new Set(["ArrowUp", " ", "w", "W"]);
 const DUCK_KEYS = new Set(["ArrowDown", "s", "S"]);
 
@@ -71,6 +74,21 @@ const ObstacleView = ({ o, groundY }: { o: Obstacle; groundY: number }) => {
       >
         <View style={[styles.beamEye, { backgroundColor: c.face }]} />
         <View style={[styles.beamEye, { backgroundColor: c.face }]} />
+      </View>
+    );
+  }
+  if (o.kind === "bar") {
+    return (
+      <View
+        testID={`obstacle-${o.pattern}`}
+        style={[styles.bar, { width: o.width, height: o.height, backgroundColor: c.bar, borderColor: c.barEdge }, position]}
+      >
+        {Array.from({ length: Math.ceil(o.width / BAR_STRIPE) + 1 }, (_, i) => (
+          <View
+            key={i}
+            style={[styles.barStripe, { left: i * BAR_STRIPE - 4, height: o.height * 2, top: -o.height / 2, backgroundColor: c.barStripe }]}
+          />
+        ))}
       </View>
     );
   }
@@ -202,8 +220,13 @@ export const RunnerGame = ({
   const [runHeight, setRunHeight] = useState(PHONE_BOARD.height);
   const previewKey = previewKinds?.join(",") ?? "";
   const preview = useMemo(
-    () => (previewKey ? previewWith(width, previewKey.split(",") as PatternKind[]) : newRunner(width, 1)),
-    [width, previewKey]
+    () =>
+      previewKey
+        ? startScore
+          ? previewRange(width, previewKey.split(",") as PatternKind[], timeAtScore(startScore))
+          : previewWith(width, previewKey.split(",") as PatternKind[])
+        : newRunner(width, 1),
+    [width, previewKey, startScore]
   );
   const inputOn = active && !session.paused;
   const latest = useLatest({ session, width, height, turned, inputOn, startScore });
@@ -359,6 +382,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   beamEye: { width: 4, height: 4, borderRadius: 2 },
+  bar: { position: "absolute", left: 0, top: 0, borderWidth: 2, borderRadius: 2, overflow: "hidden" },
+  barStripe: { position: "absolute", width: 6, transform: [{ rotate: "35deg" }], opacity: 0.75 },
   hang: { position: "absolute", left: 0, top: 0 },
   vine: { position: "absolute", top: 0, bottom: 10, width: 4, borderRadius: 2 },
   leaves: { position: "absolute", left: -4, right: -4, bottom: 0, height: 22, borderRadius: 11, borderWidth: 2 },

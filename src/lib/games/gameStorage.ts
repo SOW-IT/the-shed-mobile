@@ -5,6 +5,7 @@ import * as Crypto from "expo-crypto";
 import { useSyncExternalStore } from "react";
 import {
   enqueueScore,
+  GAME_VERSION,
   NO_BESTS,
   parseBests,
   parseQueue,
@@ -25,7 +26,7 @@ import {
 } from "../../../shared/gameCharacters";
 import { persisted } from "./persisted";
 
-const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
+const bests = persisted<LocalBests>(`games.bests.v${GAME_VERSION}`, parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
 
 const characters = persisted<CharacterChoices>("games.characters", parseCharacters, DEFAULT_CHARACTERS);
@@ -48,6 +49,7 @@ export const recordRun = (game: GameId, score: number, durationMs: number): Prom
   const entry: QueuedScore = {
     runId: runId(),
     game,
+    version: GAME_VERSION,
     score,
     durationMs: Math.max(1, Math.round(durationMs)),
     playedAt: Date.now(),

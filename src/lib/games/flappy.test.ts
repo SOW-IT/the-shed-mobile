@@ -13,6 +13,7 @@ import {
   newFlappy,
   pipeSpeed,
   reachShare,
+  spacingAt,
   spacingRange,
   stepFlappy,
   tightening,
@@ -115,6 +116,7 @@ describe("Flap gets less predictable as the score rises", () => {
     expect(spacingRange(900)).toEqual({
       low: FLAPPY.spacing - (FLAPPY.spacing - FLAPPY.closestSpacing) * variety(900),
       high: FLAPPY.spacing + (FLAPPY.farthestSpacing - FLAPPY.spacing) * variety(900),
+      lean: 1,
     });
   });
 
@@ -136,8 +138,9 @@ describe("Flap gets less predictable as the score rises", () => {
             const most = gapReach(pipes[i].space + 0.01, gaps * FLAPPY.pointsPerGap);
             expect(pipes[i - 1].gapTop - pipes[i].gapTop).toBeLessThanOrEqual(most.rise + 1);
             expect(pipes[i].gapTop - pipes[i - 1].gapTop).toBeLessThanOrEqual(most.drop + 1);
-            expect(most.rise).toBeLessThanOrEqual(MAX_GAP_RISE * reachShare(pipes[i].space + 0.01) + 1e-9);
-            expect(most.drop).toBeLessThanOrEqual(MAX_GAP_DROP * reachShare(pipes[i].space + 0.01) + 1e-9);
+            const share = reachShare(pipes[i].space + 0.01, pipeSpeed(gaps * FLAPPY.pointsPerGap), FLAPPY.hardReachShare);
+            expect(most.rise).toBeLessThanOrEqual(MAX_GAP_RISE * share + 1e-9);
+            expect(most.drop).toBeLessThanOrEqual(MAX_GAP_DROP * share + 1e-9);
           }
         }
       }
@@ -202,39 +205,48 @@ describe("Flap v2: past 1,000 it keeps getting harder, a level every 1,000 point
     expect(runs).toEqual(["75:98f446f8", "75:d869bffe", "74:62ae71bd", "73:f7a31144", "74:fab3655a"]);
   });
 
-  test("every level is faster, with narrower gaps, closer pipes and bigger jumps, and it never stops", () => {
+  test("every level is a little faster, with narrower gaps, pipes further apart and bigger jumps, and it never stops", () => {
     expect(LEVEL_SCORES.map(flapLevel)).toEqual([1, 2, 3, 5, 10, 20, 30, 100, 300, 1000]);
     expect(flapLevel(1999)).toBe(1);
     const rising = (values: number[]) => values.slice(1).every((value, i) => value > values[i]);
     const scores = [999, ...LEVEL_SCORES];
     expect(rising(scores.map(pipeSpeed))).toBe(true);
     expect(rising(scores.map((score) => -gapHeight(score)))).toBe(true);
-    expect(rising(scores.map((score) => -spacingRange(score).low))).toBe(true);
-    expect(rising(scores.map((score) => -spacingRange(score).high))).toBe(true);
+    expect(rising(scores.map((score) => spacingRange(score).low))).toBe(true);
+    expect(rising(scores.map((score) => spacingRange(score).high))).toBe(true);
+    expect(rising(scores.map((score) => spacingRange(score).lean))).toBe(true);
+    expect(rising(scores.map((score) => spacingAt(score, 0.5)))).toBe(true);
     expect(rising(scores.map(leastJump))).toBe(true);
     expect(rising(scores.map(tightening))).toBe(true);
-    expect(pipeSpeed(1000) - pipeSpeed(999)).toBeGreaterThan(10);
-    expect(pipeSpeed(10_000)).toBeGreaterThan(250);
-    expect(pipeSpeed(30_000)).toBeGreaterThan(280);
     expect(pipeSpeed(1_000_000)).toBeGreaterThan(pipeSpeed(999_000));
+    expect(pipeSpeed(1_000_000)).toBeLessThan(FLAPPY.hardTopSpeed);
+    expect(FLAPPY.hardTopSpeed / FLAPPY.topSpeed).toBeGreaterThanOrEqual(1.1);
+    expect(FLAPPY.hardTopSpeed / FLAPPY.topSpeed).toBeLessThanOrEqual(1.15);
+    expect(pipeSpeed(10_000) - FLAPPY.topSpeed).toBeGreaterThan((FLAPPY.hardTopSpeed - FLAPPY.topSpeed) / 2);
     expect(gapHeight(10_000)).toBeLessThan(135);
     expect(gapHeight(1_000_000)).toBeGreaterThan(FLAPPY.floorGap);
-    expect(spacingRange(1_000_000).low).toBeGreaterThan(FLAPPY.tightestSpacing);
+    expect(spacingRange(1_000_000).high).toBeLessThan(FLAPPY.widestSpacing);
+    for (const score of [0, 999, 1000, 30_000, 1_000_000]) {
+      expect(spacingAt(score, 0)).toBe(spacingRange(score).low);
+      expect(spacingAt(score, 1)).toBe(spacingRange(score).high);
+    }
+    expect(spacingAt(999, 0.5)).toBe((spacingRange(999).low + spacingRange(999).high) / 2);
   });
 
   test("the narrowest gap there can be still fits a flap with room to spare", () => {
     const hitRadius = FLAPPY.radius - 2;
     const flapRise = FLAPPY.flapSpeed ** 2 / (2 * FLAPPY.gravity);
     expect(flapRise + 2 * hitRadius).toBeLessThan(FLAPPY.floorGap - 20);
-    expect(FLAPPY.tightestSpacing).toBeGreaterThan(FLAPPY.pipeWidth + 2 * FLAPPY.radius + 60);
+    expect(spacingRange(1000).low).toBeGreaterThan(FLAPPY.pipeWidth + 2 * FLAPPY.radius + 60);
   });
 
-  test("the measured pipes come closer, sit in narrower gaps and jump further at 1,000, 3,000, 10,000 and 30,000", () => {
+  test("measured at 1,000, 3,000, 10,000 and 30,000: pipes further apart, wide ones more often, bigger climbs and drops, narrower gaps", () => {
     const measure = (score: number) => {
-      const runs = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => pipesAt(360, 640, seed, score / FLAPPY.pointsPerGap, 40).slice(2));
+      const runs = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => pipesAt(480, 820, seed, score / FLAPPY.pointsPerGap, 60).slice(2));
       const all = runs.flat();
       return {
         space: all.reduce((sum, pipe) => sum + pipe.space, 0) / all.length,
+        wide: all.filter((pipe) => pipe.space >= 280).length / all.length,
         gap: all.reduce((sum, pipe) => sum + pipe.gapHeight, 0) / all.length,
         jump: runs.reduce((sum, run) => sum + meanJump(run), 0) / runs.length,
         speed: pipeSpeed(score),
@@ -242,16 +254,17 @@ describe("Flap v2: past 1,000 it keeps getting harder, a level every 1,000 point
     };
     const [easy, middle, hard, harder] = [1000, 3000, 10_000, 30_000].map(measure);
     for (const [before, after] of [[easy, middle], [middle, hard], [hard, harder]]) {
-      expect(after.space).toBeLessThan(before.space);
+      expect(after.space).toBeGreaterThan(before.space);
+      expect(after.wide).toBeGreaterThan(before.wide);
       expect(after.gap).toBeLessThan(before.gap);
+      expect(after.jump).toBeGreaterThan(before.jump);
       expect(after.speed).toBeGreaterThan(before.speed);
-      expect(after.space / after.speed).toBeLessThan(before.space / before.speed);
     }
   });
 
   test("however high the score, the points a second stay under the server's limit for v2", () => {
     const fastest = pipeSpeed(SCORE_LIMITS[2].flappy.max);
-    const perSecond = (FLAPPY.pointsPerGap * fastest) / FLAPPY.tightestSpacing + 1;
+    const perSecond = (FLAPPY.pointsPerGap * fastest) / FLAPPY.closestSpacing + 1;
     expect(perSecond).toBeLessThan(SCORE_LIMITS[2].flappy.perSecond);
   });
 

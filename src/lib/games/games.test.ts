@@ -271,7 +271,7 @@ describe("runner", () => {
     const enter = (front - xR) / s.speed;
     const exit = (back - xL) / s.speed;
     const pattern = group[0].pattern;
-    if (pattern === "hang" || pattern === "beam") {
+    if (pattern === "hang" || pattern === "beam" || pattern === "bar" || pattern === "twin") {
       if (!onGround(s)) return enter < 0.3 - late ? duck(s) : s;
       // Swipe down as it arrives, again if a slide under the last one won't last past it.
       return enter <= 0.08 - late && (!sliding(s) || s.slideFor < exit) ? duck(s) : s;
@@ -393,8 +393,8 @@ describe("flappy", () => {
     expect(pipeSpeed(250)).toBeCloseTo(181.6, 1);
     expect(pipeSpeed(500)).toBeCloseTo(193.2, 1);
     expect(pipeSpeed(999)).toBeCloseTo(199.1, 1);
-    expect(pipeSpeed(1000)).toBeCloseTo(211.2, 1);
-    expect(pipeSpeed(10_000)).toBeCloseTo(253.8, 1);
+    expect(pipeSpeed(1000)).toBeCloseTo(202.2, 1);
+    expect(pipeSpeed(10_000)).toBeCloseTo(215.6, 1);
     expect(pipeSpeed(1_000_000)).toBeGreaterThan(pipeSpeed(500_000));
     expect(gapHeight(0)).toBe(180);
     expect(gapHeight(250)).toBeCloseTo(161.0, 1);
@@ -450,11 +450,11 @@ describe("flappy", () => {
   test("a gap never sits higher than the bird can climb to from the one before", () => {
     // A tall board at the top speed is where an unbounded gap could be out of reach.
     for (const seed of [1, 2, 3, 4, 5]) {
-      let state: FlappyState = { ...newFlappy(480, 820, seed), gaps: 100 };
+      let state: FlappyState = { ...newFlappy(480, 820, seed), gaps: 99 };
       const tops: number[] = [];
       for (let i = 0; i < 30_000 && tops.length < 120; i++) {
         const known = new Set(state.pipes.map((p) => p.id));
-        state = stepFlappy({ ...state, y: 300, vy: 0, over: false }, FRAME);
+        state = stepFlappy({ ...state, y: 300, vy: 0, over: false, gaps: 99, time: 0 }, FRAME);
         for (const pipe of state.pipes) if (!known.has(pipe.id)) tops.push(pipe.gapTop);
       }
       expect(tops.length).toBe(120);

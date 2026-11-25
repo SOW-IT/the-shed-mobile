@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 let n = 0;
-const run = (game: GameId, score: number, runId = `run-coin-${n++}`) => ({ runId, game, score, durationMs: 600_000, playedAt: Date.now() - 1000 });
+const run = (game: GameId, score: number, runId = `run-coin-${n++}`) => ({ runId, game, version: 2, score, durationMs: 600_000, playedAt: Date.now() - 1000 });
 
 const balanceOf = async (t: T, email = ANNA) => (await asUser(t, email).query(api.coins.mine, {}))?.balance;
 
@@ -51,7 +51,7 @@ describe("coins", () => {
     expect((await submit(t, [run("flappy", 10, "run-first-1")])).coins).toEqual([{ runId: "run-first-1", coins: 50, place: 1 }]);
     expect(await balanceOf(t)).toBe(START_COINS + 50);
     expect(await ledger(t)).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: "game", delta: 50, runId: "run-first-1", game: "flappy", place: 1, board: boardOf("flappy") })])
+      expect.arrayContaining([expect.objectContaining({ kind: "game", delta: 50, runId: "run-first-1", game: "flappy", place: 1, board: boardOf("flappy", 2) })])
     );
   });
 
@@ -91,7 +91,7 @@ describe("coins", () => {
     await submit(t, [run("flappy", 600)], BEN);
     await submit(t, [run("flappy", 700)], CARA);
     await submit(t, [run("flappy", 800)], DAN);
-    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "flappy" })).toEqual({ score: 500, rank: 4 });
+    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { version: 2, game: "flappy" })).toEqual({ score: 500, rank: 4 });
     expect((await submit(t, [run("flappy", 750)])).coins).toEqual([]);
     expect((await submit(t, [run("flappy", 900)])).coins).toEqual([]);
     expect(await balanceOf(t)).toBe(START_COINS + 50);
@@ -111,7 +111,7 @@ describe("coins", () => {
     const t = newConvex();
     await podium(t);
     expect((await submit(t, [run("flappy", 900, "run-tie-1")])).coins).toEqual([{ runId: "run-tie-1", coins: 50, place: 1 }]);
-    const board = await t.query(api.gameScores.leaderboard, { game: "flappy" });
+    const board = await t.query(api.gameScores.leaderboard, { version: 2, game: "flappy" });
     expect(board.top.slice(0, 2).map((row) => row.rank)).toEqual([1, 1]);
   });
 
@@ -155,7 +155,7 @@ describe("coins", () => {
     const result = await submit(t, [run("flappy", 800), run("shooter", 5000), run("runner", 3000), run("glider", 3000, "run-glider-1")]);
     expect(result.coins).toContainEqual({ runId: "run-glider-1", coins: 50, place: 1 });
     expect(await balanceOf(t)).toBe(START_COINS + 200);
-    expect(await ledger(t)).toContainEqual(expect.objectContaining({ runId: "run-glider-1", board: boardOf("glider") }));
+    expect(await ledger(t)).toContainEqual(expect.objectContaining({ runId: "run-glider-1", board: boardOf("glider", 2) }));
   });
 
   test("there's no daily cap: every board can pay its 50 on one day", async () => {

@@ -44,8 +44,8 @@ export const RUNNER = {
 /** The width of his hit box. */
 export const HIT_WIDTH = RUNNER.width - RUNNER.forgive * 2;
 
-export type ObstacleKind = "rock" | "tall" | "wide" | "beam" | "hang";
-export type PatternKind = "rock" | "tall" | "wide" | "double" | "triple" | "beam" | "hang";
+export type ObstacleKind = "rock" | "tall" | "wide" | "beam" | "bar" | "hang";
+export type PatternKind = "rock" | "tall" | "wide" | "double" | "triple" | "stair" | "beam" | "bar" | "hang" | "twin";
 
 export type Obstacle = {
   id: number;
@@ -236,7 +236,6 @@ export const timeAtScore = (score: number) => {
 export const SLACK_GONE_SCORE = 40_000;
 const SLACK_GONE_SECONDS = timeAtScore(SLACK_GONE_SCORE);
 export const TRIPLE_FROM_SCORE = 30_000;
-const TRIPLE_FROM_SECONDS = timeAtScore(TRIPLE_FROM_SCORE);
 
 export const PHRASES: readonly { name: string; from: number; kinds: readonly PatternKind[] }[] = [
   { name: "weave", from: 25_000, kinds: ["hang", "rock", "hang", "rock"] },
@@ -245,6 +244,26 @@ export const PHRASES: readonly { name: string; from: number; kinds: readonly Pat
   { name: "tunnel", from: 75_000, kinds: ["hang", "beam", "hang", "triple", "rock"] },
   { name: "gauntlet", from: 100_000, kinds: ["triple", "hang", "triple", "beam", "triple"] },
 ];
+export const VARIETY_FROM_SCORE = 5_000;
+const VARIETY_FROM_SECONDS = timeAtScore(VARIETY_FROM_SCORE);
+const SPREAD_SECONDS = 100;
+
+export const sizeSpread = (time: number) =>
+  time < VARIETY_FROM_SECONDS ? 0 : 1 - Math.exp(-(time - VARIETY_FROM_SECONDS) / SPREAD_SECONDS);
+
+export const PATTERN_FROM_SCORE: Partial<Record<PatternKind, number>> = {
+  bar: VARIETY_FROM_SCORE,
+  twin: 10_000,
+  stair: 15_000,
+  triple: TRIPLE_FROM_SCORE,
+};
+const LATE_KINDS = (Object.keys(PATTERN_FROM_SCORE) as PatternKind[]).map((kind) => ({
+  kind,
+  from: timeAtScore(PATTERN_FROM_SCORE[kind] ?? 0),
+}));
+
+export const lateKindsAt = (time: number) => LATE_KINDS.filter((late) => time >= late.from).map((late) => late.kind);
+
 const PHRASE_SECONDS = PHRASES.map((phrase) => timeAtScore(phrase.from));
 const PHRASE_SHARE = 0.35;
 
@@ -278,15 +297,33 @@ const HOP_HEIGHT = apex(RUNNER.hopSpeed);
  * physics. A hop pattern fits under the hop's reach; a big pattern is out of
  * the hop's reach (taller, or longer) but inside the big jump's.
  */
+const TALL_LEAST = Math.ceil(HOP_HEIGHT + RUNNER.forgive + 10);
+const DOUBLE_LEAST = Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6);
+
+type Range = readonly [number, number];
+type Spread = readonly [Range, Range];
+
 const PATTERN_RULES = {
-  rock: { height: [22, 34], width: [18, 28] },
-  tall: { height: [Math.ceil(HOP_HEIGHT + RUNNER.forgive + 10), 104], width: [22, 30] },
-  wide: { height: [26, 34] },
+  rock: { height: [[22, 34], [16, 46]], width: [[18, 28], [14, 40]] },
+  tall: { height: [[TALL_LEAST, 104], [TALL_LEAST, 104]], width: [[22, 30], [16, 44]] },
+  wide: { height: [[26, 34], [22, 44]] },
   // Two rocks back to back, each out of a hop's reach.
-  double: { height: [Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6), 88], width: [18, 24], gap: [10, 24] },
-  triple: { height: [Math.ceil(HOP_HEIGHT + RUNNER.forgive + 6), 104], width: [18, 26], gap: [60, 120] },
-  hang: { width: [30, 48] },
-} as const;
+  double: { height: [[DOUBLE_LEAST, 88], [DOUBLE_LEAST, 104]], width: [[18, 24], [16, 32]], gap: [[10, 24], [10, 60]] },
+  triple: { height: [[DOUBLE_LEAST, 104], [DOUBLE_LEAST, 104]], width: [[18, 26], [16, 34]], gap: [[60, 120], [40, 140]] },
+  stair: { height: [[DOUBLE_LEAST, 88], [DOUBLE_LEAST, 96]], rise: [[12, 20], [12, 28]], width: [[18, 24], [16, 30]], gap: [[10, 20], [10, 40]] },
+  beam: { width: [[46, 46], [40, 80]], height: [[RUNNER.highHeight, RUNNER.highHeight], [18, 28]], bottom: [[RUNNER.highBottom, RUNNER.highBottom], [31, 40]] },
+  bar: { width: [[70, 140], [70, 340]], height: [[20, 22], [18, 26]], bottom: [[34, 34], [32, 38]] },
+  hang: { width: [[30, 48], [24, 120]], bottom: [[RUNNER.hangBottom, RUNNER.hangBottom], [30, 38]] },
+  twin: { width: [[24, 36], [20, 48]], gap: [[24, 40], [16, 70]] },
+} as const satisfies Record<string, Record<string, Spread>>;
+
+const DUCK_LEAD_SECONDS = 0.2;
+
+export const slideReach = (speed: number) => speed * (RUNNER.slideSeconds - DUCK_LEAD_SECONDS) - HIT_WIDTH;
+
+export const jumpReach = (speed: number, top: number) => REACH_SHARE * clearableLength(RUNNER.jumpSpeed, top, speed);
+
+export const hopReach = (speed: number, top: number) => REACH_SHARE * clearableLength(RUNNER.hopSpeed, top, speed);
 
 /**
  * Combos: patterns that come close behind each other, so one move leads
@@ -319,7 +356,6 @@ export const comboChance = (time: number) =>
 
 /** Each pattern of a combo, weighted: mostly hops, which lead into the rest. */
 const COMBO_KINDS: readonly PatternKind[] = ["rock", "rock", "rock", "tall", "wide", "double", "beam", "hang", "hang"];
-const LATE_COMBO_KINDS: readonly PatternKind[] = [...COMBO_KINDS, "triple"];
 
 const pick = <T>(state: RunnerState, from: readonly T[]) => from[Math.floor(random(state) * from.length) % from.length];
 
@@ -330,7 +366,8 @@ const patternsFor = (state: RunnerState): readonly PatternKind[] => {
   // Mostly as long as it gets by now, sometimes one shorter.
   const length = Math.max(2, longest - (random(state) < 0.35 ? 1 : 0));
   const phrases = phrasesAt(state.time);
-  const kinds = state.time >= TRIPLE_FROM_SECONDS ? LATE_COMBO_KINDS : COMBO_KINDS;
+  const late = lateKindsAt(state.time);
+  const kinds = late.length > 0 ? [...COMBO_KINDS, ...late] : COMBO_KINDS;
   const combo: PatternKind[] = [];
   while (combo.length < length) {
     if (phrases.length > 0 && random(state) < PHRASE_SHARE) combo.push(...pick(state, phrases).kinds);
@@ -344,7 +381,8 @@ const patternFor = (state: RunnerState): PatternKind => {
   const roll = random(state);
   if (state.time < 5) return "rock";
   if (state.time < 12) return roll < 0.55 ? "rock" : roll < 0.75 ? "tall" : "beam";
-  if (state.time >= TRIPLE_FROM_SECONDS && random(state) < 0.2) return "triple";
+  const late = lateKindsAt(state.time);
+  if (late.length > 0 && random(state) < LATE_SHARE * late.length) return pick(state, late);
   if (roll < 0.28) return "rock";
   if (roll < 0.43) return "tall";
   if (roll < 0.58) return "wide";
@@ -353,11 +391,21 @@ const patternFor = (state: RunnerState): PatternKind => {
   return "hang";
 };
 
+const LATE_SHARE = 0.1;
+
 const whole = (state: RunnerState, low: number, high: number) => Math.round(between(state, low, high));
 
+export type SizeChoice = "random" | "least" | "most";
+
+const ranged = (spread: number, [base, widest]: Spread): Range => [
+  base[0] + (widest[0] - base[0]) * spread,
+  base[1] + (widest[1] - base[1]) * spread,
+];
+
 /** The obstacles of one pattern, left edge at `x`, sized for the run speed. */
-export const makePattern = (state: RunnerState, kind: PatternKind, x: number): Obstacle[] => {
+export const makePattern = (state: RunnerState, kind: PatternKind, x: number, choice: SizeChoice = "random"): Obstacle[] => {
   const s = state.speed;
+  const spread = sizeSpread(state.time);
   const group = state.nextId;
   const base = (rest: Omit<Obstacle, "id" | "group" | "pattern">): Obstacle => ({
     id: state.nextId++,
@@ -365,32 +413,42 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number): O
     pattern: kind,
     ...rest,
   });
+  const size = (range: Spread) => {
+    const [low, high] = ranged(spread, range);
+    if (choice === "least") return Math.round(low);
+    if (choice === "most") return Math.round(high);
+    return low === high ? low : whole(state, low, high);
+  };
   switch (kind) {
     case "rock": {
       const r = PATTERN_RULES.rock;
-      return [base({ kind: "rock", x, width: whole(state, ...r.width), height: whole(state, ...r.height), bottom: 0 })];
+      const width = size(r.width);
+      const height = size(r.height);
+      return [base({ kind: "rock", x, width: Math.min(width, Math.floor(hopReach(s, height))), height, bottom: 0 })];
     }
     case "tall": {
       const r = PATTERN_RULES.tall;
-      return [base({ kind: "tall", x, width: whole(state, ...r.width), height: whole(state, ...r.height), bottom: 0 })];
+      const width = size(r.width);
+      const height = size(r.height);
+      return [base({ kind: "tall", x, width: Math.min(width, Math.floor(jumpReach(s, height))), height, bottom: 0 })];
     }
     case "wide": {
-      const height = whole(state, ...PATTERN_RULES.wide.height);
+      const height = size(PATTERN_RULES.wide.height);
       // Longer than a hop reaches, shorter than the big jump's reach.
       const low = clearableLength(RUNNER.hopSpeed, height, s) + 10;
-      const high = REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s);
-      return [base({ kind: "wide", x, width: Math.floor(between(state, low, Math.max(low, high))), height, bottom: 0 })];
+      const high = jumpReach(s, height);
+      const width = choice === "least" ? low : choice === "most" ? high : between(state, low, Math.max(low, high));
+      return [base({ kind: "wide", x, width: Math.floor(Math.max(low, Math.min(high, width))), height, bottom: 0 })];
     }
     case "double": {
       const r = PATTERN_RULES.double;
-      const first = whole(state, ...r.width);
-      const second = whole(state, ...r.width);
-      const gap = whole(state, ...r.gap);
+      const first = size(r.width);
+      const second = size(r.width);
+      const gap = size(r.gap);
       // Too tall for a hop; short enough that the big jump clears the pair.
-      const tallest = (height: number) =>
-        first + gap + second <= REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s);
-      let height = whole(state, ...r.height);
-      while (height > r.height[0] && !tallest(height)) height -= 2;
+      const tallest = (height: number) => first + gap + second <= jumpReach(s, height);
+      let height = size(r.height);
+      while (height > r.height[0][0] && !tallest(height)) height -= 2;
       return [
         base({ kind: "rock", x, width: first, height, bottom: 0 }),
         base({ kind: "rock", x: x + first + gap, width: second, height, bottom: 0 }),
@@ -398,31 +456,55 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number): O
     }
     case "triple": {
       const r = PATTERN_RULES.triple;
-      const widths = [whole(state, ...r.width), whole(state, ...r.width), whole(state, ...r.width)];
-      const rolled = whole(state, ...r.gap);
-      const reach = (height: number) => REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, s);
+      const widths = [size(r.width), size(r.width), size(r.width)];
+      const rolled = size(r.gap);
       const solid = widths[0] + widths[1] + widths[2];
-      let height = whole(state, ...r.height);
-      while (height > r.height[0] && solid + 2 * rolled > reach(height)) height -= 2;
-      const gap = Math.max(10, Math.min(rolled, Math.floor((reach(height) - solid) / 2)));
+      let height = size(r.height);
+      while (height > r.height[0][0] && solid + 2 * rolled > jumpReach(s, height)) height -= 2;
+      const gap = Math.max(10, Math.min(rolled, Math.floor((jumpReach(s, height) - solid) / 2)));
       return [
         base({ kind: "rock", x, width: widths[0], height, bottom: 0 }),
         base({ kind: "rock", x: x + widths[0] + gap, width: widths[1], height, bottom: 0 }),
         base({ kind: "rock", x: x + widths[0] + widths[1] + 2 * gap, width: widths[2], height, bottom: 0 }),
       ];
     }
-    case "beam":
-      return [base({ kind: "beam", x, width: 46, height: RUNNER.highHeight, bottom: RUNNER.highBottom })];
-    case "hang":
+    case "stair": {
+      const r = PATTERN_RULES.stair;
+      const first = size(r.width);
+      const second = size(r.width);
+      const gap = size(r.gap);
+      const rise = size(r.rise);
+      let low = size(r.height);
+      while (low > r.height[0][0] && first + gap + second > jumpReach(s, low + rise)) low -= 2;
       return [
-        base({
-          kind: "hang",
-          x,
-          width: whole(state, ...PATTERN_RULES.hang.width),
-          height: RUNNER.hangHeight,
-          bottom: RUNNER.hangBottom,
-        }),
+        base({ kind: "rock", x, width: first, height: low, bottom: 0 }),
+        base({ kind: "tall", x: x + first + gap, width: second, height: low + rise, bottom: 0 }),
       ];
+    }
+    case "beam":
+    case "bar": {
+      const r = PATTERN_RULES[kind];
+      const width = size(r.width);
+      const height = size(r.height);
+      const bottom = size(r.bottom);
+      const longest = Math.floor(Math.min(jumpReach(s, bottom + height), slideReach(s)));
+      return [base({ kind, x, width: Math.min(width, longest), height, bottom })];
+    }
+    case "hang": {
+      const r = PATTERN_RULES.hang;
+      const width = Math.min(size(r.width), Math.floor(slideReach(s)));
+      return [base({ kind: "hang", x, width, height: RUNNER.hangHeight, bottom: size(r.bottom) })];
+    }
+    case "twin": {
+      const r = PATTERN_RULES.twin;
+      const first = size(r.width);
+      const second = size(r.width);
+      const gap = Math.max(10, Math.min(size(r.gap), Math.floor(slideReach(s)) - first - second));
+      return [
+        base({ kind: "hang", x, width: first, height: RUNNER.hangHeight, bottom: RUNNER.hangBottom }),
+        base({ kind: "hang", x: x + first + gap, width: second, height: RUNNER.hangHeight, bottom: RUNNER.hangBottom }),
+      ];
+    }
   }
 };
 
@@ -430,11 +512,6 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number): O
 export const patternSpan = (obstacles: readonly Obstacle[]) =>
   Math.max(...obstacles.map((o) => o.x + o.width)) - Math.min(...obstacles.map((o) => o.x));
 
-/**
- * The clear run after a pattern: long enough to land the longest jump, see
- * the next pattern and act, at the current speed. Never shorter than that,
- * so a slide-only pattern can't come where a landing leaves no time to duck.
- */
 const GAP_REACTION_CUT = 0.1;
 
 const gapCut = (time: number) => {
@@ -442,6 +519,11 @@ const gapCut = (time: number) => {
   return past === Infinity ? 1 : past / (past + BEYOND_SECONDS);
 };
 
+/**
+ * The clear run after a pattern: long enough to land the longest jump, see
+ * the next pattern and act, at the current speed. Never shorter than that,
+ * so a slide-only pattern can't come where a landing leaves no time to duck.
+ */
 export const minimumGap = (speed: number, time = 0) =>
   speed * (airtime(RUNNER.jumpSpeed) + REACTION_SECONDS - GAP_REACTION_CUT * gapCut(time)) + 40;
 
@@ -453,7 +535,7 @@ export const gapSlack = (time: number) =>
 const gapAfter = (state: RunnerState) =>
   minimumGap(state.speed, state.time) + state.speed * between(state, 0, gapSlack(state.time));
 
-const DUCKS: readonly PatternKind[] = ["hang", "beam"];
+const DUCKS: readonly PatternKind[] = ["hang", "beam", "bar", "twin"];
 /** The jump each pattern takes: the hop, the big jump, or none (a slide). */
 const takeoffSpeed = (kind: PatternKind) =>
   DUCKS.includes(kind) ? 0 : kind === "rock" ? RUNNER.hopSpeed : RUNNER.jumpSpeed;
@@ -521,13 +603,27 @@ export const stepRunner = (previous: RunnerState, dt: number): RunnerState => {
   return state;
 };
 
-const PATTERN_KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "triple", "beam", "hang"];
+export const PATTERN_KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "triple", "stair", "beam", "bar", "hang", "twin"];
 export const isPatternKind = (value: string): value is PatternKind => (PATTERN_KINDS as readonly string[]).includes(value);
 
 /**
  * A still board showing the given patterns, sized as they'd be `time`
  * seconds into a run. For screenshots in test builds only.
  */
+export const previewRange = (width: number, kinds: readonly PatternKind[], time: number): RunnerState => {
+  const state: RunnerState = { ...newRunner(width, 7), time, speed: runnerSpeed(time), nextIn: Infinity };
+  let x = width * 0.25;
+  const obstacles: Obstacle[] = [];
+  for (const kind of kinds) {
+    for (const choice of ["least", "most"] as const) {
+      const pattern = makePattern(state, kind, x, choice);
+      obstacles.push(...pattern);
+      x += patternSpan(pattern) + 50;
+    }
+  }
+  return { ...state, obstacles };
+};
+
 export const previewWith = (width: number, kinds: readonly PatternKind[], time = 30): RunnerState => {
   const state: RunnerState = { ...newRunner(width, 7), time, speed: runnerSpeed(time), nextIn: Infinity };
   let x = width * 0.4;

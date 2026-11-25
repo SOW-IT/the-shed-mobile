@@ -46,6 +46,8 @@ type Phase = "ready" | "playing" | "over";
 /** A key press this soon after a crash doesn't restart: you were still mashing. */
 const RESTART_LOCK_MS = 700;
 
+const PRACTICE_NOTE = "Practice run. Not saved.";
+
 type Run = { over: boolean; score: number; time: number };
 
 /**
@@ -61,6 +63,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const generation = useRef(0);
   const overAt = useRef(0);
   const practice = useRef(false);
+  const [practising, setPractising] = useState(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
@@ -82,6 +85,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     (state: S, practiceRun = false) => {
       generation.current++;
       practice.current = practiceRun;
+      setPractising(practiceRun);
       setBestAtStart(best);
       setRunId(null);
       setRun(state);
@@ -95,7 +99,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const askToLeave = useCallback(() => setAskingToLeave(true), []);
   const keepPlaying = useCallback(() => setAskingToLeave(false), []);
   const paused = askingToLeave && phase === "playing";
-  const result = run?.over ? { score: run.score, previousBest: bestAtStart, runId } : null;
+  const result = run?.over ? { score: run.score, previousBest: bestAtStart, runId, practice: practising } : null;
   return { run, setRun, phase, paused, result, best, begin, restart, canRestartByKey, askToLeave, keepPlaying };
 };
 
@@ -267,7 +271,7 @@ export const GameFrame = ({
         }
       : StyleSheet.absoluteFill;
   const info = GAME_INFO[game];
-  const newBest = result !== null && result.score > result.previousBest && result.score > 0;
+  const newBest = result !== null && !result.practice && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
     <View style={[styles.card, wide && styles.cardWide]}>
       <View style={[styles.cardMain, wide && styles.cardMainWide]}>
@@ -281,11 +285,11 @@ export const GameFrame = ({
           {result.score.toLocaleString()}
         </Text>
         <Text style={styles.cardBody}>
-          Best {Math.max(result.previousBest, result.score).toLocaleString()}
+          Best {(result.practice ? result.previousBest : Math.max(result.previousBest, result.score)).toLocaleString()}
         </Text>
-        {isAuthenticated ? <CoinGain runId={result.runId} game={game} /> : null}
+        {isAuthenticated && !result.practice ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">
-          {savedNote({ signedIn: isAuthenticated, offline })}
+          {result.practice ? PRACTICE_NOTE : savedNote({ signedIn: isAuthenticated, offline })}
         </Text>
       </View>
       <View style={[styles.actions, wide && styles.actionsWide]}>
@@ -331,7 +335,7 @@ export const GameFrame = ({
           {titleExtra}
         </View>
         <Stat label="Score" value={score} ink={ink} />
-        <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
+        <Stat label="Best" value={result?.practice ? best : Math.max(best, result?.score ?? 0)} ink={ink} />
       </View>
       {underBar}
       </View>

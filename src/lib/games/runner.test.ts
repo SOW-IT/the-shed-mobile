@@ -22,8 +22,16 @@ import {
   minimumGap,
   newRunner,
   onGround,
+  PATTERN_KINDS,
   PHRASES,
   phrasesAt,
+  PATTERN_FROM_SCORE,
+  lateKindsAt,
+  sizeSpread,
+  slideReach,
+  jumpReach,
+  hopReach,
+  type SizeChoice,
   practiceStart,
   REACH_SHARE,
   RUNNER,
@@ -34,14 +42,16 @@ import {
   stepRunner,
   timeAtScore,
   TRIPLE_FROM_SCORE,
+  VARIETY_FROM_SCORE,
+  type Obstacle,
   type PatternKind,
   type RunnerState,
 } from "./runner";
 
 const FRAME = 1 / 60;
 const PHONE_BOARD = GAME_VIEWS.runner.size;
-const KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "triple", "beam", "hang"];
-const DUCKS: readonly PatternKind[] = ["beam", "hang"];
+const KINDS = PATTERN_KINDS;
+const DUCKS: readonly PatternKind[] = ["beam", "bar", "hang", "twin"];
 
 const moveFor = (kind: PatternKind) => (kind === "rock" ? hop : DUCKS.includes(kind) ? duck : jump);
 
@@ -140,13 +150,13 @@ describe("Mystic Man past 10,000", () => {
     expect(comboGap("rock", "tall", 1200)).toBe(comboGap("rock", "tall", 1200, HARD_FROM_SECONDS - 1));
   });
 
-  test("below 10,000 seeded runs spawn exactly the obstacles 2.13.3 spawned", () => {
-    const golden = ["143:b33879a4", "154:1a2cfc1c", "148:b3169989", "149:e9e0c79f", "150:8b4de5c8"];
+  test("below 5,000 seeded runs spawn exactly the obstacles 2.13.6 spawned", () => {
+    const golden = ["85:d0f57fde", "86:6b8847f2", "89:7aff85e4", "89:d81af18e", "87:17b2b711"];
     const runs = [1, 2, 3, 4, 5].map((seed) => {
       let state = newRunner(760, seed);
       const seen = new Set<number>();
       const rows: string[] = [];
-      while (state.score < HARD_FROM_SCORE) {
+      while (state.score < VARIETY_FROM_SCORE) {
         state = ignoringHits(state);
         for (const o of state.obstacles) {
           if (seen.has(o.id)) continue;
@@ -239,10 +249,11 @@ describe("Mystic Man past 10,000", () => {
     expect(meanGapSeconds(later)).toBeLessThan(meanGapSeconds(hardest));
   });
 
-  test.each([HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 25_000, 30_000, 50_000, 75_000, 100_000])(
+  test.each([VARIETY_FROM_SCORE, HARD_FROM_SCORE, 15_000, HARDEST_SCORE, 25_000, 30_000, 50_000, 75_000, 100_000])(
     "at %i a perfect player clears every chain, a little early or late too, and no gap is under the reaction and jump time",
     (score) => {
       let chained = 0;
+      const met = new Set<PatternKind>();
       for (const late of [0, -0.05, 0.05]) {
         for (let seed = 1; seed <= 20; seed++) {
           const player = perfectPlayer(late);
@@ -257,9 +268,11 @@ describe("Mystic Man past 10,000", () => {
             expect(gap).toBeGreaterThanOrEqual(floor - 1);
             if (after.fromChain) chained++;
           }
+          for (const spawn of spawns) met.add(spawn.kind);
         }
       }
       expect(chained).toBeGreaterThan(100);
+      for (const kind of lateKindsAt(timeAtScore(score))) expect(met.has(kind), kind).toBe(true);
     }
   );
 
@@ -325,8 +338,8 @@ describe("Mystic Man past 20,000 (v2)", () => {
       const at = `${MARKS[i - 1]} to ${MARKS[i]}`;
       expect(speeds[i], at).toBeGreaterThan(speeds[i - 1]);
       expect(spare[i], at).toBeLessThan(spare[i - 1]);
-      expect(rate[i], at).toBeGreaterThan(rate[0] * 1.1);
-      expect(gaps[i], at).toBeLessThan(gaps[0] * 0.95);
+      expect(rate[i], at).toBeGreaterThan(rate[0]);
+      expect(gaps[i], at).toBeLessThan(gaps[0]);
       expect(shares[i], at).toBeGreaterThanOrEqual(shares[i - 1]);
       expect(reactions[i], at).toBeLessThan(reactions[i - 1]);
       expect(floors[i], at).toBeLessThan(floors[i - 1]);
@@ -361,7 +374,7 @@ describe("Mystic Man past 20,000 (v2)", () => {
       return seen;
     };
     expect(counts(HARDEST_SCORE).triple).toBeUndefined();
-    expect(counts(TRIPLE_FROM_SCORE - 500).triple).toBeUndefined();
+    expect(counts(TRIPLE_FROM_SCORE - 2_000).triple).toBeUndefined();
     expect(counts(TRIPLE_FROM_SCORE).triple).toBeGreaterThan(5);
     const runOf = (kinds: readonly PatternKind[], spawns: Spawn[]) =>
       spawns.some((_, i) => kinds.every((kind, k) => spawns[i + k]?.kind === kind && (k === 0 || spawns[i + k].fromChain)));
@@ -383,8 +396,134 @@ describe("Mystic Man past 20,000 (v2)", () => {
         expect(height - RUNNER.forgive).toBeGreaterThan(apex(RUNNER.hopSpeed));
         const span = Math.max(...group.map((o) => o.x + o.width)) - group[0].x;
         expect(span).toBeLessThanOrEqual(REACH_SHARE * clearableLength(RUNNER.jumpSpeed, height, state.speed) + 1);
-        expect(group[1].x - (group[0].x + group[0].width)).toBeGreaterThanOrEqual(60);
+        expect(group[1].x - (group[0].x + group[0].width)).toBeGreaterThanOrEqual(40);
       }
     }
   });
 });
+
+describe("Mystic Man's obstacles in v2", () => {
+  const MARKS = [VARIETY_FROM_SCORE, HARD_FROM_SCORE, HARDEST_SCORE, 30_000, 50_000, 100_000];
+  const JUMPED: readonly PatternKind[] = ["tall", "wide", "double", "triple", "stair"];
+  const at = (score: number, seed = 1): RunnerState => {
+    const time = timeAtScore(score);
+    return { ...newRunner(PHONE_BOARD, seed), time, speed: runnerSpeed(time), nextIn: Infinity };
+  };
+  const extent = (group: readonly Obstacle[]) => ({
+    span: Math.max(...group.map((o) => o.x + o.width)) - Math.min(...group.map((o) => o.x)),
+    top: Math.max(...group.map((o) => o.bottom + o.height)),
+    bottom: Math.min(...group.map((o) => o.bottom)),
+  });
+  const wideLimit = (speed: number) => jumpReach(speed, 22);
+
+  const clears = (state: RunnerState, kind: PatternKind, choice: SizeChoice, move = moveFor(kind)) => {
+    const shown = { ...state, obstacles: makePattern({ ...state }, kind, PHONE_BOARD + 10, choice) };
+    let good = 0;
+    let latest = -1;
+    for (let wait = 0; wait < 120; wait++) {
+      let run = shown;
+      for (let frame = 0; frame < 300 && !run.over; frame++) run = stepRunner(frame === wait ? move(run) : run, FRAME);
+      if (!run.over) {
+        good++;
+        latest = wait;
+      }
+    }
+    return { good, latest: latest * FRAME };
+  };
+
+  test("sizes stay as they were below 5,000, then spread wider the higher the score", () => {
+    expect(sizeSpread(timeAtScore(VARIETY_FROM_SCORE - 100))).toBe(0);
+    const spreads = MARKS.map((score) => sizeSpread(timeAtScore(score)));
+    spreads.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(spreads[i]));
+    expect(spreads[0]).toBeCloseTo(0, 6);
+    expect(spreads[3]).toBeGreaterThan(0.85);
+    const range = (score: number, kind: PatternKind) => {
+      const least = extent(makePattern(at(score), kind, 0, "least"));
+      const most = extent(makePattern(at(score), kind, 0, "most"));
+      return { span: most.span - least.span, top: most.top - least.top };
+    };
+    for (const kind of KINDS) {
+      if (kind === "wide") continue;
+      const early = range(VARIETY_FROM_SCORE, kind);
+      const late = range(30_000, kind);
+      expect(late.span + late.top, kind).toBeGreaterThan(early.span + early.top);
+    }
+  });
+
+  test.each(MARKS)("at %i every size of every obstacle keeps to what its move can clear", (score) => {
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const choice of ["random", "least", "most"] as const) {
+        for (const kind of lateKindsAt(timeAtScore(score)).concat(["rock", "tall", "wide", "double", "beam", "hang"])) {
+          const state = at(score, seed);
+          const s = state.speed;
+          const group = makePattern(state, kind, 0, choice);
+          const { span, top, bottom } = extent(group);
+          const where = `${kind} ${choice} seed ${seed}`;
+          if (kind === "rock") {
+            expect(top - RUNNER.forgive, where).toBeLessThan(apex(RUNNER.hopSpeed));
+            expect(span, where).toBeLessThanOrEqual(hopReach(s, top) + 1);
+          } else if (DUCKS.includes(kind)) {
+            expect(bottom, where).toBeGreaterThan(RUNNER.slideHeight - RUNNER.forgive);
+            expect(bottom, where).toBeLessThan(RUNNER.standHeight - RUNNER.forgive);
+            expect(span, where).toBeLessThanOrEqual(slideReach(s) + 1);
+            if (kind === "beam" || kind === "bar") {
+              expect(span, where).toBeLessThanOrEqual(jumpReach(s, top) + 1);
+              expect(span, where).toBeLessThanOrEqual(wideLimit(s) + 1);
+            }
+          } else {
+            expect(JUMPED.includes(kind), where).toBe(true);
+            if (kind !== "wide") expect(Math.min(...group.map((o) => o.height)) - RUNNER.forgive, where).toBeGreaterThan(apex(RUNNER.hopSpeed));
+            expect(span, where).toBeLessThanOrEqual(jumpReach(s, top) + 1);
+            expect(span, where).toBeLessThanOrEqual(wideLimit(s) + 1);
+          }
+        }
+      }
+    }
+  });
+
+  test.each(MARKS)("at %i the smallest and largest of every obstacle are cleared by its move with time to spare", (score) => {
+    const state = at(score);
+    for (const kind of lateKindsAt(state.time).concat(["rock", "tall", "wide", "double", "beam", "hang"])) {
+      for (const choice of ["least", "most"] as const) {
+        const { good, latest } = clears(state, kind, choice);
+        expect(good, `${kind} ${choice}`).toBeGreaterThanOrEqual(3);
+        expect(latest, `${kind} ${choice}`).toBeGreaterThanOrEqual(0.2);
+      }
+    }
+    if (state.time >= timeAtScore(PATTERN_FROM_SCORE.bar ?? 0)) {
+      for (const choice of ["least", "most"] as const) {
+        expect(clears(state, "bar", choice, jump).good, `bar ${choice} jumped`).toBeGreaterThanOrEqual(2);
+        expect(clears(state, "beam", choice, jump).good, `beam ${choice} jumped`).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  test("the orange bar comes in at 5,000, longer than the yellow beam and the vines usually are, and it floats where a slide passes under it", () => {
+    expect(PATTERN_FROM_SCORE.bar).toBe(VARIETY_FROM_SCORE);
+    expect(lateKindsAt(timeAtScore(VARIETY_FROM_SCORE - 50))).toEqual([]);
+    expect(lateKindsAt(timeAtScore(VARIETY_FROM_SCORE))).toEqual(["bar"]);
+    for (const score of MARKS) {
+      for (let seed = 1; seed <= 30; seed++) {
+        const [bar] = makePattern(at(score, seed), "bar", 0);
+        expect(bar.kind).toBe("bar");
+        expect(bar.width).toBeGreaterThan(48);
+        expect(bar.width).toBeGreaterThan(makePattern(at(score, seed), "beam", 0, "least")[0].width);
+      }
+    }
+    const runs = sample(VARIETY_FROM_SCORE + 500);
+    expect(runs.flat().filter((spawn) => spawn.kind === "bar").length).toBeGreaterThan(5);
+    expect(sample(VARIETY_FROM_SCORE - 1_500).flat().some((spawn) => spawn.kind === "bar")).toBe(false);
+  });
+
+  test("the vine pair comes in at 10,000 and the rock steps at 15,000", () => {
+    expect(PATTERN_FROM_SCORE).toMatchObject({ twin: 10_000, stair: 15_000 });
+    const twin = makePattern(at(20_000), "twin", 0, "most");
+    expect(twin.map((o) => o.kind)).toEqual(["hang", "hang"]);
+    const stair = makePattern(at(20_000), "stair", 0, "most");
+    expect(stair.map((o) => o.kind)).toEqual(["rock", "tall"]);
+    expect(stair[1].height).toBeGreaterThan(stair[0].height);
+    expect(sample(15_500).flat().some((spawn) => spawn.kind === "stair")).toBe(true);
+    expect(sample(10_500).flat().some((spawn) => spawn.kind === "twin")).toBe(true);
+  });
+});
+

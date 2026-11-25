@@ -33,6 +33,9 @@ describe("coins for a place", () => {
   test("a game's board is named by its last reset", () => {
     expect(boardOf("flappy")).toBe("flappy:0");
     expect(boardOf("runner")).toBe(`runner:${SCORES_RESET_AT.runner}`);
+    expect(boardOf("flappy", 1)).toBe("flappy:0");
+    expect(boardOf("flappy", 2)).toBe("flappy:v2:0");
+    expect(boardOf("runner", 2)).toBe(`runner:v2:${SCORES_RESET_AT.runner}`);
   });
 
   test.each([
