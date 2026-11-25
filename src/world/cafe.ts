@@ -38,7 +38,7 @@ export const challengeTitle = (c: CafeChallengeView) =>
       ? `Asked ${c.otherName}`
       : `${c.otherName} wants to play`;
 
-type Playing = { a: string; b: string; kind: string };
+type Playing = { id: string; a: string; b: string; kind: string };
 
 export const playingByPerson = (games: readonly Playing[], nameOf: (memberId: string) => string) => {
   const tags = new Map<string, PlayingTag>();
@@ -51,6 +51,9 @@ export const playingByPerson = (games: readonly Playing[], nameOf: (memberId: st
   }
   return { tags, lines };
 };
+
+export const gameToWatch = (games: readonly Playing[], memberId: string | undefined) =>
+  memberId === undefined ? undefined : games.find((game) => game.a === memberId || game.b === memberId)?.id;
 
 type GameResult = { winner: Winner; why: "played" | "timeout" | "left" | "gaveUp" | "abandoned" };
 
@@ -70,6 +73,28 @@ export const resultWords = (result: GameResult, side: Side, opponentName: string
             : null;
   return { title, detail, won: result.winner !== "draw" && won };
 };
+
+export const watcherResultWords = (result: GameResult, names: Record<Side, string>) => {
+  const title = result.winner === "draw" ? "Draw" : `${names[result.winner]} wins`;
+  const loser = result.winner === "draw" ? null : names[result.winner === "a" ? "b" : "a"];
+  const detail =
+    result.why === "abandoned"
+      ? "They both left."
+      : loser === null
+        ? null
+        : result.why === "timeout"
+          ? `${loser} ran out of time.`
+          : result.why === "left"
+            ? `${loser} left the Café.`
+            : result.why === "gaveUp"
+              ? `${loser} gave up.`
+              : null;
+  return { title, detail, won: false };
+};
+
+export const watcherTurnWords = (turn: Side, names: Record<Side, string>) => `${names[turn]}'s turn`;
+
+export const watchersWords = (count: number) => `${count} watching`;
 
 export const LOW_TIME_MS = 10_000;
 

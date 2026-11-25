@@ -3,6 +3,7 @@ import {
   challengeTitle,
   gameIcon,
   gameLabel,
+  gameToWatch,
   playingByPerson,
   rematchWords,
   resultWords,
@@ -15,6 +16,9 @@ import {
   turnEdge,
   turnStarts,
   turnWords,
+  watchersWords,
+  watcherResultWords,
+  watcherTurnWords,
   type CafeChallengeView,
 } from "./cafe";
 
@@ -66,11 +70,38 @@ describe("which challenge shows", () => {
 describe("what others see", () => {
   test("both players get a tag naming the other and a People line", () => {
     const names: Record<string, string> = { a: "Anna B.", b: "Kate R." };
-    const { tags, lines } = playingByPerson([{ a: "a", b: "b", kind: "fourInARow" }], (id) => names[id]);
+    const { tags, lines } = playingByPerson([{ id: "g1", a: "a", b: "b", kind: "fourInARow" }], (id) => names[id]);
     expect(tags.get("a")).toEqual({ tag: "🔴 Four in a Row vs Kate R.", icon: "🔴", with: "b" });
     expect(tags.get("b")?.tag).toBe("🔴 Four in a Row vs Anna B.");
     expect(lines.get("b")).toBe("Playing Four in a Row");
     expect(tags.get("c")).toBeUndefined();
+  });
+
+  test("both players of an online game can be spectated; nobody else, offline players included", () => {
+    const games = [{ id: "g1", a: "a", b: "b", kind: "ticTacToe" }];
+    expect(gameToWatch(games, "a")).toBe("g1");
+    expect(gameToWatch(games, "b")).toBe("g1");
+    expect(gameToWatch(games, "offline")).toBeUndefined();
+    expect(gameToWatch(games, undefined)).toBeUndefined();
+    expect(gameToWatch([], "a")).toBeUndefined();
+  });
+});
+
+describe("words for spectators", () => {
+  const names = { a: "Anna B.", b: "Kate R." };
+  test("the result names the winner and why, with nothing to rematch", () => {
+    expect(watcherResultWords({ winner: "b", why: "played" }, names)).toEqual({ title: "Kate R. wins", detail: null, won: false });
+    expect(watcherResultWords({ winner: "a", why: "timeout" }, names).detail).toBe("Kate R. ran out of time.");
+    expect(watcherResultWords({ winner: "a", why: "left" }, names).detail).toBe("Kate R. left the Café.");
+    expect(watcherResultWords({ winner: "b", why: "gaveUp" }, names).detail).toBe("Anna B. gave up.");
+    expect(watcherResultWords({ winner: "draw", why: "played" }, names)).toEqual({ title: "Draw", detail: null, won: false });
+    expect(watcherResultWords({ winner: "draw", why: "abandoned" }, names).detail).toBe("They both left.");
+  });
+
+  test("whose turn it is, and how many are watching", () => {
+    expect(watcherTurnWords("b", names)).toBe("Kate R.'s turn");
+    expect(watchersWords(1)).toBe("1 watching");
+    expect(watchersWords(3)).toBe("3 watching");
   });
 });
 

@@ -1,7 +1,7 @@
 import { AppIcon, Card, Muted, Screen, type AppIconName } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import { onlineNow, useWorldOnline } from "@/hooks/useWorldOnline";
-import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
+import { useBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode } from "react";
@@ -99,7 +99,7 @@ export const GamesMenu = ({
   onGarden?: () => void;
 }) => {
   usePreloadAvatarArt();
-  const bests = useLocalBests();
+  const bests = useBests();
   const waiting = useScoreQueue().length;
   const offline = useOffline();
   const online = useWorldOnline(!!onGarden && !offline);

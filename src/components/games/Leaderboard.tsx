@@ -13,7 +13,7 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
-import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameId, type GameVersion } from "../../../shared/games";
+import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, versionOf, type GameId, type GameVersion } from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -108,7 +108,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
   const localBest = useLocalBests()[game];
-  const waiting = useScoreQueue().some((queued) => queued.game === game);
+  const waiting = useScoreQueue().some((queued) => queued.game === game && versionOf(queued.version) === GAME_VERSION);
   const [version, setVersion] = useState<GameVersion>(GAME_VERSION);
   const current = version === GAME_VERSION;
   return (

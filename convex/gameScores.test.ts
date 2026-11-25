@@ -481,3 +481,46 @@ describe("beaten in the top 3", () => {
     ]);
   });
 });
+
+describe("myBests", () => {
+  test("your own best per game, nobody else's, and nothing signed out", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    expect(await t.query(api.gameScores.myBests, {})).toBeNull();
+    expect(await anna.query(api.gameScores.myBests, {})).toEqual({ email: ANNA, bests: [] });
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300), run("run-anna-2", 40, "flappy")] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-1", 900)] });
+    const mine = await anna.query(api.gameScores.myBests, {});
+    expect(mine?.email).toBe(ANNA);
+    expect(mine?.bests).toEqual(
+      expect.arrayContaining([
+        { game: "runner", score: 300 },
+        { game: "flappy", score: 40 },
+      ])
+    );
+    expect(mine?.bests).toHaveLength(2);
+  });
+
+  test("bests are per version: v2 asks for its own, and no version is v1, as older apps ask", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 9_000), v2("run-anna-new", 400), v2("run-anna-flap", 12, "flappy")] });
+    expect((await anna.query(api.gameScores.myBests, {}))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
+    expect((await anna.query(api.gameScores.myBests, { version: 1 }))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
+    expect((await anna.query(api.gameScores.myBests, { version: 2 }))?.bests).toEqual([
+      { game: "runner", score: 400 },
+      { game: "flappy", score: 12 },
+    ]);
+  });
+
+  test("a higher best from another device goes up through submitScores and shows everywhere", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-phone", 700)] });
+    expect((await anna.query(api.gameScores.myBests, {}))?.bests).toEqual([{ game: "runner", score: 700 }]);
+    const tooHigh = { ...run("run-anna-fake", 5_000_000), durationMs: 1000 };
+    expect((await anna.mutation(api.gameScores.submitScores, { scores: [tooHigh] })).rejected).toHaveLength(1);
+    expect((await anna.query(api.gameScores.myBests, {}))?.bests).toEqual([{ game: "runner", score: 700 }]);
+  });
+});

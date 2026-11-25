@@ -1,7 +1,7 @@
 import { Btn, hapticSelect } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
-import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
+import { useAccountEmail, useBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
@@ -57,7 +57,8 @@ type Run = { over: boolean; score: number; time: number };
 export const useGameSession = <S extends Run>(game: GameId) => {
   const [run, setRun] = useState<S | null>(null);
   const [bestAtStart, setBestAtStart] = useState(0);
-  const best = useLocalBests()[game];
+  const best = useBests()[game];
+  const account = useAccountEmail();
   const recorded = useRef<S | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const generation = useRef(0);
@@ -65,6 +66,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const practice = useRef(false);
   const [practising, setPractising] = useState(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
+  if (best > bestAtStart && (phase === "playing" || (phase === "over" && run !== null && best > run.score))) setBestAtStart(best);
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
   useRestartHold(phase === "playing");
@@ -76,10 +78,10 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     hapticSelect();
     if (practice.current) return;
     const started = generation.current;
-    void recordRun(game, run.score, run.time * 1000).then((id) => {
+    void recordRun(game, run.score, run.time * 1000, account).then((id) => {
       if (generation.current === started) setRunId(id);
     });
-  }, [run, game]);
+  }, [run, game, account]);
 
   const begin = useCallback(
     (state: S, practiceRun = false) => {
@@ -285,7 +287,7 @@ export const GameFrame = ({
           {result.score.toLocaleString()}
         </Text>
         <Text style={styles.cardBody}>
-          Best {(result.practice ? result.previousBest : Math.max(result.previousBest, result.score)).toLocaleString()}
+          Best {(result.practice ? Math.max(best, result.previousBest) : Math.max(best, result.previousBest, result.score)).toLocaleString()}
         </Text>
         {isAuthenticated && !result.practice ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">

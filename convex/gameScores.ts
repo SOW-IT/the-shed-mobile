@@ -2,7 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { MAX_SCORES_PER_SUBMIT, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
+import { GAME_IDS, MAX_SCORES_PER_SUBMIT, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
 import { payoutMinEntries, PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
@@ -240,6 +240,22 @@ export const myLeaderboardPlace = query({
   handler: async (ctx, { game, version }) => {
     const email = await optionalEmail(ctx);
     return email ? await placeOf(ctx, email, game, boardVersion(version)) : null;
+  },
+});
+
+export const myBests = query({
+  args: { version: versionArg },
+  returns: v.union(v.null(), v.object({ email: v.string(), bests: v.array(v.object({ game: gameIdValidator, score: v.number() })) })),
+  handler: async (ctx, args) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const version = boardVersion(args.version);
+    const bests = [];
+    for (const game of GAME_IDS) {
+      const row = await bestOf(ctx, email, game, version);
+      if (row) bests.push({ game, score: row.score });
+    }
+    return { email, bests };
   },
 });
 

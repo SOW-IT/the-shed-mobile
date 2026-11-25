@@ -27,10 +27,10 @@ import { CROPS, growth, isCrop, plantCard, plotPrice, plotStand, type CropId } f
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Keyboard, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useDerivedValue, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { liftOverKeyboard } from "@/hooks/keyboardOverlap";
+import { keyboardLift } from "@/hooks/keyboardOverlap";
 import { useKeyboardHeight } from "@/hooks/useKeyboardInset";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
@@ -63,7 +63,7 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { gameLabel, playingByPerson } from "./cafe";
+import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
 
@@ -71,7 +71,8 @@ const KEYBOARD_GAP = 8;
 
 const useKeyboardLift = (bottomInset: number) => {
   const keyboard = useKeyboardHeight();
-  const lift = useDerivedValue(() => liftOverKeyboard(keyboard.get(), bottomInset, KEYBOARD_GAP));
+  const scale = PixelRatio.get();
+  const lift = useDerivedValue(() => keyboardLift(keyboard.get(), bottomInset, KEYBOARD_GAP, scale));
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -259,6 +260,7 @@ export const WorldScreen = ({
   const [watering, setWatering] = useState<{ plot: number; key: number } | null>(null);
   const [flying, setFlying] = useState<{ plot: number; crop: CropId; key: number } | null>(null);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
+  const [watching, setWatching] = useState<Id<"cafeGames"> | null>(null);
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
@@ -415,6 +417,16 @@ export const WorldScreen = ({
     setSheet(null);
     setPicking({ memberId, name });
   };
+  const spectate = (gameId: string) => {
+    setPerson(null);
+    setSheet(null);
+    setWatching(gameId as Id<"cafeGames">);
+  };
+  const [sheetTop, setSheetTop] = useState<number | null>(null);
+  const [logBottom, setLogBottom] = useState(0);
+  const logOverCafe = sheetTop !== null && !keyboard.open && logBottom <= sheetTop;
+  const tappedGame = gameToWatch(cafe.playing, tapped?.memberId);
+  const selectedGame = gameToWatch(cafe.playing, selected?.memberId);
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
   const duelOpponent = myDuel ? (myDuel.a === world.memberId ? myDuel.b : myDuel.a) : null;
@@ -568,6 +580,7 @@ export const WorldScreen = ({
     setArcadeOpen(false);
     setDecorating(false);
     setChosenItem(null);
+    setWatching(null);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
@@ -926,6 +939,13 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [following]);
 
+  const gameAction: HudAction[] = !selected
+    ? []
+    : selectedGame
+      ? [{ id: "spectate", label: "Spectate", hint: `Spectate ${selectedName}'s game`, icon: "eye-outline", onPress: () => spectate(selectedGame) }]
+      : world.place === "cafe"
+        ? [{ id: "play", label: "Play", hint: `Play a game with ${selectedName}`, emoji: "🎲", onPress: () => openPicker(selected.memberId, selected.name) }]
+        : [];
   // Only someone else is ever selected: tapping yourself opens nothing.
   const hudActions: HudAction[] = !selected || selected.isMe
     ? []
@@ -947,17 +967,7 @@ export const WorldScreen = ({
                   emoji: ASKS.rps.icon,
                   onPress: () => walkOverAndAsk(selected.memberId, "rps"),
                 },
-                ...(world.place === "cafe"
-                  ? [
-                      {
-                        id: "play",
-                        label: "Play",
-                        hint: `Play a game with ${selectedName}`,
-                        emoji: "🎲",
-                        onPress: () => openPicker(selected.memberId, selected.name),
-                      },
-                    ]
-                  : []),
+                ...gameAction,
               ]),
           ...(world.place === "cafe" && !selected.away && !selected.reading
             ? []
@@ -1018,6 +1028,9 @@ export const WorldScreen = ({
       safe={{ top: insets.top, bottom: insets.bottom }}
       onNote={setNote}
       onReturn={() => go("cafe")}
+      watch={watching}
+      onStopWatching={() => setWatching(null)}
+      onSheetTop={setSheetTop}
     />
   );
   const sheets = (
@@ -1072,7 +1085,8 @@ export const WorldScreen = ({
         onWave={() => emote("wave")}
         onHighFive={highFive}
         onDuel={(to) => walkOverAndAsk(to, "rps")}
-        onPlay={world.place === "cafe" && tapped ? (to) => openPicker(to, tapped.name) : undefined}
+        onPlay={world.place === "cafe" && tapped && !tappedGame ? (to) => openPicker(to, tapped.name) : undefined}
+        onSpectate={tappedGame ? () => spectate(tappedGame) : undefined}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />
@@ -1350,7 +1364,7 @@ export const WorldScreen = ({
           <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
-      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
         {decorating ? null : (
           <ChatLog
             roomId={world.status === "in" ? world.roomId : null}
@@ -1512,6 +1526,7 @@ const styles = StyleSheet.create({
   decorateRow: { flexDirection: "row", justifyContent: "flex-end" },
   ping: { minWidth: 30, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
+  overCafe: { zIndex: 2, elevation: 2 },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
   offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
