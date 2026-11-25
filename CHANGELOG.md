@@ -11,10 +11,10 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Changed
 - **Swoop's bird is a little heavier, so it doesn't fly quite as high.**
   Off the same hill at the same speed it now climbs a little less, and
-  comes back down a little sooner. Diving while you hold is a little stronger to match, so
-  diving down a slope and letting go at the bottom still carries it over
-  the next hill, and good flying gets through as many worlds before night.
-  Perfect landings work as before.
+  comes back down a little sooner. Diving while you hold is a little
+  stronger to match, so diving down a slope and letting go at the bottom
+  still carries it over the next hill, and good flying gets through as many
+  worlds before night. Perfect landings work as before.
 - **In Swoop the hills stay on screen however high you fly.** The camera
   zooms out as the bird climbs, far enough to keep the ground under it in
   view, and back in as it comes down. Before, a high flight could leave
