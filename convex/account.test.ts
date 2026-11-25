@@ -49,6 +49,7 @@ async function seedAccount(
     }
     await ctx.db.insert("pushTokens", { email, token: `ExponentPushToken[${email}]` });
     await ctx.db.insert("lastSeen", { email, at: Date.now() });
+    await ctx.db.insert("appPresence", { email, appSeenAt: Date.now() });
     await ctx.db.insert("appInstalls", { email, platform: "ios", version: "2.7.0", seenAt: Date.now() });
     await ctx.db.insert("notifications", { userEmail: email, title: "Hi", body: "Hello", read: false });
     await ctx.db.insert("savedBankAccounts", {
@@ -80,6 +81,7 @@ const counts = async (t: T, email: string) =>
     refreshTokens: (await ctx.db.query("authRefreshTokens").take(2000)).length,
     pushTokens: (await ctx.db.query("pushTokens").withIndex("by_email", (q) => q.eq("email", email)).take(10)).length,
     lastSeen: (await ctx.db.query("lastSeen").withIndex("by_email", (q) => q.eq("email", email)).take(10)).length,
+    appPresence: (await ctx.db.query("appPresence").withIndex("by_email", (q) => q.eq("email", email)).take(10)).length,
     appInstalls: (
       await ctx.db
         .query("appInstalls")
@@ -213,6 +215,7 @@ describe("account.deleteMine", () => {
       refreshTokens: 0,
       pushTokens: 0,
       lastSeen: 0,
+      appPresence: 0,
       appInstalls: 0,
       notifications: 1,
       savedBankAccounts: 0,
@@ -411,6 +414,7 @@ describe("account.wipe", () => {
         await ctx.db.insert("authSessions", { userId, expirationTime: 0 });
         await ctx.db.insert("pushTokens", { email: GUEST, token: `t${i}` });
         await ctx.db.insert("lastSeen", { email: GUEST, at: i });
+        await ctx.db.insert("appPresence", { email: GUEST, appSeenAt: i });
         await ctx.db.insert("appInstalls", { email: GUEST, platform: "ios", version: "2.7.0", seenAt: i });
         await ctx.db.insert("notifications", { userEmail: GUEST, title: "Hi", body: `${i}`, read: false });
         await ctx.db.insert("savedBankAccounts", {
