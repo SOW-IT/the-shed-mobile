@@ -17,6 +17,85 @@ All notable changes to **The SHED** mobile app. This project follows
   Anyone 2.12.49 already paid on that leaderboard gets only what they're
   still owed, which is usually nothing.
 
+## [2.12.55] - 2026-11-25
+
+### Fixed
+- **Delete group works on iPhone.** Its confirmation used to open behind the group settings sheet, so nothing happened. It now shows on top, and deleting removes the group, its members and invites, and the invite and reminder notifications for it. Everyone's own devotionals stay. You go back to Groups, and the group drops off every member's list straight away; a member looking at it is taken back to Groups too.
+
+### Changed
+- **History is now Yours.**
+- **Past groups.** Groups that have ended move to a **Past groups** list under your current and upcoming ones, 10 at a time with **Show more**.
+- **Swipe between Yours and Groups.** Tapping the tabs still works. The tabs now run edge to edge like the other tabbed screens.
+- **Devotionals and Today in the top bar.** The title sits in the top bar, and **Today** sits next to the bell.
+- **Green ticks on Yours.** A day you chose a passage for turns green with a tick, like a day everyone finished in a group.
+- **The Chapel opens Devotionals.** Sitting down or tapping the pulpit, then **Open**, takes you to Yours and Groups instead of straight into today. Back takes you to the World, and the open book shows over your character until then.
+
+## [2.12.54] - 2026-11-25
+
+### Added
+- **Leaderboards show when each score was set**, under the name: "24 Nov"
+  for this year, "24 Nov 2025" for an earlier one. It's the day of that
+  person's best run, on every game's leaderboard.
+- **A push when someone knocks you down the top 3.** If you're 1st, 2nd or
+  3rd on a game's leaderboard and someone's new best passes you, you get one
+  push, such as "Daniel Kim just beat you in Flap" with "You're now 3rd" or
+  "You're out of the top 3". Tapping it opens that game's leaderboard. An
+  equal score doesn't count as passing you.
+- **One Names setting in the World.** Settings in the World's top-left
+  menu has Names, shown with your own name: initials ("DK"), first name and
+  last initial ("Daniel K.") or the full name ("Daniel Kim"). It covers
+  everywhere the World shows a person: name tags, the chat log, the People
+  list, a person's card, invites, asks and rock paper scissors. It replaces
+  Chat names: if you had picked Initials there you get DK, First name gives
+  Daniel K., and otherwise it starts at Daniel K. It's saved on this device
+  and changes only what you see.
+
+### Changed
+- **Leaderboards show full names again**, such as "Daniel Kim", whatever the
+  World's Names setting is. 2.12.47 had shortened them to "Daniel K.".
+- **A high five in the World is quicker**, about 1.75 seconds instead of 2.6,
+  with the same reach, slap and step back.
+
+## [2.12.53] - 2026-11-25
+
+### Changed
+- **Swoop's bird is a little heavier, so it doesn't fly quite as high.**
+  Off the same hill at the same speed it now climbs a little less, and
+  comes back down a little sooner. Diving while you hold is a little
+  stronger to match, so diving down a slope and letting go at the bottom
+  still carries it over the next hill, and good flying gets through as many
+  worlds before night. Perfect landings work as before.
+- **In Swoop the hills stay on screen however high you fly.** The camera
+  zooms out as the bird climbs, far enough to keep the ground under it in
+  view, and back in as it comes down. Before, a high flight could leave
+  only sky on screen.
+- **Swoop's world progress is a bar right across the top**, under the score
+  bar, and the world you're on sits next to Swoop's name.
+- **Swoop's first worlds have much wider, gentler hills.** World 1's hills
+  are about two and a half times as wide as before, and each world after it
+  is a little narrower, back to the usual hills by world 6.
+- **New hill shapes from world 3:** double humps, a steep drop into a long
+  flat run-out, a long gentle ramp up to a sharp crest, flat-topped
+  plateaus, and valleys much deeper or shallower than the rest. They're
+  rare in world 3 and turn up more often in later worlds.
+
+## [2.12.52] - 2026-11-25
+
+### Changed
+- **Devotional groups only see your days from the day you join.** Days before you accepted the invite don't show you to the group, and they count only the people who were in it then, so a day everyone did stays green. The owner counts from the group's start date, people already in a group are unchanged, and your own History still shows every day.
+
+## [2.12.51] - 2026-11-25
+
+### Added
+- **Devotional groups.** Open the new **Groups** tab inside Devotionals to create a group with a name, start and end dates, and a sharing level (**Count only**, **Passage**, or **Everything**). Group owners can invite anyone with an account in THE SHED (with search), view pending invites, rename or edit the group, remove members, or delete the group. Invitees get a push notification and email with a link into the app to accept or decline, and only see the group name and owner until they accept.
+- **Shared group progress calendar.** Inside a group, see today's progress at the top and browse a month-by-month calendar coloured from red to green by how many members completed each day (with a green highlight and check when everyone is done, and neutral styling for upcoming days). Tap any day in range to see who has and hasn't done it, along with passages, Notes, and Prayer up to each member's effective sharing level.
+- **Personal sharing level.** Choose Count only, Passage, or Everything from the devotional editor or from group settings. It applies across all your groups, and others always see the lower of the group's setting and yours (defaulting to each group's level until you change it).
+- **8 pm Sydney devotional reminders.** Members of an active group who haven't chosen a passage for today receive one push reminder at 8 pm Sydney time across both AEST and AEDT. Turn it off any time under **Devotional reminders** on your Profile or in group settings.
+
+### Changed
+- **Renamed "Prayer points" to "Prayer"** in the devotional editor and validation messages.
+- **Clearer saving in the devotional editor.** "Saved" now pops up briefly and fades away, while an error stays on screen until you fix or dismiss it. Save is greyed out until you change the passage, Notes, Prayer or what you share with groups, and going back only saves when something changed. The sharing choice is saved with the rest of the day.
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed
@@ -107,7 +186,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Interactive object highlights.** Tapping a seat, the arcade, the notice board, the piano or the pulpit highlights it with a soft outline until you arrive and interact. Tapping somewhere else clears the highlight, and battery saver / reduced motion keeps it still and subtle.
 - **Garden notice board and Chapel piano.** The Garden now has a calendar notice board that opens the Calendar, and the Chapel piano opens the Praise List. Going back returns you to your spot in the World without leaving it.
 - **Daily devotionals.** Sitting in the Chapel or tapping the pulpit asks whether you want to open today's private daily devotional, and shows a small open-book icon over your head in the World while you're doing it. You can also open Devotionals from the side menu.
-- **Devotionals screen and history.** Enter and validate Protestant canon Bible passage references (such as Psalm 23 or John 15:1-17) in a top passage container, with separate Notes and Prayer points sections below. Changes save on your phone straight away and sync online when you press Save, go back, or come back online. If the same day was changed on another device in the meantime, you choose which version to keep instead of one silently replacing the other. Browse past devotionals in Month view (marked days) and Week view (passage references), paged by month, for today and earlier days only.
+- **Devotionals screen and history.** Enter and validate Protestant canon Bible passage references (such as Psalm 23 or John 15:1-17) in a top passage container, with separate Notes and Prayer sections below. Changes save on your phone straight away and sync online when you press Save, go back, or come back online. If the same day was changed on another device in the meantime, you choose which version to keep instead of one silently replacing the other. Browse past devotionals in Month view (marked days) and Week view (passage references), paged by month, for today and earlier days only.
 
 ## [2.12.44] - 2026-11-24
 

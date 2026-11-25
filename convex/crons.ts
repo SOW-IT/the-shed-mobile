@@ -39,6 +39,8 @@ crons.cron("recount attendance members", "15 17 * * *", internal.memberCount.rec
 // it if a scheduled run was ever lost.
 crons.cron("shed world sweep backstop", "23 18 * * *", internal.world.sweep, {});
 
+crons.cron("devotional group reminders", "1 9,10 * * *", internal.devotionalGroups.sendDailyReminders, {});
+
 // 2.13.1: pays the people already in a game's top 3, once, within an hour
 // of the deploy. Every later run reads one row and stops. Remove it, and
 // coinsBackfill.ts, once production's ledger shows the backfill ran.

@@ -6,6 +6,8 @@ import { MAX_SCORES_PER_SUBMIT, scoreProblem, type GameId } from "../shared/game
 import { PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
+import { beatenInTop, beatenPush } from "../shared/leaderboard";
+import { fullName } from "../shared/names";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
 
 export const LEADERBOARD_SIZE = 10;
@@ -13,6 +15,7 @@ export const LEADERBOARD_SIZE = 10;
 export const MAX_PAGE_SIZE = 50;
 /** Past this many people ahead of you, the board says "500+" for your place. */
 export const RANK_LIMIT = 500;
+const PODIUM_LIMIT = 200;
 
 const queuedScoreValidator = v.object({
   runId: v.string(),
@@ -61,11 +64,15 @@ export const submitScores = mutation({
         .withIndex("by_email_and_game", (q) => q.eq("email", email).eq("game", entry.game))
         .unique();
       const run = { ...entry, updatedAt: now };
-      let newBest = true;
-      if (!best) await ctx.db.insert("gameScores", { email, ...run });
-      else if (best.runId !== entry.runId && entry.score > best.score) {
-        await ctx.db.patch("gameScores", best._id, run);
-      } else newBest = false;
+      const newBest = !best || (best.runId !== entry.runId && entry.score > best.score);
+      if (newBest) {
+        const beaten = beatenInTop(await podiumOf(ctx, entry.game, entry.score), email, best?.score ?? null, entry.score);
+        if (beaten.length > 0) {
+          await ctx.scheduler.runAfter(0, internal.gameScores.tellBeaten, { game: entry.game, by: email, beaten });
+        }
+        if (best) await ctx.db.patch("gameScores", best._id, run);
+        else await ctx.db.insert("gameScores", { email, ...run });
+      }
       const paid = before ?? (newBest ? await awardPlace(ctx, email, entry, await topPlace(ctx, entry.game, entry.score), now) : null);
       if (paid) coins.push({ runId: entry.runId, ...paid });
     }
@@ -85,6 +92,21 @@ const topPlace = async (ctx: Ctx, game: GameId, score: number): Promise<number> 
   return ahead.length + 1;
 };
 
+const podiumOf = async (ctx: Ctx, game: GameId, score: number) => {
+  const top = await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game))
+    .order("desc")
+    .take(PLACE_COINS.length);
+  const lowest = top.length > 0 ? top[top.length - 1].score : null;
+  if (lowest === null || lowest >= score) return [];
+  return await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game).gte("score", lowest))
+    .order("desc")
+    .take(PODIUM_LIMIT);
+};
+
 const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
   const resolved = await resolveName(ctx, email, currentStaffYear());
   if (resolved) return resolved;
@@ -102,6 +124,7 @@ const entryValidator = v.object({
   rank: v.number(),
   name: v.string(),
   score: v.number(),
+  playedAt: v.number(),
   isMe: v.boolean(),
 });
 
@@ -131,6 +154,7 @@ export const leaderboard = query({
         rank: rows.findIndex((other) => other.score === row.score) + 1,
         name: await nameFor(ctx, row.email),
         score: row.score,
+        playedAt: row.playedAt,
         isMe: email !== null && row.email === email,
       });
     }
@@ -175,6 +199,7 @@ export const leaderboardPage = query({
         id: row._id,
         name: await nameFor(ctx, row.email),
         score: row.score,
+        playedAt: row.playedAt,
         isMe: email !== null && row.email === email,
       });
     }
@@ -189,6 +214,22 @@ export const myLeaderboardPlace = query({
   handler: async (ctx, { game }) => {
     const email = await optionalEmail(ctx);
     return email ? await placeOf(ctx, email, game) : null;
+  },
+});
+
+export const tellBeaten = internalMutation({
+  args: {
+    game: gameIdValidator,
+    by: v.string(),
+    beaten: v.array(v.object({ email: v.string(), place: v.number() })),
+  },
+  returns: v.null(),
+  handler: async (ctx, { game, by, beaten }) => {
+    const name = fullName(await nameFor(ctx, by));
+    for (const { email, place } of beaten) {
+      await ctx.scheduler.runAfter(0, internal.push.send, { to: email, ...beatenPush(name, game, place) });
+    }
+    return null;
   },
 });
 

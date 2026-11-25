@@ -254,21 +254,22 @@
         "src/lib/games/**",
         "src/hooks/useOffline.ts",
         "convex/{gameScores,gameScoreData,gameCharacters}.ts",
-        "shared/{games,gameCharacters,names}.ts"
+        "shared/{games,gameCharacters,names,leaderboard}.ts"
       ],
-      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=world", "/games/glider?preview=night"]
+      "routes": ["/games", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
     },
     "world": {
       "files": [
         "src/app/world.tsx",
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
+        "src/app/world-devotionals.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,coins,coinsBackfill}.ts",
         "shared/{world,worldPath,home,coins,ball,names}.ts"
       ],
-      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise"]
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]
     },
     "devotionals": {
       "files": [
@@ -276,10 +277,10 @@
         "src/app/devotionals/**",
         "src/components/devotionals/**",
         "src/lib/devotionalStorage.ts",
-        "convex/devotionals.ts",
-        "shared/{bible,devotionals,devotionalStore}.ts"
+        "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
+        "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor}.ts"
       ],
-      "routes": ["/devotionals", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
+      "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

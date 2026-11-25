@@ -276,6 +276,7 @@ export const ProfileView = ({
   );
   const setAvatar = useMutation(api.profile.setAvatar);
   const setReminderEmails = useMutation(api.profile.setReminderEmails);
+  const setDevotionalReminders = useMutation(api.profile.setDevotionalReminders);
 
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -451,6 +452,39 @@ export const ProfileView = ({
                 thumbColor={profile.reminderEmails ? t.primary : t.faint}
               />
             </View>
+            {profile.devotionalReminders !== null && (
+              <View
+                style={[
+                  styles.toggleRow,
+                  {
+                    paddingTop: spacing.md,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: t.separator,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt style={{ fontWeight: "600" }}>
+                    Devotional reminders
+                  </Txt>
+                  <Muted>
+                    8 pm reminder if you haven&apos;t done today&apos;s devotional in an active group.
+                  </Muted>
+                </View>
+                <Switch
+                  accessibilityLabel="Devotional reminders"
+                  value={profile.devotionalReminders}
+                  onValueChange={(enabled) => {
+                    setError(null);
+                    void setDevotionalReminders({ enabled }).catch((e: unknown) =>
+                      setError(errorMessage(e)),
+                    );
+                  }}
+                  trackColor={{ false: t.ghost, true: t.primarySoft }}
+                  thumbColor={profile.devotionalReminders ? t.primary : t.faint}
+                />
+              </View>
+            )}
           </Card>
         </FadeInView>
       )}

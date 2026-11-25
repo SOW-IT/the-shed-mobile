@@ -46,6 +46,8 @@ import type * as designRequestComments from "../designRequestComments.js";
 import type * as designRequestData from "../designRequestData.js";
 import type * as designRequestForm from "../designRequestForm.js";
 import type * as designRequests from "../designRequests.js";
+import type * as devotionalGroupData from "../devotionalGroupData.js";
+import type * as devotionalGroups from "../devotionalGroups.js";
 import type * as devotionals from "../devotionals.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
@@ -158,6 +160,8 @@ declare const fullApi: ApiFromModules<{
   designRequestData: typeof designRequestData;
   designRequestForm: typeof designRequestForm;
   designRequests: typeof designRequests;
+  devotionalGroupData: typeof devotionalGroupData;
+  devotionalGroups: typeof devotionalGroups;
   devotionals: typeof devotionals;
   directory: typeof directory;
   directorySync: typeof directorySync;
