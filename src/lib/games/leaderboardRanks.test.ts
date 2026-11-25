@@ -27,10 +27,19 @@ describe("leaderboard rows", () => {
     expect(leaderboardName({ name: "Sijin", isMe: false })).toBe("Sijin");
   });
 
-  test("show the date of the best run, with the year only for earlier years, and none without one", () => {
+  test("show the date and time of the best run, with the year only for earlier years, and none without one", () => {
     const now = new Date(2026, 10, 25, 9, 0).getTime();
-    expect(leaderboardDate(new Date(2026, 10, 24, 20, 0).getTime(), now)).toBe("24 Nov");
-    expect(leaderboardDate(new Date(2025, 10, 24, 20, 0).getTime(), now)).toBe("24 Nov 2025");
+    expect(leaderboardDate(new Date(2026, 10, 25, 8, 5).getTime(), now)).toBe("25 Nov, 8:05 am");
+    expect(leaderboardDate(new Date(2026, 10, 24, 15, 42).getTime(), now)).toBe("24 Nov, 3:42 pm");
+    expect(leaderboardDate(new Date(2025, 10, 24, 15, 42).getTime(), now)).toBe("24 Nov 2025, 3:42 pm");
+    expect(leaderboardDate(new Date(2025, 0, 3, 9, 30).getTime(), now)).toBe("3 Jan 2025, 9:30 am");
     expect(leaderboardDate(undefined, now)).toBeNull();
+  });
+
+  test("show midnight as 12 am and noon as 12 pm", () => {
+    const now = new Date(2026, 10, 25, 9, 0).getTime();
+    expect(leaderboardDate(new Date(2026, 10, 25, 0, 0).getTime(), now)).toBe("25 Nov, 12:00 am");
+    expect(leaderboardDate(new Date(2026, 10, 24, 12, 0).getTime(), now)).toBe("24 Nov, 12:00 pm");
+    expect(leaderboardDate(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe("31 Dec 2025, 11:59 pm");
   });
 });

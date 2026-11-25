@@ -45,9 +45,9 @@ All notable changes to **The SHED** mobile app. This project follows
   them.
 
 ### Changed
-- **Tapping yourself opens nothing.** Your Outfit and Emotes bubble is
-  gone; tapping someone else still opens theirs. Emotes are on the flower
-  in the chat bar.
+- **Tapping yourself walks there, like a tap on the ground.** Your Outfit
+  and Emotes bubble is gone; tapping someone else still opens theirs.
+  Emotes are on the flower in the chat bar.
 - **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
   or Beach from the menu is gone: walk to their pads in the World, or go
   with someone from People. **Outfit** sits above **Your home** and opens
@@ -99,6 +99,11 @@ All notable changes to **The SHED** mobile app. This project follows
   leaderboard, with equal scores sharing a place as the leaderboard shows.
   Anyone 2.12.49 already paid on that leaderboard gets only what they're
   still owed, which is usually nothing.
+
+### Changed
+- **Leaderboards show the time of each best as well as the day**, in your
+  own time zone, on the small line under the name: "24 Nov, 3:42 pm", or
+  "24 Nov 2025, 3:42 pm" for an earlier year.
 
 ## [2.13.2] - 2026-11-25
 
