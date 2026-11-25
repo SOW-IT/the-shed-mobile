@@ -228,3 +228,18 @@ describe("profile avatars", () => {
     ).toBe(next);
   });
 });
+
+describe("profile.setDevotionalReminders", () => {
+  test("toggles devotional reminders preference", async () => {
+    const t = await seeded();
+    const userId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: "devo@sow.org.au", name: "Devo" })
+    );
+    const me = signedIn(t, userId, "devo@sow.org.au");
+    expect((await me.query(api.profile.get, {}))!.devotionalReminders).toBe(true);
+    await me.mutation(api.profile.setDevotionalReminders, { enabled: false });
+    expect((await me.query(api.profile.get, {}))!.devotionalReminders).toBe(false);
+    await me.mutation(api.profile.setDevotionalReminders, { enabled: true });
+    expect((await me.query(api.profile.get, {}))!.devotionalReminders).toBe(true);
+  });
+});
