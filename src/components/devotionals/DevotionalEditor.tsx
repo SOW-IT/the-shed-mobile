@@ -397,7 +397,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                 }))}
                 active={pendingSharing ?? savedSharing ?? "everything"}
                 onChange={(next) => {
-                  if (!canEdit) return;
+                  if (!canEdit || saving) return;
                   setError(null);
                   setChosenSharing(next as DevotionalSharingLevel);
                 }}
