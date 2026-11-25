@@ -32,6 +32,10 @@ All notable changes to **The SHED** mobile app. This project follows
   are filled edge to edge; a screen of an unusual shape, like a wide
   computer window for Flap, gets plain black borders.
 
+### Fixed
+- **A swipe from the left edge no longer leaves the World in a browser,**
+  the same as in the games. Leave from the World's menu.
+
 ## [2.13.4] - 2026-11-25
 
 ### Added
