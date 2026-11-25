@@ -1,7 +1,7 @@
 import { Btn, hapticSelect } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
-import { useLocalBests, recordRun } from "@/lib/games/gameStorage";
+import { useBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
@@ -55,7 +55,7 @@ type Run = { over: boolean; score: number; time: number };
 export const useGameSession = <S extends Run>(game: GameId) => {
   const [run, setRun] = useState<S | null>(null);
   const [bestAtStart, setBestAtStart] = useState(0);
-  const best = useLocalBests()[game];
+  const best = useBests()[game];
   const recorded = useRef<S | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const generation = useRef(0);

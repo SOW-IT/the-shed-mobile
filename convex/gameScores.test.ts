@@ -395,3 +395,32 @@ describe("beaten in the top 3", () => {
     ]);
   });
 });
+
+describe("myBests", () => {
+  test("your own best per game, nobody else's, and nothing signed out", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    expect(await t.query(api.gameScores.myBests, {})).toBeNull();
+    expect(await anna.query(api.gameScores.myBests, {})).toEqual([]);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300), run("run-anna-2", 40, "flappy")] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-1", 900)] });
+    expect(await anna.query(api.gameScores.myBests, {})).toEqual(
+      expect.arrayContaining([
+        { game: "runner", score: 300 },
+        { game: "flappy", score: 40 },
+      ])
+    );
+    expect(await anna.query(api.gameScores.myBests, {})).toHaveLength(2);
+  });
+
+  test("a higher best from another device goes up through submitScores and shows everywhere", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-phone", 700)] });
+    expect(await anna.query(api.gameScores.myBests, {})).toEqual([{ game: "runner", score: 700 }]);
+    const tooHigh = { ...run("run-anna-fake", 5_000_000), durationMs: 1000 };
+    expect((await anna.mutation(api.gameScores.submitScores, { scores: [tooHigh] })).rejected).toHaveLength(1);
+    expect(await anna.query(api.gameScores.myBests, {})).toEqual([{ game: "runner", score: 700 }]);
+  });
+});

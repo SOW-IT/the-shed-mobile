@@ -182,3 +182,48 @@ export const playingLine = (names: readonly string[], game: GameId): string | nu
   const others = names.length - 1;
   return `${names[0]} and ${others} ${others === 1 ? "other" : "others"} playing ${title}`;
 };
+
+export type BestRuns = Partial<Record<GameId, QueuedScore>>;
+
+export const parseBestRuns = (saved: string): BestRuns => {
+  try {
+    const parsed: unknown = JSON.parse(saved);
+    const record = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    const runs: BestRuns = {};
+    for (const game of GAME_IDS) {
+      const run = record[game];
+      if (isQueuedScore(run) && run.game === game) runs[game] = run;
+    }
+    return runs;
+  } catch {
+    return {};
+  }
+};
+
+export const withBestRun = (runs: BestRuns, run: QueuedScore): BestRuns =>
+  run.score > (runs[run.game]?.score ?? 0) ? { ...runs, [run.game]: run } : runs;
+
+type ServerBests = readonly { game: string; score: number }[];
+
+export const shownBests = (local: LocalBests, server: ServerBests | null | undefined): LocalBests => {
+  if (!server) return local;
+  const shown = { ...local };
+  for (const { game, score } of server) {
+    if (isGameId(game) && score > shown[game]) shown[game] = score;
+  }
+  return shown;
+};
+
+export const bestsToSync = (
+  runs: BestRuns,
+  server: ServerBests,
+  queue: readonly QueuedScore[],
+  now: number,
+  tried: ReadonlySet<string> = new Set()
+): QueuedScore[] =>
+  GAME_IDS.flatMap((game) => {
+    const run = runs[game];
+    const onServer = server.find((row) => row.game === game)?.score ?? 0;
+    if (!run || run.score <= onServer || tried.has(run.runId) || scoreProblem(run, now) !== null) return [];
+    return queue.some((queued) => queued.game === game && queued.score >= run.score) ? [] : [run];
+  });

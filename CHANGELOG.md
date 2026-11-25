@@ -19,6 +19,13 @@ All notable changes to **The SHED** mobile app. This project follows
 - **See who's watching.** Players see a small eye with a count, such as
   "2 watching", at the top of the board.
 
+### Changed
+- **Your best is the same on every device.** The Best on the Games list, on
+  each game's screen and on its game-over card is your own best for that
+  game across all your devices, signed in. A higher best saved on this
+  phone still counts and is published the usual way. Signed out or offline,
+  it's this device's best as before.
+
 ## [2.13.11] - 2026-11-25
 
 ### Fixed

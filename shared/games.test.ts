@@ -1,19 +1,23 @@
 import { describe, expect, test } from "vitest";
 import {
+  bestsToSync,
   CLOCK_SKEW_MS,
   enqueueScore,
   isGameId,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
   NO_BESTS,
+  parseBestRuns,
   parseBests,
   parseQueue,
   removeSettled,
   SCORE_LIMITS,
   SCORES_RESET_AT,
   scoreProblem,
+  shownBests,
   stringifyBests,
   withBest,
+  withBestRun,
   type QueuedScore,
   playingLabel,
   playingLine,
@@ -163,5 +167,45 @@ describe("who's playing what", () => {
     expect(playingLabel("runner")).toBe("Playing Mystic Man");
     expect(playingLabel("chess")).toBeNull();
     expect(playingLabel(undefined)).toBeNull();
+  });
+});
+
+describe("bests across devices", () => {
+  const local = { ...NO_BESTS, flappy: 40, runner: 900 };
+
+  test("the server's best wins over a lower one on this device, and a higher local one is kept", () => {
+    expect(shownBests(local, [{ game: "flappy", score: 75 }, { game: "runner", score: 300 }, { game: "old", score: 9 }])).toEqual({ ...local, flappy: 75 });
+    expect(shownBests(local, [])).toEqual(local);
+  });
+
+  test("signed out or offline, the device's bests show as they are", () => {
+    expect(shownBests(local, null)).toBe(local);
+    expect(shownBests(local, undefined)).toBe(local);
+  });
+
+  test("a higher local best still in range is sent once through the usual queue", () => {
+    const best = entry({ runId: "run-best-1", score: 900 });
+    const runs = withBestRun(withBestRun({}, entry({ runId: "run-low-1", score: 100 })), best);
+    expect(runs).toEqual({ runner: best });
+    expect(withBestRun(runs, entry({ runId: "run-lower", score: 800 }))).toBe(runs);
+    expect(bestsToSync(runs, [{ game: "runner", score: 300 }], [], NOW)).toEqual([best]);
+    expect(bestsToSync(runs, [], [], NOW)).toEqual([best]);
+    expect(bestsToSync(runs, [{ game: "runner", score: 900 }], [], NOW)).toEqual([]);
+    expect(bestsToSync(runs, [], [best], NOW)).toEqual([]);
+    expect(bestsToSync(runs, [], [], NOW, new Set(["run-best-1"]))).toEqual([]);
+  });
+
+  test("a local best the server would turn away isn't sent", () => {
+    const tooFast = entry({ runId: "run-fast-1", score: 900_000, durationMs: 1000 });
+    expect(bestsToSync({ runner: tooFast }, [], [], NOW)).toEqual([]);
+    const stale = entry({ runId: "run-old-1", playedAt: NOW - MAX_SCORE_AGE_MS - 1 });
+    expect(bestsToSync({ runner: stale }, [], [], NOW)).toEqual([]);
+  });
+
+  test("saved best runs read back, dropping anything unusable", () => {
+    const best = entry({ runId: "run-best-1", score: 900 });
+    expect(parseBestRuns(JSON.stringify({ runner: best, flappy: best, shooter: { score: 3 } }))).toEqual({ runner: best });
+    expect(parseBestRuns("null")).toEqual({});
+    expect(parseBestRuns("{")).toEqual({});
   });
 });
