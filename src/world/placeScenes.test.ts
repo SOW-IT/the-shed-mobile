@@ -27,3 +27,10 @@ test("a rug on its own is still drawn on the floor", () => {
   expect(withRug.ground.length).toBeGreaterThan(bare.ground.length);
   expect(itemAt(withRug.props, cam.project([0, 0, -2]).x, cam.project([0, 0, -2]).y)).toBe("r");
 });
+
+test("a backyard fences off the plots that aren't bought yet", () => {
+  const fences = (plots: number) => buildScene("backyard", cam, undefined, plots).props.filter((prop) => prop.id.startsWith("fence-")).map((prop) => prop.id);
+  expect(fences(4)).toHaveLength(8);
+  expect(fences(6)).toEqual(["fence-6", "fence-7", "fence-8", "fence-9", "fence-10", "fence-11"]);
+  expect(fences(12)).toEqual([]);
+});
