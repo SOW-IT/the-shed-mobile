@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.16] - 2026-11-26
+## [2.13.15] - 2026-11-26
 
 ### Fixed
 - **Sharp text at the top of the Café board and the World's panels.** On an
