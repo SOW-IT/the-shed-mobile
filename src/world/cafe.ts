@@ -71,6 +71,8 @@ export const resultWords = (result: GameResult, side: Side, opponentName: string
   return { title, detail, won: result.winner !== "draw" && won };
 };
 
+export const sheetSwipe = (ended: boolean): "close" | "confirmGiveUp" => (ended ? "close" : "confirmGiveUp");
+
 export const turnWords = (turn: Side, side: Side, opponentName: string) => (turn === side ? "Your turn" : `${opponentName}'s turn`);
 
 export const secondsLeft = (endsAt: number, now: number) => Math.max(0, Math.ceil((endsAt - now) / 1000));

@@ -11,12 +11,18 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Fixed
 - **Review items left open on merged PRs (#480 to #544).** A walk the
   system interrupts (a call, a system gesture) ends where your finger last
-  was, not where it first went down. On the web, a screen reader reads a new
-  ask in the World list once, not the countdown every second. The character
+  was, not where it first went down. A poke link that reaches an open World
+  closes the character editor and opens the poke list. On the web, a screen
+  reader reads each note and each new ask once, not the countdown every
+  second, and moving into a home doesn't read its old lines out. Travelling
+  to the room you're in keeps the route you were walking. The character
   preview faces you again going from Hair to a face tab. A line said over an
   hour ago no longer comes back from the server. Local game bests save in
   order. A game's start card shrinks to fit a very short window instead of
   being cut off. Verify and pr-status tooling fixes.
+- **Swipe the Café board down to close it.** Drag its handle or title down:
+  on the end card it closes like Close, and during a game it asks
+  **Give up?** first, so nobody loses a game by accident.
 
 ## [2.13.4] - 2026-11-25
 

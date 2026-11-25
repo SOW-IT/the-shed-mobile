@@ -7,6 +7,7 @@ import {
   rematchWords,
   resultWords,
   secondsLeft,
+  sheetSwipe,
   shownChallenge,
   turnWords,
   type CafeChallengeView,
@@ -85,5 +86,15 @@ describe("words on the board", () => {
     expect(rematchWords(undefined, "a", "Kate R.")).toBeNull();
     expect(rematchWords("a", "a", "Kate R.")).toBe("Waiting for Kate R.");
     expect(rematchWords("b", "a", "Kate R.")).toBe("Kate R. wants a rematch");
+  });
+});
+
+describe("sheetSwipe", () => {
+  test("a swipe down asks to give up during play, so nobody forfeits by accident", () => {
+    expect(sheetSwipe(false)).toBe("confirmGiveUp");
+  });
+
+  test("a swipe down on the end card closes it, like Close", () => {
+    expect(sheetSwipe(true)).toBe("close");
   });
 });
