@@ -364,7 +364,6 @@ const Player = ({
   active,
   winner,
   calm,
-  said,
   testID,
 }: {
   name: string;
@@ -375,18 +374,22 @@ const Player = ({
   active: boolean;
   winner: boolean;
   calm: boolean;
-  said: string | null;
   testID: string;
 }) => {
   const c = useCafeTheme();
   const bright = active || winner;
   const lit = useSharedValue(bright ? 1 : 0);
+  const turn = useSharedValue(active ? 1 : 0);
   useEffect(() => {
     const to = bright ? 1 : 0;
     lit.set(calm ? to : withTiming(to, { duration: 200 }));
   }, [bright, calm, lit]);
+  useEffect(() => {
+    const to = active ? 1 : 0;
+    turn.set(calm ? to : withTiming(to, { duration: 200 }));
+  }, [active, calm, turn]);
   const fade = useAnimatedStyle(() => ({ opacity: 0.56 + 0.44 * lit.get() }));
-  const tint = useAnimatedStyle(() => ({ opacity: lit.get() }));
+  const tint = useAnimatedStyle(() => ({ opacity: turn.get() }));
   const score = boxes !== null ? (
     <View style={[styles.scorePill, { backgroundColor: c.scoreBg }]}>
       <Text style={[styles.scoreText, { color: c.text }]}>{boxes}</Text>
@@ -394,7 +397,7 @@ const Player = ({
   ) : null;
   return (
     <Reanimated.View style={[styles.player, end && styles.playerEnd, fade]} testID={testID} accessibilityState={{ selected: active }}>
-      <Reanimated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.playerTint, { backgroundColor: c.activeBg, borderColor: c.activeEdge }, active ? tint : styles.none]} />
+      <Reanimated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.playerTint, { backgroundColor: c.activeBg, borderColor: c.activeEdge }, tint]} testID={`${testID}-tint`} />
       <Face look={look} name={name} size={36} edge={winner ? c.win : c.avatarEdge} />
       <View style={[styles.playerText, end && styles.playerTextEnd]}>
         <Text style={[styles.playerName, { color: c.text }, end && styles.alignEnd]} numberOfLines={1} ellipsizeMode="tail">
@@ -405,14 +408,23 @@ const Player = ({
           {score}
         </View>
       </View>
-      {said ? (
-        <View style={[styles.said, end ? styles.saidEnd : styles.saidStart, { backgroundColor: c.sheet, borderColor: c.sheetEdge, shadowColor: c.shadow }]} pointerEvents="none" testID={`${testID}-said`}>
-          <Text style={[styles.saidText, { color: c.text }]} numberOfLines={2}>
-            {said}
-          </Text>
-        </View>
-      ) : null}
     </Reanimated.View>
+  );
+};
+
+const Said = ({ text, end, wide, testID }: { text: string | null; end: boolean; wide: boolean; testID: string }) => {
+  const c = useCafeTheme();
+  if (!text) return null;
+  return (
+    <View
+      style={[styles.said, end ? styles.saidEnd : styles.saidStart, wide ? styles.saidWide : styles.saidHalf, { backgroundColor: c.sheet, borderColor: c.sheetEdge, shadowColor: c.shadow }]}
+      pointerEvents="none"
+      testID={testID}
+    >
+      <Text style={[styles.saidText, { color: c.text }]} numberOfLines={2}>
+        {text}
+      </Text>
+    </View>
   );
 };
 
@@ -684,9 +696,11 @@ const CafeSheet = ({
               </View>
             </View>
             <View style={styles.versus}>
-              <Player name={names[mine]} look={looks[mine]} side={mine} boxes={dots ? myBoxes : null} end={false} active={leftTurn} winner={winner === mine} calm={calm} said={said[mine]} testID={watching ? "cafe-plate-a" : "cafe-plate-me"} />
+              <Player name={names[mine]} look={looks[mine]} side={mine} boxes={dots ? myBoxes : null} end={false} active={leftTurn} winner={winner === mine} calm={calm} testID={watching ? "cafe-plate-a" : "cafe-plate-me"} />
               <Text style={[styles.vs, { color: c.faint }]}>vs</Text>
-              <Player name={them} look={looks[theirs]} side={theirs} boxes={dots ? theirBoxes : null} end active={live && !leftTurn} winner={winner === theirs} calm={calm} said={said[theirs]} testID={watching ? "cafe-plate-b" : "cafe-plate-them"} />
+              <Player name={them} look={looks[theirs]} side={theirs} boxes={dots ? theirBoxes : null} end active={live && !leftTurn} winner={winner === theirs} calm={calm} testID={watching ? "cafe-plate-b" : "cafe-plate-them"} />
+              <Said text={said[mine]} end={false} wide={!said[theirs]} testID={watching ? "cafe-plate-a-said" : "cafe-plate-me-said"} />
+              <Said text={said[theirs]} end wide={!said[mine]} testID={watching ? "cafe-plate-b-said" : "cafe-plate-them-said"} />
             </View>
             {live ? (
               <View style={styles.turnStrip}>
@@ -897,7 +911,6 @@ export const CafeLayer = ({
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
-  none: { opacity: 0 },
   centre: { alignItems: "center", justifyContent: "center" },
   card: { borderWidth: 1.5, borderRadius: 28, shadowOffset: { width: 0, height: 20 }, shadowOpacity: 1, shadowRadius: 22, elevation: 12 },
   cardRow: { position: "absolute", left: 14, right: 14, alignItems: "center" },
@@ -939,8 +952,8 @@ const styles = StyleSheet.create({
   headNoHandle: { paddingTop: 2 },
   said: {
     position: "absolute",
-    top: -22,
-    maxWidth: "88%",
+    bottom: "100%",
+    marginBottom: -14,
     paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: 12,
@@ -952,6 +965,8 @@ const styles = StyleSheet.create({
   },
   saidStart: { left: 4, borderBottomLeftRadius: 3 },
   saidEnd: { right: 4, borderBottomRightRadius: 3 },
+  saidWide: { maxWidth: "82%" },
+  saidHalf: { maxWidth: "49%" },
   saidText: { fontSize: 12.5, fontWeight: "700" },
   glow: { position: "absolute", top: 0, bottom: 0, width: GLOW_WIDTH },
   glowLeft: { left: 0 },

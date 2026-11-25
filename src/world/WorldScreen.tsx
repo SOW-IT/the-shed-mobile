@@ -27,10 +27,10 @@ import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId }
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Keyboard, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Reanimated, { useAnimatedStyle, useDerivedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { liftOverKeyboard } from "@/hooks/keyboardOverlap";
+import { keyboardLift } from "@/hooks/keyboardOverlap";
 import { useKeyboardHeight } from "@/hooks/useKeyboardInset";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
@@ -89,7 +89,8 @@ const KEYBOARD_GAP = 8;
 
 const useKeyboardLift = (bottomInset: number) => {
   const keyboard = useKeyboardHeight();
-  const lift = useDerivedValue(() => liftOverKeyboard(keyboard.get(), bottomInset, KEYBOARD_GAP));
+  const scale = PixelRatio.get();
+  const lift = useDerivedValue(() => keyboardLift(keyboard.get(), bottomInset, KEYBOARD_GAP, scale));
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -422,6 +423,7 @@ export const WorldScreen = ({
     setSheet(null);
     setWatching(gameId as Id<"cafeGames">);
   };
+  const cafeSheetUp = cafe.game !== null || watching !== null;
   const tappedGame = gameToWatch(cafe.playing, tapped?.memberId);
   const selectedGame = gameToWatch(cafe.playing, selected?.memberId);
 
@@ -1205,7 +1207,7 @@ export const WorldScreen = ({
           <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
-      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }]} pointerEvents="box-none">
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, cafeSheetUp && !keyboard.open ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row">
         {decorating ? null : (
           <ChatLog
             roomId={world.status === "in" ? world.roomId : null}
@@ -1367,6 +1369,7 @@ const styles = StyleSheet.create({
   decorateRow: { flexDirection: "row", justifyContent: "flex-end" },
   ping: { minWidth: 30, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },
+  overCafe: { zIndex: 2, elevation: 2 },
   logRow: { position: "absolute", left: 14, right: 14, maxWidth: 460, alignItems: "flex-start", gap: 8 },
   noteOver: { position: "absolute", left: 14, right: 14, alignItems: "center" },
   offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },

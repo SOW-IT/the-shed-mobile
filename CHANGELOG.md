@@ -26,6 +26,14 @@ All notable changes to **The SHED** mobile app. This project follows
   phone still counts and is published the usual way. Signed out or offline,
   it's this device's best as before.
 
+### Fixed
+- **Café board, after chatting.** What you say shows over the board's title
+  in a solid bubble wide enough for a short sentence on one line, instead
+  of a see-through one squeezed over your name. The highlight on a player's
+  name goes when their turn ends, and the board lands on whole pixels when
+  the keyboard closes.
+- **Scroll the World chat during a Café game,** as a player or a spectator.
+
 ## [2.13.11] - 2026-11-25
 
 ### Fixed
