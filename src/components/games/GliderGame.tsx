@@ -20,6 +20,9 @@ import {
   type GliderState,
   type HillPoint,
   type Popup,
+  birdPixels,
+  earthFloor,
+  unitPixels,
 } from "@/lib/games/glider";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
@@ -43,7 +46,6 @@ const STRIP = 12;
 const CHUNK_STRIPS = 32;
 const CHUNK = STRIP * CHUNK_STRIPS;
 /** How far below the bottom of the world the ground is filled. */
-const DEEP = 1400;
 const GRASS = 6;
 /** The bird's own drawing, before it's scaled to the board. */
 const BIRD = 40;
@@ -71,9 +73,9 @@ const chunkPoints = (hills: readonly HillPoint[], index: number): HillPoint[] =>
 const samePoints = (a: readonly HillPoint[], b: readonly HillPoint[]) =>
   a === b || (a.length === b.length && a.every((point, i) => point.x === b[i].x && point.y === b[i].y));
 
-type ChunkProps = { hills: HillPoint[]; index: number };
+type ChunkProps = { hills: HillPoint[]; index: number; floor: number };
 
-const sameChunk = (a: ChunkProps, b: ChunkProps) => a.index === b.index && samePoints(a.hills, b.hills);
+const sameChunk = (a: ChunkProps, b: ChunkProps) => a.index === b.index && a.floor === b.floor && samePoints(a.hills, b.hills);
 
 const strips = (hills: HillPoint[], index: number) =>
   Array.from({ length: CHUNK_STRIPS }, (_, i) => {
@@ -87,14 +89,14 @@ const strips = (hills: HillPoint[], index: number) =>
  * stepped. The ground never changes, so a chunk draws once and the camera
  * moves over it.
  */
-const EarthChunk = memo(function EarthChunk({ hills, index }: ChunkProps) {
+const EarthChunk = memo(function EarthChunk({ hills, index, floor }: ChunkProps) {
   const parts = strips(hills, index);
   return (
     <>
       {parts.map(({ i, x0, y0, y1 }) => (
         <View
           key={`c${i}`}
-          style={[styles.column, { left: x0, top: -Math.min(y0, y1), width: STRIP + 0.75, height: Math.min(y0, y1) + DEEP }]}
+          style={[styles.column, { left: x0, top: -Math.min(y0, y1), width: STRIP + 0.75, height: Math.min(y0, y1) - floor }]}
         />
       ))}
       {parts.map(({ i, x0, y0, y1 }) => (
@@ -267,7 +269,7 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const sky = colourAt(c.sky, progress);
   const { camera } = state;
   const view = viewSize(width / height, camera.zoom);
-  const px = height / view.height;
+  const px = unitPixels({ width, height }, camera.zoom);
   const steadyPx = height / viewSize(width / height, 1).height;
   const anchor = parallaxAnchor(state);
   const top = camera.y + view.height;
@@ -277,7 +279,8 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   for (let i = Math.max(-1, first); i <= last; i++) chunks.push(i);
   const screenX = (x: number) => (x - camera.x) * px;
   const screenY = (y: number) => (top - y) * px;
-  const birdScale = (px * Math.sqrt(camera.zoom) * GLIDER.radius * 2.4) / BIRD;
+  const birdScale = birdPixels(px) / BIRD;
+  const floor = earthFloor(state.hills);
   const angle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
   const tilt = Math.max(-1.1, Math.min(1.1, angle));
   const birdX = screenX(state.x);
@@ -332,10 +335,10 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         pointerEvents="none"
       >
         {chunks.map((index) => (
-          <EarthChunk key={index} hills={chunkPoints(state.hills, index)} index={index} />
+          <EarthChunk key={index} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
         ))}
         {chunks.map((index) => (
-          <GrassChunk key={`g${index}`} hills={chunkPoints(state.hills, index)} index={index} />
+          <GrassChunk key={`g${index}`} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
         ))}
       </View>
       <View style={[styles.flagClip, { width, height }]} pointerEvents="none">

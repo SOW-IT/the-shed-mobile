@@ -574,6 +574,19 @@ const PARALLAX = { far: 0.04, near: 0.09 } as const;
 
 export const parallaxShift = (cameraX: number, layer: keyof typeof PARALLAX) => cameraX * PARALLAX[layer];
 
+export const unitPixels = (board: { width: number; height: number }, zoom: number) =>
+  board.height / viewSize(board.width / board.height, zoom).height;
+
+export const birdPixels = (unit: number) => unit * GLIDER.radius * 2.4;
+
+const EARTH_DEPTH = 1400;
+
+export const earthFloor = (hills: readonly HillPoint[]) => {
+  let lowest = 0;
+  for (const point of hills) lowest = Math.min(lowest, point.y);
+  return Math.floor((lowest - EARTH_DEPTH) / 1000) * 1000;
+};
+
 export const parallaxAnchor = (state: Pick<GliderState, "x">) => state.x - VIEW.width * VIEW.lead;
 
 export const farHillTiles = (shift: number, width: number, gap: number) => {

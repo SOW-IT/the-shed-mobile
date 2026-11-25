@@ -28,27 +28,29 @@ All notable changes to **The SHED** mobile app. This project follows
   rock step from 15,000.
 - **Flap.** A point for each pipe, and nothing for time. Pipes come at a
   steady rhythm. The opening starts roomy and narrows a little with every
-  pipe until pipe 184, where it stays just wide enough for a flap, and the
-  pipes speed up until pipe 150. Pipes turn a shade darker every 10 pipes,
-  and the sky every 50, through golden hour and dusk to a starry night at
-  pipe 500.
+  pipe until about pipe 190, where it stays just wide enough for a flap,
+  and the pipes speed up until pipe 100. The sky drifts from afternoon to
+  sunset by pipe 200 and stays there, and the pipes deepen a little with
+  it.
 - **Sky Shooter.** From 75 seconds a new wave every 30 seconds: more
   enemies, faster bullets and enemies, more big ones, and new bullet
   patterns: aimed doubles at 2 minutes, rings from big enemies at 2.5,
   a wide fan at 4 and three-shot bursts at 6.
-- **Swoop.** Much shorter days: 26 seconds in world 1, falling each
-  world to 18 from world 8 (v1 grew to 56). The ground gets harder by the
-  same step every world from world 1: narrower, deeper and steeper hills,
-  a smaller angle for a perfect landing, shorter flat ground, more odd
-  shapes, and new ones by world 7: a deep gorge, a jagged climb that
-  throws you into rough landings, a long drop and a tall wall. Worlds get
-  shorter with the day, so a clean run just makes it and a few mistakes
+- **Swoop** counts days, not worlds. Day 1 lasts 45 seconds and each day
+  is a little shorter, down to 25 seconds from day 20. The first two days
+  have narrower, steeper hills to launch from. From day 3 the ground gets
+  harder by the same step every day, with no end: deeper, steeper hills,
+  a smaller angle for a perfect landing, shorter flat ground, ground that
+  rises and falls across the day, and new shapes through day 8: double
+  humps, cliffs, deep gorges, uneven valleys, long drops, tall walls and
+  the odd jagged climb. A clean run just makes it and a few mistakes
   don't.
 
 ### Fixed
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
-  target and holds after a big flight.
+  target and holds after a big flight. The bird keeps its size against the
+  hills when the view zooms out, rather than shrinking faster than them.
 - **Game over dims the whole screen**, the bands by the notch and the home
   bar too, and Sky Shooter and Mystic Man show a light clock on their dark
   screens.

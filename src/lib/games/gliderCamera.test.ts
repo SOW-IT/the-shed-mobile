@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  birdPixels,
+  earthFloor,
+  unitPixels,
+  worldHills,
   autoHold,
   farHillTiles,
   GLIDER,
@@ -57,17 +61,17 @@ const throughDay = (day: number) => {
   return run;
 };
 
-const birdPixels = (frame: GliderState) => GLIDER.radius * 2 * frame.camera.zoom * (BOARD.width / VIEW.width);
+const birdOnScreen = (frame: GliderState) => birdPixels(unitPixels(BOARD, frame.camera.zoom));
 
 describe("Swoop's bird on screen", () => {
   test.each([10, 20, 30])("stays at least half its day 1 size all through day %i, however the ground rises and falls", (day) => {
-    const dayOne = Math.max(...frames.filter((frame) => frame.world === 1).map(birdPixels));
+    const dayOne = Math.max(...frames.filter((frame) => frame.world === 1).map(birdOnScreen));
     const run = throughDay(day);
     expect(run.at(-1)!.world).toBe(day + 1);
     for (const frame of run) {
       expect(frame.camera.zoom).toBeGreaterThanOrEqual(VIEW.minZoom * 0.98);
-      expect(birdPixels(frame)).toBeGreaterThanOrEqual(dayOne * 0.49);
-      expect(birdPixels(frame)).toBeGreaterThanOrEqual(12);
+      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(dayOne * 0.49);
+      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(12);
     }
   });
 });
@@ -156,6 +160,19 @@ describe.each([
       if (fits) expect(ground).toBeGreaterThanOrEqual(frame.camera.y);
       expect(frame.y).toBeLessThanOrEqual(frame.camera.y + view.height);
       expect(frame.y + GLIDER.radius * 2).toBeGreaterThanOrEqual(frame.camera.y);
+    }
+  });
+});
+
+describe("Swoop's earth", () => {
+  test("reaches below the lowest ground of every day, however deep the valleys get", () => {
+    for (const day of [1, 10, 27, 29, 30, 60]) {
+      for (const seed of [2, 55, 81]) {
+        const hills = worldHills(seed, day, 0);
+        const lowest = Math.min(...hills.map((point) => point.y));
+        expect(earthFloor(hills)).toBeLessThan(Math.min(0, lowest) - 1000);
+        expect(Math.abs(earthFloor(hills) % 1000)).toBe(0);
+      }
     }
   });
 });
