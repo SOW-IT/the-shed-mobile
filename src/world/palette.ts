@@ -119,6 +119,7 @@ export const places = {
     mat: "#B8473A",
     window: "#BFE3EE",
     frame: "#F6D365",
+    door: "#8A5A3A",
   },
   beach: {
     sky: "#BFE6F2",
@@ -147,6 +148,67 @@ export const places = {
     palm: "#4F9A5E",
     palmLight: "#67B372",
     rock: "#9AA3A8",
+  },
+  backyard: {
+    sky: "#CDE9EC",
+    grass: "#A8D58C",
+    stripe: "#B4DC99",
+    path: "#E3D2AE",
+    soil: "#8A6244",
+    soilDark: "#6E4B34",
+    furrow: "#7A553B",
+    locked: "#C3DFA8",
+    fence: "#D9B98C",
+    fenceDark: "#B7845E",
+    shed: "#5B8DB8",
+    roof: "#B8473A",
+    door: "#F1E6CC",
+    barrel: "#8A5A3A",
+    barrelBand: "#5E6B66",
+    water: "#9AD4E2",
+  },
+} as const;
+
+export const farm = {
+  leaf: "#5FA066",
+  leafLight: "#7EC277",
+  stem: "#4A8A55",
+  mound: "#7A553B",
+  seed: "#E9D3A6",
+  wilt: "#9A7B4A",
+  dead: "#9AA0A0",
+  deadDark: "#7D8282",
+  drop: "#4A9FD1",
+  dropLight: "#BFE3F5",
+  sparkle: "#F6D365",
+  can: "#5B8DB8",
+  canDark: "#41698C",
+  tag: "rgba(29, 74, 65, 0.92)",
+  tagText: "#F5F3E3",
+  card: "#FFFEF8",
+  petal: "#FFFEF8",
+  bloom: "#F6D365",
+  bloomDeep: "#E9A23B",
+  wet: "rgba(46, 30, 20, 0.35)",
+  dust: "#C7A37E",
+  seeds: {
+    lettuce: "#4A3B2C",
+    carrot: "#C9A36A",
+    strawberry: "#E9C64B",
+    tomato: "#F1E6C8",
+    pumpkin: "#F3E7C4",
+    watermelon: "#1E1A1A",
+  },
+  seedRim: "#D8C79A",
+  dish: "#E9D9B4",
+  seedShine: "#FFFFFF",
+  crops: {
+    lettuce: { fruit: "#8FCB6B", light: "#B9E08F", dark: "#5FA066" },
+    carrot: { fruit: "#F0883A", light: "#F6B06A", dark: "#C9603A" },
+    strawberry: { fruit: "#E0514F", light: "#F48A86", dark: "#B23A3A" },
+    tomato: { fruit: "#E8473A", light: "#F47F6C", dark: "#B8473A" },
+    pumpkin: { fruit: "#F08A3C", light: "#F6B26B", dark: "#C9682A" },
+    watermelon: { fruit: "#4F9A5E", light: "#7EC277", dark: "#2E6B40" },
   },
 } as const;
 
@@ -326,6 +388,11 @@ export const chatLog = {
 } as const;
 
 const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+
+export const mix = (from: string, to: string, k: number): string => {
+  const step = (i: number) => Math.round(channel(from, i) + (channel(to, i) - channel(from, i)) * k).toString(16).padStart(2, "0");
+  return `#${step(0)}${step(1)}${step(2)}`;
+};
 
 const lightness = (hex: string) => 0.2126 * channel(hex, 0) + 0.7152 * channel(hex, 1) + 0.0722 * channel(hex, 2);
 

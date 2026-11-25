@@ -69,7 +69,6 @@ export default function World() {
       <WorldScreen
         active={focused || awayKind !== null}
         awayKind={awayKind && !focused ? awayKind : null}
-        onBack={() => setAsking(true)}
         leaveAsked={asking}
         onStay={stay}
         onLeave={leave}

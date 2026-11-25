@@ -3,6 +3,8 @@
 // time) and every phone works out where that person is from it, so the
 // backend never sees a position per frame.
 
+import { PLOT_OBSTACLES } from "./farm";
+
 export const WORLD_PLACE = "garden";
 /** People per room. A full room opens the next instance of the place. */
 export const ROOM_CAP = 20;
@@ -211,6 +213,7 @@ const WATER: Record<Place, readonly Water[]> = {
   cafe: [],
   beach: [{ kind: "sea", beyondZ: -7.4 }],
   home: [],
+  backyard: [],
 };
 
 export const inWater = (place: Place, at: { x: number; z: number }) =>
@@ -355,8 +358,11 @@ export type Obstacle = { id: string; x: number; z: number; rx: number; rz: numbe
 export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach"] as const;
 export type PublicPlace = (typeof PLACES)[number];
 export const HOME = "home";
-export type Place = PublicPlace | typeof HOME;
-export const isPlace = (value: unknown): value is Place => value === HOME || (PLACES as readonly unknown[]).includes(value);
+export const BACKYARD = "backyard";
+export type PrivatePlace = typeof HOME | typeof BACKYARD;
+export type Place = PublicPlace | PrivatePlace;
+export const isPlace = (value: unknown): value is Place => value === HOME || value === BACKYARD || (PLACES as readonly unknown[]).includes(value);
+export const isPrivatePlace = (place: unknown): place is PrivatePlace => place === HOME || place === BACKYARD;
 
 export const PLACE_TITLES: Record<Place, string> = {
   garden: "The Garden",
@@ -365,6 +371,7 @@ export const PLACE_TITLES: Record<Place, string> = {
   cafe: "The Café",
   beach: "The Beach",
   home: "Home",
+  backyard: "Backyard",
 };
 
 /** A place's name on its own, as the World's title shows it: "Garden", "Café". */
@@ -405,6 +412,7 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "palm", x: -3.0, z: 5.4, rx: 0.35, rz: 0.35 },
   ],
   home: [],
+  backyard: PLOT_OBSTACLES,
 };
 
 type Portal = { to: Place; x: number; z: number };
@@ -440,7 +448,11 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
     { to: "chapel", x: 0.4, z: 7 },
     { to: "campfire", x: 3.2, z: -2 },
   ],
-  home: [{ to: "garden", x: 0, z: 7 }],
+  home: [
+    { to: "garden", x: 0, z: 7 },
+    { to: "backyard", x: 0, z: -10 },
+  ],
+  backyard: [{ to: "home", x: 0, z: 7 }],
 };
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
@@ -492,6 +504,7 @@ export const SEATS: Record<Place, readonly Seat[]> = {
   cafe: faceTheCamera([...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)]),
   beach: faceTheCamera(along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND)),
   home: [],
+  backyard: [],
 };
 
 export const seatIn = (place: Place, id: string | undefined): Seat | null =>
@@ -525,7 +538,7 @@ const intoRoom = (pad: Portal): number => {
  * between places with no pad), at the spawn, facing the camera.
  */
 export const arrivalSpot = (from: Place, to: Place): { x: number; z: number; heading?: number } => {
-  if (to === HOME) return { ...HOME_ARRIVAL };
+  if (to === HOME && from !== BACKYARD) return { ...HOME_ARRIVAL };
   const pad = PORTALS[to].find((portal) => portal.to === from);
   if (!pad) return clearSpot(to, clampTarget(SPAWN.x, SPAWN.z, to), { labels: true });
   return { ...clampTarget(pad.x, pad.z, to), heading: intoRoom(pad) };
