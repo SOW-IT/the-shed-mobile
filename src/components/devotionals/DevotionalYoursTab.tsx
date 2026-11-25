@@ -8,6 +8,7 @@ import {
   hasDevotionalContent,
   isFutureDevotionalDate,
   mergeMonthDevotionals,
+  pickDisplayDevotional,
   todayDevotionalDate,
 } from "@shared/devotionals";
 import { useQuery } from "convex/react";
@@ -69,6 +70,7 @@ export const DevotionalYoursTab = () => {
   const spansTwoMonths = view === "week" && (wy1 !== wy2 || wm1 !== wm2);
 
   const monthRows = useQuery(api.devotionals.byMonth, { year: queryYear, month: queryMonth });
+  const todayRemote = useQuery(api.devotionals.byDate, { date: today });
   const secondMonthRows = useQuery(
     api.devotionals.byMonth,
     spansTwoMonths ? { year: wy2, month: wm2 } : "skip"
@@ -108,7 +110,8 @@ export const DevotionalYoursTab = () => {
       ? { boxShadow: `0px 0px 8px ${full.glow}` }
       : { shadowColor: full.bg, shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 1 }, elevation: 3 };
 
-  const todayEntry = byDate.get(today) ?? (drafts[today] && hasDevotionalContent(drafts[today]) ? drafts[today] : undefined);
+  const todayContent = pickDisplayDevotional(drafts[today], todayRemote);
+  const todayEntry = hasDevotionalContent(todayContent) ? todayContent : undefined;
 
   return (
     <View style={styles.stack} testID="devotional-yours-tab">

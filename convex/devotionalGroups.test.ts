@@ -886,24 +886,43 @@ test("a group stops taking invites at 200 people, so no member drops out of its 
   await expect(anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN })).rejects.toThrow(/at most 200/);
 });
 
-test("deleting the owner's account clears their pending invitees' unread invites", async () => {
+test("deleting the owner's account clears their groups' notifications after the wipe, in batches", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
   const t = newConvex();
   const { annaId } = await seedUsers(t);
   const anna = asUser(t, ANNA);
-  const { groupId } = await anna.mutation(api.devotionalGroups.create, {
-    name: "Owner leaves",
-    startDate: "2026-11-01",
-    endDate: "2026-11-30",
-    sharingLevel: "count",
+  const groupIds: Id<"devotionalGroups">[] = [];
+  for (const name of ["Owner leaves", "Second group"]) {
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name,
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "count",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    groupIds.push(groupId);
+  }
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 250; i++) {
+      await ctx.db.insert("notifications", {
+        userEmail: CARA,
+        title: "Devotional reminder",
+        body: "Old reminder",
+        devotionalGroupId: groupIds[0],
+        read: true,
+      });
+    }
   });
-  await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+  const groupNotifications = () =>
+    t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.devotionalGroupId !== undefined)
+    );
   await t.mutation(internal.account.wipe, { userId: annaId });
-  const benUnread = await t.run(async (ctx) =>
-    (await ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BEN)).collect()).filter(
-      (n) => !n.read
-    )
-  );
-  expect(benUnread).toEqual([]);
+  expect((await groupNotifications()).length).toBe(252);
+  expect(await t.run((ctx) => ctx.db.query("devotionalGroupMembers").collect())).toEqual([]);
+  await t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await groupNotifications()).toEqual([]);
 });
 
 test("the 8pm reminder pages through groups in batches and still sends once per person", async () => {

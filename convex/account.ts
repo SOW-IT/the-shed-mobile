@@ -189,7 +189,7 @@ async function deleteByEmail(
         .query("devotionalGroups")
         .withIndex("by_ownerEmail", (q) => q.eq("ownerEmail", email))
         .take(WIPE_BATCH),
-      (group) => deleteGroupData(ctx, group)
+      (group) => deleteGroupData(ctx, group, "later")
     ),
     await deleteBatch(
       await ctx.db

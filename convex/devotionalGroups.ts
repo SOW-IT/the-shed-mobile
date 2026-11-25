@@ -118,7 +118,11 @@ const purgeGroupNotificationsBatch = async (ctx: MutationCtx, groupId: Id<"devot
   }
 };
 
-export const deleteGroupData = async (ctx: MutationCtx, group: Doc<"devotionalGroups">) => {
+export const deleteGroupData = async (
+  ctx: MutationCtx,
+  group: Doc<"devotionalGroups">,
+  notifications: "now" | "later" = "now"
+) => {
   for (;;) {
     const batch = await ctx.db
       .query("devotionalGroupMembers")
@@ -130,7 +134,8 @@ export const deleteGroupData = async (ctx: MutationCtx, group: Doc<"devotionalGr
     }
   }
   await ctx.db.delete("devotionalGroups", group._id);
-  await purgeGroupNotificationsBatch(ctx, group._id);
+  if (notifications === "now") await purgeGroupNotificationsBatch(ctx, group._id);
+  else await ctx.scheduler.runAfter(0, internal.devotionalGroups.purgeGroupNotifications, { groupId: group._id });
 };
 
 export const purgeGroupNotifications = internalMutation({
