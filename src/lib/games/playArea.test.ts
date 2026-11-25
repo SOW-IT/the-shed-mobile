@@ -30,7 +30,7 @@ const layout = (game: GameId, device: Device) => {
 };
 
 const BORDERED: Record<GameId, readonly string[]> = {
-  flappy: ["desktop"],
+  flappy: ["iPhone SE", "iPad portrait", "desktop"],
   shooter: ["iPad portrait", "desktop"],
   runner: [],
   glider: ["tall Android"],

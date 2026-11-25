@@ -44,11 +44,15 @@ const PALETTE: FlappyPalette = {
   cloud: c.cloud,
   pipe: c.pipe,
   pipeSunset: c.pipeSunset,
+  pipeNight: c.pipeNight,
   pipeShadow: c.pipeShadow,
   ground: c.ground,
   groundSunset: c.groundSunset,
+  groundNight: c.groundNight,
   grass: c.grass,
   grassSunset: c.grassSunset,
+  grassNight: c.grassNight,
+  night: g.night,
 };
 
 const tones = (state: FlappyState) => flappyColours(pipesFlown(state), PALETTE);
@@ -215,7 +219,8 @@ export const FlappyGame = ({
     <GameFrame
       game="flappy"
       background={tone.sky}
-      ink={c.eye}
+      ink={tone.dark ? c.eyeWhite : c.eye}
+      statusBar={tone.dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
       world={run ? { width: run.width, height: run.height } : board}

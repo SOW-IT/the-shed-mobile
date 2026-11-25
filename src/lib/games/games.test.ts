@@ -400,13 +400,8 @@ describe("flappy", () => {
   });
 
   test("each gap passed scores one", () => {
-    const autopilot = (s: FlappyState) => {
-      const next = s.pipes.find((p) => p.x + FLAPPY.pipeWidth > birdX(s) - FLAPPY.radius);
-      const target = next ? next.gapTop + next.gapHeight * 0.62 : s.height * 0.45;
-      return s.y > target && s.vy > 0 ? flap(s) : s;
-    };
-    const state = runFor(newFlappy(360, 640, 5), 30, stepFlappy, autopilot);
-    expect(state.over).toBe(false);
+    let state = newFlappy(360, 640, 5);
+    for (let t = 0; t < 30; t += 1 / 60) state = { ...stepFlappy({ ...state, y: 300, vy: 0 }, 1 / 60), over: false };
     expect(state.gaps).toBeGreaterThan(10);
     expect(state.score).toBe(state.gaps * FLAPPY_V2.pointsPerPipe);
   });

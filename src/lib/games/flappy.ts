@@ -112,7 +112,7 @@ const easeInOut = (t: number) => t * t * (3 - 2 * t);
 export const pipesFlown = (state: Pick<FlappyState, "gaps" | "time" | "passedAt">) =>
   state.gaps + Math.min(1, Math.max(0, ((state.time - state.passedAt) * pipeSpeed(state.gaps)) / FLAPPY_V2.spacing));
 
-export const dayPassed = (pipes: number) => easeInOut(Math.min(1, Math.max(0, pipes) / FLAPPY_V2.sunsetPipe));
+export const dayPassed = (pipes: number) => easeInOut(Math.min(1, Math.max(0, pipes) / FLAPPY_V2.nightPipe));
 
 export type FlappyPalette = {
   sky: readonly (readonly [number, string])[];
@@ -121,29 +121,41 @@ export type FlappyPalette = {
   cloud: string;
   pipe: string;
   pipeSunset: string;
+  pipeNight: string;
   pipeShadow: string;
   ground: string;
   groundSunset: string;
+  groundNight: string;
   grass: string;
   grassSunset: string;
+  grassNight: string;
+  night: string;
 };
 
 const between2 = (from: readonly [number, number], to: readonly [number, number], t: number) =>
   [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t] as const;
 
+const lightness = (hex: string) => [1, 3, 5].reduce((sum, at) => sum + parseInt(hex.slice(at, at + 2), 16), 0) / (3 * 255);
+
 export const flappyColours = (pipes: number, palette: FlappyPalette) => {
   const day = dayPassed(pipes);
-  const sky = colourAt(palette.sky, FLAPPY_V2.skyFrom + (FLAPPY_V2.skyTo - FLAPPY_V2.skyFrom) * day);
-  const pipe = blend(palette.pipe, palette.pipeSunset, FLAPPY_V2.pipeDeepen * day);
+  const evening = Math.min(1, day / FLAPPY_V2.nightFrom);
+  const night = Math.max(0, (day - FLAPPY_V2.nightFrom) / (1 - FLAPPY_V2.nightFrom));
+  const dusk = colourAt(palette.sky, FLAPPY_V2.skyFrom + (FLAPPY_V2.skyTo - FLAPPY_V2.skyFrom) * evening);
+  const sky = blend(dusk, palette.night, night);
+  const pipe = blend(blend(palette.pipe, palette.pipeSunset, FLAPPY_V2.pipeDeepen * evening), palette.pipeNight, night);
   const [sunX, sunY] = between2(FLAPPY_V2.sunStart, FLAPPY_V2.sunEnd, day);
+  const toNight = (noon: string, sunset: string, dark: string) =>
+    blend(blend(noon, sunset, FLAPPY_V2.groundTint * evening), dark, night);
   return {
     day,
     sky,
-    cloud: blend(palette.cloud, sky, FLAPPY_V2.cloudTint * day),
+    dark: lightness(sky) < FLAPPY_V2.darkBelow,
+    cloud: blend(palette.cloud, sky, FLAPPY_V2.cloudTint * evening + FLAPPY_V2.nightCloudTint * night),
     pipe,
     outline: blend(pipe, palette.pipeShadow, FLAPPY_V2.outlineDepth),
-    ground: blend(palette.ground, palette.groundSunset, FLAPPY_V2.groundTint * day),
-    grass: blend(palette.grass, palette.grassSunset, FLAPPY_V2.groundTint * day),
+    ground: toNight(palette.ground, palette.groundSunset, palette.groundNight),
+    grass: toNight(palette.grass, palette.grassSunset, palette.grassNight),
     sun: blend(palette.sun, palette.sunset, Math.max(0, (day - FLAPPY_V2.sunsetFrom) / (1 - FLAPPY_V2.sunsetFrom))),
     sunX,
     sunY,

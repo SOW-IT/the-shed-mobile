@@ -60,12 +60,14 @@ export const VIEW = {
   /** Room kept above the bird and below the lowest ground in view. */
   margin: 60,
   footing: 20,
-  minZoom: 0.5,
+  minZoom: 0.38,
   /** How quickly the camera catches up, each second. */
   rate: 5,
   zoomRate: 2.5,
+  catchUpRate: 6,
   behind: 0.15,
-  ahead: 0.6,
+  ahead: 0.7,
+  planAhead: 1.5,
   holdWide: 3,
   narrowing: 2,
 } as const;
@@ -457,8 +459,11 @@ export const WIDEST_BOARD = 2.3;
 
 const steadyHeight = () => VIEW.width / WIDEST_BOARD;
 
+const lowAhead = (state: Framed, reach: number = VIEW.ahead) =>
+  Math.min(footing(state), lowestGround(state.hills, state.x, state.x + VIEW.width * reach) - VIEW.margin);
+
 const fitZoom = (state: Framed) =>
-  Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - footing(state))));
+  Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - lowAhead(state, VIEW.planAhead))));
 
 const highestGround = (points: readonly HillPoint[], from: number, to: number): number => {
   let high = Math.max(groundAt(points, from).y, groundAt(points, to).y);
@@ -508,15 +513,17 @@ const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
     needed >= before || wideFor < VIEW.holdWide ? Math.max(needed, before) : needed + (before - needed) * Math.exp(-dt / VIEW.narrowing);
   const fit = fitZoom(state);
   const wanted = Math.min(fit, Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / span)));
-  const eased = settle(Math.log(camera.zoom), camera.zoomSpeed ?? 0, Math.log(wanted), VIEW.zoomRate, dt);
+  const behind = Math.min(1, Math.max(0, (camera.zoom / fit - 1) * 10));
+  const rate = VIEW.zoomRate + (VIEW.catchUpRate - VIEW.zoomRate) * behind;
+  const eased = settle(Math.log(camera.zoom), camera.zoomSpeed ?? 0, Math.log(wanted), rate, dt);
   const zoom = Math.exp(eased.value);
   const zoomSpeed = eased.speed;
   const view = viewSize(state.aspect, zoom);
-  const goal = Math.max(Math.min(target.y, footing(state)), roomAbove(state) - view.height);
+  const goal = Math.max(Math.min(target.y, lowAhead(state)), roomAbove(state) - view.height);
   const rise = settle(camera.y, camera.ySpeed ?? 0, goal, VIEW.rate, dt);
   // However fast the bird climbs or drops, it stays inside the view.
   const lowest = roomAbove(state) - view.height;
-  const highest = footing(state);
+  const highest = lowAhead(state);
   const y = Math.max(lowest, Math.min(highest, rise.value));
   return { x: state.x - view.width * VIEW.lead, y, zoom, zoomSpeed, ySpeed: y === rise.value ? rise.speed : 0, span, wideFor };
 };

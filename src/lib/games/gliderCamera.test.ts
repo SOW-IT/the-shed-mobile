@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  lowestGround,
   birdPixels,
   earthFloor,
   unitPixels,
@@ -64,14 +65,14 @@ const throughDay = (day: number) => {
 const birdOnScreen = (frame: GliderState) => birdPixels(unitPixels(BOARD, frame.camera.zoom));
 
 describe("Swoop's bird on screen", () => {
-  test.each([10, 20, 30])("stays at least half its day 1 size all through day %i, however the ground rises and falls", (day) => {
+  test.each([10, 20, 30])("stays readable, at least a third of its day 1 size, all through day %i, however the ground rises and falls", (day) => {
     const dayOne = Math.max(...frames.filter((frame) => frame.world === 1).map(birdOnScreen));
     const run = throughDay(day);
     expect(run.at(-1)!.world).toBe(day + 1);
     for (const frame of run) {
       expect(frame.camera.zoom).toBeGreaterThanOrEqual(VIEW.minZoom * 0.98);
-      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(dayOne * 0.49);
-      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(12);
+      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(dayOne * 0.37);
+      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(10);
     }
   });
 });
@@ -174,5 +175,21 @@ describe("Swoop's earth", () => {
         expect(Math.abs(earthFloor(hills) % 1000)).toBe(0);
       }
     }
+  });
+});
+
+describe("Swoop's valleys on screen", () => {
+  test.each([1, 5, 10, 20])("the lowest ground ahead stays in view all through day %i, with the bird", (day) => {
+    let checked = 0;
+    for (const frame of throughDay(day)) {
+      const view = viewSize(frame.aspect, frame.camera.zoom);
+      const low = lowestGround(frame.hills, frame.x, frame.x + VIEW.width * VIEW.ahead);
+      const fits = frame.y + GLIDER.radius * 2 + VIEW.margin - (low - VIEW.margin) <= viewSize(frame.aspect, VIEW.minZoom).height;
+      expect(frame.y).toBeLessThanOrEqual(frame.camera.y + view.height);
+      if (!fits) continue;
+      checked++;
+      expect(low + 2, `day ${day} at ${Math.round(frame.x)}`).toBeGreaterThanOrEqual(frame.camera.y);
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 });
