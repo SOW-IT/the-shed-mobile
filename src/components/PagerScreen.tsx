@@ -11,7 +11,7 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
@@ -343,14 +343,14 @@ export const PagerScreen = ({
         {tab.render(tabScrollProps)}
       </PagerFooterClearanceContext.Provider>
     ) : (
-      <Animated.ScrollView
-        ref={(el) => {
+      <KeyboardScrollView
+        ref={(el: ScrollViewInstance | null) => {
           pageScrollRefs.current[tab.key] = el;
         }}
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
+        style={[{ backgroundColor: t.background }, keyboardInset]}
         contentContainerStyle={[
           styles.page,
           { paddingTop: spacing.md + topBarInset },
@@ -366,7 +366,7 @@ export const PagerScreen = ({
         <ScrollByContext.Provider value={scrollByFor(tab.key)}>
           {tab.render(tabScrollProps)}
         </ScrollByContext.Provider>
-      </Animated.ScrollView>
+      </KeyboardScrollView>
     );
   };
   return (

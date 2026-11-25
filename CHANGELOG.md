@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.8] - 2026-11-25
+## [2.13.9] - 2026-11-25
 
 ### Added
 - **A backyard farm in the World.** Every home has a back door to a
@@ -29,6 +29,36 @@ All notable changes to **The SHED** mobile app. This project follows
   water or is ready to harvest, at most once a day. Turn it off in World
   Settings.
 - **The list view's Farm section** has the same actions as the backyard.
+
+## [2.13.8] - 2026-11-25
+
+### Added
+- **See whose turn it is in a Café game.** When your turn starts, the edge of
+  the screen pulses in your colour, then stays as a thin border until you
+  move, and your phone gives a small tick. On their turn there's no border.
+  In the last 10 seconds of your turn the sides of the screen glow amber,
+  brighter as time runs out, and stop the moment you move. With battery
+  saver or Reduce Motion on, the border and the glow hold still.
+- **Chat during a Café game.** The board sits above the chat bar, so you
+  can talk while you play. What each of you says shows over your name on
+  the board, and when the keyboard opens the board moves up with it.
+- **Café stats on a person's card.** A person's card (**More** when you tap
+  them) shows their wins, losses and draws in each of the four games, and
+  how the two of you have done against each other.
+- **The chat log shades its edges** when there are lines above or below to
+  scroll to.
+
+### Changed
+- **Text boxes move with the keyboard.** The World chat bar, sheets on
+  iPhone and scrolling screens on Android now move with the keyboard as it
+  opens and closes, instead of catching up after it.
+- **The Café board's handle shows only on the end card,** where dragging it
+  down closes the board. During a game there's no handle; use **Give up**.
+
+### Fixed
+- **A finished Café game stays closed.** Closing the result, or leaving the
+  World after seeing it, no longer brings it back when you return from the
+  arcade or open the World on another phone.
 
 ## [2.13.7] - 2026-11-25
 

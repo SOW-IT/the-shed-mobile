@@ -29,7 +29,10 @@ import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Reanimated, { useAnimatedStyle, useDerivedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { liftOverKeyboard } from "@/hooks/keyboardOverlap";
+import { useKeyboardHeight } from "@/hooks/useKeyboardInset";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
@@ -89,26 +92,19 @@ const useScreenReader = () => {
 const KEYBOARD_GAP = 8;
 
 const useKeyboardLift = (bottomInset: number) => {
-  const [lift] = useState(() => new Animated.Value(0));
+  const keyboard = useKeyboardHeight();
+  const lift = useDerivedValue(() => liftOverKeyboard(keyboard.get(), bottomInset, KEYBOARD_GAP));
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (Platform.OS === "web") return;
     const ios = Platform.OS === "ios";
-    const move = (toValue: number, duration: number) =>
-      Animated.timing(lift, { toValue, duration: duration || 250, useNativeDriver: true }).start();
-    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => {
-      setOpen(true);
-      move(-Math.max(0, e.endCoordinates.height - bottomInset + KEYBOARD_GAP), e.duration);
-    });
-    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", (e) => {
-      setOpen(false);
-      move(0, e.duration);
-    });
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", () => setOpen(true));
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () => setOpen(false));
     return () => {
       show.remove();
       hide.remove();
     };
-  }, [lift, bottomInset]);
+  }, []);
   return { lift, open };
 };
 
@@ -374,6 +370,7 @@ export const WorldScreen = ({
   const worldName = useWorldName();
   const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
+  const chatLift = useAnimatedStyle(() => ({ transform: [{ translateY: -keyboard.lift.get() }] }));
 
   useEffect(() => {
     if (!note) return;
@@ -990,18 +987,25 @@ export const WorldScreen = ({
         </Text>
       </View>
     ) : null;
+  const chatTop = Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + 12;
+  const cafeLayer = (aboveChat: boolean) => (
+    <CafeLayer
+      cafe={cafe}
+      people={world.people}
+      muted={muted}
+      place={world.place}
+      serverNow={world.serverNow}
+      bottom={chatTop}
+      sheetBottom={aboveChat ? chatTop : Math.max(insets.bottom, 16)}
+      lift={aboveChat ? keyboard.lift : undefined}
+      safe={{ top: insets.top, bottom: insets.bottom }}
+      onNote={setNote}
+      onReturn={() => go("cafe")}
+    />
+  );
   const sheets = (
     <>
-      <CafeLayer
-        cafe={cafe}
-        people={world.people}
-        place={world.place}
-        serverNow={world.serverNow}
-        bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + 12}
-        safe={{ top: insets.top, bottom: insets.bottom }}
-        onNote={setNote}
-        onReturn={() => go("cafe")}
-      />
+      {view === "list" ? cafeLayer(false) : null}
       <NoticeBoardPanel
         open={boardOpen}
         top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
@@ -1426,14 +1430,8 @@ export const WorldScreen = ({
         onStartShouldSetResponder={() => true}
         testID="world-under-chat"
       />
-      <Animated.View
-        style={[
-          styles.bottom,
-          { paddingBottom: Math.max(insets.bottom, 12) },
-          { transform: [{ translateY: keyboard.lift }] },
-        ]}
-        pointerEvents="box-none"
-      >
+      {cafeLayer(true)}
+      <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
         <DuelCard {...duelProps} />
         {myHome && !decorating ? (
           <View style={styles.decorateRow} pointerEvents="box-none">
@@ -1477,7 +1475,7 @@ export const WorldScreen = ({
           savedDraft={savedDraft}
           keepDraft={keepDraft}
         />
-      </Animated.View>
+      </Reanimated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
       <WorldMenu open={placesOpen} top={insets.top + TOP_BAR_GAP} entries={menuEntries} onClose={() => setPlacesOpen(false)} />
 
