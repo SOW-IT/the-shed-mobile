@@ -25,6 +25,7 @@ export const PersonSheet = ({
   onHighFive,
   onDuel,
   onPlay,
+  onSpectate,
   onClose,
   onDone,
 }: {
@@ -36,6 +37,7 @@ export const PersonSheet = ({
   onHighFive: (to: Id<"worldMembers">) => void;
   onDuel: (to: Id<"worldMembers">) => void;
   onPlay?: (to: Id<"worldMembers">) => void;
+  onSpectate?: () => void;
   onClose: () => void;
   onDone: (note: string) => void;
 }) => {
@@ -90,7 +92,9 @@ export const PersonSheet = ({
       ) : (
         <View style={styles.stack}>
           {person ? <CafeStats memberId={person.memberId} name={name} testID="world-person-record" /> : null}
-          {onPlay ? (
+          {onSpectate ? (
+            <Btn title="Spectate" icon="eye-outline" onPress={onSpectate} />
+          ) : onPlay ? (
             <Btn
               title="Play a game"
               icon="dice-outline"
