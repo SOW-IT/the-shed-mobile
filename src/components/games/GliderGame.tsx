@@ -1,5 +1,5 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
 import {
   colourAt,
   blend,
@@ -9,7 +9,6 @@ import {
   hold,
   newGlider,
   previewGlider,
-  resize,
   stepGlider,
   viewSize,
   worldProgress,
@@ -24,12 +23,12 @@ import type { Look } from "@shared/world";
 import { memo, useEffect, useMemo, useState } from "react";
 import { PanResponder, Platform, StyleSheet, Text, View } from "react-native";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
-import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.glider;
-const MAX_BOARD = { width: 1400, height: 720 };
+const VIEW = GAME_VIEWS.glider;
 const HOLD_KEYS = new Set([" ", "ArrowDown", "s", "S"]);
 const START_HINT =
   Platform.OS === "web" ? "Hold the screen, or space, to start. Hold to dive, let go to fly." : "Hold to start.";
@@ -352,21 +351,13 @@ export const GliderGame = ({
   const look = useGameLook("glider");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
-  const aspect = height > 0 ? width / height : 2;
+  const { width, height } = VIEW;
+  const aspect = width / height;
   const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect)), [scene, aspect]);
   const inputOn = active && !session.paused;
   const latest = useLatest({ session, aspect });
 
   useGameLoop(phase === "playing" && inputOn, (dt) => setRun((state) => state && advance(state, dt, stepGlider)));
-  // A turned phone or a resized window changes what the camera shows, not the run.
-  useEffect(() => {
-    if (height > 0) setRun((state) => state && resize(state, aspect));
-  }, [aspect, height, setRun]);
-
   // Input switched off (the leave dialog, another screen in front): a
   // release in the meantime goes unheard, so the bird lets go now.
   useEffect(() => {
@@ -420,8 +411,7 @@ export const GliderGame = ({
       statusBar={dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      onStageLayout={onStageLayout}
+      view={VIEW}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -440,11 +430,11 @@ export const GliderGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      {board ? <Scene state={shown} width={width} height={height} look={look} /> : null}
+      <Scene state={shown} width={width} height={height} look={look} />
     </GameFrame>
   );
   return (
-    <Sideways turned={turned} background={sky}>
+    <Sideways turned={turned}>
       {frame}
     </Sideways>
   );

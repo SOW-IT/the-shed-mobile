@@ -4,12 +4,13 @@ import { moveShooter, newShooter, SHOOTER, stepShooter, type ShooterState } from
 import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard, fitScale, type Size } from "@/lib/games/fit";
+import type { Size } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
 
 const c = fixedColours.games.shooter;
-const MAX_BOARD = { width: 720, height: 1400 };
+const VIEW = GAME_VIEWS.shooter;
 /** Arrow keys move the plane this many points a second. */
 const KEY_SPEED = 340;
 
@@ -101,13 +102,9 @@ export const ShooterGame = ({
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const { width, height } = VIEW;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
-  const world = run ? { width: run.width, height: run.height } : null;
-  const scale = fitScale(world, board);
+  const [scale, setScale] = useState(1);
   const latest = useLatest({ session, width, height, scale });
   const keys = useRef(new Set<string>());
 
@@ -163,17 +160,16 @@ export const ShooterGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      world={world}
-      onStageLayout={onStageLayout}
+      view={VIEW}
+      onScale={setScale}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Touch and drag", "press an arrow key")}
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      {board ? <Stars width={world?.width ?? width} height={world?.height ?? height} /> : null}
-      {board ? <Scene state={run ?? preview} /> : null}
+      <Stars width={width} height={height} />
+      <Scene state={run ?? preview} />
     </GameFrame>
   );
 };

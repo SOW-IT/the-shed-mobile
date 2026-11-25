@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.4] - 2026-11-25
+
+### Changed
+- **Mystic Man goes faster and chains obstacles after 10,000 points.** Up
+  to 10,000 nothing changes. From there the top speed climbs from 1200 to
+  1500 by 20,000 and then keeps creeping up towards 2000, never reaching it.
+  Obstacles come in longer, tighter chains with less of a break between
+  them, steeply up to 20,000 and a little more with every point after. Every
+  chain is still clearable at the speed it comes at.
+- **Swoop's worlds are narrower and rougher.** Worlds 1 and 2 are a quarter
+  and a fifth narrower, and the hills close in until world 5, then stay
+  that close. From world 3 the ground gets more uneven every world, with a
+  big step at world 7 and again at 8: steeper faces, deeper drops, more
+  cliffs and double humps, uneven valleys back to back and less flat ground
+  to recover on. Worlds stop getting longer at world 7, and the day is long
+  enough for good flying to finish every one. Finishing a world pays up to
+  2,500 points, from world 10 on.
+- **Flap gets less predictable as you score.** Pipes start evenly spaced,
+  then come closer together and farther apart, and each gap sits farther
+  from the last. Every gap can still be reached from the one before.
+- **Every game shows the same view on a tablet or computer as on a phone,
+  just bigger,** with black borders around it. A small phone shows the same
+  view a little smaller. Nobody sees further ahead on a big screen.
+
 ## [2.13.3] - 2026-11-25
 
 ### Added

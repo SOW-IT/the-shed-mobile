@@ -7,7 +7,8 @@ import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
-import { fitScale, groundLine, type Size } from "@/lib/games/fit";
+import { groundLine, type Size } from "@/lib/games/fit";
+import { fitPlayArea } from "@/lib/games/playArea";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -56,6 +57,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const [runId, setRunId] = useState<string | null>(null);
   const generation = useRef(0);
   const overAt = useRef(0);
+  const practice = useRef(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
@@ -66,6 +68,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     recorded.current = run;
     overAt.current = Date.now();
     hapticSelect();
+    if (practice.current) return;
     const started = generation.current;
     void recordRun(game, run.score, run.time * 1000).then((id) => {
       if (generation.current === started) setRunId(id);
@@ -73,8 +76,9 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   }, [run, game]);
 
   const begin = useCallback(
-    (state: S) => {
+    (state: S, practiceRun = false) => {
       generation.current++;
+      practice.current = practiceRun;
       setBestAtStart(best);
       setRunId(null);
       setRun(state);
@@ -150,7 +154,7 @@ const useNoSwipeBack = () => {
 };
 
 /** The stage's size, once it has been laid out. */
-export const useStage = () => {
+const useStage = () => {
   const [stage, setStage] = useState<Size | null>(null);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -181,9 +185,8 @@ export const GameFrame = ({
   ink = g.text,
   session,
   score,
-  board,
-  world = null,
-  onStageLayout,
+  view,
+  onScale,
   stageHandlers,
   startHint,
   onExit,
@@ -205,10 +208,8 @@ export const GameFrame = ({
   ink?: string;
   session: GameSession;
   score: number;
-  board: Size | null;
-  /** The running game's own size, when it has one; the scene is scaled to the board. */
-  world?: Size | null;
-  onStageLayout: (event: LayoutChangeEvent) => void;
+  view: Size;
+  onScale?: (scale: number) => void;
   stageHandlers?: GestureResponderHandlers;
   startHint: string;
   onExit: () => void;
@@ -260,18 +261,24 @@ export const GameFrame = ({
     guard?.onStay();
   };
   const [stage, onOwnStageLayout] = useStage();
+  const [room, onRoomLayout] = useStage();
+  const [chrome, onChromeLayout] = useStage();
   const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
   const onLayout = (event: LayoutChangeEvent) => {
     const { y, height } = event.nativeEvent.layout;
     setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
-    onStageLayout(event);
     onOwnStageLayout(event);
   };
+  const area = room && chrome ? fitPlayArea(room, view, chrome.height) : null;
+  const scale = area?.scale ?? 1;
+  const measured = area !== null;
+  useEffect(() => {
+    if (measured) onScale?.(scale);
+  }, [measured, scale, onScale]);
   const short = stage !== null && stage.height < SHORT_STAGE;
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
-  const scale = fitScale(world, board);
-  const shownHeight = world ? world.height * scale : (board?.height ?? 0);
-  const groundAt = ground && board && stageBox ? groundLine(stageBox, shownHeight, ground.top, scale) : null;
+  const shownHeight = view.height * scale;
+  const groundAt = ground && area && stageBox ? groundLine(stageBox, shownHeight, ground.top, scale) : null;
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
@@ -303,7 +310,16 @@ export const GameFrame = ({
     </View>
   ) : null;
   return (
-    <Frame insets={insets} style={[styles.screen, { backgroundColor: background }]}>
+    <Frame insets={insets} style={[styles.screen, { backgroundColor: g.letterbox }]}>
+      <View style={StyleSheet.absoluteFill} onLayout={onRoomLayout} pointerEvents="none" />
+      <View
+        testID="game-play-area"
+        style={[
+          styles.area,
+          { backgroundColor: background },
+          area ? { left: area.left, top: area.top, width: area.width, height: area.height } : styles.areaMeasuring,
+        ]}
+      >
       {ground && groundAt !== null ? (
         <View pointerEvents="none" style={[styles.ground, { top: groundAt, backgroundColor: ground.colour }]}>
           {ground.band ? (
@@ -313,6 +329,7 @@ export const GameFrame = ({
       ) : null}
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} style={statusBar} animated />
+      <View onLayout={onChromeLayout}>
       <View style={styles.bar}>
         <Pressable
           onPress={back}
@@ -333,27 +350,22 @@ export const GameFrame = ({
         <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
       </View>
       {underBar}
+      </View>
       <View style={styles.stage} onLayout={onLayout} {...stageHandlers}>
-        {board ? (
+        {area ? (
           <View
-            style={[
-              styles.board,
-              world
-                ? { width: world.width * scale, height: world.height * scale }
-                : { width: board.width, height: board.height },
-              { backgroundColor: background },
-            ]}
+            style={[styles.board, { width: view.width * scale, height: view.height * scale, backgroundColor: background }]}
             pointerEvents="box-none"
           >
-            {world && scale !== 1 ? (
+            {scale !== 1 ? (
               <View
                 pointerEvents="box-none"
                 style={{
                   position: "absolute",
-                  width: world.width,
-                  height: world.height,
-                  left: (world.width * scale - world.width) / 2,
-                  top: (world.height * scale - world.height) / 2,
+                  width: view.width,
+                  height: view.height,
+                  left: (view.width * scale - view.width) / 2,
+                  top: (view.height * scale - view.height) / 2,
                   transform: [{ scale }],
                 }}
               >
@@ -395,6 +407,7 @@ export const GameFrame = ({
           )
         ) : null}
       </View>
+      </View>
       <OnlineBanner />
       <LeaveGameDialog visible={session.paused} onLeave={onExit} onContinue={stay} inline={!!insets} />
     </Frame>
@@ -431,6 +444,8 @@ export const startHintFor = (touch: string, keys: string) =>
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  area: { position: "absolute", overflow: "hidden" },
+  areaMeasuring: { left: 0, top: 0, right: 0, bottom: 0, opacity: 0 },
   bar: {
     flexDirection: "row",
     alignItems: "center",

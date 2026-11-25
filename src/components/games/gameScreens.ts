@@ -17,6 +17,7 @@ type GameScreenProps = {
   guard?: LeaveGuard;
   /** Test builds only: Mystic Man's still preview of these patterns. */
   preview?: readonly PatternKind[];
+  startScore?: number;
   /** Test builds only: a still moment of a Swoop run. */
   scene?: GliderPreview;
 };

@@ -8,6 +8,7 @@ import {
   onGround,
   previewWith,
   RUNNER,
+  runnerAt,
   sliding,
   stepRunner,
   type Obstacle,
@@ -20,13 +21,13 @@ import { PanResponder, Platform, StyleSheet, View } from "react-native";
 import { MysticMan } from "./MysticMan";
 import { CharacterPicker, useAvatarArt, useGameLook } from "./GameCharacter";
 import type { Look } from "@shared/world";
-import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.runner;
-const MAX_BOARD = { width: 1200, height: 400 };
+const VIEW = GAME_VIEWS.runner;
 const GROUND = 48;
 /**
  * A touch moving this far up or down is a swipe. Short, so the big jump and
@@ -172,6 +173,7 @@ export const RunnerGame = ({
   active = true,
   guard,
   preview: previewKinds,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
@@ -179,24 +181,20 @@ export const RunnerGame = ({
   guard?: LeaveGuard;
   /** Test builds: show these patterns on the board before the run starts. */
   preview?: readonly PatternKind[];
+  startScore?: number;
 }) => {
   const session = useGameSession<RunnerState>("runner");
   const look = useGameLook("runner");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const { width, height } = VIEW;
   const previewKey = previewKinds?.join(",") ?? "";
   const preview = useMemo(
     () => (previewKey ? previewWith(width, previewKey.split(",") as PatternKind[]) : newRunner(width, 1)),
     [width, previewKey]
   );
-  // The board height the run started on; a shorter board later scales the scene.
-  const [runHeight, setRunHeight] = useState(0);
   const inputOn = active && !session.paused;
-  const latest = useLatest({ session, width, height, turned, inputOn });
+  const latest = useLatest({ session, width, turned, inputOn, startScore });
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
@@ -205,8 +203,8 @@ export const RunnerGame = ({
     const { session: current, width: w } = latest.current;
     if (current.phase === "ready") {
       if (w > 0) {
-        setRunHeight(latest.current.height);
-        current.begin(newRunner(w, newSeed()));
+        const from = latest.current.startScore;
+        current.begin(from ? runnerAt(w, newSeed(), from) : newRunner(w, newSeed()), !!from);
       }
       return;
     }
@@ -282,9 +280,7 @@ export const RunnerGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      world={run && runHeight > 0 ? { width: run.width, height: runHeight } : null}
-      onStageLayout={onStageLayout}
+      view={VIEW}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -300,11 +296,11 @@ export const RunnerGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      {board ? <Scene state={run ?? preview} height={run && runHeight > 0 ? runHeight : height} look={look} /> : null}
+      <Scene state={run ?? preview} height={height} look={look} />
     </GameFrame>
   );
   return (
-    <Sideways turned={turned} background={c.sky}>
+    <Sideways turned={turned}>
       {frame}
     </Sideways>
   );

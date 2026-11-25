@@ -4,14 +4,14 @@ import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
 import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
-const MAX_BOARD = { width: 720, height: 1400 };
+const VIEW = GAME_VIEWS.flappy;
 const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
 const CLOUDS = [
@@ -127,10 +127,7 @@ export const FlappyGame = ({
   const session = useGameSession<FlappyState>("flappy");
   const look = useGameLook("flappy");
   const { run, setRun, phase } = session;
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const { width, height } = VIEW;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
   const scene = run ?? preview;
@@ -166,9 +163,7 @@ export const FlappyGame = ({
       ink={c.eye}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      world={run ? { width: run.width, height: run.height } : null}
-      onStageLayout={onStageLayout}
+      view={VIEW}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}
       startExtra={
@@ -187,7 +182,7 @@ export const FlappyGame = ({
         band: { colour: c.grass, height: GRASS_HEIGHT },
       }}
     >
-      {board ? <Scene state={scene} look={look} /> : null}
+      <Scene state={scene} look={look} />
     </GameFrame>
   );
 };
