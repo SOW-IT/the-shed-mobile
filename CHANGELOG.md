@@ -36,6 +36,15 @@ All notable changes to **The SHED** mobile app. This project follows
   World after seeing it, no longer brings it back when you return from the
   arcade or open the World on another phone.
 
+## [2.13.7] - 2026-11-25
+
+### Fixed
+- **Names that were only an email address now read as a name.** Someone with
+  no staff profile this year, such as last year's staff, showed in the World
+  and on game leaderboards as their email's "first.last". They now show as
+  "First Last", so the World's tag reads "First L.". A real name from Google
+  is kept as it is.
+
 ## [2.13.6] - 2026-11-25
 
 ### Changed

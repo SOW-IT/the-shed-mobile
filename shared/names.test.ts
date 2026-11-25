@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { fullName, initials, NAME_STYLES, shortName, styledName } from "./names";
+import { accountName, fullName, initials, NAME_STYLES, shortName, styledName } from "./names";
 
 describe("shortName", () => {
   test("first name and the last name's initial", () => {
@@ -50,5 +50,25 @@ describe("styledName", () => {
     expect(initials("émile zola")).toBe("ÉZ");
     expect(initials("🙂 Joy")).toBe("🙂J");
     expect(fullName("🙂  Joy ")).toBe("🙂 Joy");
+  });
+});
+
+describe("accountName", () => {
+  test("a first.last name or email shows as First Last", () => {
+    expect(accountName("daniel.kim", "daniel.kim@sow.org.au")).toBe("Daniel Kim");
+    expect(accountName(undefined, "daniel.kim@sow.org.au")).toBe("Daniel Kim");
+    expect(accountName("  ", "mary_jane.lee@sow.org.au")).toBe("Mary Jane Lee");
+    expect(accountName("daniel.kim@sow.org.au", "daniel.kim@sow.org.au")).toBe("Daniel Kim");
+  });
+
+  test("a real name is kept as it is", () => {
+    expect(accountName(" Daniel Kim ", "daniel.kim@sow.org.au")).toBe("Daniel Kim");
+    expect(accountName("Mary-Jane", "mj@sow.org.au")).toBe("Mary-Jane");
+    expect(accountName("Sijin", "sijin@sow.org.au")).toBe("Sijin");
+  });
+
+  test("an email part that isn't first.last stays as it is", () => {
+    expect(accountName(null, "dkim@sow.org.au")).toBe("dkim");
+    expect(accountName(null, "daniel.kim2@sow.org.au")).toBe("daniel.kim2");
   });
 });
