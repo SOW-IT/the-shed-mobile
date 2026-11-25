@@ -322,7 +322,11 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         {chunks.map((index) => (
           <GrassChunk key={`g${index}`} hills={state.hills} index={index} />
         ))}
-        <FinishFlag x={state.worldEnd} y={groundAt(state.hills, state.worldEnd).y} world={state.world} />
+      </View>
+      <View style={[styles.flagClip, { width, height }]} pointerEvents="none">
+        <View style={[styles.world, { transform: [{ translateX: -camera.x * px }, { translateY: top * px }, { scale: px }] }]}>
+          <FinishFlag x={state.worldEnd} y={groundAt(state.hills, state.worldEnd).y} world={state.world} />
+        </View>
       </View>
       <View
         style={[
@@ -490,6 +494,7 @@ const styles = StyleSheet.create({
   sun: { position: "absolute", left: 0, top: 0 },
   farHill: { position: "absolute" },
   reach: { position: "absolute", top: 0 },
+  flagClip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   bird: { position: "absolute", left: 0, top: 0, width: BIRD, height: BIRD, transformOrigin: "bottom center" },
   birdBox: { width: BIRD, height: BIRD, alignItems: "center", justifyContent: "flex-end" },
   squash: { transform: [{ scaleX: 1.12 }, { scaleY: 0.86 }], transformOrigin: "bottom center" },

@@ -94,7 +94,10 @@ describe("Flap gets less predictable as the score rises", () => {
   });
 
   test("the jump from one gap to the next gets bigger as the score rises", () => {
-    const jumps = (gaps: number) => meanJump([1, 2, 3, 4, 5, 6, 7, 8].flatMap((seed) => pipesAt(360, 640, seed, gaps)));
+    const jumps = (gaps: number) => {
+      const runs = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => meanJump(pipesAt(360, 640, seed, gaps)));
+      return runs.reduce((sum, jump) => sum + jump, 0) / runs.length;
+    };
     expect(jumps(30)).toBeGreaterThan(jumps(0));
     expect(jumps(200)).toBeGreaterThan(jumps(30));
   });

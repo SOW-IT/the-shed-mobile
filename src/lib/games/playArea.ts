@@ -5,13 +5,14 @@ type ViewRule = {
   locked: "width" | "height";
   size: number;
   aspects: readonly [number, number];
+  scenery?: readonly [number, number];
 };
 
 export const GAME_VIEWS: Record<GameId, ViewRule> = {
   flappy: { locked: "width", size: 390, aspects: [0.43, 0.8] },
   shooter: { locked: "height", size: 700, aspects: [0.43, 0.6] },
   runner: { locked: "width", size: 760, aspects: [1.25, 2.35] },
-  glider: { locked: "width", size: 760, aspects: [1.25, 2.35] },
+  glider: { locked: "width", size: 760, aspects: [1.25, 1.95], scenery: [1.25, 2.35] },
 };
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));

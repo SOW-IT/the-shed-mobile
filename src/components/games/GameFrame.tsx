@@ -254,7 +254,7 @@ export const GameFrame = ({
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
   const safe = useSafeAreaInsets();
   const frameInsets = insets ?? { top: safe.top, right: 0, bottom: safe.bottom, left: 0 };
-  const deco = room && area && chrome ? decoration(room, frameInsets, area, chrome.height, GAME_VIEWS[game].aspects) : null;
+  const deco = room && area && chrome ? decoration(room, frameInsets, area, chrome.height, GAME_VIEWS[game].scenery ?? GAME_VIEWS[game].aspects) : null;
   const content =
     area && shown && chrome
       ? {

@@ -385,15 +385,19 @@ const roomAbove = (state: Framed) => state.y + GLIDER.radius * 2 + VIEW.margin;
 
 const footing = (state: Framed) => groundAt(state.hills, state.x).y - VIEW.footing;
 
+export const WIDEST_BOARD = 2.3;
+
+const steadyHeight = () => VIEW.width / WIDEST_BOARD;
+
 const fitZoom = (state: Framed) =>
-  Math.max(VIEW.minZoom, Math.min(1, viewSize(state.aspect, 1).height / (roomAbove(state) - footing(state))));
+  Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - footing(state))));
 
 /** Where the camera wants to be: the bird in from the left, the valleys and the bird both in view. */
 export const cameraTarget = (state: Framed): Camera => {
   const near = viewSize(state.aspect, 1);
   const from = state.x - near.width * VIEW.lead;
   const low = lowestGround(state.hills, from, from + near.width) - VIEW.margin;
-  const zoom = Math.max(VIEW.minZoom, Math.min(1, near.height / (roomAbove(state) - low)));
+  const zoom = Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - low)));
   const view = viewSize(state.aspect, zoom);
   // Low ground at the bottom, unless the bird is higher than the view reaches.
   const bottom = Math.max(low, roomAbove(state) - view.height);

@@ -2,6 +2,36 @@ import { atSwipeEdge } from "@/lib/games/leave";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 
+const guard = { owners: 0, before: [] as string[] };
+
+const pagesOf = () => [document.documentElement, document.body];
+
+const onTouchStart = (event: TouchEvent) => {
+  const touch = event.touches[0];
+  if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest('button, a, [role="button"]')) return;
+  event.preventDefault();
+};
+
+const take = () => {
+  guard.owners += 1;
+  if (guard.owners > 1) return;
+  const pages = pagesOf();
+  guard.before = pages.map((page) => page.style.overscrollBehaviorX);
+  for (const page of pages) page.style.overscrollBehaviorX = "none";
+  document.addEventListener("touchstart", onTouchStart, { passive: false });
+};
+
+const release = () => {
+  guard.owners = Math.max(0, guard.owners - 1);
+  if (guard.owners > 0) return;
+  document.removeEventListener("touchstart", onTouchStart);
+  pagesOf().forEach((page, i) => {
+    page.style.overscrollBehaviorX = guard.before[i] ?? "";
+  });
+};
+
 /**
  * On web, keeps the browser's own swipe back and forward off a game: a
  * sideways swipe is a move in the game, and the way out is the back button.
@@ -12,22 +42,7 @@ import { Platform } from "react-native";
 export const useNoSwipeBack = (enabled = true) => {
   useEffect(() => {
     if (!enabled || Platform.OS !== "web" || typeof document === "undefined") return;
-    const pages = [document.documentElement, document.body];
-    const before = pages.map((page) => page.style.overscrollBehaviorX);
-    for (const page of pages) page.style.overscrollBehaviorX = "none";
-    const onTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('button, a, [role="button"]')) return;
-      event.preventDefault();
-    };
-    document.addEventListener("touchstart", onTouchStart, { passive: false });
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      pages.forEach((page, i) => {
-        page.style.overscrollBehaviorX = before[i];
-      });
-    };
+    take();
+    return release;
   }, [enabled]);
 };

@@ -262,6 +262,7 @@
     "world": {
       "files": [
         "src/app/world.tsx",
+        "src/hooks/useNoSwipeBack.ts",
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
         "src/app/world-devotionals.tsx",

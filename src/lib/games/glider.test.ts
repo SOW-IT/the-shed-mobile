@@ -20,6 +20,7 @@ import {
   maxGliderScore,
   maxWorldScore,
   parallaxShift,
+  WIDEST_BOARD,
   newGlider,
   previewGlider,
   resize,
@@ -578,7 +579,7 @@ describe("the camera", () => {
 
   test("keeps the hills under the bird in view however high it flies, even before it has caught up", () => {
     const top = highestFlight();
-    for (const aspect of [1.25, 1.6, 2, 2.35]) {
+    for (const aspect of [1.38, 1.8, 2.3]) {
       for (const world of [1, 6]) {
         const hills = worldHills(4, world, 0);
         for (let x = 0; x < hills.at(-1)!.x; x += 337) {
@@ -614,9 +615,23 @@ describe("the camera", () => {
     expect(cameraTarget({ ...low, y: 1e6 }).zoom).toBe(VIEW.minZoom);
   });
 
+  test("zooms to the same width on every supported board shape, so no shape sees further ahead", () => {
+    const hills = worldHills(4, 6, 0);
+    for (let x = 400; x < 9000; x += 977) {
+      for (const height of [0, 300, 900]) {
+        const widths = [1.38, 1.8, 2.3].map((aspect) => {
+          const state: GliderState = { ...newGlider(1, aspect), hills, worldEnd: 1e9, x, y: groundAt(hills, x).y + height };
+          return viewSize(aspect, cameraTarget(state).zoom).width;
+        });
+        for (const width of widths) expect(width).toBeCloseTo(widths[0], 6);
+      }
+    }
+    expect(WIDEST_BOARD).toBeLessThan(2.35);
+  });
+
   test("shows the same distance ahead on every board, and more sky and ground on a taller one", () => {
-    for (const aspect of [1.25, 1.6, 2, 2.35]) expect(viewSize(aspect, 1).width).toBe(VIEW.width);
-    expect(viewSize(1.25, 1).height).toBeGreaterThan(viewSize(2.35, 1).height);
+    for (const aspect of [1.38, 1.8, 2.3]) expect(viewSize(aspect, 1).width).toBe(VIEW.width);
+    expect(viewSize(1.38, 1).height).toBeGreaterThan(viewSize(2.3, 1).height);
     expect(viewSize(760 / 334, 1).height).toBeCloseTo(440, -1);
     expect(viewSize(2, 0.5)).toEqual({ width: VIEW.width * 2, height: VIEW.width });
   });

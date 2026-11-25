@@ -33,7 +33,7 @@ const BORDERED: Record<GameId, readonly string[]> = {
   flappy: ["desktop"],
   shooter: ["iPad portrait", "desktop"],
   runner: [],
-  glider: [],
+  glider: ["tall Android"],
 };
 
 describe("each game shows the same distance ahead on every screen, only bigger or smaller", () => {
@@ -86,7 +86,8 @@ describe("the scene carries on to the screen's edges, decoration only", () => {
       ? { top: 0, right: device.bottom, bottom: 0, left: device.top }
       : { top: device.top, right: 0, bottom: device.bottom, left: 0 };
     const { room, area } = layout(game, device);
-    return { area, insets, deco: decoration(room, insets, area, CHROME, GAME_VIEWS[game].aspects) };
+    const rule = GAME_VIEWS[game];
+    return { area, insets, deco: decoration(room, insets, area, CHROME, rule.scenery ?? rule.aspects) };
   };
 
   test("on a notched iPhone the scene fills the whole screen, safe areas included", () => {
@@ -113,5 +114,17 @@ describe("the scene carries on to the screen's edges, decoration only", () => {
     expect(decorate("shooter", ipad).deco.width).toBeCloseTo(ipad.height * GAME_VIEWS.shooter.aspects[1]);
     expect(decorate("shooter", ipad).deco.width).toBeLessThan(ipad.width);
   });
+});
+
+test("on a 21:9 phone Swoop's play area keeps the iPhone's shape, and its scenery still fills the screen", () => {
+  const tall = DEVICES["tall Android"];
+  const { bordered, room } = layout("glider", tall);
+  expect(bordered).toBe(true);
+  const insets = { top: 0, right: tall.bottom, bottom: 0, left: tall.top };
+  const { area } = layout("glider", tall);
+  const rule = GAME_VIEWS.glider;
+  const deco = decoration(room, insets, area, CHROME, rule.scenery ?? rule.aspects);
+  expect(deco.width).toBeCloseTo(tall.height);
+  expect(deco.height).toBeCloseTo(tall.width);
 });
 
