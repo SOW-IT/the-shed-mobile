@@ -5,8 +5,8 @@ export const PUFFS = 4;
 
 const TAU = Math.PI * 2;
 
-export type FlameFrame = { scaleX: number; scaleY: number; dx: number };
-export type PuffFrame = { rise: number; dx: number; scale: number; opacity: number };
+type FlameFrame = { scaleX: number; scaleY: number; dx: number };
+type PuffFrame = { rise: number; dx: number; scale: number; opacity: number };
 
 export const flameAt = (phase: number, i: number): FlameFrame => {
   "worklet";

@@ -1,4 +1,4 @@
-export type OfflinePage<P extends { id: string }> = { people: P[]; more: boolean; next?: string };
+type OfflinePage<P extends { id: string }> = { people: P[]; more: boolean; next?: string };
 
 export const joinPages = <P extends { id: string }>(pages: readonly (OfflinePage<P> | undefined)[]) => {
   const loaded: OfflinePage<P>[] = [];
