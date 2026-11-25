@@ -200,44 +200,44 @@ export const GroupSettingsSheet = ({
             )}
           </View>
         </View>
+
+        <ConfirmDialog
+          visible={confirmRemove !== null}
+          title={confirmRemove?.pending ? "Cancel invite?" : "Remove member?"}
+          message={
+            confirmRemove?.pending
+              ? `${confirmRemove.name} won't be able to join this group.`
+              : `${confirmRemove?.name ?? "This person"} will lose access to this group immediately.`
+          }
+          confirmLabel={confirmRemove?.pending ? "Cancel invite" : "Remove"}
+          onConfirm={() => {
+            if (confirmRemove) void runRemove(confirmRemove.email);
+          }}
+          onClose={() => setConfirmRemove(null)}
+        />
+
+        <ConfirmDialog
+          visible={confirmDelete}
+          title="Delete group?"
+          message="It goes for everyone in it. Everyone keeps their own devotionals."
+          confirmLabel="Delete group"
+          onConfirm={() => {
+            void onDeleteGroup().catch((e: unknown) => setError(errorMessage(e)));
+          }}
+          onClose={() => setConfirmDelete(false)}
+        />
+
+        <ConfirmDialog
+          visible={confirmLeave}
+          title="Leave group?"
+          message="You'll stop sharing devotional progress with this group."
+          confirmLabel="Leave group"
+          onConfirm={() => {
+            void onLeaveGroup().catch((e: unknown) => setError(errorMessage(e)));
+          }}
+          onClose={() => setConfirmLeave(false)}
+        />
       </Sheet>
-
-      <ConfirmDialog
-        visible={confirmRemove !== null}
-        title={confirmRemove?.pending ? "Cancel invite?" : "Remove member?"}
-        message={
-          confirmRemove?.pending
-            ? `${confirmRemove.name} won't be able to join this group.`
-            : `${confirmRemove?.name ?? "This person"} will lose access to this group immediately.`
-        }
-        confirmLabel={confirmRemove?.pending ? "Cancel invite" : "Remove"}
-        onConfirm={() => {
-          if (confirmRemove) void runRemove(confirmRemove.email);
-        }}
-        onClose={() => setConfirmRemove(null)}
-      />
-
-      <ConfirmDialog
-        visible={confirmDelete}
-        title="Delete group?"
-        message="Everyone will lose access to this group immediately. Your own devotionals stay saved."
-        confirmLabel="Delete group"
-        onConfirm={() => {
-          void onDeleteGroup().catch((e: unknown) => setError(errorMessage(e)));
-        }}
-        onClose={() => setConfirmDelete(false)}
-      />
-
-      <ConfirmDialog
-        visible={confirmLeave}
-        title="Leave group?"
-        message="You'll stop sharing devotional progress with this group."
-        confirmLabel="Leave group"
-        onConfirm={() => {
-          void onLeaveGroup().catch((e: unknown) => setError(errorMessage(e)));
-        }}
-        onClose={() => setConfirmLeave(false)}
-      />
     </>
   );
 };

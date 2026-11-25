@@ -263,12 +263,13 @@
         "src/app/world.tsx",
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
+        "src/app/world-devotionals.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,coins}.ts",
         "shared/{world,worldPath,home,coins,ball,names}.ts"
       ],
-      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise"]
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]
     },
     "devotionals": {
       "files": [
