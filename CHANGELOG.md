@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.52] - 2026-11-25
+## [2.12.53] - 2026-11-25
 
 ### Added
 - **Leaderboards show when each score was set**, under the name: "24 Nov"
@@ -31,6 +31,11 @@ All notable changes to **The SHED** mobile app. This project follows
   World's Names setting is. 2.12.47 had shortened them to "Daniel K.".
 - **A high five in the World is quicker**, about 1.75 seconds instead of 2.6,
   with the same reach, slap and step back.
+
+## [2.12.52] - 2026-11-25
+
+### Changed
+- **Devotional groups only see your days from the day you join.** Days before you accepted the invite don't show you to the group, and they count only the people who were in it then, so a day everyone did stays green. The owner counts from the group's start date, people already in a group are unchanged, and your own History still shows every day.
 
 ## [2.12.51] - 2026-11-25
 
