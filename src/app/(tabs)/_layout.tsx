@@ -243,9 +243,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="devotionals"
+        options={{
+          title: "Devotionals",
+          ...(isAuthenticated ? {} : sideMenuOnly),
+          tabBarIcon: tabIcon("book-outline", "book"),
+        }}
+      />
+      <Tabs.Screen
         name="org"
         options={{
-          title: "Org Chart",
+          title: "People",
+          ...(isAuthenticated ? sideMenuOnly : {}),
           tabBarIcon: tabIcon("people-outline", "people"),
         }}
       />
@@ -253,13 +262,6 @@ export default function TabsLayout() {
         name="music"
         options={{
           title: "Praise List",
-          ...sideMenuOnly,
-        }}
-      />
-      <Tabs.Screen
-        name="devotionals"
-        options={{
-          title: "Devotionals",
           ...sideMenuOnly,
         }}
       />

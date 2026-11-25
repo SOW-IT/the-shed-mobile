@@ -15,7 +15,6 @@ import {
   ErrorBanner,
   errorMessage,
   FloatingYearPicker,
-  FooterAction,
   InfoBanner,
   LoadingState,
   Muted,
@@ -273,37 +272,16 @@ export default function MentoringScreen() {
     : [{ key: "mine", label: "My mentees", render: renderMine }];
   const activeKey = tabs.some((t) => t.key === tab) ? tab : tabs[0].key;
 
-  const footers = isAdmin
-    ? [
-        ...(editable
-          ? [
-              {
-                tabKey: "pairings",
-                node: (
-                  <FooterAction
-                    title="+ Add pairing"
-                    avoidKeyboard={false}
-                    onPress={() => {
-                      setError(null);
-                      setPicking({ step: "mentee" });
-                    }}
-                  />
-                ),
-              },
-            ]
-          : []),
-        {
-          tabKey: "externals",
-          node: (
-            <FooterAction
-              title="+ Add external mentor"
-              avoidKeyboard={false}
-              onPress={() => openExternalSheet(null)}
-            />
-          ),
-        },
-      ]
-    : [];
+  const addPairing = () => {
+    setError(null);
+    setPicking({ step: "mentee" });
+  };
+  const headerAction =
+    isAdmin && activeKey === "pairings" && editable
+      ? { label: "Pairing", onPress: addPairing, accessibilityLabel: "Add pairing", testID: "mentoring-add-pairing" }
+      : isAdmin && activeKey === "externals"
+        ? { label: "Mentor", onPress: () => openExternalSheet(null), accessibilityLabel: "Add external mentor", testID: "mentoring-add-external" }
+        : null;
 
   const openedEditable = editable && opened !== null;
 
@@ -313,8 +291,7 @@ export default function MentoringScreen() {
         tabs={tabs}
         activeKey={activeKey}
         onActiveKeyChange={(key) => setTab(key as MentoringTab)}
-        footers={footers}
-        floatingAboveFooter
+        header={{ title: "Mentoring", icon: "compass-outline", action: headerAction }}
         floating={
           isAdmin && activeKey === "pairings" ? (
             <FloatingYearPicker
