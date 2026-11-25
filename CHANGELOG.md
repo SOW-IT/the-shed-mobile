@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.16] - 2026-11-26
+## [2.13.17] - 2026-11-26
 
 ### Added
 - **Chickens and cows in the backyard.** A chicken coop (50 coins, 4 hens)
@@ -38,6 +38,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **The plots moved down** to make room for the coop and the barn.
+
+## [2.13.16] - 2026-11-26
+
+### Added
+- **In the app, on the World's People list.** Between the people in the
+  World and "Not here right now", a new list shows who has The SHED open
+  on any other screen, with Poke and Invite like the offline list. It
+  shows 10 at first, then "Show more", and hides when nobody is there.
+  Walking into the World moves someone up to the World lists straight
+  away; closing the app moves them down to "Not here right now", seen just
+  now. Blocks work the same as everywhere else in the World.
+- The app tells the server it's open once a minute while it's on screen,
+  and stops when it goes to the background. People on older versions show
+  in the World or under "Not here right now" as before.
 
 ## [2.13.15] - 2026-11-26
 
