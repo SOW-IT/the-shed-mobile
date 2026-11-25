@@ -1029,7 +1029,10 @@ export const WorldScreen = ({
     if (!animal) return null;
     return [animalCard(animal, farmNow), ...(yardCard.extra ? [yardCard.extra] : [])].join("\n");
   })();
-  const feederName = (animal: (typeof shownAnimals)[number], fedAt: number | null) => (fedAt === null ? null : (animal.feedings.find((f) => f.at === fedAt)?.by ?? null));
+  const feederName = (animal: (typeof shownAnimals)[number], fedAt: number | null) => {
+    const feeding = fedAt === null ? undefined : animal.feedings.find((f) => f.at === fedAt);
+    return !feeding?.by ? null : feeding.mine ? "you" : worldName(feeding.by);
+  };
   const gardenYard: GardenYard | null = yardView
     ? {
         coop: yardView.coop,
@@ -1048,7 +1051,7 @@ export const WorldScreen = ({
             ready: l.ready,
             fresh: arrivals.has(animal.id),
             label: animalLabel(animal, farmNow),
-            ...(by ? { note: `Fed by ${worldName(by)}` } : {}),
+            ...(by ? { note: `Fed by ${by}` } : {}),
           };
         }),
         card: yardCard && yardCardText ? { at: yardCard.at, text: yardCardText } : null,

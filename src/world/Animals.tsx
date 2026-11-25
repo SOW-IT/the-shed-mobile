@@ -189,12 +189,14 @@ const TOP_OF: Record<Kind, number> = { chicken: -0.62, cow: -0.88 };
 
 const sizeOf = (look: Look) => (look.stage === 2 ? 1 : 0.5 + 0.42 * Math.min(1, look.progress));
 
-type Tag = { bottom: number; top: number; w: number; name: number };
+type Tag = { bottom: number; top: number; nameTop: number; w: number; name: number };
 const tagOf = (a: PenAnimal, base: number): Tag => {
   const bottom = TOP_OF[a.kind] * base * DRAWN_AT[a.kind] * sizeOf(a);
   const badge = a.mood === "hungry" || a.mood === "frail" || a.ready ? 0.36 * base + 16 : 0;
-  const name = Array.from(a.name).length * 5.8 + 14;
-  return { bottom, top: bottom - NAME_H - badge, w: Math.max(name, badge > 0 ? 0.34 * base + 14 : 0), name };
+  const lines = a.note ? 2 : 1;
+  const name = Math.max(Array.from(a.name).length * 5.8, a.note ? Array.from(a.note).length * 4.9 : 0) + 14;
+  const nameTop = bottom - NAME_H * lines;
+  return { bottom, top: nameTop - badge, nameTop, w: Math.max(name, badge > 0 ? 0.34 * base + 14 : 0), name };
 };
 
 type Point = { x: number; y: number; scale: number };
@@ -245,7 +247,7 @@ const Critter = ({
   onFed: () => void;
   onLeft: (id: string) => void;
   others: readonly { seed: number; pace: number | null; zone: Zone; tag: Tag }[];
-  part: "body" | "tag";
+  part: "body" | "badge" | "name";
   zone: Zone;
   tag: Tag;
 }) => {
@@ -327,7 +329,7 @@ const Critter = ({
     const k = feed.value;
     if (k >= 1) return { opacity: 0 };
     const drop = Math.min(1, k / 0.3);
-    return { opacity: k > 0.85 ? (1 - k) / 0.15 : 1, transform: [{ translateY: -(1 - drop * drop) * 0.9 * u }, { scale: 0.6 + 0.4 * drop }] };
+    return { opacity: k > 0.85 ? (1 - k) / 0.15 : 1, transform: [{ translateY: -(1 - drop * drop) * 1.4 * u }, { scale: 0.7 + 0.3 * drop }] };
   });
   const nameShown = useAnimatedStyle(() => {
     const mine = wanderAt(seed, clock.value, pace, zone);
@@ -357,28 +359,31 @@ const Critter = ({
             <HenBody u={u} look={look} />
           )}
           <Animated.View style={[styles.abs, head]}>{a.kind === "cow" ? <CowHead u={u} look={look} /> : <HenHead u={u} look={look} />}</Animated.View>
-          <Animated.View style={[styles.abs, { left: (a.kind === "cow" ? 0.6 : 0.3) * u - 0.2 * full, top: -0.36 * full }, food]}>
-            <FeedThumb feed={feedPile} size={0.4 * full} />
+          <Animated.View style={[styles.abs, { left: (a.kind === "cow" ? 0.62 : 0.32) * u - 0.3 * full, top: -0.5 * full }, food]}>
+            <FeedThumb feed={feedPile} size={0.6 * full} />
           </Animated.View>
         </Animated.View>
       </Animated.View>
-    ) : (
-      <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-tag-${a.id}`}>
-        <View style={[styles.stack, { bottom: -badgeY }]}>
+    ) : part === "badge" ? (
+      <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-badge-${a.id}`}>
+        <View style={[styles.stack, { bottom: -badgeY + tag.bottom - tag.nameTop + 2 }]}>
           {a.mood === "hungry" || a.mood === "frail" ? <Bowl u={base} /> : a.ready ? a.kind === "cow" ? <Bottle u={base} /> : <NestEgg u={base} /> : null}
+        </View>
+      </Animated.View>
+    ) : (
+      <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-name-${a.id}`}>
+        <View style={[styles.stack, { bottom: -badgeY }]}>
           <Animated.View style={[styles.name, nameShown]}>
             <Text style={styles.nameText} numberOfLines={1}>
               {a.name}
             </Text>
+            {a.note ? (
+              <Text style={styles.noteLine} numberOfLines={1}>
+                {a.note}
+              </Text>
+            ) : null}
           </Animated.View>
         </View>
-        {a.note ? (
-          <View style={[styles.note, { top: 4 }]}>
-            <Text style={styles.noteText} numberOfLines={1}>
-              {a.note}
-            </Text>
-          </View>
-        ) : null}
       </Animated.View>
     )
   );
@@ -409,13 +414,14 @@ export const PenAnimals = memo(function PenAnimals({
   const base = (pen.backLeft.scale + pen.frontRight.scale) / 2;
   const zones = useMemo(() => animals.map((_, i) => zoneOf(i, Math.max(slots, animals.length))), [animals, slots]);
   const tags = useMemo(() => animals.map((a) => tagOf(a, base)), [animals, base]);
-  const before = useMemo(
-    () => animals.map((_, i) => animals.slice(0, i).flatMap((o, j) => (o.mood === "gone" ? [] : [{ seed: seedOf(o.id), pace: paceOf(o.mood), zone: zones[j], tag: tags[j] }]))),
-    [animals, zones, tags]
-  );
+  const before = useMemo(() => {
+    const weight = (a: PenAnimal, i: number) => (a.note ? 0 : 20) + (a.mood === "hungry" || a.mood === "frail" || a.ready ? 0 : 10) + i;
+    const ranks = animals.map((a, i) => weight(a, i));
+    return animals.map((_, i) => animals.flatMap((o, j) => (j === i || o.mood === "gone" || ranks[j] > ranks[i] ? [] : [{ seed: seedOf(o.id), pace: paceOf(o.mood), zone: zones[j], tag: tags[j] }])));
+  }, [animals, zones, tags]);
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {(["body", "tag"] as const).flatMap((part) =>
+      {(["body", "badge", "name"] as const).flatMap((part) =>
         animals.map((a, i) => (
           <Critter key={`${part}-${a.id}`} a={a} part={part} pen={pen} gate={gate} exit={exit} base={base} clock={clock} live={live} feeding={feeding?.id === a.id ? feeding.key : null} onFed={onFed} onLeft={onLeft} others={before[i]} zone={zones[i]} tag={tags[i]} />
         ))
@@ -432,8 +438,9 @@ export const animalAt = (pen: PenCorners, id: string, mood: Mood, phase: number,
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
   stack: { position: "absolute", left: -60, width: 120, alignItems: "center", gap: 2 },
-  name: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: tint.namePill, maxWidth: 110 },
-  nameText: { color: tint.nameText, fontSize: 9.5, fontWeight: "700" },
+  name: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: tint.namePill, maxWidth: 120 },
+  nameText: { color: tint.nameText, fontSize: 9.5, fontWeight: "700", textAlign: "center" },
+  noteLine: { color: tint.nameText, fontSize: 8.5, fontWeight: "600", textAlign: "center" },
   badge: { alignItems: "center", justifyContent: "center", borderRadius: 999, backgroundColor: tint.badge, borderWidth: 2, borderColor: garden.ink },
   bowl: { backgroundColor: tint.bowl, borderWidth: 2, borderColor: garden.ink, borderTopWidth: 3 },
   egg: { backgroundColor: tint.egg, borderWidth: 2, borderColor: garden.ink, marginBottom: -4 },
@@ -445,8 +452,6 @@ const styles = StyleSheet.create({
   grain: { position: "absolute", backgroundColor: tint.grain, borderWidth: 1, borderColor: garden.ink },
   tag: { backgroundColor: tint.tag, borderWidth: 2, borderColor: garden.ink, justifyContent: "center", paddingLeft: 4 },
   tagHole: { backgroundColor: garden.ink },
-  note: { position: "absolute", left: -90, width: 180, alignItems: "center" },
-  noteText: { color: tint.noteText, backgroundColor: tint.note, fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: "hidden" },
 });
 
 export const AnimalThumb = memo(function AnimalThumb({ kind, stage, size, mood = "fed" }: { kind: Kind; stage: Stage; size: number; mood?: Mood }) {

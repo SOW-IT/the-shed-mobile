@@ -169,16 +169,20 @@ export const CoinsPanel = ({
         </Text>
         <Text style={[styles.lead, styles.farmLead]}>Farm in your backyard:</Text>
         <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Grow crops in your backyard and sell them to ${JOSH}. Go to your backyard`} testID="world-coins-crops" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
-          <CropThumb crop="tomato" size={30} />
+          <View style={styles.goods}>
+            <CropThumb crop="tomato" size={30} />
+          </View>
           <Text style={styles.farmText}>Grow crops · sell to {JOSH}</Text>
           <Ionicons name="chevron-forward" size={16} color={hud.forest} />
         </Pressable>
         <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Keep hens and cows and sell their eggs and milk to ${JOSH}. Go to your backyard`} testID="world-coins-animals" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
           <View style={styles.goods}>
-            <GoodThumb good="egg" size={24} />
-            <GoodThumb good="milk" size={24} />
+            <GoodThumb good="egg" size={30} />
+            <View style={styles.second}>
+              <GoodThumb good="milk" size={30} />
+            </View>
           </View>
-          <Text style={styles.farmText}>Keep hens and cows · sell eggs and milk</Text>
+          <Text style={styles.farmText}>Hens and cows · sell eggs and milk</Text>
           <Ionicons name="chevron-forward" size={16} color={hud.forest} />
         </Pressable>
         <View style={styles.shop}>
@@ -220,7 +224,8 @@ const styles = StyleSheet.create({
   farmLead: { marginTop: 10 },
   farmRow: { justifyContent: "flex-start", paddingVertical: 5 },
   farmText: { flex: 1, fontWeight: "800", fontSize: 13.5, color: hud.forest },
-  goods: { flexDirection: "row", width: 30, marginLeft: -4 },
+  goods: { flexDirection: "row", width: 30 },
+  second: { marginLeft: -16 },
   shop: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, padding: 8, borderRadius: 16, backgroundColor: hud.accentSoft },
   shopText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600", color: hud.forest },
   wrap: { alignItems: "center" },

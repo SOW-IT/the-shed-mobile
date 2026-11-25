@@ -71,7 +71,9 @@ export const PEN_OBSTACLES = BUILDING_IDS.flatMap((id) => {
   ];
 });
 
-export const penStand = (id: BuildingId) => ({ x: PENS[id].x, z: PENS[id].front + PEN_GATE_REACH });
+const PEN_STAND_ASIDE = 1.15;
+
+export const penStand = (id: BuildingId) => ({ x: PENS[id].x + (id === "coop" ? PEN_STAND_ASIDE : -PEN_STAND_ASIDE), z: PENS[id].front + PEN_GATE_REACH });
 
 type Watering = { at: number };
 type PlantTimes = { crop: string; plantedAt: number; waterings: readonly Watering[] };

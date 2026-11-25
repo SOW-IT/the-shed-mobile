@@ -208,8 +208,6 @@ export const animals = {
   hayBand: "#B7845E",
   grain: "#F1D27A",
   tag: "#F6D365",
-  note: "rgba(29, 74, 65, 0.92)",
-  noteText: "#F5F3E3",
   frail: "#9AA0A0",
   namePill: "rgba(255, 254, 248, 0.86)",
   nameText: "#1D4A41",

@@ -1107,7 +1107,7 @@ const penScreens = (cam: ReturnType<typeof makeCamera>): Record<BuildingId, PenS
     const gate = cam.project([pen.x, 0, pen.front + 0.3]);
     const exit = cam.project([pen.x + (id === "coop" ? -4.6 : 4.6), 0, pen.front + 1.2]);
     const middle = cam.project([pen.x, 0, (pen.front + pen.back) / 2]);
-    const top = cam.project([pen.house.x, 3.4, pen.house.z]);
+    const top = cam.project([pen.house.x, 2.3, pen.house.z + pen.house.d / 2]);
     const house = cam.project([pen.house.x, 1.2, pen.house.z + pen.house.d / 2]);
     const left = cam.project([pen.x - pen.w / 2 - 0.1, 0, pen.front]).x;
     const right = cam.project([pen.x + pen.w / 2 + 0.1, 0, pen.front]).x;
