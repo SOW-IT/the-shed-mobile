@@ -82,8 +82,22 @@ const StackedRow = ({ icon, title, children, style }: { icon: string; title: str
 
 const SAMPLE_TIME = "[2:15 PM]";
 
-export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; top: number; myName: string; onClose: () => void }) => {
-  const overlay = useOverlayClock(open, 6);
+export const SettingsPanel = ({
+  open,
+  top,
+  myName,
+  farmReminders,
+  onFarmReminders,
+  onClose,
+}: {
+  open: boolean;
+  top: number;
+  myName: string;
+  farmReminders?: boolean;
+  onFarmReminders: (on: boolean) => void;
+  onClose: () => void;
+}) => {
+  const overlay = useOverlayClock(open, 7);
   const { width, height } = useWindowDimensions();
   const [times, setTimes] = useWorldSetting("chatTimes");
   const [ping, setPing] = useWorldSetting("pingMs");
@@ -137,7 +151,10 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
               ]}
             />
           </Row>
-          <StackedRow icon="🪪" title="Names" style={itemStyle(overlay, 5)}>
+          <Row icon="🌱" title="Farm reminders" note="6 pm" style={itemStyle(overlay, 5)}>
+            <Toggle on={farmReminders ?? true} label="Farm reminders" onChange={onFarmReminders} testID="world-setting-farmReminders" />
+          </Row>
+          <StackedRow icon="🪪" title="Names" style={itemStyle(overlay, 6)}>
             <Choice
               setting="names"
               label="Names"

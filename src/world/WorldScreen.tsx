@@ -1,4 +1,3 @@
-import { useOffline } from "@/hooks/useOffline";
 import { useWorldOnline } from "@/hooks/useWorldOnline";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -24,18 +23,22 @@ import {
 } from "@shared/world";
 import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
+import { CROPS, growth, isCrop, plantCard, plotPrice, plotStand, type CropId } from "@shared/farm";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Reanimated, { useAnimatedStyle, useDerivedValue } from "react-native-reanimated";
+import { Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Reanimated, { useAnimatedStyle, useDerivedValue, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { liftOverKeyboard } from "@/hooks/keyboardOverlap";
 import { useKeyboardHeight } from "@/hooks/useKeyboardInset";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
-import { Garden, type HighlightTarget, type InteractivePropId } from "./Garden";
+import { Garden, type GardenFarm, type HighlightTarget, type InteractivePropId } from "./Garden";
+import { BagPanel, PlantPicker, PlotOffer } from "./FarmPanels";
+import { GainChip } from "./Farm";
+import { useFarm, useMinuteClock } from "./useFarm";
 import { hud } from "./palette";
 import { popShadow } from "./popShadow";
 import type { HudAction } from "./PersonHud";
@@ -45,17 +48,15 @@ import { PeoplePanel } from "./People";
 import { connectionLabel, DevotionalPromptDialog, LeaveDialog, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
-import { canDrawOn, pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
 import { SettingsPanel } from "./SettingsPanel";
-import { useWorldName, useWorldSetting } from "./settings";
+import { useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
-import { WorldList } from "./WorldList";
 import { ArcadePanel, type ArcadeTarget } from "./ArcadePanel";
 import { arcadePlayers } from "./arcadePlayers";
-import { backFrom, exitOf } from "./homeExit";
+import { backFrom, exitOf, padTrip } from "./homeExit";
 import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
@@ -65,25 +66,6 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
-
-const useScreenReader = () => {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    // The web can't tell (react-native-web always says yes), so the web
-    // starts on the garden; the list is one tap away under People.
-    if (Platform.OS === "web") return;
-    let live = true;
-    AccessibilityInfo.isScreenReaderEnabled()
-      .then((value) => live && setOn(value))
-      .catch(() => undefined);
-    const sub = AccessibilityInfo.addEventListener("screenReaderChanged", setOn);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return on;
-};
 
 const KEYBOARD_GAP = 8;
 
@@ -164,17 +146,24 @@ const Mark = () => (
   </View>
 );
 
-const TitlePill = ({ title, instance, open, onPress }: { title: string; instance: number; open: boolean; onPress: () => void }) => {
+const TitlePill = ({ title, instance, open, onPress, bump, calm }: { title: string; instance: number; open: boolean; onPress: () => void; bump: number; calm: boolean }) => {
   const [turn] = useState(() => new Animated.Value(open ? 1 : 0));
   useEffect(() => {
     Animated.timing(turn, { toValue: open ? 1 : 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [open, turn]);
+  const grow = useSharedValue(1);
+  useEffect(() => {
+    if (bump === 0 || calm) return;
+    grow.value = withSequence(withTiming(1.12, { duration: 120 }), withSpring(1, { damping: 8, stiffness: 220 }));
+  }, [bump, calm, grow]);
+  const bumped = useAnimatedStyle(() => ({ transform: [{ scale: grow.value }] }));
   const label = instance > 1 ? `${title} · ${instance}` : title;
   return (
+    <Reanimated.View style={[styles.titleWrap, bumped]}>
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${label}. Outfit, home, settings and leave`}
+      accessibilityLabel={`${label}. Outfit, bag, home, settings and leave`}
       accessibilityState={{ expanded: open }}
       testID="world-title"
       style={({ pressed }) => [styles.title, pressed && styles.pressed]}
@@ -187,6 +176,7 @@ const TitlePill = ({ title, instance, open, onPress }: { title: string; instance
         <Ionicons name="chevron-down" size={16} color={hud.forest} />
       </Animated.View>
     </Pressable>
+    </Reanimated.View>
   );
 };
 
@@ -215,12 +205,11 @@ const PingBars = ({ ms, onPress }: { ms: number | null; onPress: () => void }) =
 
 /**
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
- * nearby. Shows the list view instead offline, with VoiceOver, or by choice.
+ * nearby.
  */
 const NOTE_LIVE_REGION = Platform.OS === "web" ? "none" : "polite";
 
 export const WorldScreen = ({
-  onBack,
   leaveAsked = false,
   onStay,
   onLeave,
@@ -236,7 +225,6 @@ export const WorldScreen = ({
   arrival,
 }: {
   arrival?: { poke?: string; invite?: string };
-  onBack: () => void;
   leaveAsked?: boolean;
   onStay: () => void;
   onLeave: () => void;
@@ -253,14 +241,23 @@ export const WorldScreen = ({
   active?: boolean;
   awayKind?: AwayKind | null;
 }) => {
-  const offline = useOffline();
   const foreground = useForeground();
-  const screenReader = useScreenReader();
-  const view = pickView({ offline, screenReader, canDraw: canDrawOn(Platform.OS, Platform.Version) });
   const away = awayKind !== null;
-  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional", awayKind === "arcade" ? awayGame : undefined);
+  const world = useWorld(active, awayKind === "arcade", arrival, awayKind === "devotional", awayKind === "arcade" ? awayGame : undefined);
   const wallet = useCoins();
   const cafe = useCafe(world);
+  const inBackyard = world.place === "backyard" && world.status === "in";
+  const calm = useBatterySaver();
+  const farm = useFarm({ roomId: world.roomId, inBackyard });
+  const farmNow = useMinuteClock(world.serverNow, inBackyard);
+  const [bagOpen, setBagOpen] = useState(false);
+  const [pickPlot, setPickPlot] = useState<number | null>(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
+  const [plotTrip, setPlotTrip] = useState<{ plot: number; since: number } | null>(null);
+  const [plotCard, setPlotCard] = useState<{ plot: number; key: number } | null>(null);
+  const [watering, setWatering] = useState<{ plot: number; key: number } | null>(null);
+  const [flying, setFlying] = useState<{ plot: number; crop: CropId; key: number } | null>(null);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
@@ -274,6 +271,7 @@ export const WorldScreen = ({
   const removeItemM = useMutation(api.worldHome.removeItem);
   const wallpaperM = useMutation(api.worldHome.setWallpaper);
   const myHome = world.home?.mine === true;
+  if (shopOpen && world.status === "in" && world.place !== NPC.place) setShopOpen(false);
   if (decorating && !myHome && world.status === "in") setDecorating(false);
   const [propTrip, setPropTrip] = useState<{ kind: InteractivePropId; since: number } | null>(null);
   const [seatTrip, setSeatTrip] = useState<{ seatId: string; place: Place; since: number } | null>(null);
@@ -294,6 +292,7 @@ export const WorldScreen = ({
     setSettingsOpen(false);
     setCoinsOpen(false);
     setBoardOpen(false);
+    setBagOpen(false);
     setTray(false);
     setArcadeOpen(true);
   }, []);
@@ -435,9 +434,9 @@ export const WorldScreen = ({
     if (other) void world.ask(other.memberId, kind).then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
   };
 
-  const live = useRef({ world, askFor, worldName });
+  const live = useRef({ world, askFor, worldName, farm });
   useEffect(() => {
-    live.current = { world, askFor, worldName };
+    live.current = { world, askFor, worldName, farm };
   });
   const aimedAt = useRef<string | null>(null);
   const stepToward = (to: string, since: number, kind: AskKind): boolean => {
@@ -536,9 +535,27 @@ export const WorldScreen = ({
       : null;
 
   const [fade] = useState(() => new Animated.Value(0));
+  const clearWatering = useCallback(() => setWatering(null), []);
+  const [planting, setPlanting] = useState<{ plot: number; crop: CropId; key: number } | null>(null);
+  const [gain, setGain] = useState<{ text: string; key: number } | null>(null);
+  const [bagBump, setBagBump] = useState(0);
+  const flyingCrop = flying?.crop;
+  const clearFlying = useCallback(() => {
+    setFlying(null);
+    if (flyingCrop) {
+      setGain({ text: `+1 ${CROPS[flyingCrop].label}`, key: Date.now() });
+      setBagBump((n) => n + 1);
+    }
+  }, [flyingCrop]);
+  const clearPlanting = useCallback(() => setPlanting(null), []);
+  const clearGain = useCallback(() => setGain(null), []);
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">, onArrived?: () => void) => {
+  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">, onArrived?: () => void, door = false) => {
     setPerson(null);
+    setPlotTrip(null);
+    setPlotCard(null);
+    setPickPlot(null);
+    setOfferOpen(false);
     setApproach(null);
     setPropTrip(null);
     setSeatTrip(null);
@@ -554,11 +571,11 @@ export const WorldScreen = ({
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
-    void live.current.world.travel(to, { toMember, invite }).then((problem) => {
+    void live.current.world.travel(to, { toMember, invite, door }).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
       else {
-        announce(to === "home" ? (invite ? "You're at their home." : "You're home.") : `You're in ${PLACE_TITLES[to]}.`);
+        announce(to === "home" ? (invite ? "You're at their home." : "You're home.") : to === "backyard" ? "You're in the backyard." : `You're in ${PLACE_TITLES[to]}.`);
         onArrived?.();
       }
     });
@@ -620,22 +637,37 @@ export const WorldScreen = ({
     const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, inviteEnds - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
   }, [inviteEnds]);
-  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : placeName(world.place);
+  const farmView = farm.view;
+  const placeTitle =
+    world.place === "home"
+      ? world.home
+        ? world.home.mine
+          ? "Your home"
+          : `${worldName(world.home.ownerName)}'s home`
+        : "Home"
+      : world.place === "backyard"
+        ? farmView
+          ? farmView.mine
+            ? "Your backyard"
+            : `${worldName(farmView.ownerName)}'s backyard`
+          : "Backyard"
+        : placeName(world.place);
   const goRef = useRef(go);
   useEffect(() => {
     goRef.current = go;
   });
   const backToPlace = leaveAsked ? backFrom(world.place, world.home, world.homeLoading) : null;
   const backTarget = backToPlace?.kind === "travel" ? backToPlace.to : null;
+  const backDoor = backToPlace?.kind === "travel" && backToPlace.door === true;
   useEffect(() => {
     if (backTarget === null) return;
     onStay();
-    goRef.current(backTarget);
-  }, [backTarget, onStay]);
+    goRef.current(backTarget, undefined, undefined, undefined, backDoor);
+  }, [backTarget, backDoor, onStay]);
   const myWalkStart = me?.walk?.startedAt ?? null;
   const myArrival = me?.walk ? posAt(me.walk, me.walk.startedAt).arrivesAt : null;
   useEffect(() => {
-    if (view !== "garden" || away || myWalkStart === null || myArrival === null) return;
+    if (away || myWalkStart === null || myArrival === null) return;
     let id: ReturnType<typeof setTimeout>;
     const check = () => {
       const { world: latest } = live.current;
@@ -651,16 +683,18 @@ export const WorldScreen = ({
       if (!pad) return;
       triedFromWalk.current = mine.walk.startedAt;
       // A home's door goes back to where you came from (the server remembers).
-      goRef.current(latest.place === "home" ? exitOf(latest.home) : pad.to);
+      const trip = padTrip(latest.place, pad.to, latest.home);
+      goRef.current(trip.to, undefined, undefined, undefined, trip.door);
     };
     id = setTimeout(check, Math.max(0, myArrival + PAD_SETTLE_MS - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
-  }, [view, away, myWalkStart, myArrival]);
+  }, [away, myWalkStart, myArrival]);
 
   const sitNear = (seatId: string) => {
     setPerson(null);
     setApproach(null);
     setPropTrip(null);
+    setPlotTrip(null);
     setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
@@ -688,6 +722,7 @@ export const WorldScreen = ({
     setPerson(null);
     setApproach(null);
     setSeatTrip(null);
+    setPlotTrip(null);
     setTray(false);
     const spot = OBJECT_SPOTS[kind];
     const mePose = myPoseNow();
@@ -708,6 +743,133 @@ export const WorldScreen = ({
 
   const emote = (id: string) => void world.act(id).then((problem) => problem && setNote(problem));
 
+  const plantOn = (plot: number) => farmView?.plants.find((p) => p.plot === plot) ?? null;
+  const wateredBy = (plant: NonNullable<ReturnType<typeof plantOn>>, wateredAt: number | null) =>
+    wateredAt === null ? null : (plant.waterings.find((w) => w.at === wateredAt)?.by ?? null);
+  const gardenPlants = (farmView?.plants ?? []).map((plant) => {
+    const g = growth(plant, farmNow);
+    const by = wateredBy(plant, g.wateredAt);
+    return { plot: plant.plot, crop: plant.crop, stage: g.stage, progress: g.progress, wilted: g.wilted, thirsty: g.thirsty, wet: g.wateredAt !== null, ...(by ? { note: `Watered by ${worldName(by)}` } : {}) };
+  });
+  const cardFor = (plot: number) => {
+    const plant = plantOn(plot);
+    return plant ? plantCard(plant, farmNow) : null;
+  };
+  const needsVisit = (plot: number) => {
+    const plant = plantOn(plot);
+    if (!plant) return farmView?.mine === true;
+    const g = growth(plant, world.serverNow());
+    return g.thirsty || (farmView?.mine === true && (g.stage === "ripe" || g.stage === "dead"));
+  };
+  const actOnPlot = (plot: number) => {
+    const { world: latest, farm: farmNowLive } = live.current;
+    const plants = farmNowLive.view;
+    const plant = plants?.plants.find((p) => p.plot === plot);
+    if (!plants) return;
+    if (!plant) {
+      if (plants.mine && plot < plants.plots) setPickPlot(plot);
+      return;
+    }
+    const g = growth(plant, latest.serverNow());
+    if (g.thirsty) {
+      setWatering({ plot, key: Date.now() });
+      void farmNowLive.water(plot).then((problem) => problem && setNote(problem));
+    } else if (plants.mine && g.stage === "ripe") {
+      void farmNowLive.harvest(plot).then((reply) => {
+        if (typeof reply === "string") setNote(reply);
+        else if (isCrop(reply.crop)) setFlying({ plot, crop: reply.crop, key: Date.now() });
+      });
+    } else if (plants.mine && g.stage === "dead") {
+      void farmNowLive.clear(plot).then((problem) => problem && setNote(problem));
+    }
+  };
+  const actRef = useRef(actOnPlot);
+  useEffect(() => {
+    actRef.current = actOnPlot;
+  });
+  const tapPlot = (plot: number) => {
+    if (!farmView) return;
+    setPerson(null);
+    setApproach(null);
+    setTray(false);
+    setPropTrip(null);
+    setSeatTrip(null);
+    if (plot >= farmView.plots) {
+      setPlotTrip(null);
+      if (farmView.mine) {
+        setOffer({ plot: farmView.plots, price: plotPrice(farmView.plots) });
+        setOfferOpen(true);
+      }
+      return;
+    }
+    if (plantOn(plot)) setPlotCard({ plot, key: Date.now() });
+    if (!needsVisit(plot)) return;
+    const spot = plotStand(plot);
+    const mePose = myPoseNow();
+    if (mePose && distance(mePose, spot) <= AT_OBJECT) {
+      setPlotTrip(null);
+      actOnPlot(plot);
+      return;
+    }
+    world.walkTo(spot.x, spot.z);
+    setPlotTrip({ plot, since: Date.now() });
+  };
+  useEffect(() => {
+    if (plotTrip === null) return;
+    const spot = plotStand(plotTrip.plot);
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const at = latest.serverNow();
+      const mine = latest.people.find((p) => p.isMe);
+      const pose = mine?.walk ? posAt(mine.walk, at) : null;
+      const arrived = pose !== null && distance(pose, spot) <= AT_OBJECT;
+      const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || Date.now() - plotTrip.since > OBJECT_TRIP_MS;
+      if (!arrived && !strayed) return;
+      setPlotTrip(null);
+      if (arrived) actRef.current(plotTrip.plot);
+    }, 120);
+    return () => clearInterval(id);
+  }, [plotTrip]);
+  useEffect(() => {
+    if (plotCard === null) return;
+    const id = setTimeout(() => setPlotCard(null), PLOT_CARD_MS);
+    return () => clearTimeout(id);
+  }, [plotCard]);
+  const describePlot = (plot: number): string | null => {
+    if (!farmView) return null;
+    if (plot >= farmView.plots) return farmView.mine ? `Plot ${plot + 1}, locked, ${plotPrice(plot)} coins` : null;
+    const plant = plantOn(plot);
+    if (!plant) return `Plot ${plot + 1}, empty`;
+    const g = growth(plant, farmNow);
+    return `${plantCard(plant, farmNow)}${g.thirsty ? ", needs water" : ""}`;
+  };
+  const plantPicked = (plot: number, crop: CropId) => {
+    setPickPlot(null);
+    setPlanting({ plot, crop, key: Date.now() });
+    void farm.plant(plot, crop).then((problem) => {
+      if (!problem) return;
+      setPlanting(null);
+      setNote(problem);
+    });
+  };
+  const gardenFarm: GardenFarm | null = farmView
+    ? {
+        plots: farmView.plots,
+        mine: farmView.mine,
+        plants: gardenPlants,
+        card: plotCard && cardFor(plotCard.plot) ? { plot: plotCard.plot, text: cardFor(plotCard.plot)! } : null,
+        watering,
+        flying,
+        bagAt: { x: 54, y: insets.top + 30 },
+        onTapPlot: tapPlot,
+        onWatered: clearWatering,
+        onFlown: clearFlying,
+        planting,
+        onPlanted: clearPlanting,
+        describe: describePlot,
+      }
+    : null;
+
   const walkOverAndAsk = (to: string, kind: AskKind) => {
     setPerson(null);
     aimedAt.current = null;
@@ -723,6 +885,7 @@ export const WorldScreen = ({
     setPerson(null);
     setApproach(null);
     setPropTrip(null);
+    setPlotTrip(null);
     setSeatTrip(null);
     const { world: latest } = live.current;
     const at = latest.serverNow();
@@ -832,7 +995,7 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || bagOpen || offerOpen || pickPlot !== null || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
@@ -859,10 +1022,9 @@ export const WorldScreen = ({
   );
   const sheets = (
     <>
-      {view === "list" ? cafeLayer(false) : null}
       <NoticeBoardPanel
         open={boardOpen}
-        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        top={insets.top + TOP_BAR_GAP}
         onClose={() => setBoardOpen(false)}
         onOpenLink={(url) => {
           setBoardOpen(false);
@@ -872,15 +1034,31 @@ export const WorldScreen = ({
       />
       <ShopPanel
         open={shopOpen}
-        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        top={insets.top + TOP_BAR_GAP}
         bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + SHOP_CHAT_GAP}
         wallet={wallet}
         onClose={() => setShopOpen(false)}
         onBought={setNote}
+        farm={{ crops: farm.bag?.crops ?? {}, seeds: farm.bag?.seeds ?? {}, buySeeds: farm.buySeeds, sell: farm.sell }}
+      />
+      <BagPanel open={bagOpen} top={insets.top + TOP_BAR_GAP} bag={farm.bag} onClose={() => setBagOpen(false)} />
+      <PlantPicker plot={pickPlot} top={insets.top + TOP_BAR_GAP} bag={farm.bag} onPick={plantPicked} onClose={() => setPickPlot(null)} />
+      <PlotOffer
+        open={offerOpen}
+        top={insets.top + TOP_BAR_GAP}
+        plot={offer.plot}
+        price={offer.price}
+        balance={wallet?.balance ?? 0}
+        onBuy={async () => {
+          const problem = await farm.buyPlot(offer.plot);
+          if (!problem) setOfferOpen(false);
+          return problem;
+        }}
+        onClose={() => setOfferOpen(false)}
       />
       <CoinsPanel
         open={coinsOpen}
-        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        top={insets.top + TOP_BAR_GAP}
         balance={wallet?.balance}
         onClose={() => setCoinsOpen(false)}
       />
@@ -907,29 +1085,25 @@ export const WorldScreen = ({
         /> : null}
       <PeoplePanel
         open={peopleOpen}
-        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        top={insets.top + TOP_BAR_GAP}
         roomId={world.roomId}
         people={world.people}
         online={online}
         onPerson={(memberId) => {
           setPeopleOpen(false);
-          if (view === "list") setSheet({ memberId, safetyOnly: false });
-          else setPerson(memberId);
+          setPerson(memberId);
         }}
         place={world.place}
-        onGo={go}
         onWalkOver={walkOver}
         onFollow={follow}
-        onHome={goHome}
         onInvite={invitePerson}
         playing={playingNow.lines}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
-        showPlaces={view === "list"}
       />
       <ArcadePanel
         open={arcadeOpen}
-        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        top={insets.top + TOP_BAR_GAP}
         playing={arcadePlayers(world.people, worldName)}
         onOpen={(target) => {
           setArcadeOpen(false);
@@ -938,7 +1112,14 @@ export const WorldScreen = ({
         onClose={() => setArcadeOpen(false)}
       />
       <CafePicker person={picking} look={picking ? (world.people.find((p) => p.memberId === picking.memberId)?.look ?? null) : null} top={insets.top + TOP_BAR_GAP} onPick={challengeTo} onClose={() => setPicking(null)} />
-      <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel
+        open={settingsOpen}
+        top={insets.top + TOP_BAR_GAP}
+        myName={me?.name ?? ""}
+        farmReminders={farm.bag?.reminders}
+        onFarmReminders={(on) => void farm.setReminders(on).then((problem) => problem && setNote(problem))}
+        onClose={() => setSettingsOpen(false)}
+      />
       <DevotionalPromptDialog
         open={devotionalAsked}
         onCancel={() => setDevotionalAsked(false)}
@@ -972,6 +1153,17 @@ export const WorldScreen = ({
         setPlacesOpen(false);
         setPerson(null);
         setEditing(true);
+      },
+    },
+    {
+      id: "bag",
+      label: "Bag",
+      icon: "bag-handle-outline",
+      accessibilityLabel: "Bag. Your seeds and crops",
+      onPress: () => {
+        setPlacesOpen(false);
+        setPerson(null);
+        setBagOpen(true);
       },
     },
     ...(myHome
@@ -1030,51 +1222,6 @@ export const WorldScreen = ({
 
   if (away) return <View style={styles.fill} />;
 
-  if (view === "list") {
-    return (
-      <>
-        {liveNote}
-        <WorldList
-          world={world}
-          offline={offline}
-          muted={muted}
-          onBack={onBack}
-          onArcade={openArcade}
-          onPeople={() => setPeopleOpen(true)}
-          placeTitle={placeTitle}
-          extra={
-            <View style={styles.listExtra}>
-              <View style={styles.listRow}>
-                <CoinCounter balance={wallet?.balance} onPress={openCoins} />
-                {world.place === NPC.place ? (
-                  <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
-                ) : null}
-                <RoundButton icon="clipboard-outline" label="Notice board" onPress={openBoard} testID="world-list-notices" />
-                <RoundButton icon="settings-outline" label="Settings" onPress={() => setSettingsOpen(true)} testID="world-list-settings" />
-              </View>
-              {inviteCard}
-            </View>
-          }
-          online={online}
-          onPerson={(memberId) => {
-            if (world.people.some((p) => p.isMe && p.memberId === memberId)) setEditing(true);
-            else setSheet({ memberId, safetyOnly: false });
-          }}
-          note={overlayOpen ? null : note}
-          onNote={setNote}
-          onLine={openSpeaker}
-          duelCard={<DuelCard {...duelProps} showResult />}
-          declined={declined}
-          onAccept={accept}
-          onDecline={decline}
-        />
-        {sheets}
-        {noteOver}
-      </>
-    );
-  }
-
-
   return (
     <View style={styles.fill}>
       {liveNote}
@@ -1105,6 +1252,7 @@ export const WorldScreen = ({
           setPerson(null);
           setApproach(null);
           setPropTrip(null);
+          setPlotTrip(null);
           setSeatTrip(null);
           world.holdStart(x, z);
         }}
@@ -1119,6 +1267,7 @@ export const WorldScreen = ({
           }
           setTray(false);
           setPropTrip(null);
+          setPlotTrip(null);
           setSeatTrip(null);
           setPerson((current) => (current === memberId ? null : memberId));
         }}
@@ -1152,6 +1301,7 @@ export const WorldScreen = ({
             : null
         }
         paused={!foreground || editing}
+        farm={inBackyard ? gardenFarm : null}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.left}>
@@ -1164,9 +1314,12 @@ export const WorldScreen = ({
               setSettingsOpen(false);
               setPlacesOpen((was) => !was);
             }}
+            bump={bagBump}
+            calm={calm}
           />
           {coinsBeside ? <CoinCounter balance={wallet?.balance} onPress={openCoins} /> : null}
         </View>
+        {gain ? <GainChip key={gain.key} text={gain.text} x={20} y={52} live={!calm} onDone={clearGain} /> : null}
         <View style={styles.right}>
           <PingBars
             ms={world.ping}
@@ -1290,6 +1443,7 @@ export const WorldScreen = ({
 };
 
 const PAD_SETTLE_MS = 150;
+const PLOT_CARD_MS = 4000;
 const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
@@ -1336,6 +1490,7 @@ const styles = StyleSheet.create({
     ...ink,
     ...pop,
   },
+  titleWrap: { flexShrink: 1 },
   title: {
     flexShrink: 1,
     flexDirection: "row",
@@ -1354,8 +1509,6 @@ const styles = StyleSheet.create({
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
   left: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
   coinsUnder: { position: "absolute", left: 14 },
-  listExtra: { gap: 10, marginBottom: 12 },
-  listRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   decorateRow: { flexDirection: "row", justifyContent: "flex-end" },
   ping: { minWidth: 30, height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   pingText: { fontSize: 12, fontWeight: "800", color: hud.forest, fontVariant: ["tabular-nums"] },

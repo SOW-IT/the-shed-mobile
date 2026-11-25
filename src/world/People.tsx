@@ -3,7 +3,7 @@ import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { playingLabel } from "@shared/games";
-import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
+import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -226,14 +226,11 @@ export const PeoplePanel = ({
   place,
   online,
   onPerson,
-  onGo,
   onWalkOver,
   onFollow,
-  onHome,
   onInvite,
   onClose,
   pokeListOpen = false,
-  showPlaces = false,
   playing,
 }: {
   open: boolean;
@@ -243,14 +240,11 @@ export const PeoplePanel = ({
   place: Place;
   online: number;
   onPerson: (memberId: string) => void;
-  onGo: (to: Place) => void;
   onWalkOver: (memberId: string) => void;
   onFollow: (to: Place, memberId: string) => void;
-  onHome: () => void;
   onInvite: (memberId: Id<"worldMembers">, name: string) => void;
   onClose: () => void;
   pokeListOpen?: boolean;
-  showPlaces?: boolean;
   playing?: ReadonlyMap<string, string>;
 }) => {
   const overlay = useOverlayClock(open);
@@ -356,14 +350,6 @@ export const PeoplePanel = ({
               )}
             </Animated.View>
           ))}
-          {showPlaces ? (
-            <Animated.View style={[styles.places, itemStyle(overlay, next())]}>
-              {PLACES.filter((to) => to !== place).map((to) => (
-                <GlassPill key={to} label={placeLabel(to)} onPress={() => onGo(to)} accessibilityLabel={`Go to ${PLACE_TITLES[to]}`} testID={`world-go-${to}`} />
-              ))}
-              <GlassPill label="🏠 Your home" onPress={onHome} accessibilityLabel="Go to your home" testID="world-go-home" />
-            </Animated.View>
-          ) : null}
           <Animated.View style={itemStyle(overlay, next())}>
             <OfflineList startOpen={pokeListOpen} />
           </Animated.View>
@@ -416,7 +402,6 @@ const styles = StyleSheet.create({
   note: { color: glass.muted, fontSize: 13, paddingHorizontal: 4 },
   sent: { color: glass.text, fontSize: 13, fontWeight: "600", paddingHorizontal: 4 },
   error: { color: glass.error, fontSize: 13 },
-  places: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   offline: { gap: 8 },
   toggle: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   offlineRow: { gap: 8, padding: 8, borderRadius: 16, backgroundColor: glass.row },
