@@ -1703,22 +1703,6 @@ const OFFLINE_SEEN_SCAN = 1000;
 /** Staff profiles it reads at most for people never seen online. */
 const OFFLINE_NEVER_SCAN = 2000;
 
-type OfflineCursor = { kind: "seen"; at: number; email: string } | { kind: "never"; id: Id<"staffProfiles"> };
-
-const readOfflineCursor = (raw: string | undefined): OfflineCursor | null => {
-  if (raw === undefined) return null;
-  try {
-    const c: unknown = JSON.parse(raw);
-    if (typeof c !== "object" || c === null) return null;
-    const { kind, at, email, id } = c as Record<string, unknown>;
-    if (kind === "seen" && typeof at === "number" && typeof email === "string") return { kind, at, email };
-    if (kind === "never" && typeof id === "string") return { kind, id: id as Id<"staffProfiles"> };
-  } catch {
-    return null;
-  }
-  return null;
-};
-
 /**
  * Everyone with a staff profile this year who isn't in the garden, most
  * recently online in the app first, then people never seen, by name. Not
@@ -1727,63 +1711,39 @@ const readOfflineCursor = (raw: string | undefined): OfflineCursor | null => {
  * list starts short and grows on "Show all".
  */
 export const offlineRecent = query({
-  args: { limit: v.number(), after: v.optional(v.string()) },
+  args: { limit: v.number() },
   returns: v.object({
     people: v.array(
       v.object({ id: v.id("staffProfiles"), name: v.string(), lastOnlineAt: v.union(v.number(), v.null()), look: worldLookValidator })
     ),
     more: v.boolean(),
-    next: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
     const isBlocked = await loadBlockFilter(ctx, email);
     const year = currentStaffYear();
     const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
-    const after = readOfflineCursor(args.after);
     const away = async (other: string) => other !== email && !(await memberByEmail(ctx, other)) && !(await isBlocked(other));
     const found: { profile: Doc<"staffProfiles">; lastOnlineAt: number | null }[] = [];
     const listed = new Set<string>();
-    let next: OfflineCursor | null = null;
     let more = false;
-    if (after === null || after.kind === "seen") {
-      const rows =
-        after === null
-          ? ctx.db.query("lastSeen").withIndex("by_at").order("desc")
-          : ctx.db.query("lastSeen").withIndex("by_at", (q) => q.lte("at", after.at)).order("desc");
-      let scanned = 0;
-      for await (const row of rows) {
-        if (after !== null && row.at === after.at && row.email === after.email) continue;
-        if (scanned++ === OFFLINE_SEEN_SCAN) {
-          more = true;
-          break;
-        }
-        const here: OfflineCursor = { kind: "seen", at: row.at, email: row.email };
-        if (listed.has(row.email)) continue;
-        const profile = await getProfile(ctx, row.email, year);
-        if (!profile || !(await away(profile.email))) {
-          next = here;
-          continue;
-        }
-        if (found.length === limit) {
-          more = true;
-          break;
-        }
-        listed.add(profile.email);
-        found.push({ profile, lastOnlineAt: row.at });
-        next = here;
+    let scanned = 0;
+    for await (const row of ctx.db.query("lastSeen").withIndex("by_at").order("desc")) {
+      if (scanned++ === OFFLINE_SEEN_SCAN) break;
+      if (listed.has(row.email)) continue;
+      const profile = await getProfile(ctx, row.email, year);
+      if (!profile || !(await away(profile.email))) continue;
+      if (found.length === limit) {
+        more = true;
+        break;
       }
+      listed.add(profile.email);
+      found.push({ profile, lastOnlineAt: row.at });
     }
     if (!more) {
-      const from = after?.kind === "never" ? after.id : null;
-      let passed = from === null;
-      let scanned = 0;
+      scanned = 0;
       for await (const profile of ctx.db.query("staffProfiles").withIndex("by_year_and_name", (q) => q.eq("year", year))) {
         if (scanned++ === OFFLINE_NEVER_SCAN) break;
-        if (!passed) {
-          passed = profile._id === from;
-          continue;
-        }
         if (listed.has(profile.email)) continue;
         const seen = await ctx.db
           .query("lastSeen")
@@ -1796,7 +1756,6 @@ export const offlineRecent = query({
         }
         listed.add(profile.email);
         found.push({ profile, lastOnlineAt: null });
-        next = { kind: "never", id: profile._id };
       }
     }
     const people = [];
@@ -1804,7 +1763,7 @@ export const offlineRecent = query({
       const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
       people.push({ id: profile._id, name: profileName(profile), lastOnlineAt, look });
     }
-    return more && next !== null ? { people, more, next: JSON.stringify(next) } : { people, more };
+    return { people, more };
   },
 });
 
