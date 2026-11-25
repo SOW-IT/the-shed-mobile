@@ -1,10 +1,11 @@
 import { fonts } from "@/theme";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { compactAgo } from "@shared/datetime";
 import { boardCards, draftAfterSave, NOTICE_TEXT_MAX, NOTICE_TITLE_MAX } from "@shared/worldNotices";
 import { useMutation, useQuery } from "convex/react";
 import { useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
@@ -151,7 +152,7 @@ export const NoticeBoardPanel = ({
               <Ionicons name="close" size={18} color={board.ink} />
             </Pressable>
           </Animated.View>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
             {loading ? <Text style={styles.chalk}>Pinning things up…</Text> : null}
             {noAccess ? <Text style={styles.chalk}>The notice board is for people on this year&apos;s team.</Text> : null}
 
@@ -287,7 +288,7 @@ export const NoticeBoardPanel = ({
                 <Ionicons name="arrow-forward" size={14} color={board.ink} />
               </Pressable>
             ) : null}
-          </ScrollView>
+          </SharpScrollView>
         </View>
       </Animated.View>
     </View>

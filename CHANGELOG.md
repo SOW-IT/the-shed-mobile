@@ -49,6 +49,17 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
   target and holds after a big flight.
+## [2.13.15] - 2026-11-26
+
+### Fixed
+- **Sharp text at the top of the Café board and the World's panels.** On an
+  iPhone with iOS 26, the system blurs whatever sits at the top edge of a
+  scrolling area. On the Café board that was the game's name and Give up,
+  smeared into a blur. The Café board, the Shop, Farm, People, Settings,
+  Arcade and notice board panels, the character editor, the chat log, the
+  decorating tray and the game-over card now keep their text sharp to the
+  edge.
+
 ## [2.13.14] - 2026-11-25
 
 ### Added

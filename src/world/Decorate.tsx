@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { FURNITURE_IDS, ownedLeft, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type Placed, type WallpaperId } from "@shared/home";
 import { useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { blurBehind, usePresence } from "./Overlays";
 import { glass, gold, hud } from "./palette";
 import { FurnitureThumb, WallpaperSwatch } from "./Thumb";
@@ -57,7 +58,7 @@ export const DecorateTray = ({
           <Ionicons name="checkmark" size={18} color={hud.onAccent} />
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <SharpScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {tab === "furniture" && items.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>☕</Text>
@@ -98,7 +99,7 @@ export const DecorateTray = ({
                 <WallpaperSwatch id={id} size={TILE - 12} />
               </Pressable>
             ))}
-      </ScrollView>
+      </SharpScrollView>
     </Animated.View>
   );
 };

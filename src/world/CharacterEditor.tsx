@@ -1,4 +1,5 @@
 import { Btn, ConfirmDialog, FastModal } from "@/components/ui";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { spacing, typography, useAppTheme } from "@/theme";
 import {
@@ -32,7 +33,7 @@ import {
   type NudgePart,
 } from "@shared/world";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { garden, hud, lightToDark, people, shade } from "./palette";
 import { Avatar, figureTop } from "./Person";
@@ -678,7 +679,7 @@ export const CharacterEditor = ({
     </View>
   );
   const choices = (
-    <ScrollView
+    <SharpScrollView
       style={styles.grow}
       contentContainerStyle={styles.stack}
       onLayout={(e) => setChoicesWidth(e.nativeEvent.layout.width)}
@@ -791,7 +792,7 @@ export const CharacterEditor = ({
           <Choices names={ACCESSORIES} part="accessory" framing="body" value={part("accessory")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
         </>
       ) : null}
-    </ScrollView>
+    </SharpScrollView>
   );
   const footer = (
     <View style={styles.footer}>

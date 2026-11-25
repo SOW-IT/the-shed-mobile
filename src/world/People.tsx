@@ -1,4 +1,5 @@
 import { Btn, Field } from "@/components/ui";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
@@ -6,7 +7,7 @@ import { playingLabel } from "@shared/games";
 import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
@@ -284,7 +285,7 @@ export const PeoplePanel = ({
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </Animated.View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.stack}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.stack}>
           <Animated.View style={itemStyle(overlay, 1)}>
             <Section>{`Here · ${placeLabel(place)}`}</Section>
           </Animated.View>
@@ -364,7 +365,7 @@ export const PeoplePanel = ({
               ))}
             </Animated.View>
           ) : null}
-        </ScrollView>
+        </SharpScrollView>
       </Animated.View>
     </View>
   );
