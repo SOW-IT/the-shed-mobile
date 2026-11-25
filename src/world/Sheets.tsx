@@ -8,7 +8,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useWorldName } from "./settings";
 import type { WorldMember } from "./useWorld";
-import { CafeRecord } from "./CafeGames";
+import { CafeStats } from "./CafeGames";
 
 export const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "That didn't work. Try again.");
 
@@ -89,7 +89,7 @@ export const PersonSheet = ({
         </View>
       ) : (
         <View style={styles.stack}>
-          {person ? <CafeRecord memberId={person.memberId} testID="world-person-record" /> : null}
+          {person ? <CafeStats memberId={person.memberId} name={name} testID="world-person-record" /> : null}
           {onPlay ? (
             <Btn
               title="Play a game"

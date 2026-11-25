@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { shortDate, timeAgo as sharedTimeAgo } from "@shared/datetime";
@@ -25,7 +25,7 @@ import { FilterBar } from "@/components/attendance/FilterBar";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
@@ -161,7 +161,7 @@ export function AuditTab({
   );
 
   return (
-    <Animated.ScrollView
+    <KeyboardScrollView
       ref={listRef}
       onScrollEndDrag={onListScrollEnd}
       onMomentumScrollEnd={onListScrollEnd}
@@ -169,7 +169,7 @@ export function AuditTab({
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
+      style={[{ backgroundColor: t.background }, keyboardInset]}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         { paddingTop: topBarInset, paddingBottom: PAGER_PAGE_BOTTOM_INSET },
@@ -299,7 +299,7 @@ export function AuditTab({
           ) : null}
         </>
       )}
-    </Animated.ScrollView>
+    </KeyboardScrollView>
   );
 }
 

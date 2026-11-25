@@ -3,7 +3,6 @@ import { ReactNode, RefObject, useCallback, useEffect, useRef, useState } from "
 import {
   Animated,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +19,7 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
 import { useRegisterModal } from "./modalPresence";
+import { KeyboardFrame } from "./keyboardFrame";
 import { FastModal, Muted, Row, Txt } from "./primitives";
 import { RevealFocusedInputContext } from "./revealFocus";
 import { styles } from "./styles";
@@ -241,10 +241,8 @@ export const Sheet = ({
     <FastModal visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={spacing.md}
-          pointerEvents="box-none"
+        <KeyboardFrame
+          offset={spacing.md}
           style={[
             styles.dialogOuter,
             anchorBottom && { justifyContent: "flex-end" },
@@ -297,7 +295,7 @@ export const Sheet = ({
               </View>
             ) : null}
           </Animated.View>
-        </KeyboardAvoidingView>
+        </KeyboardFrame>
       </View>
     </FastModal>
   );

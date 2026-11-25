@@ -15,6 +15,7 @@ import { revokeAppleTokens } from "./appleRevoke";
 import { deleteGroupData } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
+import { endLiveGameOf } from "./cafeGames";
 import { typedMatches } from "../shared/typedConfirm";
 
 const accountKind = v.union(v.literal("sow"), v.literal("apple"));
@@ -73,6 +74,7 @@ async function deleteByEmail(
   includeGuestData: boolean
 ): Promise<boolean> {
   // First out of the Garden, so a later sweep can't keep rate limits under this email.
+  await endLiveGameOf(ctx, email, Date.now());
   await removeFromWorld(ctx, email);
   const more = [
     await deleteBatch(
@@ -107,6 +109,18 @@ async function deleteByEmail(
         .withIndex("by_email_and_game", (q) => q.eq("email", email))
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("cafeRecords").withIndex("by_email_and_kind", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeRecords", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("cafeVersus").withIndex("by_a_and_b", (q) => q.eq("a", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeVersus", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("cafeVersus").withIndex("by_b", (q) => q.eq("b", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeVersus", row._id)
     ),
     // The World: their saved look, kept rate limits, when they were last
     // poked, the people they blocked and the blocks others made of them

@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, type ScrollViewInstance, Text, View } from "react-native";
+import { Animated, Pressable, type ScrollViewInstance, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { USE_NATIVE_DRIVER, typography, useAppTheme, fixedColours } from "@/theme";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { FooterHeightContext } from "./buttons";
 import { Toast, ToastState } from "./feedback";
 import { Segment } from "./forms";
@@ -62,13 +62,13 @@ export const Screen = ({
   }, []);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <ScrollView
+      <KeyboardScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={resolvedStickyIndices}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
+        style={[{ backgroundColor: t.background }, keyboardInset]}
         contentContainerStyle={[
           styles.scroll,
           maxWidth != null && { maxWidth },
@@ -129,7 +129,7 @@ export const Screen = ({
           </FadeInView>
         )}
         {children}
-      </ScrollView>
+      </KeyboardScrollView>
       <FooterHeightContext.Provider value={reportFooterHeight}>
         {footer}
       </FooterHeightContext.Provider>
