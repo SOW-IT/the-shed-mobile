@@ -24,6 +24,7 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { cafeBoardValidator, cafeResultValidator, cafeSideValidator } from "./cafeGamesData";
 import { gameIdValidator } from "./gameScoreData";
 import {
   worldAskValidator,
@@ -400,6 +401,60 @@ export default defineSchema({
     key: v.literal("sweeper"),
     sweepAt: v.optional(v.number()),
   }).index("by_key", ["key"]),
+
+  cafeChallenges: defineTable({
+    roomId: v.id("worldRooms"),
+    from: v.string(),
+    fromName: v.string(),
+    to: v.string(),
+    toName: v.string(),
+    kind: v.optional(v.string()),
+    pickedBy: v.optional(v.string()),
+    table: v.optional(v.string()),
+    at: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_from", ["from"])
+    .index("by_to", ["to"]),
+
+  cafeQuiet: defineTable({
+    pair: v.string(),
+    at: v.number(),
+  }).index("by_pair", ["pair"]),
+
+  cafeGames: defineTable({
+    roomId: v.id("worldRooms"),
+    kind: v.string(),
+    a: v.string(),
+    b: v.string(),
+    aName: v.string(),
+    bName: v.string(),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    result: v.optional(cafeResultValidator),
+    awayA: v.optional(v.number()),
+    awayB: v.optional(v.number()),
+    rematch: v.optional(cafeSideValidator),
+    next: v.optional(v.id("cafeGames")),
+  })
+    .index("by_a", ["a"])
+    .index("by_b", ["b"])
+    .index("by_roomId_and_endedAt", ["roomId", "endedAt"]),
+
+  cafeBoards: defineTable({
+    gameId: v.id("cafeGames"),
+    board: cafeBoardValidator,
+    moves: v.number(),
+    turnEndsAt: v.number(),
+  }).index("by_gameId", ["gameId"]),
+
+  cafeRecords: defineTable({
+    email: v.string(),
+    kind: v.string(),
+    wins: v.number(),
+    losses: v.number(),
+    draws: v.number(),
+  }).index("by_email_and_kind", ["email", "kind"]),
 
   devotionals: defineTable({
     email: v.string(),

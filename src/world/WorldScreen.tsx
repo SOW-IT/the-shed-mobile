@@ -54,6 +54,9 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { gameLabel, playingByPerson } from "./cafe";
+import { CafeLayer, CafePicker } from "./CafeGames";
+import { useCafe } from "./useCafe";
 
 const useScreenReader = () => {
   const [on, setOn] = useState(false);
@@ -247,6 +250,8 @@ export const WorldScreen = ({
   const away = awayKind !== null;
   const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
   const wallet = useCoins();
+  const cafe = useCafe(world);
+  const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
@@ -348,6 +353,17 @@ export const WorldScreen = ({
   const nameOf = (memberId: string) => {
     const full = world.people.find((p) => p.memberId === memberId)?.name;
     return full ? worldName(full) : "them";
+  };
+
+  const playingNow = playingByPerson(cafe.playing, nameOf);
+  const challengeTo = (to: Id<"worldMembers">, kind: string) => {
+    setPicking(null);
+    void cafe.challenge(to, kind).then((problem) => setNote(problem ?? `Asked ${nameOf(to)} to play ${gameLabel(kind)}.`));
+  };
+  const openPicker = (memberId: Id<"worldMembers">, name: string) => {
+    setPerson(null);
+    setSheet(null);
+    setPicking({ memberId, name });
   };
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
@@ -728,17 +744,32 @@ export const WorldScreen = ({
                   emoji: ASKS.rps.icon,
                   onPress: () => walkOverAndAsk(selected.memberId, "rps"),
                 },
+                ...(world.place === "cafe"
+                  ? [
+                      {
+                        id: "play",
+                        label: "Play",
+                        hint: `Play a game with ${selectedName}`,
+                        emoji: "🎲",
+                        onPress: () => openPicker(selected.memberId, selected.name),
+                      },
+                    ]
+                  : []),
               ]),
-          {
-            id: "wave",
-            label: EMOTES.wave.label,
-            hint: `Wave at ${selectedName}`,
-            emoji: EMOTES.wave.icon,
-            onPress: () => {
-              setPerson(null);
-              emote("wave");
-            },
-          },
+          ...(world.place === "cafe" && !selected.away && !selected.reading
+            ? []
+            : [
+                {
+                  id: "wave",
+                  label: EMOTES.wave.label,
+                  hint: `Wave at ${selectedName}`,
+                  emoji: EMOTES.wave.icon,
+                  onPress: () => {
+                    setPerson(null);
+                    emote("wave");
+                  },
+                },
+              ]),
           {
             id: "invite",
             label: "Invite",
@@ -772,6 +803,16 @@ export const WorldScreen = ({
     ) : null;
   const sheets = (
     <>
+      <CafeLayer
+        cafe={cafe}
+        people={world.people}
+        place={world.place}
+        serverNow={world.serverNow}
+        bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + 12}
+        safe={{ top: insets.top, bottom: insets.bottom }}
+        onNote={setNote}
+        onReturn={() => go("cafe")}
+      />
       <ShopPanel
         open={shopOpen}
         top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
@@ -796,6 +837,7 @@ export const WorldScreen = ({
         onWave={() => emote("wave")}
         onHighFive={highFive}
         onDuel={(to) => walkOverAndAsk(to, "rps")}
+        onPlay={world.place === "cafe" && tapped ? (to) => openPicker(to, tapped.name) : undefined}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />
@@ -823,10 +865,12 @@ export const WorldScreen = ({
         onFollow={follow}
         onHome={goHome}
         onInvite={invitePerson}
+        playing={playingNow.lines}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
       />
+      <CafePicker person={picking} look={picking ? (world.people.find((p) => p.memberId === picking.memberId)?.look ?? null) : null} top={insets.top + TOP_BAR_GAP} onPick={challengeTo} onClose={() => setPicking(null)} />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <DevotionalPromptDialog
         open={devotionalAsked}
@@ -974,6 +1018,7 @@ export const WorldScreen = ({
           reading: p.reading === true,
           seat: p.seat,
           typing: p.isMe ? (typingAt ?? undefined) : p.typing,
+          playing: playingNow.tags.get(p.memberId),
         }))}
         serverNow={world.serverNow}
         target={world.target}
