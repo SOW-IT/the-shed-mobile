@@ -3,7 +3,6 @@ import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { isPlace, MAX_POKE_LENGTH, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
-import { shortName } from "@shared/names";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -11,6 +10,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
 import { glass, signal } from "./palette";
+import { useWorldName } from "./settings";
 import { problem } from "./Sheets";
 import type { WorldMember } from "./useWorld";
 
@@ -77,6 +77,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const worldName = useWorldName();
   const waitMs = list ? list.pokeAgainAt - now : 0;
   const pokeAgainAt = list?.pokeAgainAt;
   useEffect(() => {
@@ -98,7 +99,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
       if (!reply.ok) return setError(`You can poke again in ${Math.ceil(reply.retryInMs / 60_000)} min.`);
       setWritingTo(null);
       setMessage("");
-      setSent(inviting ? `Invited ${shortName(name)} home.` : `Poked ${shortName(name)}. They'll get a notification.`);
+      setSent(inviting ? `Invited ${worldName(name)} home.` : `Poked ${worldName(name)}. They'll get a notification.`);
     } catch (e) {
       setError(problem(e));
     } finally {
@@ -139,7 +140,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                 </View>
                 <View style={styles.grow}>
                   <Text style={styles.name} numberOfLines={1}>
-                    {shortName(p.name)}
+                    {worldName(p.name)}
                   </Text>
                   <Text style={styles.where}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
                 </View>
@@ -148,7 +149,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                     <GlassPill
                       icon="mail"
                       disabled={waitMs > 0}
-                      accessibilityLabel={`Invite ${shortName(p.name)} to your home`}
+                      accessibilityLabel={`Invite ${worldName(p.name)} to your home`}
                       testID={`world-invite-offline-${p.id}`}
                       onPress={() => {
                         setError(null);
@@ -162,7 +163,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                       label="Poke"
                       icon="notifications-outline"
                       disabled={waitMs > 0}
-                      accessibilityLabel={`Poke ${shortName(p.name)}`}
+                      accessibilityLabel={`Poke ${worldName(p.name)}`}
                       onPress={() => {
                         setError(null);
                         setSent(null);
@@ -246,6 +247,7 @@ export const PeoplePanel = ({
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
+  const worldName = useWorldName();
   const blocked = useQuery(api.world.myBlocks, overlay.mounted ? {} : "skip");
   const elsewhere = useQuery(api.world.elsewhere, overlay.mounted ? {} : "skip");
   const pings = useQuery(api.world.pings, overlay.mounted && roomId ? { roomId } : "skip");
@@ -289,20 +291,20 @@ export const PeoplePanel = ({
             <Animated.View key={p.memberId} style={itemStyle(overlay, next())}>
               <PersonRow
                 look={p.look}
-                name={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
+                name={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
                 where={p.away ? "🕹️ At the arcade" : (playing?.get(p.memberId) ?? placeLabel(place))}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
-                label={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
+                label={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
                 action={
                   p.isMe ? null : (
                     <>
-                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${shortName(p.name)} to your home`} testID={`world-invite-${p.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(p.memberId, p.name)} accessibilityLabel={`Invite ${worldName(p.name)} to your home`} testID={`world-invite-${p.memberId}`} />
                       <GlassPill
                         icon="walk"
                         tone="accent"
                         onPress={() => onWalkOver(p.memberId)}
-                        accessibilityLabel={`Walk over to ${shortName(p.name)}`}
+                        accessibilityLabel={`Walk over to ${worldName(p.name)}`}
                         testID={`world-walk-${p.memberId}`}
                       />
                     </>
@@ -323,20 +325,20 @@ export const PeoplePanel = ({
               ) : (
                 <PersonRow
                   look={row.look}
-                  name={shortName(row.name)}
+                  name={worldName(row.name)}
                   where={row.at ? placeLabel(row.at) : "Somewhere else"}
                   ping={row.ping}
-                  label={row.at ? `${shortName(row.name)}, in ${PLACE_TITLES[row.at]}` : shortName(row.name)}
+                  label={row.at ? `${worldName(row.name)}, in ${PLACE_TITLES[row.at]}` : worldName(row.name)}
                   onPress={row.at ? () => onFollow(row.at!, row.memberId) : undefined}
                   action={
                     row.at ? (
                       <>
-                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${shortName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
+                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${worldName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
                       <GlassPill
                         icon="navigate"
                         tone="accent"
                         onPress={() => onFollow(row.at!, row.memberId)}
-                        accessibilityLabel={`Go to ${shortName(row.name)} in ${PLACE_TITLES[row.at]}`}
+                        accessibilityLabel={`Go to ${worldName(row.name)} in ${PLACE_TITLES[row.at]}`}
                         testID={`world-follow-${row.memberId}`}
                       />
                       </>
@@ -362,7 +364,7 @@ export const PeoplePanel = ({
               <Section>Blocked</Section>
               {blocked.map((b) => (
                 <View key={b.id} style={styles.offlineHead}>
-                  <Text style={[styles.name, styles.grow]}>{shortName(b.name)}</Text>
+                  <Text style={[styles.name, styles.grow]}>{worldName(b.name)}</Text>
                   <GlassPill label="Unblock" onPress={() => void unblock({ blockId: b.id as Id<"worldBlocks"> })} />
                 </View>
               ))}

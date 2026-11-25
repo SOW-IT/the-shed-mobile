@@ -6,13 +6,62 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.53] - 2026-11-25
+## [2.12.55] - 2026-11-25
 
 ### Added
-- **Table games in the Café.** Play Four in a Row, Tic-tac-toe (best of 3), Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
-- **The board opens over the World** with whose turn it is and a 30-second timer. Missing a turn passes it; missing two in a row loses. At the end you see who won, a small celebration, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't.
-- **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players, and People says "Playing Four in a Row".
+- **Table games in the Café.** Play Four in a Row, Tic-tac-toe, Dots and Boxes or Five in a Row against someone else in the Café. Sit at the same table as someone and you both get a "Play them?" prompt with the four games; either of you picks one and the other says yes. Or tap anyone in the Café and choose **Play**. Challenges run out after 30 seconds, and saying no (or ignoring it) keeps the prompt away from that pair for five minutes.
+- **The board opens over the World** with you and them on either side of "vs", whose turn it is and a 30-second timer. Every game is one round. Counters drop, marks and stones pop in, lines draw along and the winning line lights up. Missing a turn passes it; missing two in a row loses. At the end you see who won, **Rematch** and **Close**. **Give up** ends a game early. Leaving the Café or the World for more than 20 seconds loses the game, so a short drop-out doesn't. Battery saver turns the motion off.
+- **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players (just the game's icon when they sit together), and People says "Playing Four in a Row".
 - **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
+
+## [2.12.54] - 2026-11-25
+
+### Added
+- **Leaderboards show when each score was set**, under the name: "24 Nov"
+  for this year, "24 Nov 2025" for an earlier one. It's the day of that
+  person's best run, on every game's leaderboard.
+- **A push when someone knocks you down the top 3.** If you're 1st, 2nd or
+  3rd on a game's leaderboard and someone's new best passes you, you get one
+  push, such as "Daniel Kim just beat you in Flap" with "You're now 3rd" or
+  "You're out of the top 3". Tapping it opens that game's leaderboard. An
+  equal score doesn't count as passing you.
+- **One Names setting in the World.** Settings in the World's top-left
+  menu has Names, shown with your own name: initials ("DK"), first name and
+  last initial ("Daniel K.") or the full name ("Daniel Kim"). It covers
+  everywhere the World shows a person: name tags, the chat log, the People
+  list, a person's card, invites, asks and rock paper scissors. It replaces
+  Chat names: if you had picked Initials there you get DK, First name gives
+  Daniel K., and otherwise it starts at Daniel K. It's saved on this device
+  and changes only what you see.
+
+### Changed
+- **Leaderboards show full names again**, such as "Daniel Kim", whatever the
+  World's Names setting is. 2.12.47 had shortened them to "Daniel K.".
+- **A high five in the World is quicker**, about 1.75 seconds instead of 2.6,
+  with the same reach, slap and step back.
+
+## [2.12.53] - 2026-11-25
+
+### Changed
+- **Swoop's bird is a little heavier, so it doesn't fly quite as high.**
+  Off the same hill at the same speed it now climbs a little less, and
+  comes back down a little sooner. Diving while you hold is a little
+  stronger to match, so diving down a slope and letting go at the bottom
+  still carries it over the next hill, and good flying gets through as many
+  worlds before night. Perfect landings work as before.
+- **In Swoop the hills stay on screen however high you fly.** The camera
+  zooms out as the bird climbs, far enough to keep the ground under it in
+  view, and back in as it comes down. Before, a high flight could leave
+  only sky on screen.
+- **Swoop's world progress is a bar right across the top**, under the score
+  bar, and the world you're on sits next to Swoop's name.
+- **Swoop's first worlds have much wider, gentler hills.** World 1's hills
+  are about two and a half times as wide as before, and each world after it
+  is a little narrower, back to the usual hills by world 6.
+- **New hill shapes from world 3:** double humps, a steep drop into a long
+  flat run-out, a long gentle ramp up to a sharp crest, flat-topped
+  plateaus, and valleys much deeper or shallower than the rest. They're
+  rare in world 3 and turn up more often in later worlds.
 
 ## [2.12.52] - 2026-11-25
 

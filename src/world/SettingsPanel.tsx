@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
-import { chatName } from "./chatFormat";
+import { styledName } from "@shared/names";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock, WifiBars } from "./Overlays";
 import { glass, hud } from "./palette";
 import { saverOn, useWorldSetting, type WorldSettingKey, type WorldSettingValue } from "./settings";
@@ -26,14 +26,16 @@ const Choice = <K extends WorldSettingKey>({
   setting,
   options,
   label,
+  fill = false,
 }: {
   setting: K;
   options: readonly { value: WorldSettingValue<K>; text: string; hint: string }[];
   label: string;
+  fill?: boolean;
 }) => {
   const [value, set] = useWorldSetting(setting);
   return (
-    <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <View style={[styles.choices, fill && styles.choicesFill]} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((option) => (
         <Pressable
           key={option.value}
@@ -42,7 +44,7 @@ const Choice = <K extends WorldSettingKey>({
           accessibilityState={{ checked: value === option.value }}
           accessibilityLabel={option.hint}
           testID={`world-setting-${setting}-${option.value}`}
-          style={({ pressed }) => [styles.choice, value === option.value && styles.choiceOn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.choice, fill && styles.choiceFill, value === option.value && styles.choiceOn, pressed && styles.pressed]}
         >
           <Text style={styles.choiceText} numberOfLines={1}>
             {option.text}
@@ -61,6 +63,18 @@ const Row = ({ icon, title, note, children, style }: { icon: string; title: stri
         {title}
       </Text>
       {note ? <Text style={styles.rowNote}>{note}</Text> : null}
+    </View>
+    {children}
+  </Animated.View>
+);
+
+const StackedRow = ({ icon, title, children, style }: { icon: string; title: string; children: ReactNode; style: object | null }) => (
+  <Animated.View style={[styles.row, styles.stacked, style]}>
+    <View style={styles.stackedHead}>
+      <Text style={styles.rowIcon}>{icon}</Text>
+      <Text style={styles.rowTitle} numberOfLines={1}>
+        {title}
+      </Text>
     </View>
     {children}
   </Animated.View>
@@ -103,27 +117,17 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
           <Row icon="🕑" title="Chat times" note={times === "on" ? SAMPLE_TIME : undefined} style={itemStyle(overlay, 1)}>
             <Toggle on={times === "on"} label="Chat times" onChange={(on) => setTimes(on ? "on" : "off")} testID="world-setting-chatTimes" />
           </Row>
-          <Row icon="💬" title="Chat names" style={itemStyle(overlay, 2)}>
-            <Choice
-              setting="chatNames"
-              label="Chat names"
-              options={[
-                { value: "initials", text: chatName(name, "initials"), hint: "Initials" },
-                { value: "first", text: chatName(name, "first"), hint: "First name and initial" },
-              ]}
-            />
-          </Row>
-          <Row icon="📶" title="Ping" style={itemStyle(overlay, 3)}>
+          <Row icon="📶" title="Ping" style={itemStyle(overlay, 2)}>
             <View style={styles.pingSample}>
               {ping === "on" ? <Text style={styles.pingMs}>42 ms</Text> : null}
               <WifiBars bars={4} size={18} off={glass.row} />
             </View>
             <Toggle on={ping === "on"} label="Show ping in milliseconds" onChange={(on) => setPing(on ? "on" : "off")} testID="world-setting-pingMs" />
           </Row>
-          <Row icon="🔋" title="Battery saver" note={motion === "auto" && systemReduce ? "On with Reduce Motion" : "Fewer animations"} style={itemStyle(overlay, 4)}>
+          <Row icon="🔋" title="Battery saver" note={motion === "auto" && systemReduce ? "On with Reduce Motion" : "Fewer animations"} style={itemStyle(overlay, 3)}>
             <Toggle on={saver} label="Battery saver" onChange={(on) => setMotion(on ? "saver" : "full")} testID="world-setting-motion" />
           </Row>
-          <Row icon="🏷️" title="Name tags" style={itemStyle(overlay, 5)}>
+          <Row icon="🏷️" title="Name tags" style={itemStyle(overlay, 4)}>
             <Choice
               setting="nameTags"
               label="Name tags"
@@ -133,6 +137,18 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
               ]}
             />
           </Row>
+          <StackedRow icon="🪪" title="Names" style={itemStyle(overlay, 5)}>
+            <Choice
+              setting="names"
+              label="Names"
+              fill
+              options={[
+                { value: "initials", text: styledName(name, "initials"), hint: "Initials" },
+                { value: "short", text: styledName(name, "short"), hint: "First name and last initial" },
+                { value: "full", text: styledName(name, "full"), hint: "Full name" },
+              ]}
+            />
+          </StackedRow>
         </ScrollView>
       </Animated.View>
     </View>
@@ -172,6 +188,10 @@ const styles = StyleSheet.create({
   choices: { flexDirection: "row", gap: 4, padding: 3, borderRadius: 16, backgroundColor: glass.scrim },
   choice: { minWidth: 46, height: 28, paddingHorizontal: 10, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   choiceOn: { backgroundColor: hud.accent },
+  choicesFill: { alignSelf: "stretch" },
+  choiceFill: { flex: 1, minWidth: 0 },
+  stacked: { flexDirection: "column", alignItems: "stretch" },
+  stackedHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   choiceText: { color: glass.text, fontWeight: "800", fontSize: 13 },
   pingSample: { flexDirection: "row", alignItems: "center", gap: 4 },
   pingMs: { color: glass.text, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },

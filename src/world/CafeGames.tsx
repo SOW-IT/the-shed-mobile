@@ -1,7 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CAFE_GAME_ORDER, CAFE_GAMES, CAFE_TURN_MS, boxesWon, isCafeGameKind, otherSide, recordScore, type Side } from "@shared/cafeGames";
 import type { Look } from "@shared/world";
-import { shortName } from "@shared/names";
 import { fonts } from "@/theme";
 import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
@@ -14,7 +13,7 @@ import { challengeTitle, gameIcon, gameLabel, rematchWords, resultWords, seconds
 import { CafeBoardView, CafePiece } from "./CafeBoards";
 import { Bust, usePresence } from "./Overlays";
 import { cafe as colours, glass, hud } from "./palette";
-import { useBatterySaver } from "./settings";
+import { useBatterySaver, useWorldName } from "./settings";
 import type { Cafe } from "./useCafe";
 import { useForeground } from "./useForeground";
 
@@ -85,11 +84,12 @@ export const CafePicker = ({
   onClose: () => void;
 }) => {
   const { width } = useWindowDimensions();
+  const worldName = useWorldName();
   const [kept, setKept] = useState(person);
   if (person && person !== kept) setKept(person);
   const { mounted, shown, calm } = usePresence(person !== null);
   if (!mounted || !kept) return null;
-  const name = shortName(kept.name);
+  const name = worldName(kept.name);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={person ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close games" testID="cafe-picker-scrim">
@@ -125,7 +125,8 @@ const ChallengeCard = ({
   onAnswer: (accept: boolean) => void;
 }) => {
   const { mounted, shown, calm } = usePresence(true);
-  const title = challengeTitle(challenge);
+  const worldName = useWorldName();
+  const title = challengeTitle({ ...challenge, otherName: worldName(challenge.otherName) });
   useEffect(() => {
     announce(challenge.picked === "them" ? `${title}: ${gameLabel(challenge.kind)}` : title);
   }, [title, challenge.picked, challenge.kind]);
@@ -304,6 +305,7 @@ const CafeSheet = ({
   onClose: () => void;
 }) => {
   const calm = useBatterySaver();
+  const worldName = useWorldName();
   const { width, height } = useWindowDimensions();
   const [confirming, setConfirming] = useState(false);
   const { mounted, shown } = usePresence(true);
@@ -312,7 +314,7 @@ const CafeSheet = ({
   const mine = game.side;
   const theirs = otherSide(mine);
   const myTurn = live && game.board.turn === mine;
-  const them = shortName(game.opponentName);
+  const them = worldName(game.opponentName);
   const kind = isCafeGameKind(game.kind) ? game.kind : null;
   const sheetWidth = Math.min(440, width - 24);
   const room = height - safe.top - Math.max(safe.bottom, 12) - 12;
