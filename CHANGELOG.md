@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.55] - 2026-11-25
+
+### Fixed
+- **The World now draws on Android phones.** Android 10 and later show the
+  Garden, the Chapel, the Campfire, the Café, the Beach and homes like an
+  iPhone does, instead of only the list of who's here and what they said.
+  Android can't show the slanted shapes the World is drawn from, so they
+  were turned off in 2.12.12; each one is now drawn as flat pieces Android
+  can show. Android 9 and older still get the list.
+- **One person no longer fills the chat log with joins and leaves.** A
+  dropped connection used to end the visit and start a new one, writing a
+  "left" and a "joined" line each time. Now the visit carries on through a
+  dropped connection, a "left" line waits a minute and isn't written if
+  they come back in that time, and coming back within that minute writes
+  no "joined" line. Moving between places still writes nothing.
+- **On Android the field you're typing in stays above the keyboard**, on
+  forms such as a grievance or an event request, in the devotional editor
+  and in the World's chat bar. Before, the keyboard covered it.
+- **The World's buttons and cards have their dark drop edge on Android**,
+  like on an iPhone.
+
 ## [2.12.54] - 2026-11-25
 
 ### Added
