@@ -88,6 +88,7 @@ export const places = {
     tentB: "#5B8DB8",
     tentDoor: "#22303F",
     lantern: "#F6D365",
+    smoke: "#C9CED6",
   },
   cafe: {
     sky: "#F2E4D0",

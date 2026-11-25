@@ -43,6 +43,7 @@ import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
+import { CampfireFlames } from "./Campfire";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -78,6 +79,7 @@ const isInteractiveProp = (value: string | undefined): value is InteractivePropI
 /** What the camera looks at: style C's framing of the courtyard. */
 const FOCUS = { x: 0, z: -2.6 };
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
+const FIRE = PLACE_OBSTACLES.campfire.find((o) => o.id === "fire")!;
 
 const Layer = memo(function Layer({ prims }: { prims: Prim[] }) {
   return (
@@ -540,6 +542,10 @@ export const Garden = ({
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
+  }
+  if (place === "campfire") {
+    const base = cam.project([FIRE.x, 0, FIRE.z]);
+    actors.push({ depth: base.depth - 0.001, key: "fire-flames", node: <CampfireFlames x={base.x} y={base.y} scale={base.scale} live={!paused && !saver} /> });
   }
   if (rolled) {
     const ground = cam.project([rolled.x, 0, rolled.z]);
