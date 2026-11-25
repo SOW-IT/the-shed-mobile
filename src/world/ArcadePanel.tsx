@@ -1,7 +1,8 @@
 import { fonts } from "@/theme";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { GAME_IDS, GAME_INFO, playingLine, type GameId } from "@shared/games";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
 import { glass, hud } from "./palette";
 
@@ -63,7 +64,7 @@ export const ArcadePanel = ({
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </Animated.View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
           {GAME_IDS.map((id, i) => {
             const who = playingLine(playing[id] ?? [], id);
             return (
@@ -94,7 +95,7 @@ export const ArcadePanel = ({
               </Animated.View>
             );
           })}
-        </ScrollView>
+        </SharpScrollView>
       </Animated.View>
     </View>
   );
