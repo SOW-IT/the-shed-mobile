@@ -22,10 +22,11 @@ import {
   INVITE_CARD_MS,
   NPC,
 } from "@shared/world";
+import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
@@ -49,6 +50,8 @@ import { useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
+import { ArcadePanel, type ArcadeTarget } from "./ArcadePanel";
+import { playingNow } from "./playingNow";
 import { backFrom, exitOf } from "./homeExit";
 import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
@@ -220,7 +223,8 @@ export const WorldScreen = ({
   leaveAsked = false,
   onStay,
   onLeave,
-  onArcade,
+  onGame,
+  awayGame,
   onCalendar,
   onPraise,
   onOpenLink,
@@ -235,7 +239,8 @@ export const WorldScreen = ({
   leaveAsked?: boolean;
   onStay: () => void;
   onLeave: () => void;
-  onArcade: () => void;
+  onGame: (target: ArcadeTarget) => void;
+  awayGame?: GameId;
   onCalendar: () => void;
   onPraise: () => void;
   /** Opens an app link (a notification's) over the World, which waits. */
@@ -252,7 +257,7 @@ export const WorldScreen = ({
   const screenReader = useScreenReader();
   const view = pickView({ offline, screenReader, canDraw: canDrawOn(Platform.OS, Platform.Version) });
   const away = awayKind !== null;
-  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
+  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional", awayKind === "arcade" ? awayGame : undefined);
   const wallet = useCoins();
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
@@ -277,6 +282,18 @@ export const WorldScreen = ({
   const [peopleOpen, setPeopleOpen] = useState(opening === "poke");
   const [placesOpen, setPlacesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tray, setTray] = useState(false);
+  const [arcadeOpen, setArcadeOpen] = useState(false);
+  const openArcade = useCallback(() => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setShopOpen(false);
+    setSettingsOpen(false);
+    setCoinsOpen(false);
+    setBoardOpen(false);
+    setTray(false);
+    setArcadeOpen(true);
+  }, []);
   const openCoins = () => {
     setPlacesOpen(false);
     setPeopleOpen(false);
@@ -291,9 +308,9 @@ export const WorldScreen = ({
   const keepDraft = (text: string, onlyIfEmpty = false) => {
     if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
   };
-  const [tray, setTray] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || boardOpen || editing || sheet !== null)) setArcadeOpen(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
@@ -435,14 +452,14 @@ export const WorldScreen = ({
       const kind = propTrip.kind;
       setPropTrip(null);
       if (!arrived) return;
-      if (kind === "arcade") onArcade();
+      if (kind === "arcade") openArcade();
       else if (kind === "noticeboard") onCalendar();
       else if (kind === "notices") setBoardOpen(true);
       else if (kind === "piano") onPraise();
       else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
-  }, [propTrip, onArcade, onCalendar, onPraise]);
+  }, [propTrip, openArcade, onCalendar, onPraise]);
 
   useEffect(() => {
     if (seatTrip === null) return;
@@ -489,6 +506,7 @@ export const WorldScreen = ({
     setPlacesOpen(false);
     setSettingsOpen(false);
     setShopOpen(false);
+    setArcadeOpen(false);
     setDecorating(false);
     setChosenItem(null);
     const veil = (toValue: number) =>
@@ -640,7 +658,7 @@ export const WorldScreen = ({
     setPropTrip({ kind, since: Date.now() });
   };
 
-  const goToArcade = () => goToObject("arcade", onArcade);
+  const goToArcade = () => goToObject("arcade", openArcade);
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
   const goToNotices = () => goToObject("notices", () => setBoardOpen(true));
   const goToPiano = () => goToObject("piano", onPraise);
@@ -757,7 +775,7 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
@@ -832,6 +850,16 @@ export const WorldScreen = ({
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
+      />
+      <ArcadePanel
+        open={arcadeOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        playing={playingNow(world.people, worldName)}
+        onOpen={(target) => {
+          setArcadeOpen(false);
+          onGame(target);
+        }}
+        onClose={() => setArcadeOpen(false)}
       />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <DevotionalPromptDialog
@@ -926,7 +954,7 @@ export const WorldScreen = ({
           offline={offline}
           muted={muted}
           onBack={onBack}
-          onArcade={onArcade}
+          onArcade={openArcade}
           onPeople={() => setPeopleOpen(true)}
           placeTitle={placeTitle}
           extra={

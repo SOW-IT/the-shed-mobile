@@ -66,6 +66,7 @@ export type WorldMember = {
   /** The asks this person accepted that are still open. */
   answered?: Reply[];
   away?: "arcade";
+  playing?: string;
   reading?: boolean;
   seat?: string;
   typing?: number;
@@ -247,7 +248,8 @@ export const useWorld = (
   away = false,
   arrival?: { poke?: string; invite?: string },
   tickEverySecond = true,
-  reading = false
+  reading = false,
+  game?: string
 ) => {
   const convex = useConvex();
   const joinM = useMutation(api.world.join);
@@ -391,7 +393,7 @@ export const useWorld = (
     let stillWanted = true;
     let retry: ReturnType<typeof setTimeout> | null = null;
     const tell = () => {
-      awayM({ at: away ? "arcade" : null })
+      awayM(away ? { at: "arcade", ...(game === undefined ? {} : { game }) } : { at: null })
         .then((reply) => {
           if (stillWanted && !reply.ok) retry = setTimeout(tell, reply.retryInMs);
         })
@@ -402,7 +404,7 @@ export const useWorld = (
       stillWanted = false;
       if (retry) clearTimeout(retry);
     };
-  }, [session, away, awayM]);
+  }, [session, away, game, awayM]);
 
   const toldReading = useRef(false);
   useEffect(() => {
@@ -952,7 +954,7 @@ export const useWorld = (
   const myBars = pingMs === null ? null : pingBars(pingMs);
   const people: WorldMember[] = useMemo(() => members.map((m) => {
     const row = states[m.memberId] as
-      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "reading" | "seat" | "typing">)
+      | (Walk & Pick<WorldMember, "say" | "act" | "ask" | "reply" | "answered" | "away" | "playing" | "reading" | "seat" | "typing">)
       | null
       | undefined
       | Error;
@@ -970,6 +972,7 @@ export const useWorld = (
       reply: state?.reply,
       answered: state?.answered,
       away: state?.away,
+      playing: state?.playing,
       reading: state?.reading,
       seat: m.isMe ? (mySeat ?? undefined) : state?.seat,
       typing: state?.typing,

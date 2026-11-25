@@ -195,6 +195,7 @@ export default defineSchema({
     // again replays nothing even after they've accepted another since.
     answered: v.optional(v.array(worldReplyValidator)),
     away: v.optional(v.literal("arcade")),
+    playing: v.optional(v.string()),
     reading: v.optional(v.boolean()),
     seat: v.optional(v.string()),
     typing: v.optional(v.object({ at: v.number(), on: v.boolean() })),

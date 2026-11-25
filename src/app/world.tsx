@@ -2,6 +2,7 @@ import { SignInPrompt } from "@/components/SignInPrompt";
 import { LoadingState, Screen } from "@/components/ui";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
+import type { GameId } from "@shared/games";
 import { useConvexAuth } from "convex/react";
 import { type Href, useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -23,10 +24,12 @@ export default function World() {
   // Leave the garden while another screen (the games) covers it; come back on return.
   const [focused, setFocused] = useState(true);
   const [awayKind, setAwayKind] = useState<AwayKind | null>(null);
+  const [awayGame, setAwayGame] = useState<GameId | undefined>(undefined);
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
       setAwayKind(null);
+      setAwayGame(undefined);
       return () => setFocused(false);
     }, [])
   );
@@ -70,9 +73,12 @@ export default function World() {
         onLeave={leave}
         arrival={arrival}
         opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
-        onArcade={() => {
+        awayGame={awayGame}
+        onGame={(target) => {
           setAwayKind("arcade");
-          router.push("/games");
+          setAwayGame(target === "leaderboard" ? undefined : target);
+          if (target === "leaderboard") router.push("/games/leaderboard");
+          else router.push({ pathname: "/games/[game]", params: { game: target } });
         }}
         onCalendar={() => {
           setAwayKind("browse");

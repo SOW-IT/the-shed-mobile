@@ -72,6 +72,7 @@ import { shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
+import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 
@@ -494,6 +495,7 @@ const FRESH_IN_ROOM = {
   reply: undefined,
   answered: undefined,
   away: undefined,
+  playing: undefined,
   reading: undefined,
   seat: undefined,
   typing: undefined,
@@ -635,6 +637,7 @@ export const move = mutation({
       path: cleanPath,
       heading: undefined,
       away: undefined,
+      playing: undefined,
       reading: undefined,
       seat: undefined,
       moveBucket: token.bucket,
@@ -667,6 +670,7 @@ export const sit = mutation({
       path: cleanPath,
       heading: undefined,
       away: undefined,
+      playing: undefined,
       reading: undefined,
       seat: seat.id,
       moveBucket: token.bucket,
@@ -852,17 +856,18 @@ export const places = query({
 });
 
 export const away = mutation({
-  args: { at: v.union(v.literal("arcade"), v.null()) },
+  args: { at: v.union(v.literal("arcade"), v.null()), game: v.optional(v.string()) },
   returns: done,
-  handler: async (ctx, { at }) => {
+  handler: async (ctx, { at, game }) => {
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
-    if ((state.away ?? null) === at) return { ok: true as const, serverNow: now };
-    if (at === null) await ctx.db.patch("worldState", state._id, { away: undefined });
+    const playing = at !== null && game !== undefined && isGameId(game) ? game : undefined;
+    if ((state.away ?? null) === at && state.playing === playing) return { ok: true as const, serverNow: now };
+    if (at === null) await ctx.db.patch("worldState", state._id, { away: undefined, playing: undefined });
     else {
       const token = spend("act", state, now);
       if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-      await ctx.db.patch("worldState", state._id, { away: at, actBucket: token.bucket });
+      await ctx.db.patch("worldState", state._id, { away: at, playing, actBucket: token.bucket });
     }
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
@@ -1338,6 +1343,7 @@ export const state = query({
       // after the other person accepted someone else's too.
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
+      playing: v.optional(v.string()),
       reading: v.optional(v.boolean()),
       seat: v.optional(v.string()),
       typing: v.optional(v.number()),
@@ -1349,9 +1355,9 @@ export const state = query({
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = await stateOf(ctx, memberId);
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
+    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
+    return { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat, typing: typingAt };
   },
 });
 

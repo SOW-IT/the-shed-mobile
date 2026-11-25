@@ -2,6 +2,7 @@ import { Btn, Field } from "@/components/ui";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
+import { playingLabel } from "@shared/games";
 import { isPlace, MAX_POKE_LENGTH, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
 import { useMutation, useQueries, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -304,7 +305,7 @@ export const PeoplePanel = ({
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
-                where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
+                where={p.away ? `🕹️ ${playingLabel(p.playing) ?? "At the arcade"}` : placeLabel(place)}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
