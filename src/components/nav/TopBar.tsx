@@ -24,12 +24,14 @@ export const TopBar = ({
   photo,
   name,
   title,
+  right,
   onBack,
 }: {
   photo: string | null;
   name: string | null;
   // Shown in the middle, e.g. the month the calendar is on.
   title?: ReactNode;
+  right?: ReactNode;
   onBack?: () => void;
 }) => {
   const t = useAppTheme();
@@ -50,7 +52,7 @@ export const TopBar = ({
     useMusicRequestsBadge();
   return (
     <View style={styles.topBar}>
-      <View style={styles.center} pointerEvents="box-none">
+      <View style={[styles.center, right ? styles.centerBeside : null]} pointerEvents="box-none">
         {title}
         <View style={styles.chipRow} pointerEvents="box-none">
           <TestEnvironmentChip />
@@ -107,31 +109,34 @@ export const TopBar = ({
           )}
         </SignInMenu>
       )}
-      {isStaff ? (
-        <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
-          <Pressable
-            onPress={() => router.push("/notifications")}
-            onPressIn={bell.onPressIn}
-            onPressOut={bell.onPressOut}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={
-              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
-            }
-          >
-            <Ionicons
-              name={unread > 0 ? "notifications" : "notifications-outline"}
-              size={24}
-              color={t.text}
-            />
-            {unread > 0 ? (
-              <View style={[styles.badge, { backgroundColor: t.accent }]}>
-                <Text style={styles.badgeText}>{badgeText(unread)}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </Animated.View>
-      ) : null}
+      <View style={styles.rightRow}>
+        {right}
+        {isStaff ? (
+          <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              onPressIn={bell.onPressIn}
+              onPressOut={bell.onPressOut}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+              }
+            >
+              <Ionicons
+                name={unread > 0 ? "notifications" : "notifications-outline"}
+                size={24}
+                color={t.text}
+              />
+              {unread > 0 ? (
+                <View style={[styles.badge, { backgroundColor: t.accent }]}>
+                  <Text style={styles.badgeText}>{badgeText(unread)}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 };
@@ -155,6 +160,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  centerBeside: { paddingHorizontal: EDGE_CONTROLS_WIDTH * 2 },
+  rightRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   chipRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, maxWidth: "100%" },
   signInButton: {
     flexDirection: "row",

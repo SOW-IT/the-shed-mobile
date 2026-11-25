@@ -10,6 +10,7 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
@@ -105,6 +106,8 @@ export const PagerScreen = ({
   floatingAboveFooter = false,
   fullWidth = false,
   onBack,
+  title,
+  topBarRight,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -117,8 +120,11 @@ export const PagerScreen = ({
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
   onBack?: () => void;
+  title?: ReactNode;
+  topBarRight?: ReactNode;
 }) => {
   const t = useAppTheme();
+  const keyboardInset = useKeyboardInset();
   const wide = useWideLayout();
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
@@ -342,7 +348,7 @@ export const PagerScreen = ({
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background }}
+        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
         contentContainerStyle={[
           styles.page,
           { paddingTop: spacing.md + topBarInset },
@@ -402,7 +408,13 @@ export const PagerScreen = ({
               ) : null
             ) : (
               <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
-                <TopBar photo={me?.photo ?? null} name={me?.name ?? null} onBack={onBack} />
+                <TopBar
+                  photo={me?.photo ?? null}
+                  name={me?.name ?? null}
+                  title={title}
+                  right={topBarRight}
+                  onBack={onBack}
+                />
               </Animated.View>
             )}
             <View

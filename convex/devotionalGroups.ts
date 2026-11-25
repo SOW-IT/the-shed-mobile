@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { parseDayKey, shiftDay } from "../shared/calendar";
 import {
@@ -24,6 +25,7 @@ const GROUP_LIMIT = 100;
 const INVITABLE_SCAN_LIMIT = 1000;
 const INVITABLE_RESULT_LIMIT = 60;
 const REMINDER_GROUP_BATCH = 4;
+const NOTIFICATION_PURGE_BATCH = 200;
 
 const userByEmail = (ctx: Ctx, email: string) =>
   ctx.db
@@ -103,19 +105,82 @@ export const markGroupNotificationsRead = async (
   }
 };
 
+const purgeGroupNotificationsBatch = async (ctx: MutationCtx, groupId: Id<"devotionalGroups">) => {
+  const batch = await ctx.db
+    .query("notifications")
+    .withIndex("by_devotionalGroup", (q) => q.eq("devotionalGroupId", groupId))
+    .take(NOTIFICATION_PURGE_BATCH);
+  for (const row of batch) {
+    await ctx.db.delete("notifications", row._id);
+  }
+  if (batch.length === NOTIFICATION_PURGE_BATCH) {
+    await ctx.scheduler.runAfter(0, internal.devotionalGroups.purgeGroupNotifications, { groupId });
+  }
+};
+
+export const deleteGroupData = async (
+  ctx: MutationCtx,
+  group: Doc<"devotionalGroups">,
+  notifications: "now" | "later" = "now"
+) => {
+  for (;;) {
+    const batch = await ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_groupId_and_status", (q) => q.eq("groupId", group._id))
+      .take(MEMBER_LIMIT);
+    if (batch.length === 0) break;
+    for (const row of batch) {
+      await ctx.db.delete("devotionalGroupMembers", row._id);
+    }
+  }
+  await ctx.db.delete("devotionalGroups", group._id);
+  if (notifications === "now") await purgeGroupNotificationsBatch(ctx, group._id);
+  else await ctx.scheduler.runAfter(0, internal.devotionalGroups.purgeGroupNotifications, { groupId: group._id });
+};
+
+export const purgeGroupNotifications = internalMutation({
+  args: { groupId: v.id("devotionalGroups") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await purgeGroupNotificationsBatch(ctx, args.groupId);
+    return null;
+  },
+});
+
+const myCurrentMemberships = async (ctx: Ctx, email: string, today: string | null) => {
+  if (!today) {
+    return await ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", email).eq("status", "member"))
+      .take(GROUP_LIMIT);
+  }
+  const [current, unstamped] = await Promise.all([
+    ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_email_and_status_and_groupEndDate", (q) =>
+        q.eq("email", email).eq("status", "member").gte("groupEndDate", today)
+      )
+      .take(GROUP_LIMIT),
+    ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_email_and_status_and_groupEndDate", (q) =>
+        q.eq("email", email).eq("status", "member").eq("groupEndDate", undefined)
+      )
+      .take(GROUP_LIMIT),
+  ]);
+  return [...current, ...unstamped];
+};
+
 export const mySummary = query({
   args: { today: v.string() },
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
     const today = parseDayKey(args.today);
     const [memberRows, inviteRows, personalSharingLevel] = await Promise.all([
+      myCurrentMemberships(ctx, email, today),
       ctx.db
         .query("devotionalGroupMembers")
-        .withIndex("by_email_and_status", (q) => q.eq("email", email).eq("status", "member"))
-        .take(GROUP_LIMIT),
-      ctx.db
-        .query("devotionalGroupMembers")
-        .withIndex("by_email_and_status", (q) => q.eq("email", email).eq("status", "invited"))
+        .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", email).eq("status", "invited"))
         .take(GROUP_LIMIT),
       personalLevelOf(ctx, email),
     ]);
@@ -133,7 +198,7 @@ export const mySummary = query({
     const groups = [];
     for (const membership of memberRows) {
       const group = await ctx.db.get("devotionalGroups", membership.groupId);
-      if (!group) continue;
+      if (!group || (today && group.endDate < today)) continue;
       let todayDone: number | null = null;
       let todayTotal: number | null = null;
       if (today && isDateInRange(today, group.startDate, group.endDate)) {
@@ -156,7 +221,13 @@ export const mySummary = query({
         todayTotal,
       });
     }
-    groups.sort((a, b) => a.name.localeCompare(b.name));
+    groups.sort((a, b) => {
+      const aStarted = !today || a.startDate <= today;
+      const bStarted = !today || b.startDate <= today;
+      if (aStarted !== bStarted) return aStarted ? -1 : 1;
+      if (!aStarted && a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+      return a.name.localeCompare(b.name);
+    });
 
     const invites = [];
     for (const invite of inviteRows) {
@@ -181,6 +252,37 @@ export const mySummary = query({
   },
 });
 
+export const pastGroups = query({
+  args: { today: v.string(), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const today = parseDayKey(args.today);
+    if (!today) return { page: [], isDone: true, continueCursor: "" };
+    const result = await ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_email_and_status_and_groupEndDate", (q) =>
+        q.eq("email", email).eq("status", "member").lt("groupEndDate", today)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const page = [];
+    for (const membership of result.page) {
+      const group = await ctx.db.get("devotionalGroups", membership.groupId);
+      if (!group || group.endDate >= today) continue;
+      page.push({
+        id: group._id,
+        name: group.name,
+        startDate: group.startDate,
+        endDate: group.endDate,
+        sharingLevel: group.sharingLevel,
+        isOwner: group.ownerEmail === email,
+        memberCount: group.memberCount,
+      });
+    }
+    return { ...result, page };
+  },
+});
+
 export const mySharingContext = query({
   args: { date: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -189,7 +291,7 @@ export const mySharingContext = query({
     const [memberRows, personalLevel] = await Promise.all([
       ctx.db
         .query("devotionalGroupMembers")
-        .withIndex("by_email_and_status", (q) => q.eq("email", email).eq("status", "member"))
+        .withIndex("by_email_and_status_and_groupEndDate", (q) => q.eq("email", email).eq("status", "member"))
         .take(GROUP_LIMIT),
       personalLevelOf(ctx, email),
     ]);
@@ -512,6 +614,7 @@ export const create = mutation({
       status: "member",
       invitedAt: now,
       joinedAt: now,
+      groupEndDate: checked.normalized.endDate,
     });
     return { groupId };
   },
@@ -539,6 +642,15 @@ export const update = mutation({
       ...checked.normalized,
       updatedAt: Date.now(),
     });
+    const rows = await ctx.db
+      .query("devotionalGroupMembers")
+      .withIndex("by_groupId_and_status", (q) => q.eq("groupId", group._id))
+      .take(MEMBER_LIMIT);
+    for (const row of rows) {
+      if (row.groupEndDate !== checked.normalized.endDate) {
+        await ctx.db.patch("devotionalGroupMembers", row._id, { groupEndDate: checked.normalized.endDate });
+      }
+    }
     return null;
   },
 });
@@ -553,18 +665,7 @@ export const removeGroup = mutation({
     if (group.ownerEmail !== email) {
       throw new ConvexError("Only the group owner can delete this group.");
     }
-    for (;;) {
-      const batch = await ctx.db
-        .query("devotionalGroupMembers")
-        .withIndex("by_groupId_and_status", (q) => q.eq("groupId", group._id))
-        .take(200);
-      if (batch.length === 0) break;
-      for (const row of batch) {
-        if (row.status === "invited") await markGroupNotificationsRead(ctx, row.email, group._id);
-        await ctx.db.delete("devotionalGroupMembers", row._id);
-      }
-    }
-    await ctx.db.delete("devotionalGroups", group._id);
+    await deleteGroupData(ctx, group);
     return null;
   },
 });
@@ -609,6 +710,7 @@ export const invite = mutation({
       status: "invited",
       invitedBy: ownerEmail,
       invitedAt: now,
+      groupEndDate: group.endDate,
     });
 
     const ownerFirst = firstNameOf(await personName(ctx, ownerEmail));
@@ -657,6 +759,7 @@ export const respondInvite = mutation({
         status: "member",
         joinedAt: now,
         joinedOn: sydneyDateTime(now).date,
+        groupEndDate: group.endDate,
       });
       await ctx.db.patch("devotionalGroups", group._id, {
         memberCount: group.memberCount + 1,

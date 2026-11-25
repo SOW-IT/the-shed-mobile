@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { Fragment, memo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { QUAD_SIZE, quadMatrix } from "./camera";
+import { flatPieces, parallelogramWarp } from "./flatQuad";
 import type { Prim } from "./gardenScene";
 import { shade } from "./palette";
 
@@ -10,13 +11,43 @@ import { shade } from "./palette";
  * takes six, so the web gets `matrix3d`.
  */
 export const quadTransform = (q: readonly { x: number; y: number }[]) => {
+  if (Platform.OS === "android") return parallelogramWarp(q) ?? HIDDEN;
   const matrix = quadMatrix(q);
   // react-native-web reads the key; React Native's types only know `matrix`.
   return Platform.OS === "web" ? [{ matrix3d: matrix } as unknown as { matrix: number[] }] : [{ matrix }];
 };
 
+const HIDDEN = [{ scale: 0 }];
+
+const FlatQuad = ({ pts, fill, radius = 0 }: { pts: readonly { x: number; y: number }[]; fill: string; radius?: number }) => (
+  <>
+    {flatPieces(pts, radius).map((piece) => {
+      if (piece.kind === "dot") {
+        return (
+          <View
+            key={piece.key}
+            pointerEvents="none"
+            style={[styles.abs, { left: piece.x - piece.r, top: piece.y - piece.r, width: piece.r * 2, height: piece.r * 2, borderRadius: piece.r, backgroundColor: fill }]}
+          />
+        );
+      }
+      if (piece.kind === "triangle") {
+        return <View key={piece.key} pointerEvents="none" style={[styles.triangle, { borderBottomColor: fill, transform: piece.transform }]} />;
+      }
+      return <View key={piece.key} pointerEvents="none" style={[styles.quad, { backgroundColor: fill, borderRadius: radius, transform: piece.transform }]} />;
+    })}
+  </>
+);
+
+export const flatQuad = (pts: readonly { x: number; y: number }[], fill: string, key: string, radius = 0) => (
+  <Fragment key={key}>
+    <FlatQuad pts={pts} fill={fill} radius={radius} />
+  </Fragment>
+);
+
 /** One flat shape of the scene. Nothing in the scene takes touches itself. */
 export const Shape = memo(function Shape({ prim }: { prim: Prim }) {
+  if (prim.kind === "quad" && Platform.OS === "android" && !prim.border) return <FlatQuad pts={prim.pts} fill={prim.fill} radius={prim.radius} />;
   if (prim.kind === "quad") {
     return (
       <View
@@ -162,4 +193,14 @@ export const Ellipse = memo(function Ellipse({
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
   quad: { position: "absolute", left: 0, top: 0, width: QUAD_SIZE, height: QUAD_SIZE },
+  triangle: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: QUAD_SIZE,
+    borderBottomWidth: QUAD_SIZE,
+    borderLeftColor: "transparent",
+  },
 });

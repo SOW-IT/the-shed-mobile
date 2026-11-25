@@ -14,6 +14,40 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Everyone sees who's playing whom.** A tag like "Four in a Row vs Kate R." shows over both players (just the game's icon when they sit together), and People says "Playing Four in a Row".
 - **Café records.** Each person's wins, losses and draws per game show on their card, for example "Four in a Row 5–2". Games pay no coins.
 
+## [2.13.0] - 2026-11-25
+
+### Fixed
+- **The World now draws on Android phones.** Android 10 and later show the
+  Garden, the Chapel, the Campfire, the Café, the Beach and homes like an
+  iPhone does, instead of only the list of who's here and what they said.
+  Android can't show the slanted shapes the World is drawn from, so they
+  were turned off in 2.12.12; each one is now drawn as flat pieces Android
+  can show. Android 9 and older still get the list.
+- **One person no longer fills the chat log with joins and leaves.** A
+  dropped connection used to end the visit and start a new one, writing a
+  "left" and a "joined" line each time. Now the visit carries on through a
+  dropped connection, a "left" line waits a minute and isn't written if
+  they come back in that time, and coming back within that minute writes
+  no "joined" line. Moving between places still writes nothing.
+- **On Android the field you're typing in stays above the keyboard**, on
+  forms such as a grievance or an event request, in the devotional editor
+  and in the World's chat bar. Before, the keyboard covered it.
+- **The World's buttons and cards have their dark drop edge on Android**,
+  like on an iPhone.
+
+## [2.12.55] - 2026-11-25
+
+### Fixed
+- **Delete group works on iPhone.** Its confirmation used to open behind the group settings sheet, so nothing happened. It now shows on top, and deleting removes the group, its members and invites, and the invite and reminder notifications for it. Everyone's own devotionals stay. You go back to Groups, and the group drops off every member's list straight away; a member looking at it is taken back to Groups too.
+
+### Changed
+- **History is now Yours.**
+- **Past groups.** Groups that have ended move to a **Past groups** list under your current and upcoming ones, 10 at a time with **Show more**.
+- **Swipe between Yours and Groups.** Tapping the tabs still works. The tabs now run edge to edge like the other tabbed screens.
+- **Devotionals and Today in the top bar.** The title sits in the top bar, and **Today** sits next to the bell.
+- **Green ticks on Yours.** A day you chose a passage for turns green with a tick, like a day everyone finished in a group.
+- **The Chapel opens Devotionals.** Sitting down or tapping the pulpit, then **Open**, takes you to Yours and Groups instead of straight into today. Back takes you to the World, and the open book shows over your character until then.
+
 ## [2.12.54] - 2026-11-25
 
 ### Added

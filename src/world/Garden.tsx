@@ -30,6 +30,7 @@ import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent
 import { makeCamera } from "./camera";
 import { itemAt, type Prim, type Prop } from "./gardenScene";
 import { garden, hud, places } from "./palette";
+import { popShadow } from "./popShadow";
 import { buildScene, type HomeLook } from "./placeScenes";
 import { footprint, isFurniture } from "@shared/home";
 import { Avatar, figureFor, headTop, hitBox, palmHeight, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
@@ -943,10 +944,7 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderWidth: 2.5,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
   },
   askText: { color: hud.forest, fontSize: 14.5, fontWeight: "700", textAlign: "center" },
   askRow: { flexDirection: "row", gap: 8 },

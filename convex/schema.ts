@@ -486,10 +486,11 @@ export default defineSchema({
     invitedAt: v.number(),
     joinedAt: v.optional(v.number()),
     joinedOn: v.optional(v.string()),
+    groupEndDate: v.optional(v.string()),
   })
     .index("by_groupId_and_email", ["groupId", "email"])
     .index("by_groupId_and_status", ["groupId", "status"])
-    .index("by_email_and_status", ["email", "status"]),
+    .index("by_email_and_status_and_groupEndDate", ["email", "status", "groupEndDate"]),
 
   devotionalSharingSettings: defineTable({
     email: v.string(),
@@ -743,7 +744,8 @@ export default defineSchema({
       "read",
     ])
     .index("by_announcement_and_read", ["announcementId", "read"])
-    .index("by_request", ["requestId"]),
+    .index("by_request", ["requestId"])
+    .index("by_devotionalGroup", ["devotionalGroupId"]),
 
   announcements: defineTable({
     senderEmail: v.string(),

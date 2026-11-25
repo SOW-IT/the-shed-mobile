@@ -56,7 +56,7 @@
     "src/types/**",
     "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,otaUpdateButton,deviceStorage,navMenu,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
-    "src/hooks/{useRowIds,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
+    "src/hooks/{useRowIds,useKeyboardInset,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
     "convex/_generated/**",
     "convex/shared/**",
     "convex/tsconfig.json",
@@ -263,12 +263,13 @@
         "src/app/world.tsx",
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
+        "src/app/world-devotionals.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,coins,cafeGames,cafeGamesData}.ts",
         "shared/{world,worldPath,home,coins,ball,names,cafeGames}.ts"
       ],
-      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise"]
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"]
     },
     "devotionals": {
       "files": [
