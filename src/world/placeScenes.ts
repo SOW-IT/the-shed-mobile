@@ -1,10 +1,10 @@
-import { FREE_PLOTS, PLOT_SIZE, PLOTS } from "../../shared/farm";
+import { BUILDING_IDS, FREE_PLOTS, PENS, PLOT_SIZE, PLOTS } from "../../shared/farm";
 import { isFurniture, wallpaperOr, type FurnitureId, type Placed, type WallpaperId } from "../../shared/home";
 import { PLACE_OBSTACLES, type Place } from "../../shared/world";
 import type { Camera, Vec3 } from "./camera";
 import { drawFurniture, WALLPAPER_LOOKS } from "./furniture";
 import { boxOf, buildGarden, Builder, depthOf, drawPads, type Prop, type Scene } from "./gardenScene";
-import { garden, places } from "./palette";
+import { garden, places, shade } from "./palette";
 
 export type HomeLook = { wallpaper: string; items: readonly Placed[] };
 
@@ -411,15 +411,75 @@ const YARD_TREES: [number, number, number][] = [
   [7.4, 1, 1.2],
 ];
 
-const buildBackyard = (cam: Camera, plots: number): Scene => {
+type Yard = { plots: number; coop: boolean; barn: boolean };
+const NO_YARD: Yard = { plots: FREE_PLOTS, coop: false, barn: false };
+
+const gabled = (p: Builder, x: number, z: number, w: number, d: number, h: number, rise: number, wall: string, roof: string) => {
+  p.box(x, h / 2, z, w, h, d, wall);
+  const front = z + d / 2;
+  const eave = 0.12;
+  const top = h + rise;
+  p.face([[x - w / 2, h, front], [x - 0.01, top, front], [x + 0.01, top, front], [x + w / 2, h, front]], wall);
+  p.face([[x - w / 2 - eave, h - 0.05, front + eave], [x, top, front + eave], [x, top, z - d / 2 - eave], [x - w / 2 - eave, h - 0.05, z - d / 2 - eave]], shade(roof, -0.12));
+  p.face([[x, top, front + eave], [x + w / 2 + eave, h - 0.05, front + eave], [x + w / 2 + eave, h - 0.05, z - d / 2 - eave], [x, top, z - d / 2 - eave]], roof);
+  const ink = p.ink([x, top, front]);
+  p.line([x - w / 2 - eave, h - 0.05, front + eave], [x, top, front + eave], ink, garden.ink);
+  p.line([x, top, front + eave], [x + w / 2 + eave, h - 0.05, front + eave], ink, garden.ink);
+  p.line([x - w / 2, h, front + 0.01], [x + w / 2, h, front + 0.01], ink, garden.ink);
+};
+
+const drawCoop = (p: Builder) => {
   const c = places.backyard;
+  const { x, z, w, d } = PENS.coop.house;
+  const front = z + d / 2;
+  p.box(x - w / 2 + 0.15, 0.25, z, 0.12, 0.5, d * 0.9, c.fenceDark, 0.02);
+  p.box(x + w / 2 - 0.15, 0.25, z, 0.12, 0.5, d * 0.9, c.fenceDark, 0.02);
+  gabled(p, x, z, w, d, 1.15, 0.6, c.coopWall, c.coopRoof);
+  panel(p, x - 0.35, 0.85, front + 0.02, 0.5, 0.6, garden.ink);
+  panel(p, x - 0.35, 0.85, front + 0.03, 0.4, 0.5, c.coopDoor);
+  panel(p, x + 0.45, 0.95, front + 0.02, 0.45, 0.35, garden.ink);
+  panel(p, x + 0.45, 0.95, front + 0.03, 0.37, 0.27, c.straw);
+  p.face([[x - 0.55, 0.55, front + 0.02], [x - 0.15, 0.55, front + 0.02], [x - 0.15, 0.02, front + 0.75], [x - 0.55, 0.02, front + 0.75]], c.fence);
+  for (const k of [0.25, 0.5, 0.75]) p.line([x - 0.55, 0.55 - 0.53 * k, front + 0.02 + 0.73 * k], [x - 0.15, 0.55 - 0.53 * k, front + 0.02 + 0.73 * k], 2, c.fenceDark);
+};
+
+const drawBarn = (p: Builder) => {
+  const c = places.backyard;
+  const { x, z, w, d } = PENS.barn.house;
+  const front = z + d / 2;
+  gabled(p, x, z, w, d, 1.5, 0.85, c.barnWall, c.barnRoof);
+  panel(p, x, 0.62, front + 0.02, 1.0, 1.24, c.barnTrim);
+  panel(p, x, 0.6, front + 0.03, 0.86, 1.12, shade(c.barnWall, -0.15));
+  p.line([x - 0.43, 0.04, front + 0.04], [x + 0.43, 1.16, front + 0.04], 4, c.barnTrim);
+  p.line([x + 0.43, 0.04, front + 0.04], [x - 0.43, 1.16, front + 0.04], 4, c.barnTrim);
+  p.line([x, 0.04, front + 0.04], [x, 1.16, front + 0.04], 3, c.barnTrim);
+  panel(p, x, 1.85, front + 0.02, 0.42, 0.36, c.barnTrim);
+  panel(p, x, 1.85, front + 0.03, 0.32, 0.26, c.hay);
+};
+
+const fenceAlong = (p: Builder, a: [number, number], b: [number, number], posts: number) => {
+  const c = places.backyard;
+  for (let i = 0; i <= posts; i++) {
+    const k = i / posts;
+    p.cylinder(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, 0, 0.5, 0.05, 0.05, c.fenceDark);
+  }
+  for (const y of [0.2, 0.4]) {
+    p.line([a[0], y, a[1]], [b[0], y, b[1]], 5, garden.ink);
+    p.line([a[0], y, a[1]], [b[0], y, b[1]], 3, c.fence);
+  }
+};
+
+const buildBackyard = (cam: Camera, yard: Yard): Scene => {
+  const c = places.backyard;
+  const plots = yard.plots;
   const g = new Builder(cam, "g");
   g.groundDisc(0, -2, 34, 34, c.grass);
   for (let z = -16; z <= 10; z += 2) {
     g.groundQuad([[-9, z - 0.5], [9, z - 0.5], [9, z + 0.5], [-9, z + 0.5]], c.stripe);
   }
-  g.groundQuad([[-0.7, 1.6], [0.7, 1.6], [0.9, 8], [-0.9, 8]], c.path, 0.004);
-  for (const z of [2.25, -0.4, -3.2, -6.0]) g.groundQuad([[-3.8, z - 0.5], [3.8, z - 0.5], [3.8, z + 0.5], [-3.8, z + 0.5]], c.path, 0.004);
+  g.groundQuad([[-0.7, 2.8], [0.7, 2.8], [0.9, 8], [-0.9, 8]], c.path, 0.004);
+  g.groundQuad([[-0.55, -10.4], [0.55, -10.4], [0.65, -4.2], [-0.65, -4.2]], c.path, 0.004);
+  for (const z of [3.4, 1.0, -1.4, -3.95]) g.groundQuad([[-3.8, z - 0.45], [3.8, z - 0.45], [3.8, z + 0.45], [-3.8, z + 0.45]], c.path, 0.004);
   for (const [x, z, s] of YARD_TREES) g.groundDisc(x - 0.9 * s, z - 0.6 * s, 1.3 * s, 1.0 * s, garden.shadow);
   const halfW = PLOT_SIZE.w / 2;
   const halfD = PLOT_SIZE.d / 2;
@@ -436,6 +496,18 @@ const buildBackyard = (cam: Camera, plots: number): Scene => {
       for (const k of [-0.5, 0, 0.5]) g.groundQuad([[plot.x - halfW + 0.12, plot.z + k * halfD - 0.03], [plot.x + halfW - 0.12, plot.z + k * halfD - 0.03], [plot.x + halfW - 0.12, plot.z + k * halfD + 0.03], [plot.x - halfW + 0.12, plot.z + k * halfD + 0.03]], c.furrow, 0.01);
     }
   }
+  for (const id of BUILDING_IDS) {
+    const pen = PENS[id];
+    const owned = yard[id];
+    const x0 = pen.x - pen.w / 2;
+    const x1 = pen.x + pen.w / 2;
+    g.groundQuad([[x0 - 0.08, pen.back - 0.08], [x1 + 0.08, pen.back - 0.08], [x1 + 0.08, pen.front + 0.08], [x0 - 0.08, pen.front + 0.08]], c.fenceDark, 0.006);
+    g.groundQuad([[x0, pen.back], [x1, pen.back], [x1, pen.front], [x0, pen.front]], owned ? (id === "coop" ? c.coopGround : c.barnGround) : c.locked, 0.008);
+    if (!owned) continue;
+    const spots: [number, number, number][] = id === "coop" ? [[-0.8, -0.6, 0.22], [0.7, -1.9, 0.18], [0.3, -0.4, 0.15], [-0.5, -2.6, 0.2]] : [[-0.9, -2.4, 0.35], [0.8, -0.9, 0.28], [0.2, -2.8, 0.22]];
+    for (const [dx, dz, r] of spots) g.groundDisc(pen.x + dx, pen.front + dz, r * 1.6, r, id === "coop" ? c.straw : c.hay, { y: 0.009 });
+    g.groundDisc(pen.x + pen.w / 2 - 0.45, pen.front - 0.45, 0.3, 0.16, c.trough, { y: 0.012, ink: true });
+  }
   drawPads(g, "backyard");
   const ground = g.take();
 
@@ -448,18 +520,36 @@ const buildBackyard = (cam: Camera, plots: number): Scene => {
   }
   for (let x = -5.4; x <= 5.4; x += 1.2) b.box(x, 0.55, -11.6, 0.16, 1.1, 0.16, c.fenceDark, 0.03);
   for (const y of [0.35, 0.85]) b.box(0, y, -11.55, 11, 0.14, 0.06, c.fence, 0.03);
-  b.box(-3.6, 1.0, -12.6, 2.2, 2.0, 1.4, c.shed, 0.05);
-  b.box(-3.6, 2.1, -12.6, 2.6, 0.22, 1.8, c.roof, 0.05);
-  b.box(-3.3, 0.7, -11.88, 0.6, 1.3, 0.04, c.door, 0.03);
   const backdrop = b.take();
 
   const { props, add } = propsFor(cam);
-  add("barrel", 3.6, -10.2, (p) => {
-    p.cylinder(3.6, -10.2, 0, 0.9, 0.38, 0.36, c.barrel);
-    p.cylinder(3.6, -10.2, 0.25, 0.32, 0.39, 0.39, c.barrelBand, { ink: false });
-    p.cylinder(3.6, -10.2, 0.62, 0.69, 0.38, 0.38, c.barrelBand, { ink: false });
-    p.groundDisc(3.6, -10.2, 0.3, 0.3, c.water, { y: 0.9 });
+  add("barrel", 0, -10.6, (p) => {
+    p.cylinder(0, -10.6, 0, 0.9, 0.38, 0.36, c.barrel);
+    p.cylinder(0, -10.6, 0.25, 0.32, 0.39, 0.39, c.barrelBand, { ink: false });
+    p.cylinder(0, -10.6, 0.62, 0.69, 0.38, 0.38, c.barrelBand, { ink: false });
+    p.groundDisc(0, -10.6, 0.3, 0.3, c.water, { y: 0.9 });
   });
+  for (const id of BUILDING_IDS) {
+    const pen = PENS[id];
+    const x0 = pen.x - pen.w / 2;
+    const x1 = pen.x + pen.w / 2;
+    if (yard[id]) {
+      const { house } = pen;
+      add(`house-${id}`, house.x, house.z + house.d / 2, id === "coop" ? drawCoop : drawBarn);
+      add(`penback-${id}`, pen.x, pen.back, (p) => {
+        fenceAlong(p, [x0, pen.front], [x0, pen.back], 3);
+        fenceAlong(p, [x1, pen.front], [x1, pen.back], 3);
+        fenceAlong(p, [x0, pen.back], [x1, pen.back], 3);
+      });
+    }
+    add(`penfront-${id}`, pen.x, pen.front, (p) => {
+      fenceAlong(p, [x0, pen.front], [pen.x - 0.4, pen.front], 2);
+      fenceAlong(p, [pen.x + 0.4, pen.front], [x1, pen.front], 2);
+      if (!yard[id]) return;
+      p.box(pen.x, 0.3, pen.front, 0.8, 0.06, 0.04, c.fence, 0.02);
+      p.box(pen.x, 0.1, pen.front, 0.8, 0.06, 0.04, c.fence, 0.02);
+    });
+  }
   for (const plot of PLOTS) {
     if (plot.index < Math.max(plots, FREE_PLOTS)) continue;
     const front = plot.z + halfD + 0.02;
@@ -476,14 +566,14 @@ const buildBackyard = (cam: Camera, plots: number): Scene => {
 
 const NO_HOME: HomeLook = { wallpaper: "plain", items: [] };
 
-const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook, plots: number) => Scene> = {
+const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook, yard: Yard) => Scene> = {
   garden: buildGarden,
   chapel: buildChapel,
   campfire: buildCampfire,
   cafe: buildCafe,
   beach: buildBeach,
   home: buildHome,
-  backyard: (cam, _inside, plots) => buildBackyard(cam, plots),
+  backyard: (cam, _inside, yard) => buildBackyard(cam, yard),
 };
 
-export const buildScene = (place: Place, cam: Camera, inside: HomeLook = NO_HOME, plots = FREE_PLOTS): Scene => BUILDERS[place](cam, inside, plots);
+export const buildScene = (place: Place, cam: Camera, inside: HomeLook = NO_HOME, yard: Yard = NO_YARD): Scene => BUILDERS[place](cam, inside, yard);

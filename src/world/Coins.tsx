@@ -1,18 +1,22 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { ordinal, PLACE_COINS } from "@shared/coins";
-import { NPC } from "@shared/world";
+import { FARMER, NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
+import { GoodThumb } from "./Animals";
+import { CropThumb } from "./Farm";
 import { gold, hud } from "./palette";
 import { popShadow } from "./popShadow";
 import { useBatterySaver } from "./settings";
 
 const NATIVE = Platform.OS !== "web";
+const JOSH = FARMER.name.split(" ")[0];
 
 export const useCoins = () => useQuery(api.coins.mine, {});
 
@@ -30,14 +34,16 @@ export const CoinsPanel = ({
   top,
   balance,
   onClose,
+  onBackyard,
 }: {
   open: boolean;
   top: number;
   balance: number | undefined;
   onClose: () => void;
+  onBackyard: () => void;
 }) => {
   const reduce = useBatterySaver();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [mounted, setMounted] = useState(open);
   const [shown] = useState(() => new Animated.Value(0));
   const [spin] = useState(() => new Animated.Value(0));
@@ -70,13 +76,11 @@ export const CoinsPanel = ({
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: shown.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }) }]} />
       </Pressable>
       <Animated.View
-        style={[styles.card, { top, width: Math.min(340, width - 32), opacity: shown.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ scale }] }]}
+        style={[styles.card, { top, width: Math.min(340, width - 32), maxHeight: Math.max(320, height - top - 24), opacity: shown.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ scale }] }]}
         testID="world-coins-panel"
         accessibilityViewIsModal
       >
-        <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="world-coins-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
-          <Ionicons name="close" size={18} color={hud.forest} />
-        </Pressable>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
         <View style={styles.hero}>
           {SPARKS.map((spark) => (
             <Animated.Text
@@ -117,10 +121,32 @@ export const CoinsPanel = ({
         <Text style={styles.note}>
           Each place pays once per game. Climb higher and you get the difference.
         </Text>
+        <Text style={[styles.lead, styles.farmLead]}>Farm in your backyard:</Text>
+        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Grow crops in your backyard and sell them to ${JOSH}. Go to your backyard`} testID="world-coins-crops" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+          <View style={styles.goods}>
+            <CropThumb crop="tomato" size={30} />
+          </View>
+          <Text style={styles.farmText}>Grow crops · sell to {JOSH}</Text>
+          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
+        </Pressable>
+        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Keep hens and cows and sell their eggs and milk to ${JOSH}. Go to your backyard`} testID="world-coins-animals" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+          <View style={styles.goods}>
+            <GoodThumb good="egg" size={30} />
+            <View style={styles.second}>
+              <GoodThumb good="milk" size={30} />
+            </View>
+          </View>
+          <Text style={styles.farmText}>Hens and cows · sell eggs and milk</Text>
+          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
+        </Pressable>
         <View style={styles.shop}>
           <Bust look={NPC.look} size={36} />
           <Text style={styles.shopText}>{NPC.name.split(" ")[0]} in the Café sells furniture for your home.</Text>
         </View>
+        </SharpScrollView>
+        <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="world-coins-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Ionicons name="close" size={18} color={hud.forest} />
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -128,6 +154,8 @@ export const CoinsPanel = ({
 
 const styles = StyleSheet.create({
   scrim: { backgroundColor: hud.scrim },
+  scroll: { alignSelf: "stretch", flexGrow: 0 },
+  scrollBody: { alignItems: "center" },
   card: {
     position: "absolute",
     alignSelf: "center",
@@ -153,6 +181,11 @@ const styles = StyleSheet.create({
   game: { fontWeight: "800", fontSize: 14, color: hud.forest },
   tiers: { fontWeight: "700", fontSize: 13, color: gold.text },
   note: { alignSelf: "stretch", fontSize: 13, lineHeight: 18, color: hud.primary, marginTop: 4 },
+  farmLead: { marginTop: 10 },
+  farmRow: { justifyContent: "flex-start", paddingVertical: 5 },
+  farmText: { flex: 1, fontWeight: "800", fontSize: 13.5, color: hud.forest },
+  goods: { flexDirection: "row", width: 30 },
+  second: { marginLeft: -16 },
   shop: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, padding: 8, borderRadius: 16, backgroundColor: hud.accentSoft },
   shopText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600", color: hud.forest },
 });

@@ -271,8 +271,8 @@
         "src/components/games/{GamesMenu,CoinCounter}.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
-        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData,farm,farmData}.ts",
-        "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm}.ts"
+        "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData,farm,farmData,animals}.ts",
+        "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm,animals}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
       "checks": ["chapel-pews", "arcade-podium"]
