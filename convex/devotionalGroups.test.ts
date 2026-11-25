@@ -856,3 +856,70 @@ test("a group stops taking invites at 200 people, so no member drops out of its 
   });
   await expect(anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN })).rejects.toThrow(/at most 200/);
 });
+
+test("deleting the owner's account clears their pending invitees' unread invites", async () => {
+  const t = newConvex();
+  const { annaId } = await seedUsers(t);
+  const anna = asUser(t, ANNA);
+  const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+    name: "Owner leaves",
+    startDate: "2026-11-01",
+    endDate: "2026-11-30",
+    sharingLevel: "count",
+  });
+  await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+  await t.mutation(internal.account.wipe, { userId: annaId });
+  const benUnread = await t.run(async (ctx) =>
+    (await ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BEN)).collect()).filter(
+      (n) => !n.read
+    )
+  );
+  expect(benUnread).toEqual([]);
+});
+
+test("the 8pm reminder pages through groups in batches and still sends once per person", async () => {
+  vi.setSystemTime(Date.UTC(2026, 10, 25, 2, 0));
+  const t = newConvex();
+  await seedUsers(t);
+  const anna = asUser(t, ANNA);
+  const ben = asUser(t, BEN);
+  const cara = asUser(t, CARA);
+  for (let i = 0; i < 6; i++) {
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: `Batch ${i}`,
+      startDate: "2026-11-01",
+      endDate: `2026-12-0${i + 1}`,
+      sharingLevel: "count",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    if (i === 5) {
+      await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+      await cara.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    }
+  }
+  await anna.mutation(api.devotionals.save, {
+    date: "2026-11-25",
+    passage: "Psalm 1",
+    notes: "",
+    prayerPoints: "",
+    base: null,
+  });
+
+  vi.setSystemTime(Date.UTC(2026, 10, 25, 9, 1));
+  expect(await t.mutation(internal.devotionalGroups.sendDailyReminders, {})).toEqual({ skipped: false, notified: 1 });
+
+  const continuation = await t.run(async (ctx) =>
+    (await ctx.db.system.query("_scheduled_functions").collect()).find((job) =>
+      job.name.includes("sendRemindersFrom")
+    )
+  );
+  const args = continuation?.args[0] as { date: string; cursor: string };
+  expect(args.date).toBe("2026-11-25");
+
+  vi.setSystemTime(Date.UTC(2026, 10, 25, 9, 2));
+  expect(await t.mutation(internal.devotionalGroups.sendRemindersFrom, args)).toBe(1);
+
+  const logs = await t.run((ctx) => ctx.db.query("devotionalReminderLogs").collect());
+  expect(logs.map((l) => l.email).sort()).toEqual([BEN, CARA]);
+});

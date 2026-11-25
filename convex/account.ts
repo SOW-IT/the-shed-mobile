@@ -12,6 +12,7 @@ import {
 } from "./_generated/server";
 import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
+import { markGroupNotificationsRead } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
 import { typedMatches } from "../shared/typedConfirm";
@@ -193,7 +194,10 @@ async function deleteByEmail(
           .query("devotionalGroupMembers")
           .withIndex("by_groupId_and_status", (q) => q.eq("groupId", group._id))
           .take(WIPE_BATCH);
-        for (const m of members) await ctx.db.delete("devotionalGroupMembers", m._id);
+        for (const m of members) {
+          if (m.status === "invited") await markGroupNotificationsRead(ctx, m.email, group._id);
+          await ctx.db.delete("devotionalGroupMembers", m._id);
+        }
         await ctx.db.delete("devotionalGroups", group._id);
       }
     ),

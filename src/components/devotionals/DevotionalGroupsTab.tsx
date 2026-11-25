@@ -3,6 +3,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   formatGroupDateRange,
+  INVITE_SHARING_NOTE,
   SHARING_LEVEL_LABELS,
 } from "@shared/devotionalGroups";
 import { todayDevotionalDate } from "@shared/devotionals";
@@ -98,6 +99,7 @@ export const DevotionalGroupsTab = () => {
                     </Text>
                     <Muted>Invited by {invite.ownerName}</Muted>
                   </Pressable>
+                  <Muted>{INVITE_SHARING_NOTE}</Muted>
                   <View style={styles.inviteActions}>
                     <Btn
                       title="Accept"

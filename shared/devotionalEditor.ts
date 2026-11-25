@@ -10,6 +10,7 @@ export const DEVOTIONAL_CONFLICT_TEXT = "This day was changed on another device.
 export const DEVOTIONAL_SAVED_ON_DEVICE_TEXT = "Saved on this device.";
 export const DEVOTIONAL_DEVICE_SAVE_FAILED_TEXT = "Couldn't save on this device. Try again.";
 export const DEVOTIONAL_SHARING_FAILED_TEXT = "Couldn't update sharing. Try again.";
+export const DEVOTIONAL_SHARING_OFFLINE_TEXT = "Connect to the internet to save what you share, or change it back.";
 
 export const savedSharingLevel = (
   personalLevel: DevotionalSharingLevel | null | undefined,

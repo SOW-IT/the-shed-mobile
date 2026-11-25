@@ -17,6 +17,7 @@ import { parseBibleReference } from "@shared/bible";
 import {
   DEVOTIONAL_DEVICE_SAVE_FAILED_TEXT,
   DEVOTIONAL_SHARING_FAILED_TEXT,
+  DEVOTIONAL_SHARING_OFFLINE_TEXT,
   devotionalContentChanged,
   devotionalEditorDirty,
   devotionalSaveFeedback,
@@ -179,33 +180,41 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const syncing = useRef(false);
   const leaving = useRef(false);
   const syncToServer = useCallback(
-    async (showFeedback: boolean) => {
-      const { contentChanged: contentNeedsSave, pendingSharing: sharingToSave } = latestRef.current;
-      if (syncing.current || (!contentNeedsSave && !sharingToSave)) return;
+    async (showFeedback: boolean): Promise<boolean> => {
+      const {
+        contentChanged: contentNeedsSave,
+        pendingSharing: sharingToSave,
+        offline: isOffline,
+      } = latestRef.current;
+      if (syncing.current || (!contentNeedsSave && !sharingToSave)) return true;
       syncing.current = true;
       if (showFeedback) {
         setSaving(true);
         setError(null);
       }
       try {
-        let sharingFailed = false;
-        if (sharingToSave) {
+        const outcome: DevotionalSaveOutcome = contentNeedsSave ? await syncContent() : { kind: "unchanged" };
+        let sharingError: string | null = null;
+        if (sharingToSave && isOffline) {
+          sharingError = DEVOTIONAL_SHARING_OFFLINE_TEXT;
+        } else if (sharingToSave) {
           try {
             await setPersonalSharing({ level: sharingToSave });
-            setChosenSharing(null);
+            setChosenSharing((current) => (current === sharingToSave ? null : current));
           } catch {
-            sharingFailed = true;
+            sharingError = DEVOTIONAL_SHARING_FAILED_TEXT;
           }
         }
-        const outcome: DevotionalSaveOutcome = contentNeedsSave ? await syncContent() : { kind: "unchanged" };
-        if (!showFeedback) return;
-        const feedback = devotionalSaveFeedback(
-          sharingFailed && outcome.kind !== "error" && outcome.kind !== "conflict"
-            ? { kind: "error", message: DEVOTIONAL_SHARING_FAILED_TEXT }
-            : outcome
-        );
-        if (feedback.toast) setToast({ text: feedback.toast });
-        setError(feedback.error);
+        if (showFeedback) {
+          const feedback = devotionalSaveFeedback(
+            sharingError && outcome.kind !== "error" && outcome.kind !== "conflict"
+              ? { kind: "error", message: sharingError }
+              : outcome
+          );
+          if (feedback.toast) setToast({ text: feedback.toast });
+          setError(feedback.error);
+        }
+        return sharingError === null;
       } finally {
         syncing.current = false;
         if (showFeedback) setSaving(false);
@@ -226,9 +235,13 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     []
   );
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    if (pendingSharing) {
+      if (!(await syncToServer(true))) return;
+    } else {
+      void syncToServer(false);
+    }
     leaving.current = true;
-    void syncToServer(false);
     onBack();
   };
 
@@ -254,7 +267,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={["top"]}>
       <View style={[styles.header, { borderBottomColor: t.separator }]}>
         <Pressable
-          onPress={handleBack}
+          onPress={() => void handleBack()}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back"

@@ -23,6 +23,7 @@ const MEMBER_LIMIT = 200;
 const GROUP_LIMIT = 100;
 const INVITABLE_SCAN_LIMIT = 1000;
 const INVITABLE_RESULT_LIMIT = 60;
+const REMINDER_GROUP_BATCH = 4;
 
 const userByEmail = (ctx: Ctx, email: string) =>
   ctx.db
@@ -75,7 +76,7 @@ const invitesOf = (ctx: Ctx, groupId: Id<"devotionalGroups">) =>
     .withIndex("by_groupId_and_status", (q) => q.eq("groupId", groupId).eq("status", "invited"))
     .take(MEMBER_LIMIT);
 
-const markGroupNotificationsRead = async (
+export const markGroupNotificationsRead = async (
   ctx: MutationCtx,
   email: string,
   groupId: Id<"devotionalGroups">
@@ -719,76 +720,95 @@ export const setPersonalSharingLevel = mutation({
   },
 });
 
+const sendReminderBatch = async (
+  ctx: MutationCtx,
+  today: string,
+  cursor: string | null
+): Promise<number> => {
+  const now = Date.now();
+  const page = await ctx.db
+    .query("devotionalGroups")
+    .withIndex("by_endDate", (q) => q.gte("endDate", today))
+    .paginate({ numItems: REMINDER_GROUP_BATCH, cursor });
+  if (!page.isDone) {
+    await ctx.scheduler.runAfter(0, internal.devotionalGroups.sendRemindersFrom, {
+      date: today,
+      cursor: page.continueCursor,
+    });
+  }
+  const activeGroups = page.page.filter((g) => g.startDate <= today);
+
+  const groupsByEmail = new Map<string, Doc<"devotionalGroups">[]>();
+  for (const group of activeGroups) {
+    const members = await membersOf(ctx, group._id);
+    for (const member of members) {
+      const list = groupsByEmail.get(member.email);
+      if (list) list.push(group);
+      else groupsByEmail.set(member.email, [group]);
+    }
+  }
+
+  let notified = 0;
+  for (const [email, groups] of groupsByEmail.entries()) {
+    const user = await userByEmail(ctx, email);
+    if (user?.devotionalReminders === false) continue;
+
+    const alreadySent = await ctx.db
+      .query("devotionalReminderLogs")
+      .withIndex("by_email_and_date", (q) => q.eq("email", email).eq("date", today))
+      .unique();
+    if (alreadySent) continue;
+
+    const entry = await ctx.db
+      .query("devotionals")
+      .withIndex("by_email_and_date", (q) => q.eq("email", email).eq("date", today))
+      .unique();
+    if (isDevotionalDone(entry)) continue;
+
+    await ctx.db.insert("devotionalReminderLogs", {
+      email,
+      date: today,
+      sentAt: now,
+    });
+
+    const title = "Devotional reminder";
+    const body =
+      groups.length === 1
+        ? `You haven't done today's devotional for ${groups[0].name} yet.`
+        : "You haven't done today's devotional yet.";
+    const url = `/devotionals/${today}`;
+    await ctx.db.insert("notifications", {
+      userEmail: email,
+      title,
+      body,
+      url,
+      ...(groups.length === 1 ? { devotionalGroupId: groups[0]._id } : {}),
+      read: false,
+    });
+    await ctx.scheduler.runAfter(0, internal.push.send, {
+      to: email,
+      title,
+      body,
+      url,
+    });
+    notified++;
+  }
+
+  return notified;
+};
+
 export const sendDailyReminders = internalMutation({
   args: {},
   returns: v.object({ skipped: v.boolean(), notified: v.number() }),
   handler: async (ctx) => {
-    const now = Date.now();
-    const { date: today, hour } = sydneyDateTime(now);
+    const { date: today, hour } = sydneyDateTime(Date.now());
     if (hour !== 20) return { skipped: true, notified: 0 };
-
-    const candidateGroups = await ctx.db
-      .query("devotionalGroups")
-      .withIndex("by_endDate", (q) => q.gte("endDate", today))
-      .take(500);
-    const activeGroups = candidateGroups.filter((g) => g.startDate <= today);
-
-    const groupsByEmail = new Map<string, Doc<"devotionalGroups">[]>();
-    for (const group of activeGroups) {
-      const members = await membersOf(ctx, group._id);
-      for (const member of members) {
-        const list = groupsByEmail.get(member.email);
-        if (list) list.push(group);
-        else groupsByEmail.set(member.email, [group]);
-      }
-    }
-
-    let notified = 0;
-    for (const [email, groups] of groupsByEmail.entries()) {
-      const user = await userByEmail(ctx, email);
-      if (user?.devotionalReminders === false) continue;
-
-      const alreadySent = await ctx.db
-        .query("devotionalReminderLogs")
-        .withIndex("by_email_and_date", (q) => q.eq("email", email).eq("date", today))
-        .unique();
-      if (alreadySent) continue;
-
-      const entry = await ctx.db
-        .query("devotionals")
-        .withIndex("by_email_and_date", (q) => q.eq("email", email).eq("date", today))
-        .unique();
-      if (isDevotionalDone(entry)) continue;
-
-      await ctx.db.insert("devotionalReminderLogs", {
-        email,
-        date: today,
-        sentAt: now,
-      });
-
-      const title = "Devotional reminder";
-      const body =
-        groups.length === 1
-          ? `You haven't done today's devotional for ${groups[0].name} yet.`
-          : "You haven't done today's devotional yet.";
-      const url = `/devotionals/${today}`;
-      await ctx.db.insert("notifications", {
-        userEmail: email,
-        title,
-        body,
-        url,
-        ...(groups.length === 1 ? { devotionalGroupId: groups[0]._id } : {}),
-        read: false,
-      });
-      await ctx.scheduler.runAfter(0, internal.push.send, {
-        to: email,
-        title,
-        body,
-        url,
-      });
-      notified++;
-    }
-
-    return { skipped: false, notified };
+    return { skipped: false, notified: await sendReminderBatch(ctx, today, null) };
   },
+});
+
+export const sendRemindersFrom = internalMutation({
+  args: { date: v.string(), cursor: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => await sendReminderBatch(ctx, args.date, args.cursor),
 });

@@ -9,6 +9,7 @@ import {
   isDateInRange,
   isDevotionalDone,
   MAX_GROUP_NAME_LENGTH,
+  monthOverlapsRange,
   monthWithinRange,
   sydneyDateTime,
   validateGroupInput,
@@ -162,4 +163,11 @@ describe("devotional group validation and dates", () => {
       minute: 1,
     });
   });
+});
+
+test("a browsed month stays only while it overlaps the group's dates", () => {
+  expect(monthOverlapsRange(2026, 11, "2026-11-20", "2027-01-05")).toBe(true);
+  expect(monthOverlapsRange(2027, 1, "2026-11-20", "2027-01-05")).toBe(true);
+  expect(monthOverlapsRange(2026, 10, "2026-11-20", "2027-01-05")).toBe(false);
+  expect(monthOverlapsRange(2027, 2, "2026-11-20", "2027-01-05")).toBe(false);
 });

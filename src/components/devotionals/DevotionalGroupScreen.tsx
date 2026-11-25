@@ -20,7 +20,9 @@ import {
   completionTier,
   formatGroupDateRange,
   initialGroupMonth,
+  INVITE_SHARING_NOTE,
   isDateInRange,
+  monthOverlapsRange,
   monthWithinRange,
   SHARING_LEVEL_LABELS,
 } from "@shared/devotionalGroups";
@@ -117,7 +119,12 @@ export const DevotionalGroupScreen = ({
         const [y, m] = today.split("-").map(Number);
         return { year: y, month: m };
       })();
-  const activePeriod = periodOverride ?? defaultPeriod;
+  const activePeriod =
+    periodOverride &&
+    isMember &&
+    monthOverlapsRange(periodOverride.year, periodOverride.month, group.startDate, group.endDate)
+      ? periodOverride
+      : defaultPeriod;
 
   const defaultSelectedDay = isMember
     ? isDateInRange(today, group.startDate, group.endDate)
@@ -209,6 +216,7 @@ export const DevotionalGroupScreen = ({
               <Muted>Invited by {group.ownerName}</Muted>
             </View>
           </View>
+          <Muted>{INVITE_SHARING_NOTE}</Muted>
           <ErrorBanner message={error} />
           <View style={styles.inviteButtons}>
             <Btn
