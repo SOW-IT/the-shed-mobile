@@ -1,5 +1,7 @@
 import { CAFE_GAMES, cafeTableOf, isCafeGameKind, playingLine, playingTag, type Side, type Winner } from "../../shared/cafeGames";
 
+export type PlayingTag = { tag: string; icon: string; with: string };
+
 export type CafeChallengeView = {
   id: string;
   kind?: string;
@@ -39,11 +41,11 @@ export const challengeTitle = (c: CafeChallengeView) =>
 type Playing = { a: string; b: string; kind: string };
 
 export const playingByPerson = (games: readonly Playing[], nameOf: (memberId: string) => string) => {
-  const tags = new Map<string, string>();
+  const tags = new Map<string, PlayingTag>();
   const lines = new Map<string, string>();
   for (const game of games) {
-    tags.set(game.a, playingTag(game.kind, nameOf(game.b)));
-    tags.set(game.b, playingTag(game.kind, nameOf(game.a)));
+    tags.set(game.a, { tag: playingTag(game.kind, nameOf(game.b)), icon: gameIcon(game.kind), with: game.b });
+    tags.set(game.b, { tag: playingTag(game.kind, nameOf(game.a)), icon: gameIcon(game.kind), with: game.a });
     lines.set(game.a, playingLine(game.kind));
     lines.set(game.b, playingLine(game.kind));
   }

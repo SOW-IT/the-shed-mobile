@@ -1,5 +1,6 @@
 import { boxEdges, DOTS_BOXES, DOTS_LINES, dotLine, dropRow, gridOf, type CafeBoard, type CafeGameKind, type Side } from "@shared/cafeGames";
 import { fonts } from "@/theme";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { cafe } from "./palette";
 
@@ -60,24 +61,36 @@ const FourInARow = ({ board, canMove, onMove, size }: BoardProps) => {
   );
 };
 
+const ROUND_HOLD_MS = 1800;
+
 const TicTacToe = ({ board, side, canMove, onMove, size }: BoardProps) => {
   const cell = Math.min(92, Math.floor((size - 12) / 3));
-  const won = new Set(board.line ?? []);
+  const [shownRound, setShownRound] = useState(board.round);
+  useEffect(() => {
+    if (shownRound === board.round) return;
+    const id = setTimeout(() => setShownRound(board.round), ROUND_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [board.round, shownRound]);
+  const replay = shownRound !== board.round && board.previous ? board.previous : null;
+  const cells = replay ? replay.cells : board.cells;
+  const won = new Set((replay ? replay.line : board.line) ?? []);
   return (
-    <View style={[styles.frame, styles.grid, { width: cell * 3 + 12, padding: 6 }]} testID="cafe-board-ticTacToe">
-      {spots(board.cells).map(({ mark, index }) => (
-        <Pressable
-          key={index}
-          onPress={() => onMove(index)}
-          disabled={!canMove || mark !== 0}
-          accessibilityRole="button"
-          accessibilityLabel={`Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}, ${owner(mark, side)}`}
-          testID={`cafe-cell-${index}`}
-          style={({ pressed }) => [styles.square, { width: cell, height: cell }, won.has(index) && { backgroundColor: cafe.win }, pressed && styles.pressed]}
-        >
-          {mark ? <Text style={[styles.mark, { fontSize: cell * 0.6, color: colourOf(mark) }]}>{mark === 1 ? "✕" : "◯"}</Text> : null}
-        </Pressable>
-      ))}
+    <View style={[styles.frame, { padding: 6 }]} testID="cafe-board-ticTacToe">
+      <View style={[styles.grid, { width: cell * 3 }]}>
+        {spots(cells).map(({ mark, index }) => (
+          <Pressable
+            key={index}
+            onPress={() => onMove(index)}
+            disabled={!canMove || replay !== null || mark !== 0}
+            accessibilityRole="button"
+            accessibilityLabel={`Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}, ${owner(mark, side)}`}
+            testID={`cafe-cell-${index}`}
+            style={({ pressed }) => [styles.square, { width: cell, height: cell }, won.has(index) && { backgroundColor: cafe.win }, pressed && styles.pressed]}
+          >
+            {mark ? <Text style={[styles.mark, { fontSize: cell * 0.6, color: colourOf(mark) }]}>{mark === 1 ? "✕" : "◯"}</Text> : null}
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 };

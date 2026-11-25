@@ -39,6 +39,7 @@ import type { DrawnPose, Gait } from "./gait";
 import { Marker } from "./Marker";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
+import type { PlayingTag } from "./cafe";
 import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldSetting } from "./settings";
@@ -66,7 +67,7 @@ type GardenPerson = {
   reading?: boolean;
   seat?: string;
   typing?: number;
-  playing?: string;
+  playing?: PlayingTag;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "piano" | "lectern";
@@ -646,7 +647,7 @@ export const Garden = ({
           emote={emote}
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
-          status={p.away ? AWAY_STATUS : p.playing}
+          status={p.away ? AWAY_STATUS : playingStatus(p.playing, pose, poses[people.findIndex((o) => o.memberId === p.playing?.with)])}
           reading={p.reading}
           shout={chant !== undefined && SHOUTS.has(chant)}
           calm={saver}
@@ -810,6 +811,12 @@ const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
 const SHOUTS = new Set<string>(Object.values(DUEL_PICKS).map((pick) => pick.icon));
 const AWAY_STATUS = "🕹️ Playing";
+const PLAYING_SIDE_BY_SIDE = 2.5;
+
+const playingStatus = (playing: PlayingTag | undefined, pose: { x: number; z: number }, theirs: { x: number; z: number } | null | undefined) => {
+  if (!playing) return undefined;
+  return theirs && Math.hypot(theirs.x - pose.x, theirs.z - pose.z) < PLAYING_SIDE_BY_SIDE ? playing.icon : playing.tag;
+};
 const PAD_LABEL_WIDTH = 132;
 const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;

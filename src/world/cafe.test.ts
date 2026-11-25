@@ -61,8 +61,8 @@ describe("what others see", () => {
   test("both players get a tag naming the other and a People line", () => {
     const names: Record<string, string> = { a: "Anna B.", b: "Kate R." };
     const { tags, lines } = playingByPerson([{ a: "a", b: "b", kind: "fourInARow" }], (id) => names[id]);
-    expect(tags.get("a")).toBe("🔴 Four in a Row vs Kate R.");
-    expect(tags.get("b")).toBe("🔴 Four in a Row vs Anna B.");
+    expect(tags.get("a")).toEqual({ tag: "🔴 Four in a Row vs Kate R.", icon: "🔴", with: "b" });
+    expect(tags.get("b")?.tag).toBe("🔴 Four in a Row vs Anna B.");
     expect(lines.get("b")).toBe("Playing Four in a Row");
     expect(tags.get("c")).toBeUndefined();
   });

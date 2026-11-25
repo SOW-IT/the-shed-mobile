@@ -356,7 +356,7 @@ const CafeSheet = ({
           <CafeBoardView kind={kind} board={game.board} side={game.side} canMove={myTurn} onMove={onMove} size={boardSize} />
           {ended ? (
             <View style={styles.answers}>
-              {game.result?.why === "abandoned" ? null : (
+              {game.result?.why === "abandoned" || game.result?.why === "left" ? null : (
                 <Pressable onPress={onRematch} accessibilityRole="button" accessibilityLabel="Rematch" testID="cafe-rematch" style={({ pressed }) => [styles.yes, game.rematch === game.side && styles.waiting, pressed && styles.pressed]}>
                   <Text style={styles.yesText}>Rematch</Text>
                 </Pressable>

@@ -2,7 +2,7 @@ import { SEATS } from "./world";
 
 export const CAFE_GAMES = {
   fourInARow: { label: "Four in a Row", icon: "🔴" },
-  ticTacToe: { label: "Tic-tac-toe", icon: "❌" },
+  ticTacToe: { label: "Tic-tac-toe", icon: "⭕" },
   dotsAndBoxes: { label: "Dots and Boxes", icon: "🔲" },
   fiveInARow: { label: "Five in a Row", icon: "⚫" },
 } as const;
