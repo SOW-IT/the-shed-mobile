@@ -18,7 +18,6 @@ import {
   ASKS,
   type AskKind,
   type DuelPick,
-  isPlace,
   type Place,
   INVITE_CARD_MS,
   NPC,
@@ -50,6 +49,7 @@ import { useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
+import { backFrom, exitOf } from "./homeExit";
 import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
@@ -115,10 +115,6 @@ const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
   piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
   lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
 };
-
-/** Where a home's door leads: back to the place you came from, else the Garden. */
-const exitOf = (home: { backTo?: string } | null | undefined): Place =>
-  home?.backTo !== undefined && isPlace(home.backTo) && home.backTo !== "home" ? home.backTo : "garden";
 
 const AT_OBJECT = 0.35;
 const BESIDE = 1.2;
@@ -569,6 +565,13 @@ export const WorldScreen = ({
   useEffect(() => {
     goRef.current = go;
   });
+  const backToPlace = leaveAsked ? backFrom(world.place, world.home) : null;
+  const backTarget = backToPlace?.kind === "travel" ? backToPlace.to : null;
+  useEffect(() => {
+    if (backTarget === null) return;
+    onStay();
+    goRef.current(backTarget);
+  }, [backTarget, onStay]);
   const myWalkStart = me?.walk?.startedAt ?? null;
   const myArrival = me?.walk ? posAt(me.walk, me.walk.startedAt).arrivesAt : null;
   useEffect(() => {
@@ -840,7 +843,7 @@ export const WorldScreen = ({
         }}
       />
       <LeaveDialog
-        open={leaving || leaveAsked}
+        open={leaving || (leaveAsked && backFrom(world.place, world.home).kind === "leave")}
         onStay={() => {
           setLeaving(false);
           onStay();
