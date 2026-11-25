@@ -27,5 +27,8 @@ export const NAME_STYLES = ["initials", "short", "full"] as const;
 
 export type NameStyle = (typeof NAME_STYLES)[number];
 
+/** Where the World's Names setting is kept on the device; the Games list reads it too. */
+export const NAMES_SETTING_KEY = "worldNames";
+
 export const styledName = (name: string, style: NameStyle): string =>
   style === "initials" ? initials(name) : style === "full" ? fullName(name) : shortName(name);

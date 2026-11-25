@@ -938,6 +938,7 @@ export const WorldScreen = ({
         bottom={view === "list" ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + SHOP_CHAT_GAP}
         // The panel covers the coins under the title on a narrow phone and in the list.
         coins={view === "list" || !coinsBeside}
+        nameOf={worldName}
         onOpen={(target) => {
           // The panel stays for the leaderboard, there when you come back.
           if (target !== "leaderboard") setArcadeOpen(false);

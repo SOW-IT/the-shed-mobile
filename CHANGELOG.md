@@ -17,7 +17,8 @@ All notable changes to **The SHED** mobile app. This project follows
   while a game is in front of you; leaving it, opening its leaderboard or
   putting your phone away takes you off, and someone whose app closed
   without saying so drops off within a minute. People you've blocked in the
-  World, or who've blocked you, don't show.
+  World, or who've blocked you, don't show, and names follow your World
+  Names setting (initials, first name and last initial, or full name).
 
 ### Changed
 - **The World carries on behind the arcade.** The arcade's panel no longer

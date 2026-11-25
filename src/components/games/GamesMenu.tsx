@@ -6,12 +6,13 @@ import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { StatusBar } from "expo-status-bar";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { GAME_IDS, GAME_INFO, playingLine, type GameId } from "../../../shared/games";
-import { shortName } from "../../../shared/names";
+import { NAME_STYLES, NAMES_SETTING_KEY, shortName, styledName, type NameStyle } from "../../../shared/names";
+import { readStored } from "@/lib/deviceStorage";
 import { CoinCounter } from "./CoinCounter";
 import { GoldCoin } from "./GoldCoin";
 import { useAvatarArt, usePreloadAvatarArt } from "./GameCharacter";
@@ -121,9 +122,9 @@ export const GamesPanelHeader = ({ title, children, style }: { title: string; ch
 const FACE = 26;
 
 /** Who's in a game right now: their World faces, then their names and how many. */
-const PlayingNow = ({ entry, testID }: { entry: NowPlaying; testID: string }) => {
+const PlayingNow = ({ entry, nameOf, testID }: { entry: NowPlaying; nameOf: (name: string) => string; testID: string }) => {
   const art = useAvatarArt(entry.players.some((p) => p.look !== null));
-  const names = entry.players.map((p) => shortName(p.name));
+  const names = entry.players.map((p) => nameOf(p.name));
   return (
     <View style={styles.playing} testID={testID}>
       <View style={styles.faces}>
@@ -132,7 +133,7 @@ const PlayingNow = ({ entry, testID }: { entry: NowPlaying; testID: string }) =>
             {art && p.look ? (
               <art.CharacterHead look={p.look} size={FACE - 4} />
             ) : (
-              <Text style={styles.faceInitial}>{shortName(p.name).slice(0, 1)}</Text>
+              <Text style={styles.faceInitial}>{Array.from(nameOf(p.name))[0]}</Text>
             )}
           </View>
         ))}
@@ -215,6 +216,7 @@ export const GameRows = ({
   onGarden,
   onCafe,
   online,
+  nameOf = shortName,
   rowStyle,
 }: {
   onOpen: (target: GamesTarget) => void;
@@ -222,6 +224,8 @@ export const GameRows = ({
   /** Opens Café Games (two players on one phone); left out over the World, whose Café has its own tables. */
   onCafe?: () => void;
   online?: number;
+  /** How players' names show: the World's Names setting. */
+  nameOf?: (name: string) => string;
   /** Each row's entrance, for a panel that staggers them in. */
   rowStyle?: (index: number) => object | null;
 }) => {
@@ -251,8 +255,8 @@ export const GameRows = ({
           title={GAME_INFO[game].title}
           detail={GAME_LINES[game]}
           meta={bests[game] > 0 ? `Best ${bests[game].toLocaleString()}` : undefined}
-          playing={nowPlaying[game] ? <PlayingNow entry={nowPlaying[game]} testID={`games-playing-${game}`} /> : undefined}
-          playingLabel={nowPlaying[game] ? playingLine(nowPlaying[game].players.map((p) => shortName(p.name)), nowPlaying[game].count, nowPlaying[game].more) : undefined}
+          playing={nowPlaying[game] ? <PlayingNow entry={nowPlaying[game]} nameOf={nameOf} testID={`games-playing-${game}`} /> : undefined}
+          playingLabel={nowPlaying[game] ? playingLine(nowPlaying[game].players.map((p) => nameOf(p.name)), nowPlaying[game].count, nowPlaying[game].more) : undefined}
           onPress={() => onOpen(game)}
           testID={`games-open-${game}`}
           style={rowStyle?.(lead + i)}
@@ -278,6 +282,28 @@ export const GameRows = ({
       ) : null}
     </View>
   );
+};
+
+/**
+ * The World's Names setting, read from the device for the Games list
+ * outside the World (which can't load the World's settings). Until it's
+ * read, or if it was never set, names show the World's default way.
+ */
+const useSavedNames = () => {
+  const [style, setStyle] = useState<NameStyle>("short");
+  useEffect(() => {
+    let live = true;
+    readStored(NAMES_SETTING_KEY).then(
+      (saved) => {
+        if (live && NAME_STYLES.includes(saved as NameStyle)) setStyle(saved as NameStyle);
+      },
+      () => undefined
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return useCallback((name: string) => styledName(name, style), [style]);
 };
 
 /** A line above the games in the Games list, such as "You're offline." */
@@ -308,6 +334,7 @@ export const GamesMenu = ({
   const offline = useOffline();
   const garden = onGarden && !offline ? onGarden : undefined;
   const online = useWorldOnline(!!garden);
+  const nameOf = useSavedNames();
   return (
     <View style={styles.screen} testID="games-menu">
       {/* The page is daylight in both themes, like the World. */}
@@ -339,7 +366,7 @@ export const GamesMenu = ({
         {intro}
         <View style={[styles.panel, blurBehind]}>
           <GamesPanelHeader title="Games" />
-          <GameRows onOpen={onOpen} onGarden={garden} onCafe={() => onOpen("cafe")} online={online} />
+          <GameRows onOpen={onOpen} onGarden={garden} onCafe={() => onOpen("cafe")} online={online} nameOf={nameOf} />
         </View>
       </ScrollView>
       <OnlineBanner />

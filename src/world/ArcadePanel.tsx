@@ -15,6 +15,7 @@ export const ArcadePanel = ({
   top,
   bottom,
   coins,
+  nameOf,
   onOpen,
   onClose,
 }: {
@@ -22,6 +23,8 @@ export const ArcadePanel = ({
   top: number;
   /** Whether to show your coins: not when the World's own chip is in sight above. */
   coins: boolean;
+  /** How players' names show: the World's Names setting. */
+  nameOf: (name: string) => string;
   /** Room kept free at the bottom, for the chat bar. */
   bottom: number;
   onOpen: (target: GamesTarget) => void;
@@ -51,7 +54,7 @@ export const ArcadePanel = ({
           </Pressable>
         </GamesPanelHeader>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
-          <GameRows onOpen={onOpen} rowStyle={(i) => itemStyle(overlay, i + 1)} />
+          <GameRows onOpen={onOpen} nameOf={nameOf} rowStyle={(i) => itemStyle(overlay, i + 1)} />
         </ScrollView>
       </Animated.View>
     </View>

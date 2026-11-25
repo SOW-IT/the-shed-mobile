@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { useReducedMotion } from "react-native-reanimated";
 import { readStored, removeStored, storedValue, tryWriteStored } from "../lib/deviceStorage";
-import { NAME_STYLES, styledName, type NameStyle } from "../../shared/names";
+import { NAME_STYLES, NAMES_SETTING_KEY, styledName, type NameStyle } from "../../shared/names";
 
 const choice = <T extends string>(key: string, values: readonly T[], initial: T, save?: (key: string, value: string) => Promise<unknown>) => {
   const store = storedValue<T>({
@@ -23,7 +23,7 @@ const namesFromOld = (players: string | null, chat: string | null): NameStyle | 
   return null;
 };
 
-const NAMES_KEY = "worldNames";
+const NAMES_KEY = NAMES_SETTING_KEY;
 
 const namesChoice = () => {
   let saving = Promise.resolve(true);
