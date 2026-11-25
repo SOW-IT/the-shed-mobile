@@ -59,6 +59,10 @@ export const wanderAt = (seed: number, phase: number, pace: number | null, zone:
   };
 };
 
+export const STILL_PHASE = 0;
+
+export const phaseFor = (live: boolean, ms: number) => (live ? phaseAt(ms) : STILL_PHASE);
+
 export const phaseAt = (ms: number) => (((ms - EPOCH) % WANDER_LOOP_MS) + WANDER_LOOP_MS) % WANDER_LOOP_MS / WANDER_LOOP_MS;
 
 type Corner = { x: number; y: number; scale: number };

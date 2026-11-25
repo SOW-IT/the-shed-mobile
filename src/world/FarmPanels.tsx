@@ -543,7 +543,7 @@ export const PenSheet = ({
                   <Pressable
                     onPress={() =>
                       void run(() => onRename(a.id, renaming.name)).then((problem) => {
-                        if (!problem) setRenaming(null);
+                        if (!problem) setRenaming((current) => (current?.id === a.id ? null : current));
                       })
                     }
                     disabled={busy || nameTags < 1 || !changed(a.name, renaming.name)}

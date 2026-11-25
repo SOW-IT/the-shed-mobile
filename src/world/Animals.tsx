@@ -2,7 +2,7 @@ import type { Mood } from "@shared/animals";
 import { memo, useEffect, useMemo } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { cancelAnimation, Easing, runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
-import { PACE, peckAt, penPoint, phaseAt, seedOf, swishAt, wanderAt, WANDER_LOOP_MS, zoneOf, type PenCorners, type Zone } from "./animalMotion";
+import { PACE, peckAt, penPoint, phaseAt, seedOf, STILL_PHASE, swishAt, wanderAt, WANDER_LOOP_MS, zoneOf, type PenCorners, type Zone } from "./animalMotion";
 import { Ellipse } from "./Shapes";
 import { animals as tint, garden, mix } from "./palette";
 
@@ -207,7 +207,7 @@ const usePhase = (live: boolean) => {
     const start = phaseAt(Date.now());
     if (!live) {
       cancelAnimation(clock);
-      clock.value = start;
+      clock.value = STILL_PHASE;
       return;
     }
     clock.value = start;

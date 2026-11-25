@@ -52,7 +52,7 @@ import { CropThumb, FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, Pri
 import { BUILDING_IDS, FREE_PLOTS, PENS, PLOT_SIZE, PLOTS, plotPrice, type BuildingId, type CropId, type Stage } from "@shared/farm";
 import { animalFor, buildingFor, BUILDINGS } from "@shared/animals";
 import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
-import { penPoint, phaseAt, zoneOf, type PenCorners } from "./animalMotion";
+import { penPoint, phaseFor, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -488,7 +488,7 @@ export const Garden = ({
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "farmer" };
     }
     if (yard && pens && place === BACKYARD) {
-      const hit = yardAtScreen(cam, pens, yard, x, y);
+      const hit = yardAtScreen(cam, pens, yard, x, y, !paused && !saver);
       if (hit) return hit;
     }
     if (farm && place === BACKYARD) {
@@ -703,7 +703,7 @@ export const Garden = ({
       if (animal) {
         const building = buildingFor(animal.kind);
         const here = yard.animals.filter((a) => buildingFor(a.kind) === building);
-        const at = animalAt(pens[building].corners, id, animal.mood, phaseAt(yard.collecting.key), zoneOf(here.indexOf(animal), Math.max(BUILDINGS[building].capacity, here.length)));
+        const at = animalAt(pens[building].corners, id, animal.mood, phaseFor(live, yard.collecting.key), zoneOf(here.indexOf(animal), Math.max(BUILDINGS[building].capacity, here.length)));
         farmLabels.push(
           <FlyingCrop key={`collect-${yard.collecting.key}`} from={{ x: at.x, y: at.y - 0.4 * at.scale }} to={farm?.bagAt ?? { x: 54, y: 30 }} live={live} onDone={yard.onCollected}>
             <GoodThumb good={good} size={48} />
@@ -1127,13 +1127,13 @@ const penScreens = (cam: ReturnType<typeof makeCamera>): Record<BuildingId, PenS
   return { coop: one("coop"), barn: one("barn") };
 };
 
-const yardAtScreen = (cam: ReturnType<typeof makeCamera>, pens: Record<BuildingId, PenScreen>, yard: GardenYard, x: number, y: number): Hit | null => {
+const yardAtScreen = (cam: ReturnType<typeof makeCamera>, pens: Record<BuildingId, PenScreen>, yard: GardenYard, x: number, y: number, live: boolean): Hit | null => {
   for (const id of BUILDING_IDS) {
     const pen = pens[id];
     const { box } = pen;
     if (x < box.left || x > box.right || y < box.top || y > box.bottom) continue;
     if (!yard[id]) return yard.mine ? { kind: "building", id } : null;
-    const phase = phaseAt(Date.now());
+    const phase = phaseFor(live, Date.now());
     let best: { id: string; d: number } | null = null;
     const here = yard.animals.filter((a) => buildingFor(a.kind) === id);
     for (const [slot, animal] of here.entries()) {
