@@ -123,7 +123,7 @@ const stepShape = (crop: CropId, step: string, p: Paint): ReactNode[] => {
     if (step === "leaves") return bush;
     if (step === "flowers") return [...bush, flower("f1", p, -0.12, -0.2, 0.04 + 0.015 * k, farm.petal), flower("f2", p, 0.14, -0.16, 0.035 + 0.015 * k, farm.petal)];
     const berry = mix(farm.leafLight, f.light, k * 0.6);
-    return [...bush, ball("b1", p, -0.18, -0.07, 0.05 + 0.03 * k, 0.06 + 0.03 * k, berry), ball("b2", p, 0.16, -0.09, 0.05 + 0.03 * k, 0.06 + 0.03 * k, berry), ball("b3", p, 0.02, -0.04, 0.06 + 0.03 * k, 0.07 + 0.03 * k, berry)];
+    return [...bush, ball("r1", p, -0.18, -0.07, 0.05 + 0.03 * k, 0.06 + 0.03 * k, berry), ball("r2", p, 0.16, -0.09, 0.05 + 0.03 * k, 0.06 + 0.03 * k, berry), ball("r3", p, 0.02, -0.04, 0.06 + 0.03 * k, 0.07 + 0.03 * k, berry)];
   }
   if (crop === "tomato") {
     if (step === "sprout") return sprout;
@@ -313,8 +313,8 @@ export const PlantView = memo(function PlantView({
     look.step === "seed"
       ? [
           mound(p),
-          <View key="seeds" style={[styles.abs, { left: -0.16 * scale, top: -0.24 * scale }]}>
-            <SeedCluster crop={kind} size={0.32 * scale} />
+          <View key="seeds" style={[styles.abs, { left: -0.12 * scale, top: -0.15 * scale }]}>
+            <SeedCluster crop={kind} size={0.24 * scale} />
           </View>,
         ]
       : look.step === "ripe"
