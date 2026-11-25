@@ -7,11 +7,12 @@ import { PanResponder, StyleSheet, View } from "react-native";
 import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import type { Size } from "@/lib/games/fit";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
 import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
-const VIEW = GAME_VIEWS.flappy;
+const PHONE_BOARD = { width: GAME_VIEWS.flappy.size, height: 700 };
 const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
 const CLOUDS = [
@@ -48,6 +49,7 @@ const Bird = ({ state, look: wanted }: { state: FlappyState; look: Look | null }
   const box = look ? HEAD : size + 6;
   return (
     <View
+      testID="flappy-bird"
       style={[
         styles.bird,
         {
@@ -127,7 +129,8 @@ export const FlappyGame = ({
   const session = useGameSession<FlappyState>("flappy");
   const look = useGameLook("flappy");
   const { run, setRun, phase } = session;
-  const { width, height } = VIEW;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
   const scene = run ?? preview;
@@ -163,7 +166,8 @@ export const FlappyGame = ({
       ink={c.eye}
       session={session}
       score={run?.score ?? 0}
-      view={VIEW}
+      world={run ? { width: run.width, height: run.height } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}
       startExtra={

@@ -10,7 +10,7 @@ import type { Size } from "@/lib/games/fit";
 import { GAME_VIEWS } from "@/lib/games/playArea";
 
 const c = fixedColours.games.shooter;
-const VIEW = GAME_VIEWS.shooter;
+const PHONE_BOARD = { width: 390, height: GAME_VIEWS.shooter.size };
 /** Arrow keys move the plane this many points a second. */
 const KEY_SPEED = 340;
 
@@ -43,7 +43,7 @@ const Stars = memo(function Stars({ width, height }: Size) {
 const Plane = ({ x, y }: { x: number; y: number }) => {
   const s = SHOOTER.planeSize;
   return (
-    <View style={[styles.entity, { width: s, height: s }, at(x, y, s)]} pointerEvents="none">
+    <View testID="shooter-plane" style={[styles.entity, { width: s, height: s }, at(x, y, s)]} pointerEvents="none">
       <View style={[styles.wings, { backgroundColor: c.wing }]} />
       <View style={[styles.fuselage, { backgroundColor: c.plane }]} />
       <View style={[styles.tail, { backgroundColor: c.wing }]} />
@@ -102,7 +102,9 @@ export const ShooterGame = ({
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
-  const { width, height } = VIEW;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
+  const world = run ? { width: run.width, height: run.height } : board;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
   const [scale, setScale] = useState(1);
   const latest = useLatest({ session, width, height, scale });
@@ -160,7 +162,8 @@ export const ShooterGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      view={VIEW}
+      world={world}
+      onBoard={setBoard}
       onScale={setScale}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Touch and drag", "press an arrow key")}
@@ -168,7 +171,7 @@ export const ShooterGame = ({
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      <Stars width={width} height={height} />
+      <Stars width={world?.width ?? width} height={world?.height ?? height} />
       <Scene state={run ?? preview} />
     </GameFrame>
   );

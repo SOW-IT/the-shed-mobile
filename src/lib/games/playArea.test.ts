@@ -1,53 +1,80 @@
 import { describe, expect, test } from "vitest";
-import { GAME_IDS } from "../../../shared/games";
-import { fitPlayArea, GAME_VIEWS } from "./playArea";
+import { GAME_IDS, type GameId } from "../../../shared/games";
+import { fitPlayArea, GAME_VIEWS, idealBoard } from "./playArea";
 
 const CHROME = 53;
-const SCREENS = {
-  phone: { width: 390, height: 844 },
-  smallPhone: { width: 320, height: 568 },
-  tablet: { width: 768, height: 1024 },
-  desktop: { width: 1440, height: 900 },
+
+type Device = { width: number; height: number; top: number; bottom: number; touch: boolean };
+
+const DEVICES: Record<string, Device> = {
+  "iPhone SE": { width: 375, height: 667, top: 20, bottom: 0, touch: true },
+  "iPhone 15": { width: 393, height: 852, top: 59, bottom: 34, touch: true },
+  "tall Android": { width: 412, height: 960, top: 24, bottom: 24, touch: true },
+  "iPad portrait": { width: 768, height: 1024, top: 24, bottom: 20, touch: true },
+  desktop: { width: 1440, height: 900, top: 0, bottom: 0, touch: false },
 };
-const SIDEWAYS = new Set(["runner", "glider"]);
 
-const roomFor = (game: string, screen: { width: number; height: number }) =>
-  SIDEWAYS.has(game) && screen.height > screen.width ? { width: screen.height, height: screen.width } : screen;
+const SIDEWAYS: readonly GameId[] = ["runner", "glider"];
 
-describe("every game shows the same phone-shaped view on every screen, only bigger or smaller", () => {
-  test.each(GAME_IDS)("%s fits inside each screen, fills it one way, and is centred with even borders", (game) => {
-    const view = GAME_VIEWS[game];
-    for (const [name, screen] of Object.entries(SCREENS)) {
-      const room = roomFor(game, screen);
-      const area = fitPlayArea(room, view, CHROME);
-      expect(area.width, name).toBeLessThanOrEqual(room.width + 1e-6);
-      expect(area.height, name).toBeLessThanOrEqual(room.height + 1e-6);
-      const fillsAcross = Math.abs(area.width - room.width) < 1e-6;
-      const fillsDown = Math.abs(area.height - room.height) < 1e-6;
-      expect(fillsAcross || fillsDown, name).toBe(true);
-      expect(area.left).toBeCloseTo((room.width - area.width) / 2);
-      expect(area.top).toBeCloseTo((room.height - area.height) / 2);
-      expect(area.left).toBeGreaterThanOrEqual(-1e-6);
-      expect(area.top).toBeGreaterThanOrEqual(-1e-6);
-      expect((area.height - CHROME) / area.width).toBeCloseTo(view.height / view.width);
+const roomOn = (game: GameId, device: Device) => {
+  const tall = device.height - device.top - device.bottom;
+  return SIDEWAYS.includes(game) && device.touch ? { width: tall, height: device.width } : { width: device.width, height: tall };
+};
+
+const layout = (game: GameId, device: Device) => {
+  const room = roomOn(game, device);
+  const board = idealBoard(room, CHROME, GAME_VIEWS[game]);
+  const area = fitPlayArea(room, board, CHROME);
+  const bordered = area.width < room.width - 1 || area.height < room.height - 1;
+  return { room, board, area, bordered };
+};
+
+const BORDERED: Record<GameId, readonly string[]> = {
+  flappy: ["desktop"],
+  shooter: ["iPad portrait", "desktop"],
+  runner: [],
+  glider: [],
+};
+
+describe("each game shows the same distance ahead on every screen, only bigger or smaller", () => {
+  test.each(GAME_IDS)("%s keeps its look-ahead axis the same on every device", (game) => {
+    const rule = GAME_VIEWS[game];
+    for (const [name, device] of Object.entries(DEVICES)) {
+      const { board } = layout(game, device);
+      expect(rule.locked === "width" ? board.width : board.height, name).toBe(rule.size);
     }
   });
 
-  test("a bigger screen scales the same view up, and a small phone scales it down instead of cutting the view ahead", () => {
-    for (const game of GAME_IDS) {
-      const view = GAME_VIEWS[game];
-      const scales = Object.fromEntries(
-        Object.entries(SCREENS).map(([name, screen]) => [name, fitPlayArea(roomFor(game, screen), view, CHROME).scale])
-      );
-      expect(scales.smallPhone).toBeLessThan(1);
-      expect(scales.tablet).toBeGreaterThan(scales.phone);
-      expect(scales.desktop).toBeGreaterThan(scales.phone);
-      expect(scales.phone).toBeGreaterThan(0.9);
-      expect(scales.phone).toBeLessThan(1.15);
+  test.each(GAME_IDS)("%s fills phones and tablets in its range, and has black borders only outside it", (game) => {
+    for (const [name, device] of Object.entries(DEVICES)) {
+      const { room, area, bordered } = layout(game, device);
+      expect(bordered, name).toBe(BORDERED[game].includes(name));
+      expect(area.width).toBeLessThanOrEqual(room.width + 1e-6);
+      expect(area.height).toBeLessThanOrEqual(room.height + 1e-6);
+      expect(area.left).toBeCloseTo((room.width - area.width) / 2);
+      expect(area.top).toBeCloseTo((room.height - area.height) / 2);
     }
+  });
+
+  test("an iPhone 15 shows what it showed before 2.13.4", () => {
+    const phone = DEVICES["iPhone 15"];
+    expect(Math.abs(layout("flappy", phone).board.height - 703)).toBeLessThan(6);
+    expect(layout("shooter", phone).board.width).toBeCloseTo(393, -1);
+    expect(layout("runner", phone).board.height).toBeCloseTo(340, -1);
+    for (const game of GAME_IDS) expect(layout(game, phone).area.scale).toBeCloseTo(1, 1);
+  });
+
+  test("a bigger screen draws everything bigger, by the look-ahead axis, and a small phone smaller", () => {
+    for (const game of GAME_IDS) {
+      const scales = Object.fromEntries(Object.entries(DEVICES).map(([name, device]) => [name, layout(game, device).area.scale]));
+      expect(scales["iPad portrait"]).toBeGreaterThan(scales["iPhone 15"]);
+      expect(scales.desktop).toBeGreaterThan(scales["iPhone 15"]);
+      expect(scales["iPhone SE"]).toBeLessThan(scales["iPhone 15"]);
+    }
+    expect(layout("runner", DEVICES.desktop).area.scale).toBeCloseTo(1440 / GAME_VIEWS.runner.size);
   });
 
   test("before anything is measured there is no area to draw", () => {
-    expect(fitPlayArea({ width: 0, height: 0 }, GAME_VIEWS.flappy, CHROME).scale).toBe(0);
+    expect(fitPlayArea({ width: 0, height: 0 }, { width: 390, height: 700 }, CHROME).scale).toBe(0);
   });
 });

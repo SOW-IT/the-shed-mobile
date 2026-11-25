@@ -577,7 +577,7 @@ describe("the camera", () => {
 
   test("keeps the hills under the bird in view however high it flies, even before it has caught up", () => {
     const top = highestFlight();
-    for (const aspect of [0.46, 1, 2, 2.4]) {
+    for (const aspect of [1.25, 1.6, 2, 2.35]) {
       for (const world of [1, 6]) {
         const hills = worldHills(4, world, 0);
         for (let x = 0; x < hills.at(-1)!.x; x += 337) {
@@ -613,10 +613,11 @@ describe("the camera", () => {
     expect(cameraTarget({ ...low, y: 1e6 }).zoom).toBe(VIEW.minZoom);
   });
 
-  test("shows more across on a wide board, and at least its least on a narrow one", () => {
-    expect(viewSize(2, 1)).toEqual({ width: VIEW.height * 2, height: VIEW.height });
-    expect(viewSize(0.5, 1).width).toBeCloseTo(VIEW.minWidth, 6);
-    expect(viewSize(2, 0.5).height).toBe(VIEW.height * 2);
+  test("shows the same distance ahead on every board, and more sky and ground on a taller one", () => {
+    for (const aspect of [1.25, 1.6, 2, 2.35]) expect(viewSize(aspect, 1).width).toBe(VIEW.width);
+    expect(viewSize(1.25, 1).height).toBeGreaterThan(viewSize(2.35, 1).height);
+    expect(viewSize(760 / 334, 1).height).toBeCloseTo(440, -1);
+    expect(viewSize(2, 0.5)).toEqual({ width: VIEW.width * 2, height: VIEW.width });
   });
 });
 

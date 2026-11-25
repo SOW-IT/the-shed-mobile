@@ -24,10 +24,11 @@ import type { Look } from "@shared/world";
 import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import type { Size } from "@/lib/games/fit";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.runner;
-const VIEW = GAME_VIEWS.runner;
+const PHONE_BOARD = { width: GAME_VIEWS.runner.size, height: 340 };
 const GROUND = 48;
 /**
  * A touch moving this far up or down is a swipe. Short, so the big jump and
@@ -187,14 +188,16 @@ export const RunnerGame = ({
   const look = useGameLook("runner");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const { width, height } = VIEW;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
+  const [runHeight, setRunHeight] = useState(PHONE_BOARD.height);
   const previewKey = previewKinds?.join(",") ?? "";
   const preview = useMemo(
     () => (previewKey ? previewWith(width, previewKey.split(",") as PatternKind[]) : newRunner(width, 1)),
     [width, previewKey]
   );
   const inputOn = active && !session.paused;
-  const latest = useLatest({ session, width, turned, inputOn, startScore });
+  const latest = useLatest({ session, width, height, turned, inputOn, startScore });
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepRunner)));
 
@@ -203,6 +206,7 @@ export const RunnerGame = ({
     const { session: current, width: w } = latest.current;
     if (current.phase === "ready") {
       if (w > 0) {
+        setRunHeight(latest.current.height);
         const from = latest.current.startScore;
         current.begin(from ? runnerAt(w, newSeed(), from) : newRunner(w, newSeed()), !!from);
       }
@@ -280,7 +284,8 @@ export const RunnerGame = ({
       background={c.sky}
       session={session}
       score={run?.score ?? 0}
-      view={VIEW}
+      world={run ? { width: run.width, height: runHeight } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -296,7 +301,7 @@ export const RunnerGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      <Scene state={run ?? preview} height={height} look={look} />
+      <Scene state={run ?? preview} height={run ? runHeight : height} look={look} />
     </GameFrame>
   );
   return (

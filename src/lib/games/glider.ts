@@ -53,16 +53,13 @@ export const GLIDER = {
 
 /** The camera: what part of the world is on screen. */
 export const VIEW = {
-  /** World units shown top to bottom at the closest zoom. */
-  height: 440,
-  /** At least this many shown across, on a narrow board. */
-  minWidth: 640,
+  width: 1000,
   /** The bird sits this share of the view in from the left. */
   lead: 0.3,
   /** Room kept above the bird and below the lowest ground in view. */
   margin: 60,
   footing: 20,
-  minZoom: 0.17,
+  minZoom: 0.16,
   /** How quickly the camera catches up, each second. */
   rate: 5,
 } as const;
@@ -372,8 +369,8 @@ const hillsFrom = (seed: number, world: number, start: number) => {
 
 /** What the camera would show around the bird: a wider view when it flies high. */
 export const viewSize = (aspect: number, zoom: number) => {
-  const height = Math.max(VIEW.height, VIEW.minWidth / Math.max(0.1, aspect)) / zoom;
-  return { width: height * aspect, height };
+  const width = VIEW.width / zoom;
+  return { width, height: width / Math.max(0.1, aspect) };
 };
 
 export const highestFlight = () => {

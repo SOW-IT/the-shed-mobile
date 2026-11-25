@@ -1,5 +1,6 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import type { Size } from "@/lib/games/fit";
 import {
   colourAt,
   blend,
@@ -28,7 +29,8 @@ import type { LeaveGuard } from "./GameFrame";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.glider;
-const VIEW = GAME_VIEWS.glider;
+const BOARD_WIDTH = GAME_VIEWS.glider.size;
+const PHONE_BOARD = { width: BOARD_WIDTH, height: 334 };
 const HOLD_KEYS = new Set([" ", "ArrowDown", "s", "S"]);
 const START_HINT =
   Platform.OS === "web" ? "Hold the screen, or space, to start. Hold to dive, let go to fly." : "Hold to start.";
@@ -351,7 +353,8 @@ export const GliderGame = ({
   const look = useGameLook("glider");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const { width, height } = VIEW;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
   const aspect = width / height;
   const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect)), [scene, aspect]);
   const inputOn = active && !session.paused;
@@ -411,7 +414,8 @@ export const GliderGame = ({
       statusBar={dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
-      view={VIEW}
+      world={run ? { width: BOARD_WIDTH, height: BOARD_WIDTH / run.aspect } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -430,7 +434,7 @@ export const GliderGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      <Scene state={shown} width={width} height={height} look={look} />
+      <Scene state={shown} width={BOARD_WIDTH} height={BOARD_WIDTH / shown.aspect} look={look} />
     </GameFrame>
   );
   return (

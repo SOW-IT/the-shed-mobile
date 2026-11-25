@@ -32,7 +32,7 @@ import {
 } from "./runner";
 
 const FRAME = 1 / 60;
-const PHONE_BOARD = GAME_VIEWS.runner.width;
+const PHONE_BOARD = GAME_VIEWS.runner.size;
 const KINDS: readonly PatternKind[] = ["rock", "tall", "wide", "double", "beam", "hang"];
 const DUCKS: readonly PatternKind[] = ["beam", "hang"];
 

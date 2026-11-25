@@ -8,7 +8,7 @@ import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
 import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
 import { groundLine, type Size } from "@/lib/games/fit";
-import { fitPlayArea } from "@/lib/games/playArea";
+import { fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -185,7 +185,8 @@ export const GameFrame = ({
   ink = g.text,
   session,
   score,
-  view,
+  world,
+  onBoard,
   onScale,
   stageHandlers,
   startHint,
@@ -208,7 +209,8 @@ export const GameFrame = ({
   ink?: string;
   session: GameSession;
   score: number;
-  view: Size;
+  world: Size | null;
+  onBoard: (board: Size) => void;
   onScale?: (scale: number) => void;
   stageHandlers?: GestureResponderHandlers;
   startHint: string;
@@ -269,7 +271,14 @@ export const GameFrame = ({
     setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
     onOwnStageLayout(event);
   };
-  const area = room && chrome ? fitPlayArea(room, view, chrome.height) : null;
+  const ideal = room && chrome ? idealBoard(room, chrome.height, GAME_VIEWS[game]) : null;
+  const idealWidth = ideal?.width ?? 0;
+  const idealHeight = ideal?.height ?? 0;
+  useEffect(() => {
+    if (idealWidth > 0) onBoard({ width: idealWidth, height: idealHeight });
+  }, [idealWidth, idealHeight, onBoard]);
+  const shown = world ?? ideal;
+  const area = room && chrome && shown ? fitPlayArea(room, shown, chrome.height) : null;
   const scale = area?.scale ?? 1;
   const measured = area !== null;
   useEffect(() => {
@@ -277,8 +286,18 @@ export const GameFrame = ({
   }, [measured, scale, onScale]);
   const short = stage !== null && stage.height < SHORT_STAGE;
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
-  const shownHeight = view.height * scale;
-  const groundAt = ground && area && stageBox ? groundLine(stageBox, shownHeight, ground.top, scale) : null;
+  const groundAt = ground && shown && stageBox ? groundLine(stageBox, shown.height, ground.top, 1) : null;
+  const content =
+    area && shown && chrome
+      ? {
+          position: "absolute" as const,
+          width: shown.width,
+          height: shown.height + chrome.height,
+          left: (area.width - shown.width) / 2,
+          top: (area.height - shown.height - chrome.height) / 2,
+          transform: [{ scale }],
+        }
+      : StyleSheet.absoluteFill;
   const info = GAME_INFO[game];
   const newBest = result !== null && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
@@ -311,7 +330,7 @@ export const GameFrame = ({
   ) : null;
   return (
     <Frame insets={insets} style={[styles.screen, { backgroundColor: g.letterbox }]}>
-      <View style={StyleSheet.absoluteFill} onLayout={onRoomLayout} pointerEvents="none" />
+      <View style={styles.room} onLayout={onRoomLayout}>
       <View
         testID="game-play-area"
         style={[
@@ -320,10 +339,11 @@ export const GameFrame = ({
           area ? { left: area.left, top: area.top, width: area.width, height: area.height } : styles.areaMeasuring,
         ]}
       >
+      <View style={content}>
       {ground && groundAt !== null ? (
         <View pointerEvents="none" style={[styles.ground, { top: groundAt, backgroundColor: ground.colour }]}>
           {ground.band ? (
-            <View style={{ height: ground.band.height * scale, backgroundColor: ground.band.colour }} />
+            <View style={{ height: ground.band.height, backgroundColor: ground.band.colour }} />
           ) : null}
         </View>
       ) : null}
@@ -352,28 +372,13 @@ export const GameFrame = ({
       {underBar}
       </View>
       <View style={styles.stage} onLayout={onLayout} {...stageHandlers}>
-        {area ? (
+        {area && shown ? (
           <View
-            style={[styles.board, { width: view.width * scale, height: view.height * scale, backgroundColor: background }]}
+            testID="game-board"
+            style={[styles.board, { width: shown.width, height: shown.height, backgroundColor: background }]}
             pointerEvents="box-none"
           >
-            {scale !== 1 ? (
-              <View
-                pointerEvents="box-none"
-                style={{
-                  position: "absolute",
-                  width: view.width,
-                  height: view.height,
-                  left: (view.width * scale - view.width) / 2,
-                  top: (view.height * scale - view.height) / 2,
-                  transform: [{ scale }],
-                }}
-              >
-                {children}
-              </View>
-            ) : (
-              children
-            )}
+            {children}
           </View>
         ) : null}
         {phase === "ready" && !hideStartCard ? (
@@ -406,6 +411,8 @@ export const GameFrame = ({
             </View>
           )
         ) : null}
+      </View>
+      </View>
       </View>
       </View>
       <OnlineBanner />
@@ -444,6 +451,7 @@ export const startHintFor = (touch: string, keys: string) =>
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  room: { flex: 1 },
   area: { position: "absolute", overflow: "hidden" },
   areaMeasuring: { left: 0, top: 0, right: 0, bottom: 0, opacity: 0 },
   bar: {
