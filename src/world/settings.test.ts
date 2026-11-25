@@ -27,48 +27,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("a new device starts with times and ping off, initials, motion following the phone, every tag, and short card names", async () => {
+test("a new device starts with times and ping off, motion following the phone, every tag, and names as Daniel K.", async () => {
   const { WORLD_SETTINGS } = await fresh();
   expect(WORLD_SETTINGS.chatTimes.get()).toBe("off");
-  expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
   expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
   expect(WORLD_SETTINGS.motion.get()).toBe("auto");
   expect(WORLD_SETTINGS.nameTags.get()).toBe("all");
-  expect(WORLD_SETTINGS.cardNames.get()).toBe("short");
+  expect(WORLD_SETTINGS.names.get()).toBe("short");
   expect(saved.size).toBe(0);
 });
 
 test("each choice is saved on this device and comes back next time", async () => {
   const first = await fresh();
   first.WORLD_SETTINGS.chatTimes.set("on");
-  first.WORLD_SETTINGS.chatNames.set("first");
   first.WORLD_SETTINGS.pingMs.set("on");
   first.WORLD_SETTINGS.motion.set("saver");
   first.WORLD_SETTINGS.nameTags.set("near");
-  first.WORLD_SETTINGS.cardNames.set("full");
+  first.WORLD_SETTINGS.names.set("full");
   expect(Object.fromEntries(saved)).toEqual({
     worldChatTimes: "on",
-    worldChatNames: "first",
     worldPingMs: "on",
     worldMotion: "saver",
     worldNameTags: "near",
-    worldCardNames: "full",
+    worldNames: "full",
   });
   const next = await fresh(Object.fromEntries(saved));
   expect(next.WORLD_SETTINGS.chatTimes.get()).toBe("on");
-  expect(next.WORLD_SETTINGS.chatNames.get()).toBe("first");
   expect(next.WORLD_SETTINGS.pingMs.get()).toBe("on");
   expect(next.WORLD_SETTINGS.motion.get()).toBe("saver");
   expect(next.WORLD_SETTINGS.nameTags.get()).toBe("near");
-  expect(next.WORLD_SETTINGS.cardNames.get()).toBe("full");
+  expect(next.WORLD_SETTINGS.names.get()).toBe("full");
 });
 
 test("anything else saved under a key is ignored", async () => {
-  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "nickname", worldPingMs: "maybe", worldMotion: "fast", worldCardNames: "nickname" });
-  expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
-  expect(WORLD_SETTINGS.cardNames.get()).toBe("short");
+  const { WORLD_SETTINGS } = await fresh({ worldNames: "nickname", worldPingMs: "maybe", worldMotion: "fast" });
+  expect(WORLD_SETTINGS.names.get()).toBe("short");
   expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
   expect(WORLD_SETTINGS.motion.get()).toBe("auto");
+});
+
+test("an old First name chat choice becomes Daniel K., and nothing old leaves the default", async () => {
+  const first = await fresh({ worldChatNames: "first" });
+  expect(first.WORLD_SETTINGS.names.get()).toBe("short");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "short" });
+  const odd = await fresh({ worldChatNames: "nickname", worldCardNames: "nickname" });
+  expect(odd.WORLD_SETTINGS.names.get()).toBe("short");
+  expect(saved.size).toBe(0);
+});
+
+test("an old chat names choice is carried over once, then the old keys are gone", async () => {
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "initials" });
+  expect(WORLD_SETTINGS.names.get()).toBe("initials");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "initials" });
+  const next = await fresh(Object.fromEntries(saved));
+  expect(next.WORLD_SETTINGS.names.get()).toBe("initials");
+});
+
+test("both old settings saved: the player names one wins", async () => {
+  const initials = await fresh({ worldChatNames: "first", worldCardNames: "initials" });
+  expect(initials.WORLD_SETTINGS.names.get()).toBe("initials");
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "first", worldCardNames: "full" });
+  expect(WORLD_SETTINGS.names.get()).toBe("full");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "full" });
+});
+
+test("a Names choice already saved is kept, and the old keys are cleared", async () => {
+  const { WORLD_SETTINGS } = await fresh({ worldNames: "full", worldChatNames: "initials" });
+  expect(WORLD_SETTINGS.names.get()).toBe("full");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "full" });
 });
 
 test("battery saver follows Reduce Motion until it's set by hand", async () => {

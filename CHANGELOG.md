@@ -17,16 +17,20 @@ All notable changes to **The SHED** mobile app. This project follows
   push, such as "Daniel Kim just beat you in Flap" with "You're now 3rd" or
   "You're out of the top 3". Tapping it opens that game's leaderboard. An
   equal score doesn't count as passing you.
-- **Player names setting in the World.** Settings in the World's top-left
-  menu has a Player names choice for the name tags over people, the People
-  list, a person's card, invites, asks and rock paper scissors: initials
-  ("DK"), first name and last initial ("Daniel K.", as before) or the full
-  name ("Daniel Kim"). The choices show your own name. It's saved on this
-  device and changes only what you see.
+- **One Names setting in the World.** Settings in the World's top-left
+  menu has Names, shown with your own name: initials ("DK"), first name and
+  last initial ("Daniel K.") or the full name ("Daniel Kim"). It covers
+  everywhere the World shows a person: name tags, the chat log, the People
+  list, a person's card, invites, asks and rock paper scissors. It replaces
+  Chat names: if you had picked Initials there you get DK, First name gives
+  Daniel K., and otherwise it starts at Daniel K. It's saved on this device
+  and changes only what you see.
 
 ### Changed
 - **Leaderboards show full names again**, such as "Daniel Kim", whatever the
-  World's Player names setting is. 2.12.47 had shortened them to "Daniel K.".
+  World's Names setting is. 2.12.47 had shortened them to "Daniel K.".
+- **A high five in the World is quicker**, about 1.75 seconds instead of 2.6,
+  with the same reach, slap and step back.
 
 ## [2.12.50] - 2026-11-25
 

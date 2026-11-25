@@ -25,7 +25,7 @@ export const fullName = (name: string): string => wordsOf(name).join(" ") || "So
 
 export const NAME_STYLES = ["initials", "short", "full"] as const;
 
-type NameStyle = (typeof NAME_STYLES)[number];
+export type NameStyle = (typeof NAME_STYLES)[number];
 
 export const styledName = (name: string, style: NameStyle): string =>
   style === "initials" ? initials(name) : style === "full" ? fullName(name) : shortName(name);

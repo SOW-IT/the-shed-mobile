@@ -1,15 +1,14 @@
 import { fonts } from "@/theme";
 import { type Look } from "@shared/world";
-import { shortName } from "@shared/names";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Bust, usePresence } from "./Overlays";
 import { hud } from "./palette";
-import { useCardName } from "./settings";
+import { useWorldName } from "./settings";
 
 export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
   const [answer, setAnswer] = useState<"go" | "later" | null>(null);
-  const cardName = useCardName();
+  const worldName = useWorldName();
   const { mounted, shown: pop, calm } = usePresence(answer === null);
   const fired = useRef(false);
   useEffect(() => {
@@ -30,11 +29,11 @@ export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: 
         <Bust look={look} size={40} />
         <Text style={styles.house}>🏠</Text>
         <Text style={styles.text} numberOfLines={2}>
-          {`${cardName(name)} invited you home`}
+          {`${worldName(name)} invited you home`}
         </Text>
       </View>
       <View style={styles.row}>
-        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${shortName(name)}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
+        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${worldName(name)}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
           <Text style={styles.goText}>Go</Text>
         </Pressable>
         <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID="world-invite-later" style={({ pressed }) => [styles.later, pressed && styles.pressed]}>

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { styledName } from "@shared/names";
-import { chatName } from "./chatFormat";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock, WifiBars } from "./Overlays";
 import { glass, hud } from "./palette";
 import { saverOn, useWorldSetting, type WorldSettingKey, type WorldSettingValue } from "./settings";
@@ -84,7 +83,7 @@ const StackedRow = ({ icon, title, children, style }: { icon: string; title: str
 const SAMPLE_TIME = "[2:15 PM]";
 
 export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; top: number; myName: string; onClose: () => void }) => {
-  const overlay = useOverlayClock(open, 7);
+  const overlay = useOverlayClock(open, 6);
   const { width, height } = useWindowDimensions();
   const [times, setTimes] = useWorldSetting("chatTimes");
   const [ping, setPing] = useWorldSetting("pingMs");
@@ -118,27 +117,17 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
           <Row icon="🕑" title="Chat times" note={times === "on" ? SAMPLE_TIME : undefined} style={itemStyle(overlay, 1)}>
             <Toggle on={times === "on"} label="Chat times" onChange={(on) => setTimes(on ? "on" : "off")} testID="world-setting-chatTimes" />
           </Row>
-          <Row icon="💬" title="Chat names" style={itemStyle(overlay, 2)}>
-            <Choice
-              setting="chatNames"
-              label="Chat names"
-              options={[
-                { value: "initials", text: chatName(name, "initials"), hint: "Initials" },
-                { value: "first", text: chatName(name, "first"), hint: "First name and initial" },
-              ]}
-            />
-          </Row>
-          <Row icon="📶" title="Ping" style={itemStyle(overlay, 3)}>
+          <Row icon="📶" title="Ping" style={itemStyle(overlay, 2)}>
             <View style={styles.pingSample}>
               {ping === "on" ? <Text style={styles.pingMs}>42 ms</Text> : null}
               <WifiBars bars={4} size={18} off={glass.row} />
             </View>
             <Toggle on={ping === "on"} label="Show ping in milliseconds" onChange={(on) => setPing(on ? "on" : "off")} testID="world-setting-pingMs" />
           </Row>
-          <Row icon="🔋" title="Battery saver" note={motion === "auto" && systemReduce ? "On with Reduce Motion" : "Fewer animations"} style={itemStyle(overlay, 4)}>
+          <Row icon="🔋" title="Battery saver" note={motion === "auto" && systemReduce ? "On with Reduce Motion" : "Fewer animations"} style={itemStyle(overlay, 3)}>
             <Toggle on={saver} label="Battery saver" onChange={(on) => setMotion(on ? "saver" : "full")} testID="world-setting-motion" />
           </Row>
-          <Row icon="🏷️" title="Name tags" style={itemStyle(overlay, 5)}>
+          <Row icon="🏷️" title="Name tags" style={itemStyle(overlay, 4)}>
             <Choice
               setting="nameTags"
               label="Name tags"
@@ -148,10 +137,10 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
               ]}
             />
           </Row>
-          <StackedRow icon="🪪" title="Player names" style={itemStyle(overlay, 6)}>
+          <StackedRow icon="🪪" title="Names" style={itemStyle(overlay, 5)}>
             <Choice
-              setting="cardNames"
-              label="Player names"
+              setting="names"
+              label="Names"
               fill
               options={[
                 { value: "initials", text: styledName(name, "initials"), hint: "Initials" },

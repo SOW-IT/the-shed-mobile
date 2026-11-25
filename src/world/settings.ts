@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { useReducedMotion } from "react-native-reanimated";
-import { storedValue } from "../lib/deviceStorage";
-import { NAME_STYLES, styledName } from "../../shared/names";
+import { readStored, removeStored, storedValue } from "../lib/deviceStorage";
+import { NAME_STYLES, styledName, type NameStyle } from "../../shared/names";
 
 const choice = <T extends string>(key: string, values: readonly T[], initial: T) => {
   const store = storedValue<T>({
@@ -13,13 +13,40 @@ const choice = <T extends string>(key: string, values: readonly T[], initial: T)
   return { ...store, values, initial };
 };
 
+const OLD_NAME_KEYS = { players: "worldCardNames", chat: "worldChatNames" };
+
+const namesFromOld = (players: string | null, chat: string | null): NameStyle | null => {
+  if (NAME_STYLES.includes(players as NameStyle)) return players as NameStyle;
+  if (chat === "initials") return "initials";
+  if (chat === "first") return "short";
+  return null;
+};
+
+const namesChoice = () => {
+  const store = choice("worldNames", NAME_STYLES, "short");
+  let checked = false;
+  const carryOver = async () => {
+    const [current, players, chat] = await Promise.all([readStored("worldNames"), readStored(OLD_NAME_KEYS.players), readStored(OLD_NAME_KEYS.chat)]);
+    const old = current === null ? namesFromOld(players, chat) : null;
+    if (old) store.set(old);
+    if (players !== null || chat !== null) await Promise.all([removeStored(OLD_NAME_KEYS.players), removeStored(OLD_NAME_KEYS.chat)]);
+  };
+  const subscribe = (listener: () => void) => {
+    if (!checked) {
+      checked = true;
+      void carryOver();
+    }
+    return store.subscribe(listener);
+  };
+  return { ...store, subscribe };
+};
+
 export const WORLD_SETTINGS = {
   chatTimes: choice("worldChatTimes", ["off", "on"] as const, "off"),
-  chatNames: choice("worldChatNames", ["initials", "first"] as const, "initials"),
   pingMs: choice("worldPingMs", ["off", "on"] as const, "off"),
   motion: choice("worldMotion", ["auto", "full", "saver"] as const, "auto"),
   nameTags: choice("worldNameTags", ["all", "near"] as const, "all"),
-  cardNames: choice("worldCardNames", NAME_STYLES, "short"),
+  names: namesChoice(),
 };
 
 export type WorldSettingKey = keyof typeof WORLD_SETTINGS;
@@ -39,8 +66,8 @@ export const useBatterySaver = () => {
   return saverOn(motion, useReducedMotion());
 };
 
-export const useCardName = () => {
-  const [style] = useWorldSetting("cardNames");
+export const useWorldName = () => {
+  const [style] = useWorldSetting("names");
   return useCallback((name: string) => styledName(name, style), [style]);
 };
 

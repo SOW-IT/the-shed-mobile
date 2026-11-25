@@ -43,7 +43,7 @@ import { pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
 import { SettingsPanel } from "./SettingsPanel";
-import { useCardName, useWorldSetting } from "./settings";
+import { useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
@@ -53,7 +53,6 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { shortName } from "@shared/names";
 
 const useScreenReader = () => {
   const [on, setOn] = useState(false);
@@ -295,7 +294,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
-  const cardName = useCardName();
+  const worldName = useWorldName();
   const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
 
@@ -334,7 +333,7 @@ export const WorldScreen = ({
   };
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   // How the selected person is named in the action hints: first name and last initial.
-  const selectedName = selected ? shortName(selected.name) : "";
+  const selectedName = selected ? worldName(selected.name) : "";
   if (person !== null && !selected && world.status === "in") setPerson(null);
   const tapped =
     world.people.find((p) => p.memberId === sheet?.memberId) ??
@@ -346,7 +345,7 @@ export const WorldScreen = ({
   };
   const nameOf = (memberId: string) => {
     const full = world.people.find((p) => p.memberId === memberId)?.name;
-    return full ? cardName(full) : "them";
+    return full ? worldName(full) : "them";
   };
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
