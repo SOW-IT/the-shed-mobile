@@ -201,10 +201,12 @@ export const mySharingContext = query({
 });
 
 export const getGroup = query({
-  args: { groupId: v.id("devotionalGroups"), today: v.string() },
+  args: { groupId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
-    const group = await ctx.db.get("devotionalGroups", args.groupId);
+    const groupId = ctx.db.normalizeId("devotionalGroups", args.groupId);
+    if (!groupId) return null;
+    const group = await ctx.db.get("devotionalGroups", groupId);
     if (!group) return null;
     const membership = await membershipOf(ctx, group._id, email);
     if (!membership) return null;
@@ -427,32 +429,33 @@ export const searchInvitableUsers = query({
     }
 
     const queryText = (args.search ?? "").trim().toLowerCase();
-    const candidates = await Promise.all(
-      [...byEmail.entries()].map(async ([candidateEmail, user]) => {
-        const name = await personName(ctx, candidateEmail, user);
-        return { email: candidateEmail, name, user };
-      })
-    );
-
-    const matched = candidates
-      .filter((c) => {
-        if (!queryText) return true;
-        return (
-          c.name.toLowerCase().includes(queryText) ||
-          c.email.toLowerCase().includes(queryText)
-        );
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
+    const matched = [...byEmail.entries()]
+      .map(([candidateEmail, user]) => ({
+        email: candidateEmail,
+        accountName: user.name?.trim() || candidateEmail.split("@")[0],
+        user,
+      }))
+      .filter(
+        (c) => !queryText || c.accountName.toLowerCase().includes(queryText) || c.email.includes(queryText)
+      )
+      .sort((a, b) => a.accountName.localeCompare(b.accountName))
       .slice(0, INVITABLE_RESULT_LIMIT);
 
-    return await Promise.all(
-      matched.map(async (c) => ({
-        email: c.email,
-        name: c.name,
-        photo: await photoFor(ctx, c.user, c.email),
-        status: statusByEmail.get(c.email) ?? ("none" as const),
-      }))
+    const people = await Promise.all(
+      matched.map(async (c) => {
+        const [name, photo] = await Promise.all([
+          personName(ctx, c.email, c.user),
+          photoFor(ctx, c.user, c.email),
+        ]);
+        return {
+          email: c.email,
+          name,
+          photo,
+          status: statusByEmail.get(c.email) ?? ("none" as const),
+        };
+      })
     );
+    return people.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -530,6 +533,7 @@ export const removeGroup = mutation({
         .take(200);
       if (batch.length === 0) break;
       for (const row of batch) {
+        if (row.status === "invited") await markGroupNotificationsRead(ctx, row.email, group._id);
         await ctx.db.delete("devotionalGroupMembers", row._id);
       }
     }
@@ -565,6 +569,10 @@ export const invite = mutation({
     }
     if (existing?.status === "invited") {
       return { alreadyInvited: true };
+    }
+    const [memberRows, inviteRows] = await Promise.all([membersOf(ctx, group._id), invitesOf(ctx, group._id)]);
+    if (memberRows.length + inviteRows.length >= MEMBER_LIMIT) {
+      throw new ConvexError(`A group can have at most ${MEMBER_LIMIT} people.`);
     }
 
     const now = Date.now();
@@ -652,7 +660,9 @@ export const removeMember = mutation({
     const membership = await membershipOf(ctx, group._id, targetEmail);
     if (!membership) throw new ConvexError("Member not found.");
     await ctx.db.delete("devotionalGroupMembers", membership._id);
-    if (membership.status === "member") {
+    if (membership.status === "invited") {
+      await markGroupNotificationsRead(ctx, targetEmail, group._id);
+    } else {
       await ctx.db.patch("devotionalGroups", group._id, {
         memberCount: Math.max(1, group.memberCount - 1),
       });

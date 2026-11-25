@@ -697,3 +697,162 @@ describe("devotional groups", () => {
     await expect(ben.mutation(api.devotionalGroups.leave, { groupId: g2 })).rejects.toThrow(/Group not found/);
   });
 });
+
+describe("devotional group review checks", () => {
+  const LEVELS = ["count", "passage", "everything"] as const;
+
+  test("notes and prayer reach another member only when both levels are Everything", async () => {
+    for (const groupLevel of LEVELS) {
+      for (const personalLevel of [null, ...LEVELS]) {
+        const t = newConvex();
+        await seedUsers(t);
+        const anna = asUser(t, ANNA);
+        const ben = asUser(t, BEN);
+        const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+          name: "Matrix",
+          startDate: "2026-11-01",
+          endDate: "2026-11-30",
+          sharingLevel: groupLevel,
+        });
+        await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+        await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+        if (personalLevel) {
+          await anna.mutation(api.devotionalGroups.setPersonalSharingLevel, { level: personalLevel });
+        }
+        await anna.mutation(api.devotionals.save, {
+          date: "2026-11-25",
+          passage: "Psalm 23",
+          notes: "matrix-notes",
+          prayerPoints: "matrix-prayer",
+          base: null,
+        });
+
+        const effective = personalLevel && LEVELS.indexOf(personalLevel) < LEVELS.indexOf(groupLevel)
+          ? personalLevel
+          : groupLevel;
+        const day = await ben.query(api.devotionalGroups.dayDetail, { groupId, date: "2026-11-25" });
+        const annaRow = day?.members.find((m) => m.email === ANNA);
+        expect(annaRow).toMatchObject({
+          done: true,
+          effectiveLevel: effective,
+          passage: effective === "count" ? null : "Psalm 23",
+          notes: effective === "everything" ? "matrix-notes" : null,
+          prayer: effective === "everything" ? "matrix-prayer" : null,
+        });
+
+        const others = JSON.stringify([
+          await ben.query(api.devotionalGroups.getGroup, { groupId, today: "2026-11-25" }),
+          await ben.query(api.devotionalGroups.mySummary, { today: "2026-11-25" }),
+          await ben.query(api.devotionalGroups.monthProgress, { groupId, year: 2026, month: 11 }),
+        ]);
+        expect(others).not.toMatch(/matrix-notes|matrix-prayer|Psalm 23/);
+      }
+    }
+  });
+
+  test("a broken or foreign group link shows nothing instead of failing", async () => {
+    const t = newConvex();
+    const { annaId } = await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    expect(await anna.query(api.devotionalGroups.getGroup, { groupId: "not-an-id", today: "2026-11-25" })).toBeNull();
+    expect(await anna.query(api.devotionalGroups.getGroup, { groupId: annaId, today: "2026-11-25" })).toBeNull();
+  });
+
+  test("cancelling an invite or deleting the group clears the invitee's unread invite", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const unread = (email: string) =>
+      t.run(async (ctx) =>
+        (await ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", email)).collect()).filter(
+          (n) => !n.read
+        ).length
+      );
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "Cancelled",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "count",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+    expect(await unread(BEN)).toBe(1);
+    await anna.mutation(api.devotionalGroups.removeMember, { groupId, email: BEN });
+    expect(await unread(BEN)).toBe(0);
+    expect(await unread(CARA)).toBe(1);
+    await anna.mutation(api.devotionalGroups.removeGroup, { groupId });
+    expect(await unread(CARA)).toBe(0);
+  });
+
+  test("invite search matches account names and emails and shows the directory name", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "noname@sow.org.au" });
+      await ctx.db.insert("directoryUsers", { email: BEN, name: "Benjamin Jones" });
+    });
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "Search",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "count",
+    });
+    const all = await anna.query(api.devotionalGroups.searchInvitableUsers, { groupId });
+    expect(all.map((p) => p.email)).not.toContain(ANNA);
+    expect(all.find((p) => p.email === BEN)?.name).toBe("Benjamin Jones");
+    expect((await anna.query(api.devotionalGroups.searchInvitableUsers, { groupId, search: "LEE" })).map((p) => p.email)).toEqual([CARA]);
+    expect((await anna.query(api.devotionalGroups.searchInvitableUsers, { groupId, search: "noname" })).map((p) => p.name)).toEqual(["noname"]);
+  });
+
+  test("the 8pm reminder lands once on both daylight saving changeover days", async () => {
+    const cases = [
+      { day: Date.UTC(2026, 3, 5), date: "2026-04-05", sendsAt: 10 },
+      { day: Date.UTC(2026, 9, 4), date: "2026-10-04", sendsAt: 9 },
+    ];
+    for (const { day, date, sendsAt } of cases) {
+      vi.setSystemTime(day + 2 * 3_600_000);
+      const t = newConvex();
+      await seedUsers(t);
+      await asUser(t, ANNA).mutation(api.devotionalGroups.create, {
+        name: "Changeover",
+        startDate: date,
+        endDate: date,
+        sharingLevel: "count",
+      });
+      const results = [];
+      for (const hour of [9, 10]) {
+        vi.setSystemTime(day + hour * 3_600_000 + 60_000);
+        results.push(await t.mutation(internal.devotionalGroups.sendDailyReminders, {}));
+      }
+      expect(results).toEqual(
+        [9, 10].map((hour) => (hour === sendsAt ? { skipped: false, notified: 1 } : { skipped: true, notified: 0 }))
+      );
+      const logs = await t.run((ctx) => ctx.db.query("devotionalReminderLogs").collect());
+      expect(logs.map((l) => `${l.email}:${l.date}`)).toEqual([`${ANNA}:${date}`]);
+    }
+  });
+});
+
+test("a group stops taking invites at 200 people, so no member drops out of its lists", async () => {
+  const t = newConvex();
+  await seedUsers(t);
+  const anna = asUser(t, ANNA);
+  const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+    name: "Full",
+    startDate: "2026-11-01",
+    endDate: "2026-11-30",
+    sharingLevel: "count",
+  });
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 199; i++) {
+      await ctx.db.insert("devotionalGroupMembers", {
+        groupId,
+        email: `person${i}@sow.org.au`,
+        status: i % 2 ? "member" : "invited",
+        invitedAt: i,
+      });
+    }
+  });
+  await expect(anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN })).rejects.toThrow(/at most 200/);
+});

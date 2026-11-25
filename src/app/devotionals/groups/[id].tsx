@@ -9,7 +9,7 @@ export default function DevotionalGroupPage() {
   return (
     <DevotionalGroupScreen
       groupId={(id ?? "") as Id<"devotionalGroups">}
-      onBack={() => backOr(router, "/devotionals")}
+      onBack={() => backOr(router, "/devotionals?tab=groups")}
     />
   );
 }

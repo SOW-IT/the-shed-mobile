@@ -1,5 +1,5 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
-import { Btn, Card, LoadingState, Muted, Screen, Segmented, type ToastState } from "@/components/ui";
+import { Btn, Card, IconButton, LoadingState, Muted, Screen, Segmented, Toast, type ToastState } from "@/components/ui";
 import { useOffline } from "@/hooks/useOffline";
 import {
   getLocalDevotional,
@@ -14,6 +14,16 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { parseBibleReference } from "@shared/bible";
+import {
+  DEVOTIONAL_DEVICE_SAVE_FAILED_TEXT,
+  DEVOTIONAL_SHARING_FAILED_TEXT,
+  devotionalContentChanged,
+  devotionalEditorDirty,
+  devotionalSaveFeedback,
+  pendingSharingLevel,
+  savedSharingLevel,
+  type DevotionalSaveOutcome,
+} from "@shared/devotionalEditor";
 import {
   DEVOTIONAL_SHARING_LEVELS,
   SHARING_LEVEL_LABELS,
@@ -37,7 +47,6 @@ import { api } from "../../../convex/_generated/api";
 import { PassagePicker } from "./PassagePicker";
 
 const PASSAGE_CONTAINER_HEIGHT = 128;
-const CONFLICT_TEXT = "This day was changed on another device. Choose which version to keep.";
 
 const formatHeadingDate = (key: string, today: string) => {
   const [y, m, d] = key.split("-").map(Number);
@@ -76,6 +85,8 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [chosenSharing, setChosenSharing] = useState<DevotionalSharingLevel | null>(null);
 
   const { passage, notes, prayerPoints } = pickDisplayDevotional(localDraft, remote);
 
@@ -84,10 +95,34 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     remote !== undefined ? (remote?.updatedAt ?? null) : localDraft && !localDraft.dirty ? localDraft.base : null;
   const conflict = localDraft?.conflict === true && remote !== undefined ? { theirs: remote } : null;
 
-  const dirtyOnEdit = useRef(false);
-  const latestRef = useRef({ passage, notes, prayerPoints, email, validDate, offline, baseIfNew });
+  const savedSharing = sharingCtx ? savedSharingLevel(sharingCtx.personalLevel, sharingCtx.defaultGroupLevel) : null;
+  const pendingSharing = pendingSharingLevel(chosenSharing, savedSharing);
+  const contentChanged = devotionalContentChanged(localDraft, remote);
+  const dirty = devotionalEditorDirty({ localDraft, remote, pendingSharing });
+
+  const latestRef = useRef({
+    passage,
+    notes,
+    prayerPoints,
+    email,
+    validDate,
+    offline,
+    baseIfNew,
+    contentChanged,
+    pendingSharing,
+  });
   useEffect(() => {
-    latestRef.current = { passage, notes, prayerPoints, email, validDate, offline, baseIfNew };
+    latestRef.current = {
+      passage,
+      notes,
+      prayerPoints,
+      email,
+      validDate,
+      offline,
+      baseIfNew,
+      contentChanged,
+      pendingSharing,
+    };
   });
 
   const parsedPassage = passage.trim().length > 0 ? parseBibleReference(passage) : null;
@@ -96,70 +131,87 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
   const updateContent = (next: { passage: string; notes: string; prayerPoints: string }) => {
     if (!validDate || !email || !canEdit) return;
-    dirtyOnEdit.current = true;
+    setError(null);
     void saveLocalDevotional(email, validDate, next, baseIfNew);
   };
 
+  const syncContent = useCallback(async (): Promise<DevotionalSaveOutcome> => {
+    const latest = latestRef.current;
+    if (!latest.email || !latest.validDate) return { kind: "unchanged" };
+    const checked = validateDevotionalInput({
+      passage: latest.passage,
+      notes: latest.notes,
+      prayerPoints: latest.prayerPoints,
+    });
+    if (!checked.ok) return { kind: "error", message: checked.error };
+    const content = { passage: latest.passage, notes: latest.notes, prayerPoints: latest.prayerPoints };
+    const existingDraft = getLocalDevotional(latest.email, latest.validDate);
+    let draft = existingDraft;
+    let persisted: boolean;
+    if (!draft || !sameDevotionalContent(draft, content)) {
+      const stored = await saveLocalDevotional(latest.email, latest.validDate, content, latest.baseIfNew);
+      draft = stored.draft;
+      persisted = stored.persisted;
+    } else {
+      persisted = await persistLocalDevotionals(latest.email);
+    }
+    if (!draft.dirty) return { kind: "unchanged" };
+    if (draft.conflict) return { kind: "conflict" };
+    const notSavedOnline: DevotionalSaveOutcome = persisted
+      ? { kind: "savedOnDevice" }
+      : { kind: "error", message: DEVOTIONAL_DEVICE_SAVE_FAILED_TEXT };
+    if (latest.offline) return notSavedOnline;
+
+    try {
+      const result = await saveOnline({ date: latest.validDate, ...checked.normalized, base: draft.base });
+      if (result.status === "conflict") {
+        await markDevotionalConflict(latest.email, latest.validDate, draft.base);
+        const conflicted = getLocalDevotional(latest.email, latest.validDate)?.conflict === true;
+        return conflicted ? { kind: "conflict" } : notSavedOnline;
+      }
+      await markDevotionalSynced(latest.email, latest.validDate, content, result);
+      return { kind: "saved" };
+    } catch (caught) {
+      return caught instanceof ConvexError ? { kind: "error", message: String(caught.data) } : notSavedOnline;
+    }
+  }, [saveOnline]);
+
+  const syncing = useRef(false);
+  const leaving = useRef(false);
   const syncToServer = useCallback(
     async (showFeedback: boolean) => {
-      const latest = latestRef.current;
-      if (!latest.email || !latest.validDate) return;
-      const checked = validateDevotionalInput({
-        passage: latest.passage,
-        notes: latest.notes,
-        prayerPoints: latest.prayerPoints,
-      });
-      if (!checked.ok) {
-        if (showFeedback) setToast({ text: checked.error });
-        return;
+      const { contentChanged: contentNeedsSave, pendingSharing: sharingToSave } = latestRef.current;
+      if (syncing.current || (!contentNeedsSave && !sharingToSave)) return;
+      syncing.current = true;
+      if (showFeedback) {
+        setSaving(true);
+        setError(null);
       }
-      const content = { passage: latest.passage, notes: latest.notes, prayerPoints: latest.prayerPoints };
-      const existingDraft = getLocalDevotional(latest.email, latest.validDate);
-      let draft = existingDraft;
-      let persisted: boolean;
-      if (!draft || !sameDevotionalContent(draft, content)) {
-        const stored = await saveLocalDevotional(latest.email, latest.validDate, content, latest.baseIfNew);
-        draft = stored.draft;
-        persisted = stored.persisted;
-      } else {
-        persisted = await persistLocalDevotionals(latest.email);
-      }
-      if (!draft.dirty) {
-        if (showFeedback) setToast({ text: "Saved" });
-        return;
-      }
-      if (draft.conflict) {
-        if (showFeedback) setToast({ text: CONFLICT_TEXT });
-        return;
-      }
-      const notSavedOnline = persisted ? "Saved on this device." : "Couldn't save on this device. Try again.";
-      if (latest.offline) {
-        if (showFeedback) setToast({ text: notSavedOnline });
-        return;
-      }
-
-      if (showFeedback) setSaving(true);
       try {
-        const result = await saveOnline({ date: latest.validDate, ...checked.normalized, base: draft.base });
-        if (result.status === "conflict") {
-          await markDevotionalConflict(latest.email, latest.validDate, draft.base);
-          const conflicted = getLocalDevotional(latest.email, latest.validDate)?.conflict === true;
-          if (showFeedback) setToast({ text: conflicted ? CONFLICT_TEXT : notSavedOnline });
-          return;
+        let sharingFailed = false;
+        if (sharingToSave) {
+          try {
+            await setPersonalSharing({ level: sharingToSave });
+            setChosenSharing(null);
+          } catch {
+            sharingFailed = true;
+          }
         }
-        await markDevotionalSynced(latest.email, latest.validDate, content, result);
-        const now = latestRef.current;
-        if (now.validDate === latest.validDate && sameDevotionalContent(now, content)) {
-          dirtyOnEdit.current = false;
-        }
-        if (showFeedback) setToast({ text: "Saved" });
-      } catch (error) {
-        if (showFeedback) setToast({ text: error instanceof ConvexError ? String(error.data) : notSavedOnline });
+        const outcome: DevotionalSaveOutcome = contentNeedsSave ? await syncContent() : { kind: "unchanged" };
+        if (!showFeedback) return;
+        const feedback = devotionalSaveFeedback(
+          sharingFailed && outcome.kind !== "error" && outcome.kind !== "conflict"
+            ? { kind: "error", message: DEVOTIONAL_SHARING_FAILED_TEXT }
+            : outcome
+        );
+        if (feedback.toast) setToast({ text: feedback.toast });
+        setError(feedback.error);
       } finally {
+        syncing.current = false;
         if (showFeedback) setSaving(false);
       }
     },
-    [saveOnline]
+    [setPersonalSharing, syncContent]
   );
 
   const syncRef = useRef(syncToServer);
@@ -169,16 +221,14 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
   useEffect(
     () => () => {
-      if (dirtyOnEdit.current) void syncRef.current(false);
+      if (!leaving.current) void syncRef.current(false);
     },
     []
   );
 
   const handleBack = () => {
-    if (dirtyOnEdit.current || localDraft?.dirty) {
-      dirtyOnEdit.current = false;
-      void syncToServer(false);
-    }
+    leaving.current = true;
+    void syncToServer(false);
     onBack();
   };
 
@@ -227,7 +277,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         <Btn
           title={saving ? "Saving…" : "Save"}
           onPress={() => void syncToServer(true)}
-          disabled={Boolean(passageError) || saving || !canEdit}
+          disabled={!dirty || Boolean(passageError) || saving || !canEdit}
         />
       </View>
 
@@ -241,6 +291,23 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         {canEdit ? null : (
           <Muted>{email ? "Loading..." : "Connect to the internet to open your devotionals."}</Muted>
         )}
+        {error ? (
+          <View
+            style={[styles.errorBar, { backgroundColor: t.errorBackground }]}
+            accessibilityRole="alert"
+            testID="devotional-error"
+          >
+            <Ionicons name="alert-circle" size={16} color={t.errorText} />
+            <Text style={[typography.caption, styles.errorText, { color: t.errorText }]}>{error}</Text>
+            <IconButton
+              name="close"
+              size={28}
+              color={t.errorText}
+              accessibilityLabel="Dismiss"
+              onPress={() => setError(null)}
+            />
+          </View>
+        ) : null}
         {conflict && email ? (
           <Card style={styles.sectionCard}>
             <Text style={[typography.section, { color: t.text }]}>Changed on another device</Text>
@@ -278,7 +345,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                 title="Use the other version"
                 variant="tonal"
                 onPress={() => {
-                  dirtyOnEdit.current = false;
+                  setError(null);
                   void takeServerDevotional(email, validDate, conflict.theirs);
                 }}
               />
@@ -303,12 +370,11 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                   key: level,
                   label: SHARING_LEVEL_LABELS[level],
                 }))}
-                active={sharingCtx.personalLevel ?? sharingCtx.defaultGroupLevel ?? "everything"}
+                active={pendingSharing ?? savedSharing ?? "everything"}
                 onChange={(next) => {
-                  const level = next as DevotionalSharingLevel;
-                  void setPersonalSharing({ level })
-                    .then(() => setToast({ text: `Sharing: ${SHARING_LEVEL_LABELS[level]}` }))
-                    .catch(() => setToast({ text: "Couldn't update sharing." }));
+                  if (!canEdit) return;
+                  setError(null);
+                  setChosenSharing(next as DevotionalSharingLevel);
                 }}
               />
             </View>
@@ -398,14 +464,8 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
           />
         </Card>
 
-        {toast ? (
-          <View style={[styles.toastBar, { backgroundColor: t.primarySoft }]} testID="devotional-status">
-            <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
-              {toast.text}
-            </Text>
-          </View>
-        ) : null}
       </ScrollView>
+      <Toast toast={toast} />
     </SafeAreaView>
   );
 };
@@ -461,10 +521,14 @@ const styles = StyleSheet.create({
   },
   notesInput: { minHeight: 150 },
   prayerInput: { minHeight: 120 },
-  toastBar: {
-    alignSelf: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.full,
+  errorBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
   },
+  errorText: { flex: 1 },
 });

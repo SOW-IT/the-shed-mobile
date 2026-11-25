@@ -16,6 +16,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **Renamed "Prayer points" to "Prayer"** in the devotional editor and validation messages.
+- **Clearer saving in the devotional editor.** "Saved" now pops up briefly and fades away, while an error stays on screen until you fix or dismiss it. Save is greyed out until you change the passage, Notes, Prayer or what you share with groups, and going back only saves when something changed. The sharing choice is saved with the rest of the day.
 
 ## [2.12.50] - 2026-11-25
 

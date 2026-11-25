@@ -277,7 +277,7 @@
         "src/components/devotionals/**",
         "src/lib/devotionalStorage.ts",
         "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
-        "shared/{bible,devotionals,devotionalStore,devotionalGroups}.ts"
+        "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor}.ts"
       ],
       "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"]
     }

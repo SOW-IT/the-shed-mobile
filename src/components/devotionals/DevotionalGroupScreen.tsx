@@ -104,10 +104,11 @@ export const DevotionalGroupScreen = ({
   const leaveGroup = useMutation(api.devotionalGroups.leave);
   const markRead = useMutation(api.notifications.markReadForDevotionalGroup);
 
+  const groupKind = group?.kind ?? null;
   useEffect(() => {
-    if (!isAuthenticated || !group) return;
+    if (!isAuthenticated || !groupKind) return;
     void markRead({ groupId }).catch(() => {});
-  }, [isAuthenticated, group, groupId, markRead]);
+  }, [isAuthenticated, groupKind, groupId, markRead]);
 
   const isMember = group?.kind === "member";
   const defaultPeriod = isMember
