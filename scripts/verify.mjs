@@ -355,7 +355,17 @@ const appEnv = {
   CI: "1",
 };
 
-const runWeb = async (label, tree, work, routes, roles, out) => {
+const CHECKS_DIR = join(ROOT, "scripts/verify/checks");
+const planChecks = (areas, extension) =>
+  [...new Set(areas.flatMap((name) => MAP.areas[name]?.checks ?? []))]
+    .map((name) => ({ name, file: join(CHECKS_DIR, `${name}.${extension}`) }))
+    .filter(({ file }) => existsSync(file));
+const seedVariables = (seed) =>
+  Object.entries(seed)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number")
+    .flatMap(([key, value]) => ["-e", `${key.replace(/[A-Z]/g, (c) => `_${c}`).toUpperCase()}=${value}`]);
+
+const runWeb = async (label, tree, work, routes, roles, out, checks = []) => {
   requireFreePort(PORTS.web);
   start("web", "npx", ["expo", "start", "--web", "--port", String(PORTS.web), "--clear"], {
     cwd: tree, env: appEnv, marker: `--port ${PORTS.web}`, logFile: join(work, "logs/web.log"),
@@ -369,7 +379,17 @@ const runWeb = async (label, tree, work, routes, roles, out) => {
     writeFileSync(join(work, "logs/sweep.log"), `${result.stdout}\n${result.stderr}`);
     const summary = result.stdout.trim().split("\n").at(-1);
     if (result.status !== 0) throw new Error(`${summary}\n${result.stdout.split("\n").filter((line) => /BROKEN|error/.test(line)).slice(0, 6).join("\n")}`);
-    return summary;
+    const passed = [];
+    for (const { name, file } of checks) {
+      const check = spawnSync("node", [
+        file, "--base", `http://localhost:${PORTS.web}`, "--out", join(out, "checks"),
+        "--seed", join(work, "convex/sweep-seed.json"),
+      ], { cwd: work, env: { ...ENV, SWEEP_E2E_SECRET: E2E_SECRET }, encoding: "utf8", timeout: 5 * 60_000 });
+      writeFileSync(join(work, `logs/check-${name}-web.log`), `${check.stdout}\n${check.stderr}`);
+      if (check.status !== 0) throw new Error(`${summary}; check ${name} failed:\n${check.stdout.split("\n").filter((line) => line.startsWith("✘")).slice(0, 6).join("\n") || check.stderr.slice(-400)}`);
+      passed.push(name);
+    }
+    return passed.length > 0 ? `${summary} Checks passed: ${passed.join(", ")}.` : summary;
   } finally {
     await stopRecorded("web");
   }
@@ -558,7 +578,7 @@ const runMaestro = (args, opts) => new Promise((resolve, reject) => {
   });
 });
 
-const runIos = async (label, tree, work, routes, smoke, out, udid) => {
+const runIos = async (label, tree, work, routes, smoke, out, udid, checks = []) => {
   requireFreePort(PORTS.metro);
   const metroLog = join(work, "logs/metro.log");
   let frames;
@@ -584,8 +604,19 @@ const runIos = async (label, tree, work, routes, smoke, out, udid) => {
     });
     writeFileSync(join(work, "logs/maestro.log"), `${result.stdout}\n${result.stderr}`);
     if (result.status !== 0) throw new Error(`maestro failed, see ${relative(ROOT, join(work, "logs/maestro.log"))}\n${result.stdout.split("\n").filter((line) => /FAILED|Assertion|not visible|is visible/i.test(line)).slice(0, 4).join("\n")}`);
+    const passed = [];
+    for (const { name, file } of checks) {
+      mkdirSync(join(out, "checks"), { recursive: true });
+      const check = await runMaestro(["--device", udid, "test", file, "--test-output-dir", join(work, "maestro"), ...seedVariables(seed), "-e", `OUT=${join(out, "checks")}`], {
+        cwd: work, env: ENV, timeout: 5 * 60_000,
+      });
+      writeFileSync(join(work, `logs/check-${name}-ios.log`), `${check.stdout}\n${check.stderr}`);
+      if (check.status !== 0) throw new Error(`check ${name} failed, see ${relative(ROOT, join(work, `logs/check-${name}-ios.log`))}\n${check.stdout.split("\n").filter((line) => /FAILED|Assertion|not visible|is visible/i.test(line)).slice(0, 4).join("\n")}`);
+      passed.push(name);
+    }
+    const checked = passed.length > 0 ? `; checks passed: ${passed.join(", ")}` : "";
     const shots = readdirSync(out).filter((f) => f.endsWith(".png") && !f.endsWith(".frame.png")).length;
-    return frames.moving.length > 0 ? `${shots} screenshots; still moving after ${FRAME_TRIES} frames: ${frames.moving.join(", ")}` : `${shots} screenshots, every one settled`;
+    return (frames.moving.length > 0 ? `${shots} screenshots; still moving after ${FRAME_TRIES} frames: ${frames.moving.join(", ")}` : `${shots} screenshots, every one settled`) + checked;
   } finally {
     frames?.close();
     spawnSync("xcrun", ["simctl", "status_bar", udid, "clear"]);
@@ -728,10 +759,10 @@ const main = async () => {
           if (steps.at(-1).warning) continue;
           const seed = JSON.parse(readFileSync(join(work, "convex/sweep-seed.json"), "utf8"));
           const routes = resolveRoutes(plan.routes, seed);
-          if (args.web) await step(`${label}: web`, () => runWeb(label, tree, work, plan.routes, roles, join(artifacts, label, "web")), { soft });
+          if (args.web) await step(`${label}: web`, () => runWeb(label, tree, work, plan.routes, roles, join(artifacts, label, "web"), planChecks(plan.areas, "web.mjs")), { soft });
           if (args.ios) {
             await step(`${label}: iOS reset`, () => resetApp(udid, args.app), { soft });
-            await step(`${label}: iOS`, () => runIos(label, tree, work, routes, MAP.smoke, join(artifacts, label, "ios"), udid), { soft });
+            await step(`${label}: iOS`, () => runIos(label, tree, work, routes, MAP.smoke, join(artifacts, label, "ios"), udid, planChecks(plan.areas, "ios.yaml")), { soft });
           }
         } finally {
           for (const file of readdirSync(join(work, "logs"))) copyFileSync(join(work, "logs", file), join(logs, `${label}-${file}`));

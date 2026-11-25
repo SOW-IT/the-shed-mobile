@@ -6,7 +6,7 @@ import { playingLabel } from "@shared/games";
 import { isPlace, MAX_POKE_LENGTH, OFFLINE_FIRST, PLACE_TITLES, PLACES, type Look, type Place } from "@shared/world";
 import { useMutation, useQueries, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -77,11 +77,11 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   }
   const [now, setNow] = useState(0);
   const [afters, setAfters] = useState<(string | undefined)[]>([undefined]);
-  const results = useQueries(
-    open
-      ? Object.fromEntries(afters.map((after, i) => [`page${i}`, { query: api.world.offlineRecent, args: pageArgs(after) }]))
-      : {}
+  const requests = useMemo(
+    () => (open ? Object.fromEntries(afters.map((after, i) => [`page${i}`, { query: api.world.offlineRecent, args: pageArgs(after) }])) : {}),
+    [open, afters]
   );
+  const results = useQueries(requests);
   const pages = afters.map((_, i): OfflineRecent | undefined => {
     const result: unknown = results[`page${i}`];
     if (result instanceof Error) throw result;

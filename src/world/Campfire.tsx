@@ -21,33 +21,37 @@ const SMOKE_FROM = 1.35;
 const SMOKE_RISE = 1.9;
 
 const Tongue = ({ clock, i, shape, scale }: { clock: SharedValue<number>; i: number; shape: Shape; scale: number }) => {
-  const style = useAnimatedStyle(() => {
-    const f = flameAt(clock.value, i % FLAMES);
-    return { transform: [{ translateX: f.dx * scale }, { scaleX: f.scaleX }, { scaleY: f.scaleY }] };
-  });
   const w = shape.w * scale;
   const h = shape.h * scale;
+  const stretch = h / w;
+  const style = useAnimatedStyle(() => {
+    const f = flameAt(clock.value, i % FLAMES);
+    return { transform: [{ translateX: f.dx * scale }, { scaleX: f.scaleX }, { scaleY: f.scaleY * stretch }] };
+  });
+  const side = w * 0.7;
   return (
     <Animated.View
       pointerEvents="none"
-      style={[
-        styles.abs,
-        {
-          left: shape.dx * scale - w / 2,
-          top: -shape.dy * scale - h / 2,
-          width: w,
-          height: h,
-          borderRadius: w / 2,
-          borderTopLeftRadius: w * 0.42,
-          borderTopRightRadius: w * 0.42,
-          backgroundColor: shape.colour,
-          borderWidth: shape.ink ? Math.max(1, 0.02 * scale) : 0,
-          borderColor: garden.ink,
-          transformOrigin: "bottom",
-        },
-        style,
-      ]}
-    />
+      style={[styles.abs, { left: shape.dx * scale - w / 2, top: -shape.dy * scale + h / 2 - w, width: w, height: w, transformOrigin: "bottom" }, style]}
+    >
+      <View
+        style={[
+          styles.abs,
+          {
+            left: (w - side) / 2,
+            top: w - side * 1.2,
+            width: side,
+            height: side,
+            borderRadius: side / 2,
+            borderTopLeftRadius: side * 0.08,
+            backgroundColor: shape.colour,
+            borderWidth: shape.ink ? Math.max(1, 0.02 * scale) : 0,
+            borderColor: garden.ink,
+            transform: [{ rotate: "45deg" }],
+          },
+        ]}
+      />
+    </Animated.View>
   );
 };
 

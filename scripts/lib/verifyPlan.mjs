@@ -1,7 +1,7 @@
 import { matchesGlob } from "node:path";
 
 /**
- * @typedef {{ files: string[], routes: string[], unitOnly?: boolean }} Area
+ * @typedef {{ files: string[], routes: string[], unitOnly?: boolean, checks?: string[] }} Area
  * @typedef {{
  *   static: string[], core: string[], smoke: string[],
  *   areas: Record<string, Area>, fullOnlyRoutes: string[]
