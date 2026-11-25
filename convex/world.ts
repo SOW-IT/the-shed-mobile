@@ -43,6 +43,7 @@ import {
   lookFor,
   withHeight,
   posAt,
+  LEAVE_GRACE_MS,
   PRESENCE_TOUCH_MS,
   PRESENCE_TTL_MS,
   REPORT_CONTEXT_LINES,
@@ -208,19 +209,21 @@ const throttleOf = (ctx: Ctx, email: string) =>
 
 type ChatLine = { text: string; kind?: "join" | "leave" };
 
-const addChatLine = async (ctx: MutationCtx, member: Doc<"worldMembers">, line: ChatLine, now: number) => {
-  await ctx.db.insert("worldChat", {
-    roomId: member.roomId,
-    place: placeOf(member),
-    memberId: member._id,
-    email: member.email,
-    name: member.name,
-    at: now,
-    ...line,
-  });
+type Speaker = { memberId: Id<"worldMembers">; roomId: Id<"worldRooms">; place: Place; email: string; name: string };
+
+const speakerOf = (member: Doc<"worldMembers">): Speaker => ({
+  memberId: member._id,
+  roomId: member.roomId,
+  place: placeOf(member),
+  email: member.email,
+  name: member.name,
+});
+
+const addChatLine = async (ctx: MutationCtx, speaker: Speaker, line: ChatLine, now: number) => {
+  await ctx.db.insert("worldChat", { ...speaker, at: now, ...line });
   const lines = await ctx.db
     .query("worldChat")
-    .withIndex("by_roomId_and_at", (q) => q.eq("roomId", member.roomId))
+    .withIndex("by_roomId_and_at", (q) => q.eq("roomId", speaker.roomId))
     .order("desc")
     .take(CHAT_ROOM_CAP + 5);
   for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
@@ -244,6 +247,35 @@ const deleteRoom = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
 };
 
 const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
+
+const backWithinGrace = (visitor: Doc<"worldVisitors"> | null, now: number) =>
+  visitor !== null && now - visitor.lastSeenAt < LEAVE_GRACE_MS;
+
+export const sayLeft = internalMutation({
+  args: {
+    memberId: v.id("worldMembers"),
+    roomId: v.id("worldRooms"),
+    place: v.string(),
+    email: v.string(),
+    name: v.string(),
+    leftAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { leftAt, ...speaker }) => {
+    if (await memberByEmail(ctx, speaker.email)) return null;
+    const visitor = await visitorOf(ctx, speaker.email);
+    if (visitor && visitor.lastSeenAt > leftAt) return null;
+    const place = isPlace(speaker.place) ? speaker.place : WORLD_PLACE;
+    await addChatLine(ctx, { ...speaker, place }, LEFT_LINE, Date.now());
+    return null;
+  },
+});
+
+const leaveWorld = async (ctx: MutationCtx, member: Doc<"worldMembers">) => {
+  await removeMember(ctx, member);
+  const leftAt = (await visitorOf(ctx, member.email))?.lastSeenAt ?? Date.now();
+  await ctx.scheduler.runAfter(LEAVE_GRACE_MS, internal.world.sayLeft, { ...speakerOf(member), leftAt });
+};
 
 /**
  * Takes everything of one member out of the world, and their room if it
@@ -466,6 +498,7 @@ export const join = mutation({
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
     const now = Date.now();
+    const quietReturn = backWithinGrace(await visitorOf(ctx, email), now);
     let member = await memberByEmail(ctx, email);
     if (member && !(await stateOf(ctx, member._id))) {
       await removeMember(ctx, member);
@@ -514,7 +547,7 @@ export const join = mutation({
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
       await markSeen(ctx, email, member.name, now);
-      await addChatLine(ctx, member, joinedLine(member), now);
+      if (!quietReturn) await addChatLine(ctx, speakerOf(member), joinedLine(member), now);
     } else {
       // Another tab or device joining the same member: count the visit.
       await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
@@ -549,8 +582,7 @@ export const leave = mutation({
     const visits = member.visits ?? 1;
     if (visits > 1) await ctx.db.patch("worldMembers", member._id, { visits: visits - 1 });
     else {
-      await addChatLine(ctx, member, LEFT_LINE, Date.now());
-      await removeMember(ctx, member);
+      await leaveWorld(ctx, member);
     }
     return null;
   },
@@ -881,7 +913,7 @@ export const say = mutation({
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, typing: undefined, sayBucket: token.bucket });
     // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
-    await addChatLine(ctx, member, { text }, now);
+    await addChatLine(ctx, speakerOf(member), { text }, now);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
   },
@@ -1754,8 +1786,7 @@ export const sweep = internalMutation({
     for (const presence of stale) {
       const member = await ctx.db.get("worldMembers", presence.memberId);
       if (member) {
-        await addChatLine(ctx, member, LEFT_LINE, now);
-        await removeMember(ctx, member);
+        await leaveWorld(ctx, member);
       } else await ctx.db.delete("worldPresence", presence._id);
     }
     if (await purgeOldChat(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.purgeChat, {});

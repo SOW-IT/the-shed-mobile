@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { hud } from "./palette";
+import { popShadow } from "./popShadow";
 import { useBatterySaver } from "./settings";
 
 export type HudAction = {
@@ -119,10 +120,7 @@ const styles = StyleSheet.create({
     backgroundColor: hud.card,
     borderWidth: INK,
     borderColor: hud.forest,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
   },
   item: {
     width: ITEM,
