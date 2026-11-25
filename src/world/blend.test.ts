@@ -14,6 +14,17 @@ describe("blending the server's walk into this phone's", () => {
     expect(drawnPose(blended, blended.gait, NOW + TURN_MS + 1).heading).toBeCloseTo(-Math.PI / 2);
   });
 
+  test("a finished local walk along a path turns to the arrival heading too", () => {
+    const path = [{ x: 1, z: 3 }, { x: 3, z: 3 }];
+    const local = headFor(null, { x: 1, z: 1 }, NOW - 9000);
+    const walked = headFor(local, { x: 3, z: 3 }, NOW - 8000, path);
+    expect(drawnPose(walked, walked.gait, NOW).heading).toBeCloseTo(Math.PI / 2);
+    const arrival: Walk = { fromX: 3, fromZ: 3, toX: 3, toZ: 3, startedAt: NOW, heading: Math.PI };
+    const blended = blendIn(walked, arrival, NOW);
+    expect(blended.path).toEqual(walked.path);
+    expect(drawnPose(blended, blended.gait, NOW + TURN_MS + 1).heading).toBeCloseTo(Math.PI);
+  });
+
   test("blending the same arrival again changes nothing, so the update settles", () => {
     const local = headFor(null, { x: 1, z: 1 }, NOW - 5000);
     const arrival: Walk = { fromX: 1, fromZ: 1, toX: 1, toZ: 1, startedAt: NOW, heading: Math.PI };
