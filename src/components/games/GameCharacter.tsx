@@ -14,14 +14,14 @@ const g = fixedColours.games;
 const useMyLook = (): Look | null | undefined => useQuery(api.gameCharacters.myLook);
 
 type AvatarModule = typeof import("@/world/GameAvatars");
-export type AvatarArt = Pick<AvatarModule, "RunnerCharacter" | "CharacterHead">;
+export type AvatarArt = Pick<AvatarModule, "RunnerCharacter" | "CharacterHead" | "CheeringCharacter">;
 
 let artLoad: Promise<AvatarArt> | null = null;
 let loadedArt: AvatarArt | null = null;
 
 const loadArt = () =>
   (artLoad ??= import("@/world/GameAvatars").then(
-    ({ RunnerCharacter, CharacterHead }) => (loadedArt = { RunnerCharacter, CharacterHead }),
+    ({ RunnerCharacter, CharacterHead, CheeringCharacter }) => (loadedArt = { RunnerCharacter, CharacterHead, CheeringCharacter }),
     (error: unknown) => {
       artLoad = null;
       throw error;

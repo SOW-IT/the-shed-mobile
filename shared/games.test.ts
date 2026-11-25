@@ -196,14 +196,26 @@ describe("local bests", () => {
   });
 });
 
-describe("who's playing what", () => {
-  test("one name, then the first name and how many others", () => {
-    expect(playingLine([], "flappy")).toBeNull();
-    expect(playingLine(["Kate R."], "flappy")).toBe("Kate R. playing Flap");
-    expect(playingLine(["Kate R.", "Ben S."], "flappy")).toBe("Kate R. and 1 other playing Flap");
-    expect(playingLine(["Kate R.", "Ben S.", "Cy T."], "glider")).toBe("Kate R. and 2 others playing Swoop");
+describe("playingLine", () => {
+  test("names one, two or three players", () => {
+    expect(playingLine(["Anna B."], 1)).toBe("Anna B. is playing");
+    expect(playingLine(["Anna B.", "Ben C."], 2)).toBe("Anna B. and Ben C. are playing");
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 3)).toBe("Anna B., Ben C. and Cara D. are playing");
   });
 
+  test("past a few, names two and counts the rest", () => {
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 4)).toBe("Anna B., Ben C. and 2 others are playing");
+    expect(playingLine(["Anna B.", "Ben C."], 3)).toBe("Anna B., Ben C. and 1 other are playing");
+    expect(playingLine(["Anna B.", "Ben C.", "Cara D."], 50, true)).toBe("Anna B., Ben C. and 48+ others are playing");
+  });
+
+  test("is empty with nobody", () => {
+    expect(playingLine([], 0)).toBe("");
+    expect(playingLine([], 2)).toBe("");
+  });
+});
+
+describe("playingLabel", () => {
   test("a game's label for the People list, or nothing for a game this app doesn't know", () => {
     expect(playingLabel("runner")).toBe("Playing Mystic Man");
     expect(playingLabel("chess")).toBeNull();

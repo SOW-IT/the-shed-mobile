@@ -1,0 +1,60 @@
+appId: au.org.sow.theshed
+---
+# The arcade opens as a panel over the World, which stays behind it.
+- openLink: "theshedmobile://world?sheet=arcade"
+- extendedWaitUntil:
+    visible:
+      id: world-arcade
+    timeout: 30000
+- assertVisible:
+    id: world-stage
+- assertVisible:
+    id: games-open-runner
+# Who's playing: the seed puts two people in Mystic Man.
+- extendedWaitUntil:
+    visible:
+      id: games-playing-runner
+    timeout: 10000
+- takeScreenshot: "${OUT}/check-arcade-panel"
+# A game goes full screen; leaving it comes back to the World, panel closed.
+- tapOn:
+    id: games-open-runner
+- extendedWaitUntil:
+    visible: "Back to the games"
+    timeout: 20000
+- assertNotVisible:
+    id: world-arcade
+- takeScreenshot: "${OUT}/check-arcade-game"
+- tapOn: "Back to the games"
+- extendedWaitUntil:
+    visible:
+      id: world-stage
+    timeout: 20000
+- assertNotVisible:
+    id: world-arcade
+- takeScreenshot: "${OUT}/check-arcade-back-in-world"
+# The leaderboard from the panel shows the podium; back, the panel's still open.
+- openLink: "theshedmobile://world?sheet=arcade"
+- extendedWaitUntil:
+    visible:
+      id: world-arcade
+    timeout: 20000
+- tapOn:
+    id: games-open-leaderboard
+- extendedWaitUntil:
+    visible:
+      id: leaderboard-podium
+    timeout: 20000
+- assertVisible:
+    id: podium-step-1
+- assertVisible:
+    id: podium-step-2
+- assertVisible:
+    id: podium-step-3
+- takeScreenshot: "${OUT}/check-arcade-podium"
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible:
+      id: world-arcade
+    timeout: 20000
+- takeScreenshot: "${OUT}/check-arcade-after-leaderboard"

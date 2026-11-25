@@ -254,10 +254,11 @@
         "src/components/games/**",
         "src/lib/games/**",
         "src/hooks/{useOffline,useNoSwipeBack}.ts",
-        "convex/{gameScores,gameScoreData,gameCharacters}.ts",
+        "convex/{gameScores,gameScoreData,gameCharacters,gamePlayers}.ts",
         "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
-      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"]
+      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"],
+      "checks": ["arcade-podium"]
     },
     "world": {
       "files": [
@@ -266,13 +267,15 @@
         "src/app/world-calendar.tsx",
         "src/app/world-praise.tsx",
         "src/app/world-devotionals.tsx",
+        "src/worldColours.ts",
+        "src/components/games/{GamesMenu,CoinCounter}.tsx",
         "src/world/**",
         "src/hooks/useWorldOnline.ts",
         "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData,farm,farmData,animals}.ts",
         "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm,animals}.ts"
       ],
-      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
-      "checks": ["chapel-pews"]
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
+      "checks": ["chapel-pews", "arcade-podium"]
     },
     "devotionals": {
       "files": [

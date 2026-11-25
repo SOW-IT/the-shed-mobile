@@ -1,5 +1,4 @@
 import { useOffline } from "@/hooks/useOffline";
-import { useLocalBests, useScoreQueue } from "@/lib/games/gameStorage";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
 import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, Segmented, styles as shared, TabBar } from "@/components/ui";
@@ -13,7 +12,8 @@ import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
-import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, versionOf, type GameId, type GameVersion } from "../../../shared/games";
+import { Podium } from "./Podium";
+import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameId, type GameVersion } from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -45,6 +45,7 @@ const Board = ({ game, version }: { game: GameId; version: GameVersion }) => {
   if (loadingFirstPage) return <LoadingState />;
   return (
     <View style={styles.boardGap}>
+      <Podium game={game} version={version} />
       {me ? (
         <Card style={styles.mine}>
           <Text style={[typography.label, { color: t.muted }]}>Your best</Text>
@@ -107,10 +108,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
-  const localBest = useLocalBests()[game];
-  const waiting = useScoreQueue().some((queued) => queued.game === game && versionOf(queued.version) === GAME_VERSION);
   const [version, setVersion] = useState<GameVersion>(GAME_VERSION);
-  const current = version === GAME_VERSION;
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -125,17 +123,12 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
         active={String(version)}
         onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
       />
-      {current ? (
+      {/* Signed out, nothing else says why your scores aren't on the board. */}
+      {!isAuthenticated && !isLoading ? (
         <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
           <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
-            On this device: best {localBest.toLocaleString()}
-            {waiting ? ", waiting to be published" : ""}
+            Sign in and your scores go on the leaderboard.
           </Text>
-          {!isAuthenticated && !isLoading ? (
-            <Text style={[typography.caption, { color: t.dark ? t.text : t.primary }]}>
-              Sign in and your scores go on the leaderboard.
-            </Text>
-          ) : null}
         </View>
       ) : null}
       {offline ? (

@@ -47,7 +47,7 @@ export const useCharacterChoice = (game: CharacterGame): Character =>
 export const chooseCharacter = (game: CharacterGame, character: Character): Promise<void> =>
   characters.update((current) => withCharacter(current, game, character));
 
-export const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
+const useLocalBests = () => useSyncExternalStore(bests.subscribe, bests.get, bests.get);
 export const useScoreQueue = () => useSyncExternalStore(queue.subscribe, queue.get, queue.get);
 export const useBestRuns = () => useSyncExternalStore(bestRuns.subscribe, bestRuns.get, bestRuns.get);
 

@@ -2,7 +2,9 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { GAME_IDS, MAX_SCORES_PER_SUBMIT, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
+import { GAME_IDS, MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
+import { withHeight } from "../shared/world";
+import { worldLookValidator } from "./worldData";
 import { payoutMinEntries, PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
@@ -142,7 +144,7 @@ const podiumOf = async (ctx: Ctx, game: GameId, version: GameVersion, score: num
     .take(PODIUM_LIMIT);
 };
 
-const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
+export const nameFor = async (ctx: Ctx, email: string): Promise<string> => {
   const resolved = await resolveName(ctx, email, currentStaffYear());
   if (resolved) return resolved;
   const user = await ctx.db
@@ -230,6 +232,33 @@ export const leaderboardPage = query({
       });
     }
     return { ...result, page };
+  },
+});
+
+/**
+ * A game's top scores for the podium over its leaderboard: names, scores
+ * and World looks (null for someone who never made a World character).
+ */
+export const podium = query({
+  args: { game: gameIdValidator, version: versionArg },
+  returns: v.array(
+    v.object({ id: v.id("gameScores"), name: v.string(), score: v.number(), isMe: v.boolean(), look: v.union(v.null(), worldLookValidator) })
+  ),
+  handler: async (ctx, { game, version }) => {
+    const email = await optionalEmail(ctx);
+    const rows = await board(ctx, game, boardVersion(version)).order("desc").take(PODIUM_PLACES);
+    const top = [];
+    for (const row of rows) {
+      const saved = await ctx.db.query("worldLooks").withIndex("by_email", (q) => q.eq("email", row.email)).unique();
+      top.push({
+        id: row._id,
+        name: await nameFor(ctx, row.email),
+        score: row.score,
+        isMe: email !== null && row.email === email,
+        look: saved ? withHeight(saved.look, row.email) : null,
+      });
+    }
+    return top;
   },
 });
 

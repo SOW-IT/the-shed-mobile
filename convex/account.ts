@@ -115,6 +115,15 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
     ),
+    // Whether they're in a game right now (it holds their name).
+    await deleteBatch(
+      await ctx.db.query("gamePlayers").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("gamePlayers", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("gamePlayerBeats").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("gamePlayerBeats", row._id)
+    ),
     await deleteBatch(
       await ctx.db.query("cafeRecords").withIndex("by_email_and_kind", (q) => q.eq("email", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("cafeRecords", row._id)

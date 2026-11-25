@@ -57,10 +57,11 @@ import { SettingsPanel } from "./SettingsPanel";
 import { useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
-import { ArcadePanel, type ArcadeTarget } from "./ArcadePanel";
-import { arcadePlayers } from "./arcadePlayers";
+import { CoinsPanel, useCoins } from "./Coins";
+import { CoinCounter } from "@/components/games/CoinCounter";
+import type { GamesTarget } from "@/components/games/GamesMenu";
+import { ArcadePanel } from "./ArcadePanel";
 import { backFrom, exitOf, padTrip } from "./homeExit";
-import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
@@ -227,21 +228,28 @@ export const WorldScreen = ({
   active = true,
   awayKind = null,
   opening,
+  onOpeningUsed,
   arrival,
 }: {
   arrival?: { poke?: string; invite?: string };
   leaveAsked?: boolean;
   onStay: () => void;
   onLeave: () => void;
-  onGame: (target: ArcadeTarget) => void;
+  /** Goes into a game, or the leaderboard, picked from the arcade panel. */
+  onGame: (target: GamesTarget) => void;
   awayGame?: GameId;
   onCalendar: () => void;
   onPraise: () => void;
   /** Opens an app link (a notification's) over the World, which waits. */
   onOpenLink: (url: string) => void;
   onDevotional: () => void;
-  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
-  opening?: "character" | "poke";
+  /** A sheet to open on arrival, from a link: the character editor, the poke list or the arcade. */
+  opening?: "character" | "poke" | "arcade";
+  /**
+   * The arcade link has opened the arcade. The route forgets it, so the same
+   * link opens it again later (after a game, say), not only when it changes.
+   */
+  onOpeningUsed?: () => void;
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   awayKind?: AwayKind | null;
@@ -303,8 +311,12 @@ export const WorldScreen = ({
   const [placesOpen, setPlacesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tray, setTray] = useState(false);
-  const [arcadeOpen, setArcadeOpen] = useState(false);
+  // The arcade's games, over the World rather than instead of it.
+  const [arcadeOpen, setArcadeOpen] = useState(opening === "arcade");
   const openArcade = useCallback(() => {
+    // Anything that would close the arcade the moment it opens goes first.
+    setSheet(null);
+    setDecorating(false);
     setPlacesOpen(false);
     setPeopleOpen(false);
     setShopOpen(false);
@@ -341,7 +353,6 @@ export const WorldScreen = ({
   };
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || boardOpen || editing || sheet !== null)) setArcadeOpen(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
   const [editorAsked, setEditorAsked] = useState(opening === "character");
@@ -360,11 +371,28 @@ export const WorldScreen = ({
     } else if (opening === "character") {
       setPeopleOpen(false);
       setEditorAsked(true);
+    } else if (opening === "arcade") {
+      // A link can arrive over the editor, or before a pending one opens.
+      setEditing(false);
+      setEditorAsked(false);
+      openArcade();
     }
   }
+  useEffect(() => {
+    if (opening === "arcade") onOpeningUsed?.();
+  }, [opening, onOpeningUsed]);
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
+  // Another panel opening, or going somewhere else, closes the arcade.
+  // Only a move after joining counts: the first join can land somewhere other
+  // than the default place (your saved one), and that's not you travelling.
+  const [arcadePlace, setArcadePlace] = useState<Place | null>(null);
+  if (world.status === "in" && arcadePlace !== world.place) {
+    if (arcadePlace !== null) setArcadeOpen(false);
+    setArcadePlace(world.place);
+  }
+  if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || boardOpen || editing || decorating || sheet !== null)) setArcadeOpen(false);
   // Asks you've turned down, as `${from}:${askAt}`. Declining sends nothing:
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
@@ -1370,9 +1398,13 @@ export const WorldScreen = ({
       <ArcadePanel
         open={arcadeOpen}
         top={insets.top + TOP_BAR_GAP}
-        playing={arcadePlayers(world.people, worldName)}
+        bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + SHOP_CHAT_GAP}
+        // The panel covers the coins under the title on a narrow phone.
+        coins={!coinsBeside}
+        nameOf={worldName}
         onOpen={(target) => {
-          setArcadeOpen(false);
+          // The panel stays for the leaderboard, there when you come back.
+          if (target !== "leaderboard") setArcadeOpen(false);
           onGame(target);
         }}
         onClose={() => setArcadeOpen(false)}
@@ -1627,7 +1659,8 @@ export const WorldScreen = ({
         </View>
       )}
       <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
-        {decorating ? null : (
+        {/* The chat log sits where the arcade opens; it steps aside while the arcade is open. */}
+        {decorating || arcadeOpen ? null : (
           <ChatLog
             roomId={world.status === "in" ? world.roomId : null}
             onLine={openSpeaker}

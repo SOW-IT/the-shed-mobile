@@ -1,7 +1,7 @@
 import { bodyScale, type Look } from "@shared/world";
 import { memo, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { Avatar, figureTop } from "./Person";
+import { Avatar, figureTop, type Doing } from "./Person";
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 } as const;
 const RUNNING_HEADING = 1.15;
@@ -16,12 +16,14 @@ const Figure = ({
   height,
   heading,
   stridePhase,
+  doing,
 }: {
   look: Look;
   width: number;
   height: number;
   heading: number;
   stridePhase?: number;
+  doing?: Doing;
 }) => {
   const s = fitScale(look, height);
   const foot = { x: width / 2, y: height, depth: 1, scale: s };
@@ -34,11 +36,19 @@ const Figure = ({
         t={0}
         seed={0}
         stride={stridePhase === undefined ? undefined : { stridePhase, strideAmp: 1 }}
+        doing={doing}
         shadow={false}
       />
     </View>
   );
 };
+
+/** The World's Cheer emote held still: arms up, happy face. Whoever draws it bounces it. */
+const CHEER: Doing = { kind: "emote", id: "cheer", p: 0.5 };
+
+export const CheeringCharacter = memo(function CheeringCharacter({ look, width, height }: { look: Look; width: number; height: number }) {
+  return <Figure look={look} width={width} height={height} heading={0} doing={CHEER} />;
+});
 
 export const RunnerCharacter = memo(function RunnerCharacter({
   look,

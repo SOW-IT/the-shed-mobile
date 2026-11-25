@@ -795,9 +795,10 @@ export const travel = mutation({
   },
 });
 
-const BLOCKED_BY_SCAN = 200;
+export const BLOCKED_BY_SCAN = 200;
 
-const loadBlockFilter = async (ctx: Ctx, email: string) => {
+/** Whether someone is hidden from `email` by a World block either way, checking pairs once the preloaded blocks run out. */
+export const loadBlockFilter = async (ctx: Ctx, email: string) => {
   const hidden = new Set<string>();
   const mine = await ctx.db
     .query("worldBlocks")
