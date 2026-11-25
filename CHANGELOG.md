@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.12.53] - 2026-11-25
+## [2.12.54] - 2026-11-25
 
 ### Added
 - **Leaderboards show when each score was set**, under the name: "24 Nov"
@@ -31,6 +31,29 @@ All notable changes to **The SHED** mobile app. This project follows
   World's Names setting is. 2.12.47 had shortened them to "Daniel K.".
 - **A high five in the World is quicker**, about 1.75 seconds instead of 2.6,
   with the same reach, slap and step back.
+
+## [2.12.53] - 2026-11-25
+
+### Changed
+- **Swoop's bird is a little heavier, so it doesn't fly quite as high.**
+  Off the same hill at the same speed it now climbs a little less, and
+  comes back down a little sooner. Diving while you hold is a little
+  stronger to match, so diving down a slope and letting go at the bottom
+  still carries it over the next hill, and good flying gets through as many
+  worlds before night. Perfect landings work as before.
+- **In Swoop the hills stay on screen however high you fly.** The camera
+  zooms out as the bird climbs, far enough to keep the ground under it in
+  view, and back in as it comes down. Before, a high flight could leave
+  only sky on screen.
+- **Swoop's world progress is a bar right across the top**, under the score
+  bar, and the world you're on sits next to Swoop's name.
+- **Swoop's first worlds have much wider, gentler hills.** World 1's hills
+  are about two and a half times as wide as before, and each world after it
+  is a little narrower, back to the usual hills by world 6.
+- **New hill shapes from world 3:** double humps, a steep drop into a long
+  flat run-out, a long gentle ramp up to a sharp crest, flat-topped
+  plateaus, and valleys much deeper or shallower than the rest. They're
+  rare in world 3 and turn up more often in later worlds.
 
 ## [2.12.52] - 2026-11-25
 
