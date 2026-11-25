@@ -1388,9 +1388,13 @@ describe("review fixes", () => {
       }
     });
     await t.mutation(internal.world.sweep, {});
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    const left = await t.run((ctx) => ctx.db.query("worldState").collect());
-    expect(left.filter((row) => row.say !== undefined)).toEqual([]);
+    const stillSaid = async () => (await t.run((ctx) => ctx.db.query("worldState").collect())).filter((row) => row.say !== undefined).length;
+    expect(await stillSaid()).toBeGreaterThan(0);
+    for (let round = 0; round < 5; round++) {
+      vi.advanceTimersByTime(10);
+      await t.finishInProgressScheduledFunctions();
+    }
+    expect(await stillSaid()).toBe(0);
   });
 
   test("clearSays stops when nothing is left", async () => {
