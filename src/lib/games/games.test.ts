@@ -11,7 +11,7 @@ import {
   stepFlappy,
   type FlappyState,
 } from "./flappy";
-import { fitBoard, fitScale, groundLine } from "./fit";
+import { cardFitScale, fitBoard, fitScale, groundLine } from "./fit";
 import { atSwipeEdge, needsLeaveConfirm, SWIPE_EDGE } from "./leave";
 import { between, random } from "./random";
 import {
@@ -458,6 +458,19 @@ describe("flappy", () => {
     let state = newFlappy(360, 640, 1);
     state = { ...state, nextIn: 1e9, pipes: [{ id: 9, x: birdX(state) + 20, gapTop: 0, gapHeight: 60, passed: false }] };
     expect(runFor(state, 1, stepFlappy, (s) => (s.vy > 0 ? flap(s) : s)).over).toBe(true);
+  });
+});
+
+describe("fitting the start card", () => {
+  test("leaves a card that fits alone, and shrinks one taller than the stage", () => {
+    expect(cardFitScale(200, 400, 20)).toBe(1);
+    expect(cardFitScale(300, 280, 20)).toBeCloseTo(0.8);
+    expect(cardFitScale(300, 30, 20)).toBe(0);
+  });
+
+  test("doesn't scale before the card or stage has been measured", () => {
+    expect(cardFitScale(null, 280, 20)).toBe(1);
+    expect(cardFitScale(300, null, 20)).toBe(1);
   });
 });
 
