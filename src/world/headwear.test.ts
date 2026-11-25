@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { bandOverHead, capShape, depthOf, earCup, projectOnHead, type HeadView } from "./headwear";
+import { bandOverHead, capShape, depthOf, earCup, hoodLayer, projectOnHead, type HeadView } from "./headwear";
 
 const view = (heading: number): HeadView => ({ cx: 100, cy: 100, rx: 20, ry: 20, facing: Math.cos(heading), side: Math.sin(heading) });
 const FRONT = view(0);
@@ -83,5 +83,21 @@ describe("headphones", () => {
     expect(near.at.y).toBeGreaterThan(100);
     expect(near.facing).toBeGreaterThan(0.9);
     expect(earCup(FRONT, 1, 1.02, -0.12).facing).toBeLessThan(0.1);
+  });
+});
+
+describe("the hood", () => {
+  const eighth = Math.PI / 4;
+  test.each([
+    ["front", 0, "behind"],
+    ["front right", eighth, "behind"],
+    ["right", 2 * eighth, "behind"],
+    ["back right", 3 * eighth, "over"],
+    ["back", 4 * eighth, "over"],
+    ["back left", -3 * eighth, "over"],
+    ["left", -2 * eighth, "behind"],
+    ["front left", -eighth, "behind"],
+  ] as const)("facing %s it is drawn %s the head and body", (_, heading, layer) => {
+    expect(hoodLayer(Math.cos(heading))).toBe(layer);
   });
 });

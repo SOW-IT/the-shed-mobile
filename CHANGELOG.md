@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.4] - 2026-11-25
+## [2.13.5] - 2026-11-25
 
 ### Changed
 - **Mystic Man goes faster and chains obstacles after 10,000 points.** Up
@@ -26,9 +26,77 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Flap gets less predictable as you score.** Pipes start evenly spaced,
   then come closer together and farther apart, and each gap sits farther
   from the last. Every gap can still be reached from the one before.
-- **Every game shows the same view on a tablet or computer as on a phone,
-  just bigger,** with black borders around it. A small phone shows the same
-  view a little smaller. Nobody sees further ahead on a big screen.
+- **Every game shows the same distance ahead on every screen.** A tablet
+  or computer draws the game bigger instead of showing more of what's
+  coming, and a small phone draws it a little smaller. Phones and tablets
+  are filled edge to edge; a screen of an unusual shape, like a wide
+  computer window for Flap, gets plain black borders.
+
+## [2.13.4] - 2026-11-25
+
+### Added
+- **A notice board on the Garden's left.** Opposite the Calendar board,
+  a cork board shows your notifications and notices pinned up by admins.
+  Tap it and you walk over and it opens: the admins' notices first, newest
+  first, then your notifications, newest first, with new ones marked. Tap a
+  notification to mark it read and open it, the same as from the bell; back
+  brings you to the World. Admins pin a notice with **Pin a notice**, and
+  can edit it or take it down from the board. In the list view it's the
+  **Notice board** button.
+- **The campfire burns.** Its flames flicker and smoke rises and drifts
+  away. It holds still when the World is in the background, and with
+  battery saver or Reduce Motion on.
+- **The arcade opens over the World.** Walk to the cabinet and its games
+  open in a panel like People and Settings, with the leaderboard at the
+  top. Each game shows who in the World is playing it, such as "Kate R.
+  and 2 others playing Flap", and People shows "Playing Flap" next to
+  them.
+
+### Changed
+- **Tapping yourself walks there, like a tap on the ground.** Your Outfit
+  and Emotes bubble is gone; tapping someone else still opens theirs.
+  Emotes are on the flower in the chat bar.
+- **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
+  or Beach from the menu is gone: walk to their pads in the World, or go
+  with someone from People. **Outfit** sits above **Your home** and opens
+  your character, and **Leave** is still at the bottom.
+- **The place's name on its own.** The top-left button says "Garden",
+  "Café", "Chapel", "Beach" and "Campfire", without "The".
+- **No swiping out of the World.** You leave by tapping **Leave** in the
+  top-left menu. Android's back and the browser's back ask first, as the
+  list view's back arrow does. A touch at the left edge of the Garden on
+  iPhone now walks like anywhere else.
+- **Not here right now shows faces, most recently seen first.** In
+  People, each person has their World character's face and when they were
+  last seen, and the list is in that order, newest first; people who've
+  never been seen come last, by name. It shows 10 at a time, and **Show
+  more** brings the next 10.
+- **Leaving a home takes you back where you came from.** Go to a home
+  from the Café, say, and walking out the door or pressing back takes you
+  back to the Café, not the Garden. The door's sign says where it leads,
+  and it remembers after you leave the World and come back. With nowhere
+  to go back to, it leads to the Garden.
+- **Sitting shows your face.** On a chair, bench, log, pew or the couch
+  you turn about 30 degrees toward the camera. Two people at a Café table
+  still face each other.
+
+### Fixed
+- **Going through a pad puts you on the pad back, facing into the room.**
+  Walk from the Café into the Chapel and you arrive on the Chapel's Café pad
+  on its right, facing west into the Chapel; from the Garden you arrive on
+  the Chapel's Garden pad at the front, facing in. The same goes for every
+  pair of places with pads between them, both ways. Everyone else in the
+  room sees you arrive in the same spot facing the same way. If someone is
+  already standing on the pad, you arrive just beside it, still facing in.
+  A pad at the front of a place, whose name sits above it, moves its name
+  beside the pad while someone stands on it, so it doesn't sit on their
+  name tag.
+  Standing on the pad after you arrive doesn't send you back; any walk
+  that ends on a pad, even a step across the one you arrived on, takes you
+  through it. A home, a poke, an invite or opening the World arrive where they
+  did before.
+- **A hoodie's hood sits behind your head when you face the camera.** It
+  used to cover your chin.
 
 ## [2.13.3] - 2026-11-25
 

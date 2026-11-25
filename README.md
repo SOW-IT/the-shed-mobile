@@ -58,7 +58,8 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
 - **Shed World, the Garden** (`/world`, `src/world/`, `convex/world.ts`, rules
   in `shared/world.ts` and `shared/worldPath.ts`): an online world, reached from
   Games, where signed-in people walk around obstacles by tapping, highlight
-  interactive objects (Garden notice board for Calendar, Chapel piano for Praise
+  interactive objects (Garden notice boards for Calendar and for your
+  notifications with notices admins pin up, `convex/worldNotices.ts`; Chapel piano for Praise
   List, Chapel pews and pulpit for daily devotionals with an open-book presence
   icon), and chat in bubbles over their heads, 20 to a room. Drawn with plain
   views (no GL), one write per tap, chat kept 15 minutes, with high fives,

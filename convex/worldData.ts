@@ -58,6 +58,9 @@ export const worldWalkFields = {
   toZ: v.number(),
   startedAt: v.number(),
   path: v.optional(v.array(worldWaypointValidator)),
+  // Which way someone standing still faces, when the server chose it:
+  // arriving through a pad, facing into the room.
+  heading: v.optional(v.number()),
 };
 
 export const worldReportLineValidator = v.object({

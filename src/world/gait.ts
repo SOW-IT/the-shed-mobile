@@ -26,14 +26,15 @@ const turnToward = (from: number, to: number, k: number) =>
 const length = (walk: Walk) => walkLength(walk);
 
 export const restingGait = (walk: Walk): Gait => {
-  const heading = length(walk) < STILL ? 0 : posAt(walk, walk.startedAt).heading;
+  const heading = length(walk) < STILL ? (walk.heading ?? 0) : posAt(walk, walk.startedAt).heading;
   return { movingSince: walk.startedAt, heading, turnFrom: heading, turnAt: walk.startedAt - TURN_MS };
 };
 
 export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
   const pose = posAt(walk, now);
   const turned = clamp01((now - gait.turnAt) / TURN_MS);
-  const targetHeading = walk.path && walk.path.length > 0 && length(walk) >= STILL ? pose.heading : gait.heading;
+  const alongPath = walk.path && walk.path.length > 0 && length(walk) >= STILL && (pose.walking || walk.heading === undefined);
+  const targetHeading = alongPath ? pose.heading : gait.heading;
   return {
     ...pose,
     heading: turnToward(gait.turnFrom, targetHeading, easeOut(turned)),
@@ -48,7 +49,7 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   const was = drawnPose(before.walk, before.gait, now);
   return {
     movingSince: was.strideAmp > 0 ? before.gait.movingSince : now,
-    heading: length(walk) < STILL ? before.gait.heading : posAt(walk, now).heading,
+    heading: length(walk) < STILL ? (walk.heading ?? before.gait.heading) : posAt(walk, now).heading,
     turnFrom: was.heading,
     turnAt: now,
   };

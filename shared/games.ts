@@ -172,3 +172,13 @@ export const parseBests = (saved: string): LocalBests => {
 
 export const withBest = (bests: LocalBests, game: GameId, score: number): LocalBests =>
   score > bests[game] ? { ...bests, [game]: score } : bests;
+
+export const playingLabel = (game: string | undefined): string | null => (game !== undefined && isGameId(game) ? `Playing ${GAME_INFO[game].title}` : null);
+
+export const playingLine = (names: readonly string[], game: GameId): string | null => {
+  if (names.length === 0) return null;
+  const title = GAME_INFO[game].title;
+  if (names.length === 1) return `${names[0]} playing ${title}`;
+  const others = names.length - 1;
+  return `${names[0]} and ${others} ${others === 1 ? "other" : "others"} playing ${title}`;
+};

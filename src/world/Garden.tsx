@@ -44,6 +44,8 @@ import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
+import { tapTarget } from "./personHit";
+import { CampfireFlames } from "./Campfire";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -70,16 +72,17 @@ type GardenPerson = {
   playing?: PlayingTag;
 };
 
-export type InteractivePropId = "arcade" | "noticeboard" | "piano" | "lectern";
+export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
 export type HighlightTarget = { kind: "prop"; id: InteractivePropId } | { kind: "seat"; id: string };
 
-const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "piano", "lectern"]);
+const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "notices", "piano", "lectern"]);
 const isInteractiveProp = (value: string | undefined): value is InteractivePropId =>
   value !== undefined && INTERACTIVE_PROPS.has(value);
 
 /** What the camera looks at: style C's framing of the courtyard. */
 const FOCUS = { x: 0, z: -2.6 };
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
+const FIRE = PLACE_OBSTACLES.campfire.find((o) => o.id === "fire")!;
 
 const Layer = memo(function Layer({ prims }: { prims: Prim[] }) {
   return (
@@ -122,6 +125,8 @@ export const Garden = ({
   onTapPerson,
   onTapArcade,
   onTapNoticeBoard,
+  homeExit,
+  onTapNotices,
   onTapPiano,
   onTapLectern,
   onTapSeat,
@@ -152,6 +157,8 @@ export const Garden = ({
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
   onTapNoticeBoard?: () => void;
+  /** The board on the left: your notifications and the admins' notices. */
+  onTapNotices?: () => void;
   onTapPiano?: () => void;
   onTapLectern?: () => void;
   onTapSeat: (seatId: string) => void;
@@ -168,6 +175,8 @@ export const Garden = ({
   placeCounts?: Record<string, number>;
   duels?: readonly DuelView[];
   home?: HomeLook | null;
+  /** Where a home's door leads: the place you came from. */
+  homeExit?: Place;
   onTapNpc?: () => void;
   decor?: {
     selected: string | null;
@@ -208,15 +217,29 @@ export const Garden = ({
         ? PORTALS[place].map((pad) => {
             const below = cam.project([pad.x, 0, pad.z + PORTAL_RADIUS + 0.45]);
             const above = cam.project([pad.x, 0, pad.z - PORTAL_RADIUS - 0.45]);
-            const at = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM ? { x: above.x, y: above.y - 14 } : below;
+            const up = below.y > cam.height - PAD_LABEL_CLEAR_BOTTOM;
+            const at = up ? { x: above.x, y: above.y - 14 } : below;
+            // Someone standing on a pad whose name sits above it (they arrive
+            // there) would wear the name on their own: it moves beside the pad.
+            const middle = cam.project([pad.x, 0, pad.z]);
+            const reach = PORTAL_RADIUS * middle.scale + PAD_LABEL_BESIDE_GAP;
+            const toRight = pad.x <= 0;
             return {
-              to: pad.to,
+              to: place === "home" && homeExit ? homeExit : pad.to,
+              x: pad.x,
+              z: pad.z,
+              up,
               left: Math.min(Math.max(4, at.x - PAD_LABEL_WIDTH / 2), cam.width - PAD_LABEL_WIDTH - 4),
               top: at.y - 10,
+              beside: {
+                left: Math.min(Math.max(4, toRight ? middle.x + reach : middle.x - reach - PAD_LABEL_WIDTH), cam.width - PAD_LABEL_WIDTH - 4),
+                top: middle.y - 10,
+                alignItems: toRight ? ("flex-start" as const) : ("flex-end" as const),
+              },
             };
           })
         : [],
-    [cam, place]
+    [cam, place, homeExit]
   );
   const npcHere = place === NPC.place;
 
@@ -373,8 +396,7 @@ export const Garden = ({
     timer: ReturnType<typeof setTimeout> | null;
     /** The last point of this press that was on the ground. */
     spot: { x: number; z: number } | null;
-    backSwipe: boolean;
-  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null, backSwipe: false });
+  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null });
 
   /** Where a touch is on the stage. Children don't take touches, so it's the stage's own. */
   const where = (e: GestureResponderEvent) => {
@@ -386,22 +408,22 @@ export const Garden = ({
   const hitAt = (x: number, y: number): Hit => {
     if (!cam || !scene) return { kind: "ground" };
     // People first, nearest the camera first.
-    const hits = people
-      .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
-      .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
-      .map((h) => {
-        const figure = figureFor(cam, h.pose);
-        return { ...h, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
-      })
-      .filter((h) => x >= h.box.left && x <= h.box.right && y >= h.box.top && y <= h.box.bottom)
-      .sort((a, b) => a.depth - b.depth);
     // The arcade cabinet as drawn (its faces stand well above the ground).
     // Where it and a person overlap, whichever is drawn in front wins.
-    const propHit = scene.props
-      .filter((prop) => isInteractiveProp(prop.tap) && x >= prop.box.left - 6 && x <= prop.box.right + 6 && y >= prop.box.top - 6 && y <= prop.box.bottom + 6)
-      .sort((a, b) => a.depth - b.depth)[0];
-    if (hits[0] && !(propHit && propHit.depth < hits[0].depth)) return { kind: "person", id: hits[0].p.memberId };
-    if (propHit && isInteractiveProp(propHit.tap)) return { kind: propHit.tap };
+    const target = tapTarget(
+      people
+        .map((p, i) => ({ p, pose: poses[i], rise: sitRise(sitting[i]?.height, p.look) }))
+        .filter((h): h is { p: GardenPerson; pose: DrawnPose; rise: number } => h.pose !== null)
+        .map((h) => {
+          const figure = figureFor(cam, h.pose);
+          return { ...h, me: h.p.me, box: hitBox({ ...figure, bob: figure.bob + h.rise }, h.p.look), depth: figure.foot.depth };
+        }),
+      scene.props.filter((prop) => isInteractiveProp(prop.tap)),
+      x,
+      y
+    );
+    if (target?.kind === "person") return { kind: "person", id: target.person.p.memberId };
+    if (target?.kind === "prop" && isInteractiveProp(target.prop.tap)) return { kind: target.prop.tap };
     if (rolled && placed && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) <= KICK_TAP_REACH) {
       const centre = cam.project([rolled.x, BALL_RADIUS, rolled.z]);
       if (Math.hypot(centre.x - x, centre.y - y) <= BALL_RADIUS * 1.6 * centre.scale) return { kind: "ball" };
@@ -451,12 +473,12 @@ export const Garden = ({
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
     if (hit.kind === "item" || hit.kind === "floor") {
-      press.current = { ...at, hit, walking: false, timer: null, spot: null, backSwipe: false };
+      press.current = { ...at, hit, walking: false, timer: null, spot: null };
       return;
     }
-    const backSwipe = Platform.OS === "ios" && at.x < BACK_SWIPE_EDGE && hit.kind === "ground";
-    press.current = { ...at, hit, walking: hit.kind === "ground" && !backSwipe, timer: null, spot: null, backSwipe };
-    if (backSwipe) return;
+    // The World has no swipe back (you leave from its menu), so a touch at the
+    // screen's edge walks like anywhere else.
+    press.current = { ...at, hit, walking: hit.kind === "ground", timer: null, spot: null };
     if (hit.kind === "ground") walkFrom(at.x, at.y, "start");
     else {
       press.current.timer = setTimeout(() => {
@@ -470,7 +492,7 @@ export const Garden = ({
   const onMove = (e: GestureResponderEvent) => {
     const at = where(e);
     const p = press.current;
-    if (!at || p.backSwipe || p.hit.kind === "item" || p.hit.kind === "floor") return;
+    if (!at || p.hit.kind === "item" || p.hit.kind === "floor") return;
     if (!p.walking) {
       if (Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
       if (p.timer) clearTimeout(p.timer);
@@ -485,11 +507,11 @@ export const Garden = ({
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
     const at = where(e) ?? p;
-    if (p.backSwipe) return;
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
     else if (p.hit.kind === "noticeboard") onTapNoticeBoard?.();
+    else if (p.hit.kind === "notices") onTapNotices?.();
     else if (p.hit.kind === "piano") onTapPiano?.();
     else if (p.hit.kind === "lectern") onTapLectern?.();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
@@ -523,6 +545,10 @@ export const Garden = ({
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
+  }
+  if (place === "campfire") {
+    const base = cam.project([FIRE.x, 0, FIRE.z]);
+    actors.push({ depth: base.depth - 0.001, key: "fire-flames", node: <CampfireFlames x={base.x} y={base.y} scale={base.scale} live={!paused && !saver} /> });
   }
   if (rolled) {
     const ground = cam.project([rolled.x, 0, rolled.z]);
@@ -709,10 +735,12 @@ export const Garden = ({
         <Layer prims={scene.backdrop} />
         {padSpots.map((pad) => {
           const here = placeCounts?.[pad.to] ?? 0;
+          const stoodOn = pad.up && poses.some((pose) => pose && !pose.walking && Math.hypot(pose.x - pad.x, pose.z - pad.z) <= PORTAL_RADIUS);
           return (
             <View
               key={`pad-${pad.to}`}
-              style={[styles.padLabel, { left: pad.left, top: pad.top }]}
+              style={[styles.padLabel, stoodOn ? pad.beside : { left: pad.left, top: pad.top }]}
+              testID={stoodOn ? `world-pad-label-beside-${pad.to}` : undefined}
             >
               <Text style={styles.padLabelText} numberOfLines={1}>
                 {here > 0 ? `${PLACE_TITLES[pad.to]} · ${here}` : PLACE_TITLES[pad.to]}
@@ -798,6 +826,7 @@ type Hit =
   | { kind: "person"; id: string }
   | { kind: "arcade" }
   | { kind: "noticeboard" }
+  | { kind: "notices" }
   | { kind: "piano" }
   | { kind: "lectern" }
   | { kind: "seat"; id: string }
@@ -819,6 +848,7 @@ const playingStatus = (playing: PlayingTag | undefined, pose: { x: number; z: nu
   return theirs && Math.hypot(theirs.x - pose.x, theirs.z - pose.z) < PLAYING_SIDE_BY_SIDE ? playing.icon : playing.tag;
 };
 const PAD_LABEL_WIDTH = 132;
+const PAD_LABEL_BESIDE_GAP = 8;
 const PAD_LABEL_CLEAR_BOTTOM = 130;
 const NAME_TAG_CLEARANCE = 30;
 const HUD_CLEAR_TOP = 112;
@@ -884,7 +914,6 @@ const Spark = ({ x, y, size, t }: { x: number; y: number; size: number; t: numbe
   );
 };
 
-const BACK_SWIPE_EDGE = 24;
 /** Holding this long on a person or the arcade walks instead of opening them. */
 const HOLD_TO_WALK_MS = 300;
 /** A finger that moves this far (pixels) is dragging, not tapping. */

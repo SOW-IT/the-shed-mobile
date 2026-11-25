@@ -6,7 +6,8 @@ import { OnlineBanner } from "./OnlineBanner";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
-import { atSwipeEdge, needsLeaveConfirm } from "@/lib/games/leave";
+import { needsLeaveConfirm } from "@/lib/games/leave";
+import { useNoSwipeBack } from "@/hooks/useNoSwipeBack";
 import { groundLine, type Size } from "@/lib/games/fit";
 import { fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
 import { savedNote } from "@/lib/games/savedNote";
@@ -121,36 +122,6 @@ export const useLatest = <T,>(value: T) => {
     ref.current = value;
   });
   return ref;
-};
-
-/**
- * On web, keeps the browser's own swipe back and forward off a game: a
- * sideways swipe is a move in the game, and the way out is the back button.
- * The trackpad's two-finger swipe stops at the page, and a touch that starts
- * at the screen's edge (where a phone's browser starts its swipe back) is
- * kept from the browser. A touch on a button there still presses it.
- */
-const useNoSwipeBack = () => {
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
-    const pages = [document.documentElement, document.body];
-    const before = pages.map((page) => page.style.overscrollBehaviorX);
-    for (const page of pages) page.style.overscrollBehaviorX = "none";
-    const onTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch || !atSwipeEdge(touch.clientX, window.innerWidth)) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('button, a, [role="button"]')) return;
-      event.preventDefault();
-    };
-    document.addEventListener("touchstart", onTouchStart, { passive: false });
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      pages.forEach((page, i) => {
-        page.style.overscrollBehaviorX = before[i];
-      });
-    };
-  }, []);
 };
 
 /** The stage's size, once it has been laid out. */
