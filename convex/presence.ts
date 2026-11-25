@@ -90,6 +90,7 @@ export async function lastOnlineAt(ctx: QueryCtx, email: string): Promise<number
       .withIndex("by_email", (q) => q.eq("email", candidate))
       .unique();
     saw(seen?.at);
+    saw((await appPresenceOf(ctx, candidate))?.appSeenAt);
     const installs = await ctx.db
       .query("appInstalls")
       .withIndex("by_email_and_platform", (q) => q.eq("email", candidate))

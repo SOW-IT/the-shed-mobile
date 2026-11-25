@@ -82,6 +82,24 @@ describe("the app heartbeat", () => {
 });
 
 describe("In the app", () => {
+  test("the offline list orders and dates people by their latest heartbeat when it's newer than their last seen", async () => {
+    const t = newConvex();
+    await staff(t, [
+      { email: ANNA, name: "Anna" },
+      { email: BEN, name: "Ben" },
+      { email: CARA, name: "Cara" },
+    ]);
+    await asUser(t, BEN).mutation(api.presence.appHeartbeat, {});
+    later(60_000);
+    await asUser(t, CARA).mutation(api.presence.appHeartbeat, {});
+    later(60_000);
+    await asUser(t, BEN).mutation(api.presence.appHeartbeat, {});
+    later(IN_APP_MS);
+    const offline = await asUser(t, ANNA).query(api.world.offlineRecent, { limit: OFFLINE_FIRST, skipInApp: true, tick: 1 });
+    expect(offline.people.map((p) => p.name)).toEqual(["Ben", "Cara"]);
+    expect(offline.people[0].lastOnlineAt).toBeGreaterThan(offline.people[1].lastOnlineAt!);
+  });
+
   test("lists people with the app open in the last few minutes, by name, with their looks", async () => {
     const t = newConvex();
     await staff(t, [
@@ -120,7 +138,7 @@ describe("In the app", () => {
     later(1);
     expect(await inAppNames(t, ANNA)).toEqual([]);
     const offline = await asUser(t, ANNA).query(api.world.offlineRecent, { limit: OFFLINE_FIRST, skipInApp: true, tick: 1 });
-    expect(offline.people).toEqual([expect.objectContaining({ name: "Ben", lastOnlineAt: expect.closeTo(PINNED_NOW, -1) })]);
+    expect(offline.people).toEqual([expect.objectContaining({ name: "Ben", lastOnlineAt: expect.closeTo(PINNED_NOW + APP_PING_MS, -1) })]);
   });
 
   test("leaving the app moves them to the offline list straight away", async () => {

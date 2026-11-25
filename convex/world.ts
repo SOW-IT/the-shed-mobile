@@ -79,6 +79,7 @@ import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFi
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { cafeMoved, cafeSat } from "./cafeGames";
 import { IN_APP_MS, IN_APP_SCAN } from "../shared/appPresence";
+import { appPresenceOf } from "./presence";
 import { giveStarterSeeds } from "./farmData";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -1793,6 +1794,11 @@ export const offlineRecent = query({
         found.push({ profile, lastOnlineAt: null });
       }
     }
+    for (const entry of found) {
+      const appSeenAt = (await appPresenceOf(ctx, entry.profile.email))?.appSeenAt;
+      if (appSeenAt !== undefined && appSeenAt > (entry.lastOnlineAt ?? 0)) entry.lastOnlineAt = appSeenAt;
+    }
+    found.sort((a, b) => (b.lastOnlineAt ?? 0) - (a.lastOnlineAt ?? 0));
     const people = [];
     for (const { profile, lastOnlineAt } of found) {
       const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
