@@ -30,12 +30,10 @@ export const GAME_VERSIONS = [1, 2] as const;
 export type GameVersion = (typeof GAME_VERSIONS)[number];
 export const GAME_VERSION: GameVersion = 2;
 
-export const isGameVersion = (value: unknown): value is GameVersion =>
+const isGameVersion = (value: unknown): value is GameVersion =>
   (GAME_VERSIONS as readonly unknown[]).includes(value);
 
 export const VERSION_LABELS: Record<GameVersion, string> = { 1: "v1 (legacy)", 2: "v2" };
-
-export const UPDATE_TO_PLAY = "Update The SHED to keep playing.";
 
 export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
 
@@ -97,7 +95,6 @@ export const scoreProblem = (entry: QueuedScore, now: number): string | null => 
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
   if (entry.version !== undefined && !isGameVersion(entry.version)) return "That isn't a version of the game.";
-  if (versionOf(entry.version) !== GAME_VERSION) return UPDATE_TO_PLAY;
   if (!Number.isInteger(entry.score) || entry.score < 1) return "A score is a whole number above zero.";
   if (!Number.isFinite(entry.durationMs) || entry.durationMs <= 0 || entry.durationMs > MAX_RUN_MS) {
     return "That run's length isn't believable.";
@@ -128,8 +125,9 @@ export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, 
   // has become unpublishable can't hold its place.
   const live = queue.filter((queued) => scoreProblem(queued, now) === null);
   if (scoreProblem(entry, now) !== null) return live;
-  if (live.some((queued) => queued.game === entry.game && queued.score >= entry.score)) return live;
-  return [...live.filter((queued) => queued.game !== entry.game), entry];
+  const sameBoard = (queued: QueuedScore) => queued.game === entry.game && versionOf(queued.version) === versionOf(entry.version);
+  if (live.some((queued) => sameBoard(queued) && queued.score >= entry.score)) return live;
+  return [...live.filter((queued) => !sameBoard(queued)), entry];
 };
 
 /**

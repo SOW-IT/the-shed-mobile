@@ -7,6 +7,10 @@ export const START_COINS = 50;
 export const PLACE_COINS = [50, 25, 10] as const;
 
 /** What a place on a leaderboard is worth: nothing below 3rd. */
+export const PAYOUT_MIN_ENTRIES = 10;
+
+export const payoutMinEntries = (version: GameVersion): number => (version === 1 ? 0 : PAYOUT_MIN_ENTRIES);
+
 export const coinsForPlace = (place: number): number => PLACE_COINS[place - 1] ?? 0;
 
 /**

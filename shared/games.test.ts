@@ -12,7 +12,6 @@ import {
   SCORE_LIMITS,
   SCORES_RESET_AT,
   scoreProblem,
-  UPDATE_TO_PLAY,
   VERSION_LABELS,
   versionOf,
   stringifyBests,
@@ -68,11 +67,13 @@ describe("scoreProblem", () => {
 });
 
 describe("versions", () => {
-  test("a run with no version was played on version 1, which is closed: it asks to update", () => {
+  test("a run with no version was played on version 1, and is still taken on v1's limits", () => {
     expect([versionOf(undefined), versionOf(1), versionOf(2)]).toEqual([1, 1, 2]);
-    expect(scoreProblem(entry({ version: undefined }), NOW)).toBe(UPDATE_TO_PLAY);
-    expect(scoreProblem(entry({ version: 1 }), NOW)).toBe(UPDATE_TO_PLAY);
-    expect(UPDATE_TO_PLAY).toBe("Update The SHED to keep playing.");
+    expect(scoreProblem(entry({ version: undefined }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ version: 1 }), NOW)).toBeNull();
+    const overV1 = { game: "glider" as const, score: SCORE_LIMITS[1].glider.max + 1, durationMs: MAX_RUN_MS };
+    expect(scoreProblem(entry({ ...overV1, version: undefined }), NOW)).toMatch(/over the game's limit/);
+    expect(scoreProblem(entry({ ...overV1, version: 2 }), NOW)).toBeNull();
   });
 
   test("v2 checks runs against its own limits", () => {
@@ -91,10 +92,11 @@ describe("versions", () => {
     expect(parseQueue(JSON.stringify([v2, old, { ...v2, runId: "run-v9-run1", version: 9 }]))).toEqual([v2, JSON.parse(JSON.stringify(old))]);
   });
 
-  test("a leftover version 1 run in the queue can't be published, so it gives way", () => {
+  test("the queue keeps the best run of each game on each version", () => {
     const old = { ...entry({ runId: "run-old-run1", score: 900 }), version: undefined };
     const fresh = entry({ runId: "run-new-run1", score: 100 });
-    expect(enqueueScore([old], fresh, NOW)).toEqual([fresh]);
+    const better = entry({ runId: "run-new-run2", score: 200 });
+    expect(enqueueScore(enqueueScore([old], fresh, NOW), better, NOW)).toEqual([old, better]);
   });
 });
 

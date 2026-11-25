@@ -1,9 +1,9 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { MAX_SCORES_PER_SUBMIT, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
-import { PLACE_COINS } from "../shared/coins";
+import { payoutMinEntries, PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
 import { gameIdValidator } from "./gameScoreData";
 import { beatenInTop, beatenPush } from "../shared/leaderboard";
@@ -88,13 +88,36 @@ export const submitScores = mutation({
         if (best) await ctx.db.patch("gameScores", best._id, run);
         else await ctx.db.insert("gameScores", { email, ...run });
       }
-      const paid =
-        before ?? (newBest ? await awardPlace(ctx, email, { ...entry, version }, await topPlace(ctx, entry.game, version, entry.score), now) : null);
+      const paid = before ?? (newBest ? await payForBest(ctx, email, { ...entry, version }, !best, now) : null);
       if (paid) coins.push({ runId: entry.runId, ...paid });
     }
     return { accepted, rejected, coins };
   },
 });
+
+type BoardRun = { runId: string; game: GameId; version: GameVersion; score: number };
+
+const payForBest = async (ctx: MutationCtx, email: string, run: BoardRun, joined: boolean, now: number) => {
+  const needed = payoutMinEntries(run.version);
+  if (needed > 0) {
+    const entries = (await board(ctx, run.game, run.version).take(needed + 1)).length;
+    if (entries < needed) return null;
+    if (joined && entries === needed) return await payTop3(ctx, email, run, now);
+  }
+  return await awardPlace(ctx, email, run, await topPlace(ctx, run.game, run.version, run.score), now);
+};
+
+const payTop3 = async (ctx: MutationCtx, email: string, run: BoardRun, now: number) => {
+  const rows = await board(ctx, run.game, run.version).order("desc").take(PODIUM_LIMIT);
+  let mine: RunPayout | null = null;
+  for (const row of rows) {
+    const place = rows.findIndex((other) => other.score === row.score) + 1;
+    if (place > PLACE_COINS.length) break;
+    if (row.email === email) mine = await awardPlace(ctx, email, run, place, now);
+    else await awardPlace(ctx, row.email, { runId: row.runId, game: run.game, version: run.version }, place, now);
+  }
+  return mine;
+};
 
 /**
  * The place a score holds on its game's board, as the board numbers it

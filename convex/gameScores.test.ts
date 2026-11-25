@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
-import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, SCORE_LIMITS, UPDATE_TO_PLAY, type GameId } from "../shared/games";
-import { boardOf } from "../shared/coins";
+import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
+import { boardOf, PAYOUT_MIN_ENTRIES } from "../shared/coins";
 import type { Beaten } from "../shared/leaderboard";
 
 const ANNA = "anna@sow.org.au";
@@ -15,7 +15,6 @@ const EVE = "eve@sow.org.au";
 const run = (runId: string, score: number, game: GameId = "runner") => ({
   runId,
   game,
-  version: 2,
   score,
   durationMs: 60_000,
   playedAt: Date.now() - 1000,
@@ -26,62 +25,88 @@ const bests = (t: T) =>
     (await ctx.db.query("gameScores").collect()).map((row) => [row.email, row.game, row.score, row.runId])
   );
 
-const legacyBest = (t: T, email: string, game: GameId, score: number) =>
-  t.run(async (ctx) => {
-    await ctx.db.insert("gameScores", { email, game, score, runId: `run-legacy-${email}`, durationMs: 60_000, playedAt: 1, updatedAt: 1 });
-  });
+const v2 = (runId: string, score: number, game: GameId = "runner") => ({ ...run(runId, score, game), version: 2 });
+
+const player = (i: number) => `player${i}@sow.org.au`;
+
+const paidRows = (t: T) =>
+  t.run(async (ctx) =>
+    (await ctx.db.query("coinLedger").collect())
+      .filter((row) => row.kind === "game")
+      .map((row) => [row.email, row.delta, row.place, row.board])
+  );
 
 describe("versions", () => {
-  test("a run with no version, or version 1, is refused with a line asking to update; version 2 is taken", async () => {
+  test("a run with no version lands on the v1 board, as older apps send it, and a v2 run on the v2 board", async () => {
     const t = newConvex();
-    const { version: _dropped, ...unversioned } = run("run-anna-old", 500);
-    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, {
-      scores: [unversioned, { ...run("run-anna-v1", 600), version: 1 }, { ...run("run-anna-v3", 600), version: 3 }, run("run-anna-v2", 400)],
+    const anna = asUser(t, ANNA);
+    const result = await anna.mutation(api.gameScores.submitScores, {
+      scores: [run("run-anna-old", 9_000), v2("run-anna-new", 400), { ...run("run-anna-v3", 600), version: 3 }],
     });
-    expect(result.accepted).toEqual(["run-anna-v2"]);
-    expect(result.rejected).toEqual([
-      { runId: "run-anna-old", reason: UPDATE_TO_PLAY },
-      { runId: "run-anna-v1", reason: UPDATE_TO_PLAY },
-      { runId: "run-anna-v3", reason: "That isn't a version of the game." },
-    ]);
-    expect(result.coins).toEqual([{ runId: "run-anna-v2", coins: 50, place: 1 }]);
-  });
-
-  test("the v1 boards stay readable, apart from v2's, and a query with no version reads v1 as older apps do", async () => {
-    const t = newConvex();
-    await legacyBest(t, BEN, "runner", 137_500);
-    await legacyBest(t, ANNA, "runner", 9_000);
-    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-v2", 400)] });
-    const v1 = await asUser(t, ANNA).query(api.gameScores.leaderboard, { game: "runner" });
-    expect(v1.top.map((row) => [row.score, row.isMe])).toEqual([
-      [137_500, false],
-      [9_000, true],
-    ]);
-    expect(v1.me).toEqual({ score: 9_000, rank: 2 });
-    expect(await asUser(t, ANNA).query(api.gameScores.leaderboard, { game: "runner", version: 1 })).toEqual(v1);
-    const v2 = await asUser(t, ANNA).query(api.gameScores.leaderboard, { game: "runner", version: 2 });
-    expect(v2.top.map((row) => row.score)).toEqual([400]);
-    expect(v2.me).toEqual({ score: 400, rank: 1 });
-    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toEqual({ score: 9_000, rank: 2 });
-    const page = await t.query(api.gameScores.leaderboardPage, { game: "runner", paginationOpts: { numItems: 10, cursor: null } });
-    expect(page.page.map((row) => row.score)).toEqual([137_500, 9_000]);
+    expect(result.accepted).toEqual(["run-anna-old", "run-anna-new"]);
+    expect(result.rejected).toEqual([{ runId: "run-anna-v3", reason: "That isn't a version of the game." }]);
+    const v1 = await anna.query(api.gameScores.leaderboard, { game: "runner" });
+    expect(v1.top.map((row) => row.score)).toEqual([9_000]);
+    expect(v1.me).toEqual({ score: 9_000, rank: 1 });
+    expect(await anna.query(api.gameScores.leaderboard, { game: "runner", version: 1 })).toEqual(v1);
+    const second = await anna.query(api.gameScores.leaderboard, { game: "runner", version: 2 });
+    expect(second.top.map((row) => row.score)).toEqual([400]);
+    expect(await anna.query(api.gameScores.myLeaderboardPlace, { game: "runner", version: 2 })).toEqual({ score: 400, rank: 1 });
+    const page = await t.query(api.gameScores.leaderboardPage, { game: "runner", version: 2, paginationOpts: { numItems: 10, cursor: null } });
+    expect(page.page.map((row) => row.score)).toEqual([400]);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-old2", 100), v2("run-anna-new2", 500)] });
     expect(await bests(t)).toEqual([
-      [BEN, "runner", 137_500, "run-legacy-ben@sow.org.au"],
-      [ANNA, "runner", 9_000, "run-legacy-anna@sow.org.au"],
-      [ANNA, "runner", 400, "run-anna-v2"],
+      [ANNA, "runner", 9_000, "run-anna-old"],
+      [ANNA, "runner", 500, "run-anna-new2"],
     ]);
   });
 
-  test("a v2 board is a new board: it pays its top 3 even to someone a v1 board already paid", async () => {
+  test("v1 boards still pay their top 3 from the first score, as before", async () => {
     const t = newConvex();
-    await legacyBest(t, ANNA, "flappy", 3_670);
-    await t.run(async (ctx) => {
-      await ctx.db.insert("coinLedger", { email: ANNA, delta: 50, kind: "game", runId: "run-legacy-paid", game: "flappy", place: 1, board: boardOf("flappy"), at: 1 });
-    });
-    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-flap", 30, "flappy")] });
-    expect(result.coins).toEqual([{ runId: "run-anna-flap", coins: 50, place: 1 }]);
-    const boards = await t.run(async (ctx) => (await ctx.db.query("coinLedger").collect()).filter((row) => row.kind === "game").map((row) => row.board ?? ""));
-    expect(boards).toEqual(["flappy:0", "flappy:v2:0"]);
+    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 30, "flappy")] });
+    expect(result.coins).toEqual([{ runId: "run-anna-old", coins: 50, place: 1 }]);
+    expect(await paidRows(t)).toEqual([[ANNA, 50, 1, boardOf("flappy")]]);
+  });
+
+  test(`a v2 board pays nothing until ${PAYOUT_MIN_ENTRIES} people are on it, then pays whoever is top 3 then, and later climbs pay as usual`, async () => {
+    const t = newConvex();
+    expect(PAYOUT_MIN_ENTRIES).toBe(10);
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES; i++) {
+      const result = await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-player-${i}`, i * 100)] });
+      expect(result.coins).toEqual([]);
+    }
+    const better = await asUser(t, player(9)).mutation(api.gameScores.submitScores, { scores: [v2("run-player-9b", 2_000)] });
+    expect(better.coins).toEqual([]);
+    expect(await paidRows(t)).toEqual([]);
+    const tenth = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-1", 750)] });
+    expect(tenth.coins).toEqual([{ runId: "run-anna-1", coins: 10, place: 3 }]);
+    const board = boardOf("runner", 2);
+    expect((await paidRows(t)).sort()).toEqual(
+      [
+        [player(9), 50, 1, board],
+        [player(8), 25, 2, board],
+        [ANNA, 10, 3, board],
+      ].sort()
+    );
+    const resent = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-1", 750)] });
+    expect(resent.coins).toEqual([{ runId: "run-anna-1", coins: 10, place: 3 }]);
+    const eleventh = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-1", 5)] });
+    expect(eleventh.coins).toEqual([]);
+    const climb = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-2", 3_000)] });
+    expect(climb.coins).toEqual([{ runId: "run-ben-2", coins: 50, place: 1 }]);
+    const anna = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-2", 2_500)] });
+    expect(anna.coins).toEqual([{ runId: "run-anna-2", coins: 15, place: 2 }]);
+    expect((await paidRows(t)).filter(([, , , paidBoard]) => paidBoard !== board)).toEqual([]);
+  });
+
+  test("a v2 board's payouts don't count what a v1 board paid", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 30, "flappy")] });
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES; i++) {
+      await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-player-${i}`, i, "flappy")] });
+    }
+    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-new", 50, "flappy")] });
+    expect(result.coins).toEqual([{ runId: "run-anna-new", coins: 50, place: 1 }]);
   });
 });
 
@@ -128,7 +153,7 @@ describe("submitScores", () => {
       scores: [
         { ...run("run-anna-fast", 1_000_000), durationMs: 1000 },
         { ...run("run-anna-future", 10), playedAt: Date.now() + 60 * 60 * 1000 },
-        { ...run("run-anna-swoop-fast", SCORE_LIMITS[2].glider.max + 1, "glider"), durationMs: MAX_RUN_MS },
+        { ...run("run-anna-swoop-fast", 600_000, "glider"), durationMs: MAX_RUN_MS },
         run("run-anna-ok", 10),
         { ...run("run-anna-swoop", 9_000, "glider"), durationMs: 120_000 },
       ],
@@ -139,7 +164,7 @@ describe("submitScores", () => {
       [ANNA, "runner", 10, "run-anna-ok"],
       [ANNA, "glider", 9_000, "run-anna-swoop"],
     ]);
-    expect((await t.query(api.gameScores.leaderboard, { version: 2, game: "glider" })).top.map((row) => row.score)).toEqual([9_000]);
+    expect((await t.query(api.gameScores.leaderboard, { game: "glider" })).top.map((row) => row.score)).toEqual([9_000]);
   });
 
   test("refuses an oversized batch", async () => {
@@ -152,10 +177,10 @@ describe("submitScores", () => {
 describe("leaderboard", () => {
   test("anyone can read it, signed out too, with no best of their own", async () => {
     const t = newConvex();
-    expect(await t.query(api.gameScores.leaderboard, { version: 2, game: "runner" })).toEqual({ top: [], me: null });
+    expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({ top: [], me: null });
     const best = run("run-anna-1", 300);
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [best] });
-    expect(await t.query(api.gameScores.leaderboard, { version: 2, game: "runner" })).toEqual({
+    expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({
       top: [{ id: expect.any(String), rank: 1, name: "anna", score: 300, playedAt: best.playedAt, isMe: false }],
       me: null,
     });
@@ -172,7 +197,7 @@ describe("leaderboard", () => {
     await asUser(t, CARA).mutation(api.gameScores.submitScores, {
       scores: [run("run-cara-1", 500), run("run-cara-2", 40, "shooter")],
     });
-    const board = await asUser(t, ANNA).query(api.gameScores.leaderboard, { version: 2, game: "runner" });
+    const board = await asUser(t, ANNA).query(api.gameScores.leaderboard, { game: "runner" });
     expect(board?.top.map(({ rank, name, score, isMe }) => [rank, name, score, isMe])).toEqual([
       [1, "Ben Ng", 700, false],
       [2, expect.any(String), 500, expect.any(Boolean)],
@@ -180,7 +205,7 @@ describe("leaderboard", () => {
     ]);
     expect(board?.top.map((row) => row.name).sort()).toEqual(["Anna Lee", "Ben Ng", "cara"]);
     expect(board?.me).toEqual({ score: 500, rank: 2 });
-    expect(await asUser(t, BEN).query(api.gameScores.leaderboard, { version: 2, game: "shooter" })).toEqual({
+    expect(await asUser(t, BEN).query(api.gameScores.leaderboard, { game: "shooter" })).toEqual({
       top: [{ id: expect.any(String), rank: 1, name: "cara", score: 40, playedAt: expect.any(Number), isMe: false }],
       me: null,
     });
@@ -192,7 +217,6 @@ describe("leaderboard", () => {
       for (let i = 0; i < RANK_LIMIT; i++) {
         await ctx.db.insert("gameScores", {
           email: `p${i}@sow.org.au`,
-          version: 2,
           game: "flappy",
           score: 1000 + i,
           runId: `run-p${i}-0000`,
@@ -203,7 +227,7 @@ describe("leaderboard", () => {
       }
     });
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 5, "flappy")] });
-    const board = await asUser(t, ANNA).query(api.gameScores.leaderboard, { version: 2, game: "flappy" });
+    const board = await asUser(t, ANNA).query(api.gameScores.leaderboard, { game: "flappy" });
     expect(board?.top).toHaveLength(LEADERBOARD_SIZE);
     expect(board?.top[0]).toMatchObject({ rank: 1, score: 1000 + RANK_LIMIT - 1 });
     expect(board?.me).toEqual({ score: 5, rank: null });
@@ -217,7 +241,6 @@ describe("leaderboard pages", () => {
       for (let i = 0; i < count; i++) {
         await ctx.db.insert("gameScores", {
           email: `p${i}@sow.org.au`,
-          version: 2,
           game: "flappy",
           score: 100 + i,
           runId: `run-p${i}-0000`,
@@ -231,7 +254,6 @@ describe("leaderboard pages", () => {
   test("an empty game has one empty, finished page", async () => {
     const t = newConvex();
     const page = await t.query(api.gameScores.leaderboardPage, {
-      version: 2,
       game: "runner",
       paginationOpts: { numItems: 10, cursor: null },
     });
@@ -248,7 +270,7 @@ describe("leaderboard pages", () => {
     for (;;) {
       const result: { page: { score: number }[]; isDone: boolean; continueCursor: string } = await t.query(
         api.gameScores.leaderboardPage,
-        { version: 2, game: "flappy", paginationOpts: { numItems: 10, cursor } }
+        { game: "flappy", paginationOpts: { numItems: 10, cursor } }
       );
       pages++;
       scores.push(...result.page.map((row) => row.score));
@@ -266,7 +288,7 @@ describe("leaderboard pages", () => {
     });
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
     await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-01", 700)] });
-    const args = { version: 2, game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
+    const args = { game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
     const mine = await asUser(t, ANNA).query(api.gameScores.leaderboardPage, args);
     expect(mine.page.map(({ name, score, isMe }) => [name, score, isMe])).toEqual([
       ["ben", 700, false],
@@ -282,7 +304,7 @@ describe("leaderboard pages", () => {
     const best = { ...run("run-anna-1", 500), playedAt: Date.now() - 60 * 60 * 1000 };
     await anna.mutation(api.gameScores.submitScores, { scores: [best] });
     await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-2", 200)] });
-    const args = { version: 2, game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
+    const args = { game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
     expect((await t.query(api.gameScores.leaderboardPage, args)).page.map((row) => [row.score, row.playedAt])).toEqual([
       [500, best.playedAt],
     ]);
@@ -297,8 +319,7 @@ describe("leaderboard pages", () => {
     const t = newConvex();
     await expect(
       t.query(api.gameScores.leaderboardPage, {
-        version: 2,
-      game: "runner",
+        game: "runner",
         paginationOpts: { numItems: MAX_PAGE_SIZE + 1, cursor: null },
       })
     ).rejects.toThrow(/at most/);
@@ -309,12 +330,12 @@ describe("leaderboard pages", () => {
     await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-01", 700)] });
     await asUser(t, CARA).mutation(api.gameScores.submitScores, { scores: [run("run-cara-1", 500)] });
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 500)] });
-    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { version: 2, game: "runner" })).toEqual({
+    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toEqual({
       score: 500,
       rank: 2,
     });
-    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { version: 2, game: "shooter" })).toBeNull();
-    expect(await t.query(api.gameScores.myLeaderboardPlace, { version: 2, game: "runner" })).toBeNull();
+    expect(await asUser(t, ANNA).query(api.gameScores.myLeaderboardPlace, { game: "shooter" })).toBeNull();
+    expect(await t.query(api.gameScores.myLeaderboardPlace, { game: "runner" })).toBeNull();
   });
 });
 
@@ -328,7 +349,7 @@ describe("resetScores", () => {
     await asUser(t, BEN).mutation(api.gameScores.submitScores, {
       scores: [run("run-ben-01", 700), run("run-ben-02", 9, "flappy")],
     });
-    await t.mutation(internal.gameScores.resetScores, { version: 2, game: "runner", ...notice });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
     expect(await bests(t)).toEqual([[BEN, "flappy", 9, "run-ben-02"]]);
     const jobs = (await scheduled(t)).filter((job) => job.name === "push:sendMany");
     expect(jobs).toHaveLength(1);
@@ -337,7 +358,7 @@ describe("resetScores", () => {
 
   test("a board already empty pushes to nobody", async () => {
     const t = newConvex();
-    await t.mutation(internal.gameScores.resetScores, { version: 2, game: "runner", ...notice });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
     expect(await scheduled(t)).toEqual([]);
   });
 
@@ -347,7 +368,6 @@ describe("resetScores", () => {
       for (let i = 0; i <= RESET_BATCH; i++) {
         await ctx.db.insert("gameScores", {
           email: `p${i}@sow.org.au`,
-          version: 2,
           game: "runner",
           score: i + 1,
           runId: `run-p${i}-0000`,
@@ -357,7 +377,7 @@ describe("resetScores", () => {
         });
       }
     });
-    await t.mutation(internal.gameScores.resetScores, { version: 2, game: "runner", ...notice });
+    await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
     expect(await bests(t)).toHaveLength(1);
     expect((await scheduled(t)).map((job) => job.name).sort()).toEqual(["gameScores:resetScores", "push:sendMany"]);
   });

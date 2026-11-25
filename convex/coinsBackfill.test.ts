@@ -4,7 +4,6 @@ import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { boardOf, START_COINS } from "../shared/coins";
 import type { GameId } from "../shared/games";
 import { TOP3_BACKFILL } from "./coinsBackfill";
-import { awardPlace } from "./coins";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -33,12 +32,9 @@ const standing = (t: T, email: string, game: GameId, score: number) =>
     await ctx.db.insert("gameScores", { email, game, score, runId: `run-old-${n++}`, durationMs: 600_000, playedAt: now - 1000, updatedAt: now });
   });
 
-const paidByV1 = (t: T, email: string, game: GameId, score: number, place: number) =>
-  t.run(async (ctx) => {
-    const now = Date.now();
-    const runId = `run-new-${n++}`;
-    await ctx.db.insert("gameScores", { email, game, score, runId, durationMs: 600_000, playedAt: now - 1000, updatedAt: now });
-    return await awardPlace(ctx, email, { runId, game }, place, now);
+const submit = (t: T, email: string, game: GameId, score: number) =>
+  asUser(t, email).mutation(api.gameScores.submitScores, {
+    scores: [{ runId: `run-new-${n++}`, game, score, durationMs: 600_000, playedAt: Date.now() - 1000 }],
   });
 
 const backfill = (t: T) => t.mutation(internal.coinsBackfill.payStandingTop3, {});
@@ -102,8 +98,8 @@ describe("paying the standing top 3", () => {
     await standing(t, DAN, "flappy", 700);
     await standing(t, EVE, "flappy", 600);
     // Ben's new best pays 1st, and Anna's 3rd (10), the way 2.12.49 pays.
-    expect(await paidByV1(t, BEN, "flappy", 900, 1)).toEqual({ coins: 50, place: 1 });
-    expect(await paidByV1(t, ANNA, "flappy", 750, 3)).toEqual({ coins: 10, place: 3 });
+    expect((await submit(t, BEN, "flappy", 900)).coins).toMatchObject([{ coins: 50, place: 1 }]);
+    expect((await submit(t, ANNA, "flappy", 750)).coins).toMatchObject([{ coins: 10, place: 3 }]);
     // Then Cara's best goes, as when someone deletes their account: Anna is 2nd.
     await t.run(async (ctx) => {
       const cara = await ctx.db
