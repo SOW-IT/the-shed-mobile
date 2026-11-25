@@ -445,6 +445,17 @@ export const PORTALS: Record<Place, readonly Portal[]> = {
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
+export const SEAT_TURN = Math.PI / 6;
+
+export const towardCamera = (heading: number, x: number, turn = SEAT_TURN) => {
+  const h = Math.atan2(Math.sin(heading), Math.cos(heading));
+  if (Math.abs(h) <= turn) return h;
+  const sign = Math.abs(Math.abs(h) - Math.PI) < 1e-9 ? (x > 0 ? -1 : 1) : Math.sign(h);
+  return sign * (Math.abs(h) - turn);
+};
+
+const faceTheCamera = (seats: Seat[]): readonly Seat[] => seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x) }));
+
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
 const STOOL_HEIGHT = 0.32;
@@ -463,21 +474,23 @@ const stools = (table: string): Seat[] => {
 };
 
 export const SEATS: Record<Place, readonly Seat[]> = {
-  garden: [
+  garden: faceTheCamera([
     { id: "blanket-0", x: 2.5, z: 2.4, heading: 0.4, height: ON_THE_GROUND },
     { id: "blanket-1", x: 3.25, z: 2.9, heading: -0.5, height: ON_THE_GROUND },
     { id: "blanket-2", x: 2.55, z: 3.45, heading: 0.2, height: ON_THE_GROUND },
-  ],
-  chapel: PLACE_OBSTACLES.chapel
-    .filter((o) => o.id.startsWith("pew"))
-    .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
-  campfire: [
+  ]),
+  chapel: faceTheCamera(
+    PLACE_OBSTACLES.chapel
+      .filter((o) => o.id.startsWith("pew"))
+      .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT))
+  ),
+  campfire: faceTheCamera([
     ...along("log-back", [[-0.5, -4.3], [0.5, -4.3]], FACING_CAMERA, LOG_HEIGHT),
     ...along("log-left", [[-2.6, -2.1], [-2.6, -1.1]], FACING_RIGHT, LOG_HEIGHT),
     ...along("log-right", [[2.6, -2.1], [2.6, -1.1]], FACING_LEFT, LOG_HEIGHT),
-  ],
-  cafe: [...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)],
-  beach: along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND),
+  ]),
+  cafe: faceTheCamera([...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)]),
+  beach: faceTheCamera(along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND)),
   home: [],
 };
 

@@ -88,6 +88,8 @@ import {
   inWater,
   isAskKind,
   isDuelPick,
+  SEAT_TURN,
+  towardCamera,
 } from "./world";
 
 describe("posAt", () => {
@@ -541,6 +543,50 @@ describe("seats", () => {
         if (a.height > 0) expect(clampTarget(a.x, a.z, place)).not.toEqual({ x: a.x, z: a.z });
       }
     }
+  });
+});
+
+describe("sitting turns toward the camera", () => {
+  const seat = (place: (typeof PLACES)[number], id: string) => SEATS[place].find((s) => s.id === id)!;
+
+  test("a seat facing away or sideways turns 30 degrees toward the camera; one already near it stays", () => {
+    expect(towardCamera(Math.PI / 2, 0)).toBeCloseTo(Math.PI / 3);
+    expect(towardCamera(-Math.PI / 2, 0)).toBeCloseTo(-Math.PI / 3);
+    expect(towardCamera(0.4, 0)).toBeCloseTo(0.4);
+    expect(towardCamera(-0.5, 0)).toBeCloseTo(-0.5);
+    expect(towardCamera(0, 0)).toBe(0);
+    expect(towardCamera(3 * Math.PI, 0)).toBeCloseTo((5 * Math.PI) / 6);
+  });
+
+  test("a seat facing straight away turns toward the middle of the room", () => {
+    expect(towardCamera(Math.PI, -2)).toBeCloseTo((5 * Math.PI) / 6);
+    expect(towardCamera(Math.PI, 2)).toBeCloseTo((-5 * Math.PI) / 6);
+    expect(Math.sin(seat("chapel", "pew-left-1.2-0").heading)).toBeGreaterThan(0);
+    expect(Math.sin(seat("chapel", "pew-right-1.2-0").heading)).toBeLessThan(0);
+  });
+
+  test("every seat shows more of the face than before: within 150 degrees of the camera", () => {
+    for (const place of PLACES) {
+      for (const s of SEATS[place]) expect(Math.abs(s.heading)).toBeLessThanOrEqual(Math.PI - SEAT_TURN + 1e-9);
+    }
+  });
+
+  test("the two stools at a café table still face each other, both turned toward the camera", () => {
+    for (const table of ["table-a", "table-b", "table-c"]) {
+      const left = seat("cafe", `${table}-left`);
+      const right = seat("cafe", `${table}-right`);
+      expect(left.heading).toBeCloseTo(Math.PI / 2 - SEAT_TURN);
+      expect(right.heading).toBeCloseTo(-Math.PI / 2 + SEAT_TURN);
+      expect(Math.sin(left.heading)).toBeGreaterThan(0);
+      expect(Math.sin(right.heading)).toBeLessThan(0);
+    }
+  });
+
+  test("logs at the campfire turn toward the camera and the fire stays in front of them", () => {
+    expect(seat("campfire", "log-left-0").heading).toBeCloseTo(Math.PI / 3);
+    expect(seat("campfire", "log-right-0").heading).toBeCloseTo(-Math.PI / 3);
+    expect(seat("campfire", "log-back-0").heading).toBe(0);
+    expect(seat("beach", "towel-0").heading).toBe(0);
   });
 });
 
