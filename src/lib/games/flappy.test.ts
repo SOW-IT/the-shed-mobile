@@ -209,23 +209,24 @@ const brightness = (hex: string) => [1, 3, 5].reduce((sum, at) => sum + parseInt
 const warmth = (hex: string) => parseInt(hex.slice(1, 3), 16) - parseInt(hex.slice(5, 7), 16);
 
 describe("Flap v2 colours: an afternoon passing into sunset", () => {
-  const MARKS = [0, 100, 200, 500, 1000];
+  const MARKS = [0, 50, 100, 200, 500, 1000];
   const at = (pipes: number) => flappyColours(pipes, PALETTE);
 
-  test("the day eases in and out, reaches sunset at pipe 500 and holds there", () => {
+  test("the day eases in and out, reaches sunset at pipe 200 and holds there", () => {
     expect(dayPassed(0)).toBe(0);
     expect(dayPassed(FLAPPY_V2.sunsetPipe)).toBe(1);
     expect(dayPassed(1000)).toBe(1);
-    expect(dayPassed(100)).toBeGreaterThan(0.05);
-    expect(dayPassed(100)).toBeLessThan(0.2);
-    expect(dayPassed(250)).toBeCloseTo(0.5, 9);
+    expect(FLAPPY_V2.sunsetPipe).toBe(200);
+    expect(dayPassed(40)).toBeGreaterThan(0.05);
+    expect(dayPassed(40)).toBeLessThan(0.2);
+    expect(dayPassed(100)).toBeCloseTo(0.5, 9);
     for (let pipes = 1; pipes <= FLAPPY_V2.sunsetPipe; pipes++) {
       expect(dayPassed(pipes)).toBeGreaterThan(dayPassed(pipes - 1));
-      expect(dayPassed(pipes) - dayPassed(pipes - 1)).toBeLessThan(0.004);
+      expect(dayPassed(pipes) - dayPassed(pipes - 1)).toBeLessThan(2 / FLAPPY_V2.sunsetPipe);
     }
   });
 
-  test("the sky warms from day blue at 0 through 100 and 200 to sunset at 500, the same at 1000, never night", () => {
+  test("the sky warms from day blue at 0 through 50 and 100 to sunset at 200, the same at 500 and 1000, never night", () => {
     const skies = MARKS.map((pipes) => at(pipes).sky);
     expect(skies[0]).toBe(PALETTE.sky[2][1]);
     expect(warmth(skies[1])).toBeGreaterThan(warmth(skies[0]));
@@ -233,15 +234,18 @@ describe("Flap v2 colours: an afternoon passing into sunset", () => {
     expect(warmth(skies[3])).toBeGreaterThan(warmth(skies[2]));
     expect(skies[3]).toBe(PALETTE.sky[4][1]);
     expect(skies[4]).toBe(skies[3]);
-    expect(at(1000)).toEqual(at(500));
+    expect(skies[5]).toBe(skies[3]);
+    expect(at(1000)).toEqual(at(200));
+    expect(at(500)).toEqual(at(200));
     expect(brightness(skies[3])).toBeGreaterThan(0.45);
   });
 
-  test("the pipes deepen gently toward sunset, never near black, and their outline is always darker than the body", () => {
+  test("the pipes deepen gently to a cap at pipe 200, never near black, and their outline is always darker than the body", () => {
     const pipes = MARKS.map((count) => at(count));
     for (let i = 1; i < 4; i++) expect(brightness(pipes[i].pipe)).toBeLessThan(brightness(pipes[i - 1].pipe));
     expect(pipes[4].pipe).toBe(pipes[3].pipe);
-    expect(brightness(pipes[1].pipe)).toBeGreaterThan(0.97 * brightness(pipes[0].pipe));
+    expect(pipes[5].pipe).toBe(pipes[3].pipe);
+    expect(brightness(pipes[1].pipe)).toBeGreaterThan(0.95 * brightness(pipes[0].pipe));
     expect(brightness(pipes[3].pipe)).toBeGreaterThan(0.3);
     for (const colours of pipes) {
       expect(brightness(colours.outline)).toBeLessThan(brightness(colours.pipe) - 0.08);
