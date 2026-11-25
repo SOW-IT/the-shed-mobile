@@ -56,7 +56,7 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 250, max: 2_000_000 },
     flappy: { perSecond: 60, max: 1_000_000 },
-    glider: { perSecond: 1000, max: 2_000_000 },
+    glider: { perSecond: 1200, max: 2_000_000 },
   },
 };
 

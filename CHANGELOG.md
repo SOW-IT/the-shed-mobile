@@ -6,6 +6,48 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.15] - 2026-11-26
+
+### Changed
+- **The arcade games are v2, and they never stop getting harder.** Each
+  game's leaderboard has a v2 board, shown first, and the old one stays
+  readable as **v1 (legacy)** behind a toggle on the leaderboard. Older
+  app versions keep playing v1 and posting to the v1 boards until they
+  update. Your best on the Games list and the game-over card is your v2
+  best.
+- **A v2 board pays its top 3** (50, 25 and 10 coins) once 10 people have
+  a score on it. The 10th score pays whoever is top 3 at that moment;
+  after that, places pay as before. The v1 boards pay as they always did.
+- **Mystic Man.** A new orange bar from 5,000: duck under it or jump it,
+  longer than the yellow beam, with dark stripes. From 5,000 every
+  obstacle comes in more sizes, wider apart the further you go. Past
+  20,000 the speed keeps rising, chains get longer and tighter, the
+  breaks between them shrink, and new runs of obstacles join: a weave at
+  25,000, triple rocks at 30,000, then a staircase, a switchback, a
+  tunnel and a gauntlet by 100,000. Two vines in a row from 10,000 and a
+  rock step from 15,000.
+- **Flap.** From 1,000 a new level every 1,000 points: pipes come further
+  apart on average and more often far apart, a far pair can also climb or
+  drop further, the gap narrows towards 120 and the top speed rises to
+  about 14% above v1's.
+- **Sky Shooter.** From 75 seconds a new wave every 30 seconds: more
+  enemies, faster bullets and enemies, more big ones, and new bullet
+  patterns: aimed doubles at 2 minutes, rings from big enemies at 2.5,
+  a wide fan at 4 and three-shot bursts at 6.
+- **Swoop.** Much shorter days: 26 seconds in world 1, falling each
+  world to 18 from world 8 (v1 grew to 56). The ground gets harder by the
+  same step every world from world 1: narrower, deeper and steeper hills,
+  a smaller angle for a perfect landing, shorter flat ground, more odd
+  shapes, and new ones by world 7: a deep gorge, a jagged climb that
+  throws you into rough landings, a long drop and a tall wall. Worlds get
+  shorter with the day, so a clean run just makes it and a few mistakes
+  don't.
+
+### Fixed
+- **Swoop's background hills no longer jump**, and the view no longer
+  breathes in and out over every hill: the zoom eases towards a steadier
+  target and holds after a big flight.
+
 ## [2.13.12] - 2026-11-25
 
 ### Added
