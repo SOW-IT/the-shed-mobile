@@ -57,6 +57,7 @@ import {
   PLACES,
   PLACE_OBSTACLES,
   PLACE_TITLES,
+  placeName,
   PORTALS,
   PORTAL_RADIUS,
   SEATS,
@@ -405,6 +406,8 @@ describe("takeToken", () => {
 describe("places and the pads between them", () => {
   test("every place has a title, and only the listed ones are places", () => {
     for (const place of PLACES) expect(PLACE_TITLES[place]).toMatch(/^The /);
+    expect(PLACES.map(placeName)).toEqual(["Garden", "Chapel", "Campfire", "Café", "Beach"]);
+    expect(placeName("home")).toBe("Home");
     expect(isPlace("chapel")).toBe(true);
     expect(isPlace("moon")).toBe(false);
     expect(isPlace(undefined)).toBe(false);

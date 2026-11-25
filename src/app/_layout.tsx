@@ -150,7 +150,9 @@ const RootStack = () => {
             <Stack.Screen name="all" />
             <Stack.Screen name="checkin/[token]" />
             <Stack.Screen name="e2e-auth" />
-            <Stack.Screen name="world" />
+            {/* No swipe back out of the World: you leave by tapping Leave in
+                its menu. The hardware and browser back ask first (usePreventRemove). */}
+            <Stack.Screen name="world" options={{ gestureEnabled: false }} />
             <Stack.Screen name="world-calendar" />
             <Stack.Screen name="world-praise" />
             <Stack.Screen name="world-devotionals" />

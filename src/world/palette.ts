@@ -33,6 +33,9 @@ export const garden = {
   noticePaper: "#FFFEF8",
   noticeHeader: "#C9603A",
   noticeGrid: "#D8D2BE",
+  cork: "#C99A62",
+  corkFrame: "#8A5A3A",
+  notes: ["#FFFEF8", "#FFF1B8", "#F6E3D8", "#DCE8E0"],
   highlight: "#F6D365",
   highlightGlow: "rgba(246, 211, 101, 0.35)",
   arcade: "#1D4A41",
@@ -215,6 +218,30 @@ export const hud = {
   chipRing: "#BCDCCD",
   nameBg: "rgba(255, 254, 248, 0.92)",
   scrim: "rgba(15, 37, 35, 0.35)",
+} as const;
+
+/** The notice board's panel: a cork board in a wooden frame, papers pinned on. */
+export const board = {
+  frame: "#8A5A3A",
+  frameDark: "#5E3A26",
+  frameLight: "#B7845E",
+  cork: "#C99A62",
+  speck: "rgba(94, 58, 38, 0.22)",
+  ink: "#1F3A33",
+  muted: "rgba(31, 58, 51, 0.62)",
+  paper: "#FFFEF8",
+  notice: "#FFF1B8",
+  unread: "#F6E3D8",
+  pins: ["#C9603A", "#5B8DB8", "#5FA066", "#F6D365"],
+  pinShine: "rgba(255, 255, 255, 0.6)",
+  tag: "#C9603A",
+  onTag: "#FFFFFF",
+  plaque: "#F5F3E3",
+  scrim: "rgba(6, 16, 15, 0.45)",
+  drop: "#000000",
+  pinEdge: "rgba(0, 0, 0, 0.25)",
+  space: "rgba(255, 254, 248, 0.35)",
+  line: "rgba(31, 58, 51, 0.25)",
 } as const;
 
 export const glass = {

@@ -11,6 +11,7 @@ import {
   cleanLine,
   cleanPoke,
   OFFLINE_LIST_SIZE,
+  OFFLINE_ALL_MAX,
   POKE_EVERY_MS,
   POKED_GAP_MS,
   arrivalSpot,
@@ -72,7 +73,7 @@ import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
-import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
+import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -191,6 +192,19 @@ const markSeen = async (ctx: MutationCtx, email: string, name: string, now: numb
   const row = await visitorOf(ctx, email);
   if (row) await ctx.db.patch("worldVisitors", row._id, { name, lastSeenAt: now, ...leftAt });
   else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now, ...leftAt });
+};
+
+/** Notes where someone was when they went to a home, so its door takes them back there. */
+const rememberHomeFrom = async (ctx: MutationCtx, email: string, name: string, from: Place, now: number) => {
+  const row = await visitorOf(ctx, email);
+  if (row) await ctx.db.patch("worldVisitors", row._id, { homeFrom: from });
+  else await ctx.db.insert("worldVisitors", { email, name, lastSeenAt: now, homeFrom: from });
+};
+
+/** Where a home's door takes someone: back where they came from, else the Garden. */
+export const homeBackTo = async (ctx: Ctx, email: string): Promise<Place> => {
+  const from = (await visitorOf(ctx, email))?.homeFrom;
+  return from !== undefined && isPlace(from) && from !== HOME ? from : WORLD_PLACE;
 };
 
 type Arrival = { place: Place; owner?: string; roomId?: Id<"worldRooms">; spot: { x: number; z: number } };
@@ -705,6 +719,7 @@ export const travel = mutation({
     const room = joinable ?? (await roomFor(ctx, to, owner));
     if (!room) throw new ConvexError("Their home is full. Try again in a bit.");
     await switchRoom(ctx, member, here, room, to);
+    if (to === HOME && from !== HOME) await rememberHomeFrom(ctx, email, member.name, from, now);
     const spot = await landIn(ctx, room, from === to ? posAt(state, now) : arrivalSpot(from, to), now, member._id);
     const walk = { fromX: spot.x, fromZ: spot.z, toX: spot.x, toZ: spot.z, startedAt: now };
     await ctx.db.patch("worldState", state._id, { ...walk, ...FRESH_IN_ROOM, actBucket: token.bucket });
@@ -1651,6 +1666,75 @@ export const offlineStaff = query({
       page.push({ id: row._id, name: profileName(row), lastSeenAt: visitor?.lastSeenAt ?? null });
     }
     return { ...result, page };
+  },
+});
+
+/** lastSeen rows the offline list reads at most, newest first. */
+const OFFLINE_SEEN_SCAN = 1000;
+/** Staff profiles it reads at most for people never seen online. */
+const OFFLINE_NEVER_SCAN = 2000;
+
+/**
+ * Everyone with a staff profile this year who isn't in the garden, most
+ * recently online in the app first, then people never seen, by name. Not
+ * you, not anyone in the garden, nobody blocked either way. It returns at
+ * most `limit` people with their looks, and whether there are more, so the
+ * list starts short and grows on "Show all".
+ */
+export const offlineRecent = query({
+  args: { limit: v.number() },
+  returns: v.object({
+    people: v.array(
+      v.object({ id: v.id("staffProfiles"), name: v.string(), lastOnlineAt: v.union(v.number(), v.null()), look: worldLookValidator })
+    ),
+    more: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
+    const year = currentStaffYear();
+    const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
+    const away = async (other: string) => other !== email && !(await memberByEmail(ctx, other)) && !(await isBlocked(other));
+    const found: { profile: Doc<"staffProfiles">; lastOnlineAt: number | null }[] = [];
+    const listed = new Set<string>();
+    let more = false;
+    let scanned = 0;
+    for await (const row of ctx.db.query("lastSeen").withIndex("by_at").order("desc")) {
+      if (scanned++ === OFFLINE_SEEN_SCAN) break;
+      if (listed.has(row.email)) continue;
+      const profile = await getProfile(ctx, row.email, year);
+      if (!profile || !(await away(profile.email))) continue;
+      if (found.length === limit) {
+        more = true;
+        break;
+      }
+      listed.add(profile.email);
+      found.push({ profile, lastOnlineAt: row.at });
+    }
+    if (!more) {
+      scanned = 0;
+      for await (const profile of ctx.db.query("staffProfiles").withIndex("by_year_and_name", (q) => q.eq("year", year))) {
+        if (scanned++ === OFFLINE_NEVER_SCAN) break;
+        if (listed.has(profile.email)) continue;
+        const seen = await ctx.db
+          .query("lastSeen")
+          .withIndex("by_email", (q) => q.eq("email", profile.email))
+          .first();
+        if (seen || !(await away(profile.email))) continue;
+        if (found.length === limit) {
+          more = true;
+          break;
+        }
+        listed.add(profile.email);
+        found.push({ profile, lastOnlineAt: null });
+      }
+    }
+    const people = [];
+    for (const { profile, lastOnlineAt } of found) {
+      const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
+      people.push({ id: profile._id, name: profileName(profile), lastOnlineAt, look });
+    }
+    return { people, more };
   },
 });
 

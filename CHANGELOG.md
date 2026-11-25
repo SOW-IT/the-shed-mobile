@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.1] - 2026-11-25
+## [2.13.4] - 2026-11-25
 
 ### Fixed
 - **Review items left open on merged PRs (#480 to #544).** A walk the
@@ -17,6 +17,43 @@ All notable changes to **The SHED** mobile app. This project follows
   hour ago no longer comes back from the server. Local game bests save in
   order. A game's start card shrinks to fit a very short window instead of
   being cut off. Verify and pr-status tooling fixes.
+
+## [2.13.2] - 2026-11-25
+
+### Added
+- **A notice board on the Garden's left.** Opposite the Calendar board,
+  a cork board shows your notifications and notices pinned up by admins.
+  Tap it and you walk over and it opens: the admins' notices first, newest
+  first, then your notifications, newest first, with new ones marked. Tap a
+  notification to mark it read and open it, the same as from the bell; back
+  brings you to the World. Admins pin a notice with **Pin a notice**, and
+  can edit it or take it down from the board. In the list view it's the
+  **Notice board** button.
+
+### Changed
+- **Tapping yourself opens nothing.** Your Outfit and Emotes bubble is
+  gone; tapping someone else still opens theirs. Emotes are on the flower
+  in the chat bar.
+- **The top-left menu has no trips.** Going to the Chapel, Campfire, Café
+  or Beach from the menu is gone: walk to their pads in the World, or go
+  with someone from People. **Outfit** sits above **Your home** and opens
+  your character, and **Leave** is still at the bottom.
+- **The place's name on its own.** The top-left button says "Garden",
+  "Café", "Chapel", "Beach" and "Campfire", without "The".
+- **No swiping out of the World.** You leave by tapping **Leave** in the
+  top-left menu. Android's back and the browser's back ask first, as the
+  list view's back arrow does. A touch at the left edge of the Garden on
+  iPhone now walks like anywhere else.
+- **Not here right now shows faces, most recently online first.** In
+  People, each person has their World character's face, and the list runs
+  from whoever was in the app most recently; people who've never been
+  online come last, by name. It starts with 10, and **Show all** brings the
+  rest.
+- **A home's door takes you back where you came from.** Go to your home
+  (or someone's) from the Café, say, and walking out the door takes you
+  back to the Café, not the Garden. The door's sign says where it leads,
+  and it remembers after you leave the World and come back. With nowhere
+  to go back to, it leads to the Garden.
 
 ## [2.13.0] - 2026-11-25
 

@@ -345,6 +345,8 @@ export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
+  // The notice board on the left: your notifications and the admins' notices.
+  { id: "notices", x: -3.0, z: -6.0, rx: 0.65, rz: 0.4 },
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
@@ -362,6 +364,9 @@ export const PLACE_TITLES: Record<Place, string> = {
   beach: "The Beach",
   home: "Home",
 };
+
+/** A place's name on its own, as the World's title shows it: "Garden", "Café". */
+export const placeName = (place: Place) => PLACE_TITLES[place].replace(/^The /, "");
 
 export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
   garden: OBSTACLES,
@@ -873,6 +878,10 @@ export const POKE_EVERY_MS = 60 * 60_000;
 export const POKED_GAP_MS = 10 * 60_000;
 export const MAX_POKE_LENGTH = 80;
 export const OFFLINE_LIST_SIZE = 30;
+/** People the World's "Not here right now" list shows at first, most recently online first. */
+export const OFFLINE_FIRST = 10;
+/** The most it shows after "Show all". */
+export const OFFLINE_ALL_MAX = 200;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;
