@@ -30,15 +30,15 @@ export const MAX_SEEDS_EACH = 99;
 export const MAX_SEED_BUY = 10;
 const FARM_PUSH_HOUR = 18;
 
-const PLOT_COLUMNS = [-2.7, -0.9, 0.9, 2.7] as const;
-const PLOT_ROWS = [1.0, -1.8, -4.6] as const;
+const PLOT_COLUMNS = [-2.55, -0.85, 0.85, 2.55] as const;
+const PLOT_ROWS = [2.2, -0.2, -2.6] as const;
 export const PLOT_SIZE = { w: 1.5, d: 1.4 } as const;
 const PLOT_REACH = 0.45;
 const PLOT_SIDE = 0.6;
 
 export const PLOTS = PLOT_ROWS.flatMap((z, row) => PLOT_COLUMNS.map((x, col) => ({ index: row * PLOT_COLUMNS.length + col, x, z })));
 
-export const PLOT_OBSTACLES = PLOTS.map((plot) => ({ id: `plot-${plot.index}`, x: plot.x, z: plot.z, rx: 0.85, rz: 0.78 }));
+export const PLOT_OBSTACLES = PLOTS.map((plot) => ({ id: `plot-${plot.index}`, x: plot.x, z: plot.z, rx: 0.75, rz: 0.7 }));
 
 export const plotStand = (index: number) => {
   const plot = PLOTS[index];
@@ -47,6 +47,33 @@ export const plotStand = (index: number) => {
 
 export const plotAt = (at: { x: number; z: number }): number | null =>
   PLOTS.find((plot) => Math.abs(at.x - plot.x) <= PLOT_SIZE.w / 2 && Math.abs(at.z - plot.z) <= PLOT_SIZE.d / 2)?.index ?? null;
+
+export type BuildingId = "coop" | "barn";
+export const BUILDING_IDS: readonly BuildingId[] = ["coop", "barn"];
+export const isBuilding = (value: unknown): value is BuildingId => value === "coop" || value === "barn";
+
+const PEN_FRONT = -4.8;
+const PEN_DEPTH = 3.8;
+const PEN_WIDTH = 3.2;
+const PEN_GATE_REACH = 0.7;
+
+export const PENS: Record<BuildingId, { x: number; front: number; back: number; w: number; house: { x: number; z: number; w: number; d: number } }> = {
+  coop: { x: -2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: -2.6, z: -9.9, w: 1.9, d: 1.3 } },
+  barn: { x: 2.3, front: PEN_FRONT, back: PEN_FRONT - PEN_DEPTH, w: PEN_WIDTH, house: { x: 2.4, z: -10.1, w: 2.6, d: 1.7 } },
+};
+
+export const PEN_OBSTACLES = BUILDING_IDS.flatMap((id) => {
+  const pen = PENS[id];
+  const { house } = pen;
+  return [
+    { id: `pen-${id}`, x: pen.x, z: (pen.front + pen.back) / 2, rx: pen.w / 2 + 0.5, rz: (pen.front - pen.back) / 2 + 0.5 },
+    { id: `house-${id}`, x: house.x, z: house.z, rx: house.w / 2 + 0.4, rz: house.d / 2 + 0.4 },
+  ];
+});
+
+const PEN_STAND_ASIDE = 1.15;
+
+export const penStand = (id: BuildingId) => ({ x: PENS[id].x + (id === "coop" ? PEN_STAND_ASIDE : -PEN_STAND_ASIDE), z: PENS[id].front + PEN_GATE_REACH });
 
 type Watering = { at: number };
 type PlantTimes = { crop: string; plantedAt: number; waterings: readonly Watering[] };

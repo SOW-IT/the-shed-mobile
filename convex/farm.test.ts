@@ -270,7 +270,7 @@ describe("planting, watering and harvesting", () => {
     expect(farm).toMatchObject({ mine: true, plots: FREE_PLOTS, plants: [{ plot: 0, crop: "lettuce", plantedAt: Date.now(), waterings: [] }] });
     await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "lettuce" })).rejects.toThrow(/growing there already/);
     await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: FREE_PLOTS, crop: "lettuce" })).rejects.toThrow(/Buy that plot/);
-    await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: 1, crop: "tomato" })).rejects.toThrow(/Get seeds from Sijin/);
+    await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: 1, crop: "tomato" })).rejects.toThrow(/Get seeds from Josh/);
     await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: 1, crop: "kale" })).rejects.toThrow(/isn't a seed/);
     await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: PLOT_COUNT, crop: "lettuce" })).rejects.toThrow(/isn't one of the plots/);
     await expect(asUser(t, ANNA).mutation(api.farm.plant, { plot: 0.5, crop: "lettuce" })).rejects.toThrow(/isn't one of the plots/);
@@ -317,7 +317,7 @@ describe("planting, watering and harvesting", () => {
     later(DAY_MS);
     expect(await anna.mutation(api.farm.harvest, { plot: 1 })).toMatchObject({ ok: true, crop: "carrot", wilts: 1 });
     expect((await farmRow(t, ANNA))?.crops).toEqual({ [stackKey("lettuce", 0)]: 1, [stackKey("carrot", 1)]: 1 });
-    expect(await anna.query(api.farm.bag, {})).toEqual({ seeds: { lettuce: 0, carrot: 0 }, crops: { "lettuce:0": 1, "carrot:1": 1 }, reminders: true });
+    expect(await anna.query(api.farm.bag, {})).toEqual({ seeds: { lettuce: 0, carrot: 0 }, crops: { "lettuce:0": 1, "carrot:1": 1 }, reminders: true, feed: {}, goods: {}, nameTags: 0 });
   });
 
   test("a dead plant is cleared for free and the seed is lost", async () => {
@@ -432,7 +432,7 @@ describe("who can do what", () => {
     expect(await t.query(api.farm.farm, {})).toBeNull();
     expect(await t.query(api.farm.bag, {})).toBeNull();
     expect(await asUser(t, CARA).query(api.farm.farm, {})).toMatchObject({ mine: true, plots: FREE_PLOTS, plants: [] });
-    expect(await asUser(t, CARA).query(api.farm.bag, {})).toEqual({ seeds: {}, crops: {}, reminders: true });
+    expect(await asUser(t, CARA).query(api.farm.bag, {})).toEqual({ seeds: {}, crops: {}, reminders: true, feed: {}, goods: {}, nameTags: 0 });
   });
 });
 
@@ -468,16 +468,20 @@ describe("plots", () => {
   });
 });
 
-describe("Sijin's seeds and sell tabs", () => {
+describe("Josh's farm shop, and Sijin's for older apps", () => {
   const atCafe = async (t: T, email: string) => {
     await asUser(t, email).mutation(api.world.join, { backyard: true });
     await go(t, email, "cafe");
   };
 
-  test("seeds are bought in person, with the balance checked", async () => {
+  test("seeds are bought in person from Josh in the Garden, or from Sijin in the Café on older apps", async () => {
     const t = newConvex();
     await asUser(t, ANNA).mutation(api.world.join, { backyard: true });
-    await expect(asUser(t, ANNA).mutation(api.farm.buySeeds, { crop: "tomato", count: 1 })).rejects.toThrow(/in the Café/);
+    await go(t, ANNA, "beach");
+    await expect(asUser(t, ANNA).mutation(api.farm.buySeeds, { crop: "tomato", count: 1 })).rejects.toThrow(/Find Josh Kim in the Garden/);
+    await go(t, ANNA, "garden");
+    await give(t, ANNA, CROPS.lettuce.seed);
+    expect(await asUser(t, ANNA).mutation(api.farm.buySeeds, { crop: "lettuce", count: 1 })).toEqual({ balance: 0, seeds: 1 });
     await go(t, ANNA, "cafe");
     await give(t, ANNA, CROPS.tomato.seed * 2);
     const anna = asUser(t, ANNA);
@@ -487,7 +491,7 @@ describe("Sijin's seeds and sell tabs", () => {
     await expect(anna.mutation(api.farm.buySeeds, { crop: "tomato", count: 0 })).rejects.toThrow(/at a time/);
     await expect(anna.mutation(api.farm.buySeeds, { crop: "tomato", count: MAX_SEED_BUY + 1 })).rejects.toThrow(/at a time/);
     await expect(anna.mutation(api.farm.buySeeds, { crop: "tomato", count: 1.5 })).rejects.toThrow(/at a time/);
-    expect((await ledger(t, ANNA)).find((row) => row.kind === "seed-buy")).toMatchObject({ delta: -50, item: "tomato" });
+    expect((await ledger(t, ANNA)).filter((row) => row.kind === "seed-buy").map((row) => [row.delta, row.item])).toEqual([[-CROPS.lettuce.seed, "lettuce"], [-50, "tomato"]]);
   });
 
   test("the bag holds so many of each seed", async () => {

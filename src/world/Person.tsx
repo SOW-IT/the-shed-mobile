@@ -29,6 +29,7 @@ const LENSES = [
   { w: 0.23, h: 0.18, round: 0.2, rim: 0.026 },
   { w: 0.23, h: 0.16, round: 0.35, rim: 0.02 },
   { w: 0.27, h: 0.27, round: 1, rim: 0.024 },
+  { w: 0.24, h: 0.19, round: 0.45, rim: 0.03 },
 ] as const;
 
 const FACE_SHAPES = [
@@ -727,6 +728,13 @@ const AvatarView = ({
       for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.71, 0.56, [0.075, 0.17], [0.095, 0.12], 0), shade(shirt, -0.12), `flannelLapel${e}`, 2));
     }
   }
+  if (outfit === 11) {
+    const dye = [[-0.1, 0.6, 0.075], [0.11, 0.52, 0.07], [-0.04, 0.42, 0.06], [0.15, 0.36, 0.05], [-0.16, 0.33, 0.055]] as const;
+    for (const [x, y, rad] of dye) if (y > hem + 0.03) dot(`dye${x}${y}`, x, y, rad * s, people.tieDye);
+    for (const [x, y] of [[0.02, 0.56], [-0.13, 0.47], [0.07, 0.3]] as const) if (y > hem + 0.03) dot(`dyeLight${x}${y}`, x, y, 0.04 * s, shade(shirt, 0.35));
+    for (const e of [-1, 1]) parts.push(capsule(at(0.215 * e, 0.66), at(0.2 * e, 0.54), 0.09 * s, skin, `shoulder${e}`));
+    if (facing >= 0) parts.push(capsule(at(-0.06, 0.69), at(0.06, 0.69), 0.07 * s, skin, "scoop"));
+  }
   if (pants === 1 || pants === 2) {
     // Trousers or shorts: hips, then a leg each side, outlined as one shape.
     const colour = people.pants[lookPart(look, "pantsColour")] ?? people.pants[0];
@@ -1080,7 +1088,7 @@ const AvatarView = ({
       const w = lens.w * k * s;
       const h = lens.h * k * s;
       face.push(
-        <View key={`lens${e}`} style={[styles.abs, { left: ex - w / 2, top: ey - h / 2, width: w, height: h, borderRadius: (Math.min(w, h) / 2) * lens.round, borderWidth: lens.rim * s, borderColor: people.glasses, backgroundColor: glasses === 3 ? people.shades : undefined }]}>
+        <View key={`lens${e}`} style={[styles.abs, { left: ex - w / 2, top: ey - h / 2, width: w, height: h, borderRadius: (Math.min(w, h) / 2) * lens.round, borderWidth: lens.rim * s, borderColor: glasses === 5 ? people.clearRim : people.glasses, backgroundColor: glasses === 3 ? people.shades : glasses === 5 ? people.clearLens : undefined }]}>
           {glasses === 3 ? <View style={[styles.abs, { left: w * 0.18, top: h * 0.14, width: w * 0.22, height: h * 0.2, borderRadius: s, backgroundColor: people.eyeShine, opacity: 0.4 }]} /> : null}
         </View>
       );
@@ -1124,7 +1132,7 @@ const AvatarView = ({
     const lens = LENSES[glasses - 1] ?? LENSES[0];
     const gap = 2 * (spread + eyeGap) * Math.abs(facing) * s - lens.w * eyeScale * s;
     const w = Math.max(0, gap) + lens.rim * s * 2;
-    face.push(<View key="bridge" style={[styles.abs, { left: icx + 0.39 * side * s - w / 2, top: icy + (0.09 - eyeLift) * s, width: w, height: 0.025 * s, backgroundColor: people.glasses }]} />);
+    face.push(<View key="bridge" style={[styles.abs, { left: icx + 0.39 * side * s - w / 2, top: icy + (0.09 - eyeLift) * s, width: w, height: 0.025 * s, backgroundColor: glasses === 5 ? people.clearRim : people.glasses }]} />);
   }
   if (faceOn && lookPart(look, "freckles") === 3) {
     // Across the nose, from cheek to cheek.
