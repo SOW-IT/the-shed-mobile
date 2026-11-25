@@ -481,6 +481,26 @@ describe("account.wipe", () => {
     });
   });
 
+  test("ends a Café game the user is in before the wipe, so its records don't come back", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const OTHER = "other@sow.org.au";
+    const { userId, gameId } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      const roomId = await ctx.db.insert("worldRooms", { place: "cafe", instance: 1, memberCount: 2 });
+      const gameId = await ctx.db.insert("cafeGames", { roomId, kind: "ticTacToe", a: GUEST, b: OTHER, aName: "Gina G.", bName: "Otto O.", startedAt: Date.now() });
+      return { userId, gameId };
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      const game = await ctx.db.get("cafeGames", gameId);
+      if (game) expect(game.result).toEqual({ winner: "b", why: "left" });
+      expect(await ctx.db.query("cafeRecords").collect()).toMatchObject([{ email: OTHER, wins: 1 }]);
+      expect(await ctx.db.query("cafeVersus").collect()).toEqual([]);
+    });
+  });
+
   test("deletes the user's coins, home, invites and pokes, keeping everyone else's", async () => {
     vi.useFakeTimers();
     const t = newConvex();

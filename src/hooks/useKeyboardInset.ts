@@ -15,12 +15,12 @@ export const useKeyboardHeight = Platform.OS === "web" ? useNoKeyboardHeight : u
 
 const useAndroidKeyboardInset = (frame: RefObject<Measurable | null>, frameShrinks = true) => {
   const keyboard = useTrackedKeyboardHeight();
-  const screenHeight = useSharedValue(Dimensions.get("screen").height);
-  const frameBottom = useSharedValue(Dimensions.get("screen").height);
-  const inset = useDerivedValue(() => keyboardOverlap(frameBottom.get(), screenHeight.get(), keyboard.get()));
+  const windowHeight = useSharedValue(Dimensions.get("window").height);
+  const frameBottom = useSharedValue(Dimensions.get("window").height);
+  const inset = useDerivedValue(() => keyboardOverlap(frameBottom.get(), windowHeight.get(), keyboard.get()));
   useEffect(() => {
     const measure = () => {
-      screenHeight.set(Dimensions.get("screen").height);
+      windowHeight.set(Dimensions.get("window").height);
       frame.current?.measureInWindow((_x, y, _width, height) => frameBottom.set(y + height + (frameShrinks ? inset.get() : 0)));
     };
     measure();
@@ -30,7 +30,7 @@ const useAndroidKeyboardInset = (frame: RefObject<Measurable | null>, frameShrin
       Dimensions.addEventListener("change", measure),
     ];
     return () => subs.forEach((sub) => sub.remove());
-  }, [frame, frameShrinks, frameBottom, screenHeight, inset]);
+  }, [frame, frameShrinks, frameBottom, windowHeight, inset]);
   return useAnimatedStyle(() => ({ marginBottom: inset.get() }));
 };
 

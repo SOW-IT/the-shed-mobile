@@ -570,10 +570,14 @@ const CafeSheet = ({
     return true;
   });
   const lifted = useAnimatedStyle(() => ({ transform: [{ translateY: lift ? -lift.get() : 0 }] }));
+  const onSeenRef = useRef(onSeen);
+  useEffect(() => {
+    onSeenRef.current = onSeen;
+  }, [onSeen]);
   useEffect(() => {
     if (!ended) return;
-    return () => onSeen(game.id);
-  }, [ended, game.id, onSeen]);
+    return () => onSeenRef.current(game.id);
+  }, [ended, game.id]);
   useEffect(() => {
     if (!confirming) return;
     const id = setTimeout(() => setConfirming(false), 3000);

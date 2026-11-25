@@ -1,6 +1,6 @@
-export const keyboardOverlap = (frameBottom: number, screenHeight: number, keyboardHeight: number) => {
+export const keyboardOverlap = (frameBottom: number, windowHeight: number, keyboardHeight: number) => {
   "worklet";
-  return keyboardHeight <= 0 ? 0 : Math.max(0, Math.round(frameBottom - (screenHeight - keyboardHeight)));
+  return keyboardHeight <= 0 ? 0 : Math.max(0, Math.round(frameBottom - (windowHeight - keyboardHeight)));
 };
 
 export const liftOverKeyboard = (keyboardHeight: number, bottomInset: number, gap: number) => {

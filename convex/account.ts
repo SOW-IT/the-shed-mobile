@@ -15,6 +15,7 @@ import { revokeAppleTokens } from "./appleRevoke";
 import { deleteGroupData } from "./devotionalGroups";
 import { isOrgEmail } from "./model";
 import { removeFromWorld } from "./world";
+import { endLiveGameOf } from "./cafeGames";
 import { typedMatches } from "../shared/typedConfirm";
 
 const accountKind = v.union(v.literal("sow"), v.literal("apple"));
@@ -73,6 +74,7 @@ async function deleteByEmail(
   includeGuestData: boolean
 ): Promise<boolean> {
   // First out of the Garden, so a later sweep can't keep rate limits under this email.
+  await endLiveGameOf(ctx, email, Date.now());
   await removeFromWorld(ctx, email);
   const more = [
     await deleteBatch(

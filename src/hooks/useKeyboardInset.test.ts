@@ -7,6 +7,8 @@ test("a screen gives up only the part the keyboard covers, frame by frame", () =
   expect(keyboardOverlap(520, 832, 312)).toBe(0);
   expect(keyboardOverlap(480, 832, 312)).toBe(0);
   expect(keyboardOverlap(832, 832, 156)).toBe(156);
+  expect(keyboardOverlap(600, 600, 300)).toBe(300);
+  expect(keyboardOverlap(500, 600, 300)).toBe(200);
   expect(keyboardOverlap(752, 832, 100)).toBe(20);
 });
 

@@ -140,6 +140,12 @@ export const cafeSat = async (ctx: MutationCtx, member: Doc<"worldMembers">, sea
   }
 };
 
+export const endLiveGameOf = async (ctx: MutationCtx, email: string, now: number) => {
+  const game = await liveGameOf(ctx, email);
+  const side = game && sideOf(game, email);
+  if (game && side) await endGame(ctx, game, otherSide(side), "left", now);
+};
+
 export const cafeMoved = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms"> | null, now: number) => {
   const game = await liveGameOf(ctx, email);
   if (!game) return;
