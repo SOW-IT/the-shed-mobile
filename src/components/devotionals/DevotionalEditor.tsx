@@ -1,6 +1,6 @@
 import { SignInPrompt } from "@/components/SignInPrompt";
 import { Btn, Card, IconButton, LoadingState, Muted, Screen, Segmented, Toast, type ToastState } from "@/components/ui";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useOffline } from "@/hooks/useOffline";
 import {
   getLocalDevotional,
@@ -309,9 +309,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         />
       </View>
 
-      <ScrollView
+      <KeyboardScrollView
         ref={scrollRef}
-        style={[styles.scroll, { marginBottom: keyboardInset }]}
+        style={[styles.scroll, keyboardInset]}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -493,7 +493,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
           />
         </Card>
 
-      </ScrollView>
+      </KeyboardScrollView>
       <Toast toast={toast} />
     </SafeAreaView>
   );

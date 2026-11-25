@@ -108,6 +108,18 @@ async function deleteByEmail(
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
     ),
+    await deleteBatch(
+      await ctx.db.query("cafeRecords").withIndex("by_email_and_kind", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeRecords", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("cafeVersus").withIndex("by_a_and_b", (q) => q.eq("a", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeVersus", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("cafeVersus").withIndex("by_b", (q) => q.eq("b", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("cafeVersus", row._id)
+    ),
     // The World: their saved look, kept rate limits, when they were last
     // poked, the people they blocked and the blocks others made of them
     // (which hold their name).

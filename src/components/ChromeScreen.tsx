@@ -9,7 +9,7 @@ import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { TopBar } from "@/components/nav/TopBar";
 import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 
 export const ChromeScreen = ({
   children,
@@ -36,12 +36,12 @@ export const ChromeScreen = ({
   const wide = useWideLayout();
   return (
     <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
-      <Animated.ScrollView
+      <KeyboardScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={[styles.body, { backgroundColor: t.background, marginBottom: keyboardInset }]}
+        style={[styles.body, { backgroundColor: t.background }, keyboardInset]}
         contentContainerStyle={[
           styles.scroll,
           {
@@ -66,7 +66,7 @@ export const ChromeScreen = ({
           </Pressable>
         ) : null}
         {children}
-      </Animated.ScrollView>
+      </KeyboardScrollView>
       {wide ? null : (
         <View
           style={[styles.topBarClip, { height: TOP_BAR_HEIGHT + insets.top }]}

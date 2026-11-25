@@ -1,15 +1,42 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CAFE_CHALLENGE_MS, CAFE_GAME_ORDER, CAFE_GAMES, CAFE_TURN_MS, boxesWon, isCafeGameKind, otherSide, recordScore, type Side } from "@shared/cafeGames";
-import type { Look } from "@shared/world";
+import { BUBBLE_MS, type Look } from "@shared/world";
 import { fonts } from "@/theme";
 import { useQuery } from "convex/react";
-import { useEffect, useState, type ReactNode } from "react";
-import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { announce } from "./announce";
-import { challengeTitle, gameLabel, rematchWords, resultWords, secondsLeft, sheetSwipe, shownChallenge, turnWords, type CafeChallengeView } from "./cafe";
+import {
+  challengeTitle,
+  freshSay,
+  gameLabel,
+  LOW_TIME_MS,
+  lowTimeDelay,
+  lowTimeLevel,
+  rematchWords,
+  resultWords,
+  secondsLeft,
+  shownChallenge,
+  turnEdge,
+  turnStarts,
+  turnWords,
+  type CafeChallengeView,
+  type TurnMark,
+} from "./cafe";
 import { CafeBoardView, CafePiece } from "@/components/games/cafe/CafeBoards";
 import { GameGlyph, GameTiles } from "@/components/games/cafe/CafeParts";
 import { useCafeTheme, type CafeTheme } from "@/components/games/cafe/cafeTheme";
@@ -18,6 +45,7 @@ import { useBatterySaver, useWorldName } from "./settings";
 import type { Cafe } from "./useCafe";
 import { useForeground } from "./useForeground";
 import { useSwipeToClose } from "@/components/ui/swipeToClose";
+import { gradientStyle } from "@/components/ui/Grid";
 
 const TICK_MS = 1000;
 const TURN_SECONDS = CAFE_TURN_MS / 1000;
@@ -38,7 +66,7 @@ const useClock = (serverNow: () => number, on: boolean) => {
   return now;
 };
 
-export const CafeRecord = ({ memberId, testID, tone = "app" }: { memberId: Id<"worldMembers">; testID?: string; tone?: "app" | "cafe" }) => {
+const CafeRecord = ({ memberId, testID, tone = "app" }: { memberId: Id<"worldMembers">; testID?: string; tone?: "app" | "cafe" }) => {
   const c = useCafeTheme();
   const records = useQuery(api.cafeGames.record, { memberId });
   const shown = (records ?? []).filter((row) => isCafeGameKind(row.kind) && row.wins + row.losses + row.draws > 0);
@@ -59,6 +87,87 @@ export const CafeRecord = ({ memberId, testID, tone = "app" }: { memberId: Id<"w
           </View>
         ) : null;
       })}
+    </View>
+  );
+};
+
+const STAT_COLUMNS = [
+  { key: "wins", label: "Won" },
+  { key: "losses", label: "Lost" },
+  { key: "draws", label: "Drew" },
+] as const;
+
+const Versus = ({ name, mine, theirs, draws }: { name: string; mine: number; theirs: number; draws: number }) => {
+  const c = useCafeTheme();
+  const drawsText = draws === 1 ? "1 draw" : `${draws} draws`;
+  return (
+    <View style={styles.versusRow} accessible accessibilityLabel={`You ${mine}, ${name} ${theirs}${draws > 0 ? `, ${drawsText}` : ""}`} testID="cafe-versus">
+      <View style={[styles.versusChip, { backgroundColor: c.tile, borderColor: c.tileEdge }]}>
+        <View style={styles.versusSide}>
+          <CafePiece side="a" size={11} />
+          <Text style={[styles.versusName, { color: c.muted }]}>You</Text>
+          <Text style={[styles.versusScore, { color: c.text }]}>{mine}</Text>
+        </View>
+        <View style={[styles.versusRule, { backgroundColor: c.tileEdge }]} />
+        <View style={styles.versusSide}>
+          <Text style={[styles.versusScore, { color: c.text }]}>{theirs}</Text>
+          <Text style={[styles.versusName, { color: c.muted }]} numberOfLines={1}>
+            {name}
+          </Text>
+          <CafePiece side="b" size={11} />
+        </View>
+      </View>
+      {draws > 0 ? <Text style={[styles.versusDraws, { color: c.faint }]}>{drawsText}</Text> : null}
+    </View>
+  );
+};
+
+export const CafeStats = ({ memberId, name, testID }: { memberId: Id<"worldMembers">; name: string; testID?: string }) => {
+  const c = useCafeTheme();
+  const records = useQuery(api.cafeGames.record, { memberId });
+  const versus = useQuery(api.cafeGames.versus, { memberId });
+  const rows = CAFE_GAME_ORDER.map((kind) => ({ kind, row: records?.find((r) => r.kind === kind) }));
+  const played = rows.some(({ row }) => row !== undefined && row.wins + row.losses + row.draws > 0);
+  if (!played && !versus) return null;
+  return (
+    <View style={[styles.stats, { backgroundColor: c.sheet, borderColor: c.sheetEdge }]} testID={testID}>
+      {versus ? <Versus name={name} {...versus} /> : null}
+      {played ? (
+        <View>
+          <View style={styles.statRow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <View style={styles.statGame} />
+            {STAT_COLUMNS.map(({ key, label }) => (
+              <Text key={key} style={[styles.statHead, { color: c.faint }]}>
+                {label}
+              </Text>
+            ))}
+          </View>
+          {rows.map(({ kind, row }) => (
+            <View
+              key={kind}
+              style={[styles.statRow, styles.statLine, { borderTopColor: c.tileEdge }]}
+              accessible
+              accessibilityLabel={`${CAFE_GAMES[kind].label}: ${row?.wins ?? 0} won, ${row?.losses ?? 0} lost, ${row?.draws ?? 0} drawn`}
+              testID={`cafe-stats-${kind}`}
+            >
+              <View style={styles.statGame}>
+                <GameGlyph kind={kind} size={18} />
+                <Text style={[styles.statLabel, { color: c.text }]} numberOfLines={1}>
+                  {CAFE_GAMES[kind].label}
+                </Text>
+              </View>
+              {STAT_COLUMNS.map(({ key }) => {
+                const count = row?.[key] ?? 0;
+                return (
+                  <Text key={key} style={[styles.statCount, { color: count > 0 ? c.text : c.faint }]}>
+                    {count}
+                  </Text>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -243,6 +352,7 @@ const Player = ({
   active,
   winner,
   calm,
+  said,
   testID,
 }: {
   name: string;
@@ -253,6 +363,7 @@ const Player = ({
   active: boolean;
   winner: boolean;
   calm: boolean;
+  said: string | null;
   testID: string;
 }) => {
   const c = useCafeTheme();
@@ -282,6 +393,100 @@ const Player = ({
           {score}
         </View>
       </View>
+      {said ? (
+        <View style={[styles.said, end ? styles.saidEnd : styles.saidStart, { backgroundColor: c.sheet, borderColor: c.sheetEdge, shadowColor: c.shadow }]} pointerEvents="none" testID={`${testID}-said`}>
+          <Text style={[styles.saidText, { color: c.text }]} numberOfLines={2}>
+            {said}
+          </Text>
+        </View>
+      ) : null}
+    </Reanimated.View>
+  );
+};
+
+const EDGE_WIDTH = 3;
+const PULSE_WIDTH = 12;
+const EDGE_RADIUS = Platform.OS === "web" ? 0 : 44;
+
+const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolean; endsAt: number; calm: boolean }) => {
+  const steady = useSharedValue(0);
+  const pulse = useSharedValue(0);
+  const last = useRef<TurnMark | null>(null);
+  useEffect(() => {
+    const mark = { mine, endsAt };
+    const starts = turnStarts(last.current, mark);
+    last.current = mark;
+    if (!mine) {
+      cancelAnimation(pulse);
+      pulse.set(0);
+      steady.set(calm ? 0 : withTiming(0, { duration: 180 }));
+      return;
+    }
+    if (calm) {
+      steady.set(1);
+      pulse.set(0);
+      return;
+    }
+    steady.set(withTiming(1, { duration: 260 }));
+    if (!starts) return;
+    pulse.set(
+      withSequence(
+        withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
+        withTiming(0.3, { duration: 260, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 650, easing: Easing.in(Easing.quad) })
+      )
+    );
+  }, [mine, endsAt, calm, pulse, steady]);
+  useEffect(() => {
+    if (mine && Platform.OS !== "web") void Haptics.selectionAsync();
+  }, [mine, endsAt]);
+  const steadyStyle = useAnimatedStyle(() => ({ opacity: steady.get() }));
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.6 * pulse.get() }));
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" testID={mine ? "cafe-edge-mine" : "cafe-edge-none"}>
+      <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: colour, borderWidth: PULSE_WIDTH, borderRadius: EDGE_RADIUS }, pulseStyle]} />
+      <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: colour, borderWidth: EDGE_WIDTH, borderRadius: EDGE_RADIUS }, steadyStyle]} />
+    </View>
+  );
+};
+
+const GLOW_WIDTH = 46;
+const BEAT_MS = 520;
+const STILL_GLOW = 0.85;
+
+const LowTimeGlow = ({ colour, active, endsAt, now, serverNow, calm }: { colour: string; active: boolean; endsAt: number; now: number; serverNow: () => number; calm: boolean }) => {
+  const level = useSharedValue(0);
+  const beat = useSharedValue(0);
+  const foreground = useForeground();
+  useEffect(() => {
+    cancelAnimation(level);
+    cancelAnimation(beat);
+    level.set(0);
+    beat.set(0);
+    if (!active || calm) return;
+    const at = serverNow();
+    const delay = lowTimeDelay(endsAt, at);
+    level.set(lowTimeLevel(endsAt, at));
+    level.set(withDelay(delay, withTiming(1, { duration: Math.max(0, Math.min(LOW_TIME_MS, endsAt - at)), easing: Easing.in(Easing.quad) })));
+    beat.set(withDelay(delay, withRepeat(withSequence(withTiming(1, { duration: BEAT_MS }), withTiming(0, { duration: BEAT_MS })), -1)));
+  }, [active, calm, endsAt, foreground, level, beat, serverNow]);
+  const glow = useAnimatedStyle(() => ({ opacity: level.get() * (0.55 + 0.45 * beat.get()) }));
+  const still = calm && active && endsAt - now <= LOW_TIME_MS;
+  if (calm && !still) return null;
+  const sides = (
+    <>
+      <View style={[styles.glow, styles.glowLeft, gradientStyle(`linear-gradient(to right, ${colour}, transparent)`)]} />
+      <View style={[styles.glow, styles.glowRight, gradientStyle(`linear-gradient(to left, ${colour}, transparent)`)]} />
+    </>
+  );
+  return calm ? (
+    <View style={[StyleSheet.absoluteFill, { opacity: STILL_GLOW }]} pointerEvents="none" testID="cafe-low-time">
+      {sides}
+    </View>
+  ) : (
+    <Reanimated.View style={[StyleSheet.absoluteFill, glow]} pointerEvents="none" testID={active ? "cafe-low-time" : undefined}>
+      {sides}
     </Reanimated.View>
   );
 };
@@ -307,12 +512,16 @@ const CafeSheet = ({
   awayFromCafe,
   onReturn,
   safe,
+  bottom,
+  lift,
   looks,
+  said,
   busy,
   onMove,
   onGiveUp,
   onRematch,
   onClose,
+  onSeen,
 }: {
   game: GameView;
   now: number;
@@ -320,12 +529,16 @@ const CafeSheet = ({
   awayFromCafe: boolean;
   onReturn: () => void;
   safe: { top: number; bottom: number };
+  bottom: number;
+  lift?: SharedValue<number>;
   looks: { mine: Look | null; theirs: Look | null };
+  said: { mine: string | null; theirs: string | null };
   busy: boolean;
   onMove: (move: number) => void;
   onGiveUp: () => void;
   onRematch: () => void;
   onClose: () => void;
+  onSeen: (gameId: Id<"cafeGames">) => void;
 }) => {
   const c = useCafeTheme();
   const calm = useBatterySaver();
@@ -341,7 +554,7 @@ const CafeSheet = ({
   const them = worldName(game.opponentName);
   const kind = isCafeGameKind(game.kind) ? game.kind : null;
   const sheetWidth = Math.min(400, width - 28);
-  const room = height - safe.top - Math.max(safe.bottom, 16) - 12;
+  const room = height - safe.top - bottom - 12;
   const boardSize = Math.max(240, Math.min(sheetWidth - 32, room - 300));
   const result = game.result ? resultWords(game.result, mine, them) : null;
   const turn = turnWords(game.board.turn, mine, them);
@@ -349,17 +562,15 @@ const CafeSheet = ({
   const myBoxes = boxesWon(game.board.boxes, mine);
   const theirBoxes = boxesWon(game.board.boxes, theirs);
   const winner = game.result && game.result.winner !== "draw" ? game.result.winner : null;
-  const swipe = useSwipeToClose(true, () => {
-    if (sheetSwipe(ended) === "close") {
-      onClose();
-      return true;
-    }
-    setConfirming(true);
-    return false;
+  const swipe = useSwipeToClose(ended, () => {
+    onClose();
+    return true;
   });
+  const lifted = useAnimatedStyle(() => ({ transform: [{ translateY: lift ? -lift.get() : 0 }] }));
   useEffect(() => {
-    Keyboard.dismiss();
-  }, []);
+    if (!ended) return;
+    return () => onSeen(game.id);
+  }, [ended, game.id, onSeen]);
   useEffect(() => {
     if (!confirming) return;
     const id = setTimeout(() => setConfirming(false), 3000);
@@ -376,138 +587,151 @@ const CafeSheet = ({
   const rematch = rematchWords(game.rematch, mine, them);
   const seconds = Math.min(TURN_SECONDS, secondsLeft(game.turnEndsAt, now));
   const turnColour = c[game.board.turn].turn;
+  const edge = turnEdge(game, mine);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: shown }]} pointerEvents="auto" />
-      <Animated.View
-        style={[
-          styles.card,
-          card(c),
-          styles.sheet,
-          { width: sheetWidth, bottom: Math.max(safe.bottom, 16), maxHeight: room },
-          calm ? { opacity: shown, ...swipe.dragStyle } : { opacity: shown, transform: [{ translateY: Animated.add(shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }), swipe.drag) }] },
-        ]}
-        testID="cafe-sheet"
-        accessibilityViewIsModal
-      >
-        <ScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
-          <View testID="cafe-sheet-header" {...swipe.headerHandlers}>
-            <View style={[styles.handle, { backgroundColor: c.handle }]} />
-            <View style={styles.sheetHead}>
-              <GameGlyph kind={kind} />
-              <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header" numberOfLines={1}>
-                {CAFE_GAMES[kind].label}
-              </Text>
-              {ended ? (
-                <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.closeRound, { backgroundColor: c.close }, pressed && styles.pressed]}>
-                  <Ionicons name="close" size={16} color={c.text} />
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => (confirming ? onGiveUp() : setConfirming(true))}
-                  accessibilityRole="button"
-                  accessibilityLabel={confirming ? "Tap again to give up" : "Give up"}
-                  testID={confirming ? "cafe-give-up-yes" : "cafe-give-up"}
-                  style={({ pressed }) => [styles.giveUp, { backgroundColor: confirming ? c.primary : c.pill }, pressed && styles.pressed]}
-                >
-                  <Text style={[styles.giveUpText, { color: confirming ? c.onPrimary : c.pillText }]}>{confirming ? "Give up?" : "Give up"}</Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-          <View style={styles.versus}>
-            <Player name="You" look={looks.mine} side={mine} boxes={dots ? myBoxes : null} end={false} active={myTurn} winner={winner === mine} calm={calm} testID="cafe-plate-me" />
-            <Text style={[styles.vs, { color: c.faint }]}>vs</Text>
-            <Player name={them} look={looks.theirs} side={theirs} boxes={dots ? theirBoxes : null} end active={live && !myTurn} winner={winner === theirs} calm={calm} testID="cafe-plate-them" />
-          </View>
-          {live ? (
-            <View style={styles.turnStrip}>
-              <View style={styles.turnRow}>
-                <View style={[styles.turnDot, { backgroundColor: turnColour }]} />
-                <Text style={[styles.turnText, { color: turnColour }]} numberOfLines={1} testID="cafe-turn">
-                  {turn}
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} testID="cafe-scrim">
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: c.scrim, opacity: shown }]} />
+      </Pressable>
+      <TurnEdge colour={c[mine].turn} mine={edge === "mine"} endsAt={game.turnEndsAt} calm={calm} />
+      <LowTimeGlow colour={c.lowTime} active={edge === "mine" && !busy} endsAt={game.turnEndsAt} now={now} serverNow={serverNow} calm={calm} />
+      <Reanimated.View style={[StyleSheet.absoluteFill, lifted]} pointerEvents="box-none">
+        <Animated.View
+          style={[
+            styles.card,
+            card(c),
+            styles.sheet,
+            { width: sheetWidth, bottom, maxHeight: room },
+            calm ? { opacity: shown, ...swipe.dragStyle } : { opacity: shown, transform: [{ translateY: Animated.add(shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }), swipe.drag) }] },
+          ]}
+          testID="cafe-sheet"
+          accessibilityViewIsModal
+        >
+          <ScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
+            <View testID="cafe-sheet-header" style={ended ? null : styles.headNoHandle} {...(ended ? swipe.headerHandlers : null)}>
+              {ended ? <View style={[styles.handle, { backgroundColor: c.handle }]} testID="cafe-handle" /> : null}
+              <View style={styles.sheetHead}>
+                <GameGlyph kind={kind} />
+                <Text style={[styles.sheetTitle, { color: c.text }]} accessibilityRole="header" numberOfLines={1}>
+                  {CAFE_GAMES[kind].label}
                 </Text>
-                <Text style={[styles.seconds, { color: c.secs }]} accessibilityLabel={`${seconds} seconds left`} testID="cafe-seconds">{`${seconds}s`}</Text>
-              </View>
-              <TurnBar endsAt={game.turnEndsAt} side={game.board.turn} now={now} serverNow={serverNow} calm={calm} />
-            </View>
-          ) : null}
-          {live && (game.away || awayFromCafe) ? (
-            <Pressable
-              onPress={onReturn}
-              accessibilityRole="button"
-              accessibilityLabel="Back to the Café. You lose if you stay away."
-              testID="cafe-away"
-              style={({ pressed }) => [styles.warn, { backgroundColor: c.primary }, pressed && styles.pressed]}
-            >
-              <Text style={[styles.warnText, { color: c.onPrimary }]}>Back to the Café</Text>
-              <Text style={[styles.warnSub, { color: c.onPrimary }]}>or you lose</Text>
-            </Pressable>
-          ) : null}
-          <CafeBoardView kind={kind} board={game.board} side={mine} canMove={myTurn && !busy} onMove={onMove} size={boardSize} calm={calm} winner={winner} />
-          {result ? (
-            <EndCard calm={calm} win={result.won}>
-              <View style={styles.result} testID="cafe-result">
-                <View style={styles.resultRow}>
-                  {result.won ? <Text style={[styles.star, { color: c.win, textShadowColor: c.crest }]}>★</Text> : null}
-                  <Text style={[styles.resultTitle, { color: c.text }]} numberOfLines={1}>
-                    {result.title}
-                  </Text>
-                  {dots ? (
-                    <View style={[styles.scorePill, { backgroundColor: c.scoreBg }]}>
-                      <Text style={[styles.scoreText, { color: c.text }]}>{`${myBoxes}–${theirBoxes}`}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                {result.detail ? <Text style={[styles.resultDetail, { color: c.muted }]}>{result.detail}</Text> : null}
-              </View>
-              <View style={styles.answers}>
-                {game.result?.why === "abandoned" || game.result?.why === "left" ? null : (
+                {ended ? (
+                  <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close-x" style={({ pressed }) => [styles.closeRound, { backgroundColor: c.close }, pressed && styles.pressed]}>
+                    <Ionicons name="close" size={16} color={c.text} />
+                  </Pressable>
+                ) : (
                   <Pressable
-                    onPress={onRematch}
-                    disabled={game.rematch === mine}
+                    onPress={() => (confirming ? onGiveUp() : setConfirming(true))}
                     accessibilityRole="button"
-                    accessibilityLabel="Rematch"
-                    testID="cafe-rematch"
-                    style={({ pressed }) => [styles.button, styles.primary, { backgroundColor: c.primary, shadowColor: c.primary }, game.rematch === mine && styles.waiting, pressed && styles.pressed]}
+                    accessibilityLabel={confirming ? "Tap again to give up" : "Give up"}
+                    testID={confirming ? "cafe-give-up-yes" : "cafe-give-up"}
+                    style={({ pressed }) => [styles.giveUp, { backgroundColor: confirming ? c.primary : c.pill }, pressed && styles.pressed]}
                   >
-                    <Text style={[styles.buttonText, { color: c.onPrimary }]}>Rematch</Text>
+                    <Text style={[styles.giveUpText, { color: confirming ? c.onPrimary : c.pillText }]}>{confirming ? "Give up?" : "Give up"}</Text>
                   </Pressable>
                 )}
-                <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close" style={({ pressed }) => [styles.button, { backgroundColor: c.secondary }, pressed && styles.pressed]}>
-                  <Text style={[styles.buttonText, { color: c.onSecondary }]}>Close</Text>
-                </Pressable>
               </View>
-              {rematch ? (
-                <Text style={[styles.note, { color: c.muted }]} testID="cafe-rematch-note">
-                  {rematch}
-                </Text>
-              ) : null}
-            </EndCard>
-          ) : null}
-        </ScrollView>
-      </Animated.View>
+            </View>
+            <View style={styles.versus}>
+              <Player name="You" look={looks.mine} side={mine} boxes={dots ? myBoxes : null} end={false} active={myTurn} winner={winner === mine} calm={calm} said={said.mine} testID="cafe-plate-me" />
+              <Text style={[styles.vs, { color: c.faint }]}>vs</Text>
+              <Player name={them} look={looks.theirs} side={theirs} boxes={dots ? theirBoxes : null} end active={live && !myTurn} winner={winner === theirs} calm={calm} said={said.theirs} testID="cafe-plate-them" />
+            </View>
+            {live ? (
+              <View style={styles.turnStrip}>
+                <View style={styles.turnRow}>
+                  <View style={[styles.turnDot, { backgroundColor: turnColour }]} />
+                  <Text style={[styles.turnText, { color: turnColour }]} numberOfLines={1} testID="cafe-turn">
+                    {turn}
+                  </Text>
+                  <Text style={[styles.seconds, { color: c.secs }]} accessibilityLabel={`${seconds} seconds left`} testID="cafe-seconds">{`${seconds}s`}</Text>
+                </View>
+                <TurnBar endsAt={game.turnEndsAt} side={game.board.turn} now={now} serverNow={serverNow} calm={calm} />
+              </View>
+            ) : null}
+            {live && (game.away || awayFromCafe) ? (
+              <Pressable
+                onPress={onReturn}
+                accessibilityRole="button"
+                accessibilityLabel="Back to the Café. You lose if you stay away."
+                testID="cafe-away"
+                style={({ pressed }) => [styles.warn, { backgroundColor: c.primary }, pressed && styles.pressed]}
+              >
+                <Text style={[styles.warnText, { color: c.onPrimary }]}>Back to the Café</Text>
+                <Text style={[styles.warnSub, { color: c.onPrimary }]}>or you lose</Text>
+              </Pressable>
+            ) : null}
+            <CafeBoardView kind={kind} board={game.board} side={mine} canMove={myTurn && !busy} onMove={onMove} size={boardSize} calm={calm} winner={winner} />
+            {result ? (
+              <EndCard calm={calm} win={result.won}>
+                <View style={styles.result} testID="cafe-result">
+                  <View style={styles.resultRow}>
+                    {result.won ? <Text style={[styles.star, { color: c.win, textShadowColor: c.crest }]}>★</Text> : null}
+                    <Text style={[styles.resultTitle, { color: c.text }]} numberOfLines={1}>
+                      {result.title}
+                    </Text>
+                    {dots ? (
+                      <View style={[styles.scorePill, { backgroundColor: c.scoreBg }]}>
+                        <Text style={[styles.scoreText, { color: c.text }]}>{`${myBoxes}–${theirBoxes}`}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  {result.detail ? <Text style={[styles.resultDetail, { color: c.muted }]}>{result.detail}</Text> : null}
+                </View>
+                <View style={styles.answers}>
+                  {game.result?.why === "abandoned" || game.result?.why === "left" ? null : (
+                    <Pressable
+                      onPress={onRematch}
+                      disabled={game.rematch === mine}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rematch"
+                      testID="cafe-rematch"
+                      style={({ pressed }) => [styles.button, styles.primary, { backgroundColor: c.primary, shadowColor: c.primary }, game.rematch === mine && styles.waiting, pressed && styles.pressed]}
+                    >
+                      <Text style={[styles.buttonText, { color: c.onPrimary }]}>Rematch</Text>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="cafe-close" style={({ pressed }) => [styles.button, { backgroundColor: c.secondary }, pressed && styles.pressed]}>
+                    <Text style={[styles.buttonText, { color: c.onSecondary }]}>Close</Text>
+                  </Pressable>
+                </View>
+                {rematch ? (
+                  <Text style={[styles.note, { color: c.muted }]} testID="cafe-rematch-note">
+                    {rematch}
+                  </Text>
+                ) : null}
+              </EndCard>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
+      </Reanimated.View>
     </View>
   );
 };
 
-type Seated = { memberId: string; isMe: boolean; seat?: string; look: Look };
+type Seated = { memberId: string; isMe: boolean; seat?: string; look: Look; say?: { text: string; at: number } };
 
 export const CafeLayer = ({
   cafe: games,
   people,
+  muted,
   place,
   serverNow,
   bottom,
+  sheetBottom,
+  lift,
   safe,
   onNote,
   onReturn,
 }: {
   cafe: Cafe;
   people: readonly Seated[];
+  muted: ReadonlySet<string>;
   place: string;
   serverNow: () => number;
   bottom: number;
+  sheetBottom: number;
+  lift?: SharedValue<number>;
   safe: { top: number; bottom: number };
   onNote: (note: string) => void;
   onReturn: () => void;
@@ -516,7 +740,13 @@ export const CafeLayer = ({
   const [closedGame, setClosedGame] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const game = games.game && games.game.id !== closedGame ? games.game : null;
-  const now = useClock(serverNow, games.challenges.length > 0 || (game !== null && game.result === undefined));
+  const now = useClock(serverNow, games.challenges.length > 0 || game !== null);
+  const { close } = games;
+  const seen = useCallback((gameId: Id<"cafeGames">) => void close(gameId), [close]);
+  const saidBy = (memberId: string | null) => {
+    const person = memberId === null || muted.has(memberId) ? undefined : people.find((p) => p.memberId === memberId);
+    return freshSay(person?.say, now, BUBBLE_MS);
+  };
   const challenge = shownChallenge(games.challenges, { now, people, dismissed });
   const hide = (c: CafeChallengeView) => setDismissed((set) => new Set(set).add(`${c.id}:${c.picked}`));
   const lookOf = (memberId: string | null) => (memberId ? (people.find((p) => p.memberId === memberId)?.look ?? null) : null);
@@ -557,12 +787,16 @@ export const CafeLayer = ({
           awayFromCafe={place !== "cafe"}
           onReturn={onReturn}
           safe={safe}
+          bottom={sheetBottom}
+          lift={lift}
           looks={{ mine: lookOf(people.find((p) => p.isMe)?.memberId ?? null), theirs: lookOf(game.opponent) }}
+          said={{ mine: saidBy(people.find((p) => p.isMe)?.memberId ?? null), theirs: saidBy(game.opponent) }}
           busy={busy}
           onMove={(index) => move(game.id, index)}
           onGiveUp={() => void games.giveUp(game.id).then(say)}
           onRematch={() => void games.rematch(game.id).then(say)}
           onClose={() => setClosedGame(game.id)}
+          onSeen={seen}
         />
       ) : null}
     </>
@@ -593,9 +827,43 @@ const styles = StyleSheet.create({
   buttonText: { fontFamily: fonts.display, fontSize: 15.5, letterSpacing: -0.15 },
   waiting: { opacity: 0.55 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  stats: { borderWidth: 1, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
+  statRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  statLine: { minHeight: 34, borderTopWidth: StyleSheet.hairlineWidth },
+  statGame: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
+  statLabel: { flexShrink: 1, fontFamily: fonts.display, fontSize: 14, letterSpacing: -0.2 },
+  statHead: { width: 44, textAlign: "center", fontSize: 11.5, fontWeight: "700" },
+  statCount: { width: 44, textAlign: "center", fontSize: 15, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  versusRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  versusChip: { flexShrink: 1, flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12, gap: 10 },
+  versusSide: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  versusName: { flexShrink: 1, fontSize: 13, fontWeight: "700" },
+  versusScore: { fontFamily: fonts.display, fontSize: 18, fontVariant: ["tabular-nums"] },
+  versusRule: { width: 1, alignSelf: "stretch" },
+  versusDraws: { fontSize: 12.5, fontWeight: "700" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingLeft: 6, paddingRight: 10, borderRadius: 999, borderWidth: 1 },
   chipText: { fontWeight: "700", fontSize: 12.5, fontVariant: ["tabular-nums"] },
   sheet: { position: "absolute", alignSelf: "center" },
+  headNoHandle: { paddingTop: 2 },
+  said: {
+    position: "absolute",
+    top: -22,
+    maxWidth: "88%",
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.6,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  saidStart: { left: 4, borderBottomLeftRadius: 3 },
+  saidEnd: { right: 4, borderBottomRightRadius: 3 },
+  saidText: { fontSize: 12.5, fontWeight: "700" },
+  glow: { position: "absolute", top: 0, bottom: 0, width: GLOW_WIDTH },
+  glowLeft: { left: 0 },
+  glowRight: { right: 0 },
   sheetBody: { paddingTop: 10, paddingHorizontal: 16, paddingBottom: 18, gap: 12 },
   handle: { alignSelf: "center", width: 38, height: 4, borderRadius: 2 },
   sheetHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30 },

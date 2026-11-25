@@ -1,10 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Animated, Easing, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { togglePicked } from "@shared/churches";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { fieldTestID } from "./fieldTestID";
 import { useRegisterModal } from "./modalPresence";
+import { KeyboardFrame } from "./keyboardFrame";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
 import { styles } from "./styles";
@@ -186,12 +187,7 @@ export const OptionSheet = ({
     <FastModal visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={spacing.md}
-          pointerEvents="box-none"
-          style={styles.dialogOuter}
-        >
+        <KeyboardFrame offset={spacing.md} style={styles.dialogOuter}>
           <Animated.View style={[styles.dialog, { backgroundColor: t.card }, swipe.dragStyle]}>
             <View style={styles.optionSheetHeader} testID="sheet-header" {...swipe.headerHandlers}>
               <Text
@@ -230,7 +226,7 @@ export const OptionSheet = ({
               </View>
             ) : null}
           </Animated.View>
-        </KeyboardAvoidingView>
+        </KeyboardFrame>
       </View>
     </FastModal>
   );

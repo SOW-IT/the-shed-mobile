@@ -1,6 +1,7 @@
 import { CHAT_TTL_MS } from "@shared/world";
 import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from "react-native";
+import { gradientStyle } from "@/components/ui/Grid";
 import type { Id } from "../../convex/_generated/dataModel";
 import { chatLineParts } from "./chatFormat";
 import { chatLog } from "./palette";
@@ -8,6 +9,7 @@ import { useWorldSetting } from "./settings";
 import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
 import { saidLabel } from "./view";
+import { scrollEdges, type ScrollEdges } from "./scrollEdges";
 import { styledName } from "@shared/names";
 
 const LINE_HEIGHT = 19;
@@ -15,6 +17,7 @@ const SHOWN_LINES = 5;
 const END_SLACK = 6;
 const PAD = 2;
 const MOST = LINE_HEIGHT * SHOWN_LINES;
+const FADE_HEIGHT = 14;
 
 const fitWhole = (heights: readonly number[]) => {
   let total = 0;
@@ -62,6 +65,13 @@ export const ChatLog = ({
   }, [nextExpiry, serverNow]);
   const scroller = useRef<ScrollViewInstance>(null);
   const atEnd = useRef(true);
+  const frame = useRef({ offset: 0, content: 0, viewport: 0 });
+  const [edges, setEdges] = useState<ScrollEdges>({ above: false, below: false });
+  const showEdges = (next: Partial<typeof frame.current>) => {
+    frame.current = { ...frame.current, ...next };
+    const found = scrollEdges(frame.current, END_SLACK);
+    setEdges((was) => (was.above === found.above && was.below === found.below ? was : found));
+  };
   const [heights, setHeights] = useState<Record<string, number>>({});
   const lines = (log ?? []).filter((line) => !muted.has(line.memberId) && now - line.at < CHAT_TTL_MS).reverse();
   const showing = new Set(["status", ...lines.map((line) => line.id)]);
@@ -79,55 +89,63 @@ export const ChatLog = ({
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     atEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - END_SLACK;
+    showEdges({ offset: contentOffset.y, content: contentSize.height, viewport: layoutMeasurement.height });
   };
   return (
-    <ScrollView
-      ref={scroller}
-      style={[styles.log, { maxHeight: shown + PAD * 2 }]}
-      contentContainerStyle={styles.content}
-      onScroll={onScroll}
-      scrollEventThrottle={32}
-      onContentSizeChange={() => {
-        if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
-      }}
-      onLayout={() => {
-        if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
-      }}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      accessibilityLabel="Chat"
-      testID="world-chat-log"
-    >
-      {status ? (
-        <Text style={[styles.line, styles.status]} onLayout={measure("status")} testID="world-chat-status">
-          {status}
-        </Text>
-      ) : null}
-      {lines.map((line) => {
-        const parts = chatLineParts(line, { ...format, pending: line.id.startsWith(PENDING) });
-        return line.kind ? (
-          <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line, names)} testID="world-chat-system">
-            <ChatLineHead parts={parts} />
-            {`${parts.name} ${parts.text}`}
+    <View style={styles.frame}>
+      <ScrollView
+        ref={scroller}
+        style={[styles.log, { maxHeight: shown + PAD * 2 }]}
+        contentContainerStyle={styles.content}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        onContentSizeChange={(_width, height) => {
+          if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
+          showEdges(atEnd.current ? { content: height, offset: Math.max(0, height - frame.current.viewport) } : { content: height });
+        }}
+        onLayout={(e) => {
+          if (atEnd.current) scroller.current?.scrollToEnd({ animated: false });
+          const viewport = e.nativeEvent.layout.height;
+          showEdges(atEnd.current ? { viewport, offset: Math.max(0, frame.current.content - viewport) } : { viewport });
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        accessibilityLabel="Chat"
+        testID="world-chat-log"
+      >
+        {status ? (
+          <Text style={[styles.line, styles.status]} onLayout={measure("status")} testID="world-chat-status">
+            {status}
           </Text>
-        ) : (
-          <Text
-            key={line.id}
-            style={styles.line}
-            onLayout={measure(line.id)}
-            accessibilityLabel={saidLabel(line, names)}
-            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${styledName(line.name, names)}`}
-            onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
-            suppressHighlighting
-            testID="world-chat-line"
-          >
-            <ChatLineHead parts={parts} />
-            <Text style={line.isMe ? styles.me : styles.name}>{`<${parts.name}> `}</Text>
-            {line.text}
-          </Text>
-        );
-      })}
-    </ScrollView>
+        ) : null}
+        {lines.map((line) => {
+          const parts = chatLineParts(line, { ...format, pending: line.id.startsWith(PENDING) });
+          return line.kind ? (
+            <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line, names)} testID="world-chat-system">
+              <ChatLineHead parts={parts} />
+              {`${parts.name} ${parts.text}`}
+            </Text>
+          ) : (
+            <Text
+              key={line.id}
+              style={styles.line}
+              onLayout={measure(line.id)}
+              accessibilityLabel={saidLabel(line, names)}
+              accessibilityHint={line.isMe ? undefined : `Mute, block or report ${styledName(line.name, names)}`}
+              onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
+              suppressHighlighting
+              testID="world-chat-line"
+            >
+              <ChatLineHead parts={parts} />
+              <Text style={line.isMe ? styles.me : styles.name}>{`<${parts.name}> `}</Text>
+              {line.text}
+            </Text>
+          );
+        })}
+      </ScrollView>
+      {edges.above ? <View style={[styles.fade, styles.fadeTop, gradientStyle(`linear-gradient(to bottom, ${chatLog.fade}, transparent)`)]} pointerEvents="none" testID="world-chat-fade-top" /> : null}
+      {edges.below ? <View style={[styles.fade, styles.fadeBottom, gradientStyle(`linear-gradient(to top, ${chatLog.fade}, transparent)`)]} pointerEvents="none" testID="world-chat-fade-bottom" /> : null}
+    </View>
   );
 };
 
@@ -145,7 +163,11 @@ const shadow = {
 };
 
 const styles = StyleSheet.create({
+  frame: { maxWidth: "100%" },
   log: { flexGrow: 0, backgroundColor: chatLog.backing, borderRadius: 4 },
+  fade: { position: "absolute", left: 0, right: 0, height: FADE_HEIGHT },
+  fadeTop: { top: 0, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  fadeBottom: { bottom: 0, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
   content: { paddingTop: 0, paddingBottom: PAD * 2, paddingHorizontal: 6 },
   line: { fontFamily: blocky, fontSize: 13.5, lineHeight: LINE_HEIGHT, fontWeight: "700", color: chatLog.text, ...shadow },
   time: { color: chatLog.time },

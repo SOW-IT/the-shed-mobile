@@ -459,6 +459,28 @@ describe("account.wipe", () => {
     });
   });
 
+  test("deletes the user's Café records and head-to-heads, keeping everyone else's", async () => {
+    vi.useFakeTimers();
+    const t = newConvex();
+    const OTHER = "other@sow.org.au";
+    const THIRD = "zed@sow.org.au";
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      await ctx.db.insert("cafeRecords", { email: GUEST, kind: "fourInARow", wins: 1, losses: 0, draws: 0 });
+      await ctx.db.insert("cafeRecords", { email: OTHER, kind: "fourInARow", wins: 0, losses: 1, draws: 0 });
+      await ctx.db.insert("cafeVersus", { a: "aaron@sow.org.au", b: GUEST, aWins: 1, bWins: 0, draws: 0 });
+      await ctx.db.insert("cafeVersus", { a: GUEST, b: OTHER, aWins: 1, bWins: 0, draws: 0 });
+      await ctx.db.insert("cafeVersus", { a: OTHER, b: THIRD, aWins: 0, bWins: 2, draws: 1 });
+      return userId;
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("cafeRecords").collect()).toMatchObject([{ email: OTHER }]);
+      expect(await ctx.db.query("cafeVersus").collect()).toMatchObject([{ a: OTHER, b: THIRD }]);
+    });
+  });
+
   test("deletes the user's coins, home, invites and pokes, keeping everyone else's", async () => {
     vi.useFakeTimers();
     const t = newConvex();

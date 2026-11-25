@@ -1,39 +1,43 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
-import { Keyboard, Platform } from "react-native";
+import { type RefObject, useEffect } from "react";
+import { Animated, Dimensions, Keyboard, Platform } from "react-native";
+import Reanimated, { type SharedValue, useAnimatedKeyboard, useAnimatedStyle, useDerivedValue, useSharedValue } from "react-native-reanimated";
+import { keyboardOverlap } from "./keyboardOverlap";
 
 type Measurable = { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => void };
 
-export const keyboardOverlap = (frame: { y: number; height: number }, keyboardTop: number, alreadyGiven = 0) =>
-  Math.max(0, Math.round(frame.y + frame.height + alreadyGiven - keyboardTop));
+const EDGE_TO_EDGE = { isStatusBarTranslucentAndroid: true, isNavigationBarTranslucentAndroid: true };
 
-export const watchKeyboardTop = (onTop: (keyboardTop: number | null) => void) => {
-  if (Platform.OS !== "android") return () => undefined;
-  const show = Keyboard.addListener("keyboardDidShow", (e) => onTop(e.endCoordinates.screenY));
-  const hide = Keyboard.addListener("keyboardDidHide", () => onTop(null));
-  const open = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
-  if (open) onTop(open.screenY);
-  return () => {
-    show.remove();
-    hide.remove();
-  };
+const useTrackedKeyboardHeight = (): SharedValue<number> => useAnimatedKeyboard(EDGE_TO_EDGE).height;
+
+const useNoKeyboardHeight = (): SharedValue<number> => useSharedValue(0);
+
+export const useKeyboardHeight = Platform.OS === "web" ? useNoKeyboardHeight : useTrackedKeyboardHeight;
+
+const useAndroidKeyboardInset = (frame: RefObject<Measurable | null>, frameShrinks = true) => {
+  const keyboard = useTrackedKeyboardHeight();
+  const screenHeight = useSharedValue(Dimensions.get("screen").height);
+  const frameBottom = useSharedValue(Dimensions.get("screen").height);
+  const inset = useDerivedValue(() => keyboardOverlap(frameBottom.get(), screenHeight.get(), keyboard.get()));
+  useEffect(() => {
+    const measure = () => {
+      screenHeight.set(Dimensions.get("screen").height);
+      frame.current?.measureInWindow((_x, y, _width, height) => frameBottom.set(y + height + (frameShrinks ? inset.get() : 0)));
+    };
+    measure();
+    const subs = [
+      Keyboard.addListener("keyboardDidShow", measure),
+      Keyboard.addListener("keyboardDidHide", measure),
+      Dimensions.addEventListener("change", measure),
+    ];
+    return () => subs.forEach((sub) => sub.remove());
+  }, [frame, frameShrinks, frameBottom, screenHeight, inset]);
+  return useAnimatedStyle(() => ({ marginBottom: inset.get() }));
 };
 
-export const useKeyboardInset = (frame: RefObject<Measurable | null>, frameShrinks = true) => {
-  const [inset, setInset] = useState(0);
-  const given = useRef(0);
-  useEffect(
-    () =>
-      watchKeyboardTop((keyboardTop) => {
-        const give = (next: number) => {
-          given.current = next;
-          setInset(next);
-        };
-        if (keyboardTop === null) return give(0);
-        frame.current?.measureInWindow((_x, y, _width, height) =>
-          give(keyboardOverlap({ y, height }, keyboardTop, frameShrinks ? given.current : 0))
-        );
-      }),
-    [frame, frameShrinks]
-  );
-  return inset;
-};
+const noInset = {};
+
+const useNoKeyboardInset = (_frame: RefObject<Measurable | null>, _frameShrinks?: boolean) => noInset;
+
+export const useKeyboardInset = Platform.OS === "android" ? useAndroidKeyboardInset : useNoKeyboardInset;
+
+export const KeyboardScrollView = Reanimated.createAnimatedComponent(Animated.ScrollView);
