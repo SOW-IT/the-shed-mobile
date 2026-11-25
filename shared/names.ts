@@ -11,3 +11,21 @@ export const shortName = (name: string): string => {
   const initial = words.length > 1 ? Array.from(words[words.length - 1])[0].toUpperCase() : null;
   return initial ? `${short} ${initial}.` : short;
 };
+
+const wordsOf = (name: string) => name.trim().split(/\s+/).filter(Boolean);
+
+export const initials = (name: string): string => {
+  const words = wordsOf(name);
+  if (words.length === 0) return "?";
+  const ends = words.length > 1 ? [words[0], words[words.length - 1]] : [words[0]];
+  return ends.map((word) => Array.from(word)[0].toUpperCase()).join("");
+};
+
+export const fullName = (name: string): string => wordsOf(name).join(" ") || "Someone";
+
+export const NAME_STYLES = ["initials", "short", "full"] as const;
+
+export type NameStyle = (typeof NAME_STYLES)[number];
+
+export const styledName = (name: string, style: NameStyle): string =>
+  style === "initials" ? initials(name) : style === "full" ? fullName(name) : shortName(name);

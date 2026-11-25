@@ -18,7 +18,7 @@ export const INTERACT_RADIUS = 2.5;
 /** How long an ask ("High five?") waits for an answer before it lapses. */
 export const ASK_MS = 10_000;
 /** How long a mutual action plays once accepted. */
-export const MUTUAL_MS = 2600;
+export const MUTUAL_MS = 1750;
 export const MAX_SAY_LENGTH = 120;
 export const JOINED_WORLD = "joined the World";
 /** How long a chat line is kept, unless someone reports it. */

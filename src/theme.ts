@@ -328,6 +328,7 @@ export const fixedColours = {
       pole: "#F4EAD2",
       flag: "#FF6F59",
       track: "rgba(8, 14, 20, 0.35)",
+      trackNight: "rgba(255, 255, 255, 0.22)",
       trackFill: "#FFE9A8",
       perfect: "#FFE9A8",
       rough: "#FFB4A3",

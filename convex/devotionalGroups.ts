@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { parseDayKey } from "../shared/calendar";
+import { parseDayKey, shiftDay } from "../shared/calendar";
 import {
   effectiveSharingLevel,
   firstNameOf,
@@ -76,6 +76,17 @@ const invitesOf = (ctx: Ctx, groupId: Id<"devotionalGroups">) =>
     .withIndex("by_groupId_and_status", (q) => q.eq("groupId", groupId).eq("status", "invited"))
     .take(MEMBER_LIMIT);
 
+const sharesFrom = (group: Doc<"devotionalGroups">, member: Doc<"devotionalGroupMembers">): string =>
+  member.email !== group.ownerEmail && member.joinedOn && member.joinedOn > group.startDate
+    ? member.joinedOn
+    : group.startDate;
+
+const membersOnDay = (
+  group: Doc<"devotionalGroups">,
+  members: Doc<"devotionalGroupMembers">[],
+  day: string
+) => members.filter((member) => sharesFrom(group, member) <= day);
+
 export const markGroupNotificationsRead = async (
   ctx: MutationCtx,
   email: string,
@@ -124,10 +135,12 @@ export const mySummary = query({
       const group = await ctx.db.get("devotionalGroups", membership.groupId);
       if (!group) continue;
       let todayDone: number | null = null;
+      let todayTotal: number | null = null;
       if (today && isDateInRange(today, group.startDate, group.endDate)) {
-        const groupMembers = await membersOf(ctx, group._id);
+        const groupMembers = membersOnDay(group, await membersOf(ctx, group._id), today);
         const statuses = await Promise.all(groupMembers.map((m) => cachedDoneToday(m.email)));
         todayDone = statuses.filter(Boolean).length;
+        todayTotal = groupMembers.length;
       }
       groups.push({
         id: group._id,
@@ -140,6 +153,7 @@ export const mySummary = query({
         isOwner: group.ownerEmail === email,
         memberCount: group.memberCount,
         todayDone,
+        todayTotal,
       });
     }
     groups.sort((a, b) => a.name.localeCompare(b.name));
@@ -257,8 +271,10 @@ export const getGroup = query({
     pendingInvites.sort((a, b) => b.invitedAt - a.invitedAt);
 
     let todayDone: number | null = null;
+    let todayTotal: number | null = null;
     let meDoneToday = false;
     if (today && isDateInRange(today, group.startDate, group.endDate)) {
+      const sharingToday = new Set(membersOnDay(group, memberRows, today).map((row) => row.email));
       const doneFlags = await Promise.all(
         memberRows.map(async (row) => {
           const entry = await ctx.db
@@ -267,10 +283,11 @@ export const getGroup = query({
             .unique();
           const done = isDevotionalDone(entry);
           if (row.email === email) meDoneToday = done;
-          return done;
+          return done && sharingToday.has(row.email);
         })
       );
       todayDone = doneFlags.filter(Boolean).length;
+      todayTotal = sharingToday.size;
     }
 
     return {
@@ -287,6 +304,7 @@ export const getGroup = query({
       personalSharingLevel,
       effectiveMyLevel: effectiveSharingLevel(group.sharingLevel, personalSharingLevel),
       todayDone,
+      todayTotal,
       meDoneToday,
       members,
       pendingInvites,
@@ -315,13 +333,20 @@ export const monthProgress = query({
     const rangeFrom = from > group.startDate ? from : group.startDate;
     const rangeTo = to < group.endDate ? to : group.endDate;
     const doneCounts: Record<string, number> = {};
+    const dayTotals: Record<string, number> = {};
 
     if (rangeFrom <= rangeTo) {
       for (const member of memberRows) {
+        const joined = sharesFrom(group, member);
+        const memberFrom = joined > rangeFrom ? joined : rangeFrom;
+        if (memberFrom > rangeTo) continue;
+        for (let day = memberFrom; day <= rangeTo; day = shiftDay(day, 1)) {
+          dayTotals[day] = (dayTotals[day] ?? 0) + 1;
+        }
         const entries = await ctx.db
           .query("devotionals")
           .withIndex("by_email_and_date", (q) =>
-            q.eq("email", member.email).gte("date", rangeFrom).lte("date", rangeTo)
+            q.eq("email", member.email).gte("date", memberFrom).lte("date", rangeTo)
           )
           .take(31);
         for (const entry of entries) {
@@ -337,6 +362,7 @@ export const monthProgress = query({
       month: args.month,
       totalMembers: memberRows.length,
       doneCounts,
+      dayTotals,
     };
   },
 });
@@ -356,7 +382,7 @@ export const dayDetail = query({
     if (!membership || membership.status !== "member") return null;
     if (!isDateInRange(dayKey, group.startDate, group.endDate)) return null;
 
-    const memberRows = await membersOf(ctx, group._id);
+    const memberRows = membersOnDay(group, await membersOf(ctx, group._id), dayKey);
     const entries = await Promise.all(
       memberRows.map(async (row) => {
         const [person, devotional, personalLevel] = await Promise.all([
@@ -626,9 +652,11 @@ export const respondInvite = mutation({
       throw new ConvexError("Invite not found.");
     }
     if (args.accept) {
+      const now = Date.now();
       await ctx.db.patch("devotionalGroupMembers", membership._id, {
         status: "member",
-        joinedAt: Date.now(),
+        joinedAt: now,
+        joinedOn: sydneyDateTime(now).date,
       });
       await ctx.db.patch("devotionalGroups", group._id, {
         memberCount: group.memberCount + 1,

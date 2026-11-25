@@ -45,3 +45,10 @@ test("join lines say they joined the World, older ones that named a place too", 
   expect(systemLine({ ...line, text: "left", kind: "leave" })).toBe(`${shortName("Ben Smith")} left`);
   expect(systemLine({ name: "Ben Smith", text: "joined the band" })).toBe(`${shortName("Ben Smith")} joined the band`);
 });
+
+test("system lines and spoken labels follow the World's name style", () => {
+  const line = { isMe: false, name: "Ben Smith", text: "hi", here: true };
+  expect(saidLabel(line, "initials")).toBe("BS said hi");
+  expect(saidLabel(line, "full")).toBe("Ben Smith said hi");
+  expect(systemLine({ ...line, text: "left", kind: "leave" }, "full")).toBe("Ben Smith left");
+});

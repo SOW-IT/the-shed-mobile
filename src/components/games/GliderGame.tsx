@@ -195,21 +195,25 @@ const PopupText = ({ popup, time, x, y }: { popup: Popup; time: number; x: numbe
   );
 };
 
-const Hud = ({ state, width }: { state: GliderState; width: number }) => {
-  const track = Math.min(260, width * 0.4);
+const WorldBadge = ({ world }: { world: number }) => (
+  <View style={styles.worldPill}>
+    <Text style={styles.worldText} numberOfLines={1} testID="glider-world">
+      World {world}
+    </Text>
+  </View>
+);
+
+const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
   const done = worldProgress(state);
   return (
-    <View style={styles.hud} pointerEvents="none">
-      <View style={styles.worldPill}>
-        <Text style={styles.worldText} testID="glider-world">
-          World {state.world}
-        </Text>
-      </View>
-      <View style={[styles.track, { width: track, backgroundColor: c.track }]}>
-        <View style={[styles.trackFill, { width: track * done, backgroundColor: c.trackFill }]} />
-        <View style={[styles.trackBird, { left: track * done - 6, backgroundColor: c.bird, borderColor: c.belly }]} />
-        <View style={[styles.trackFlag, { backgroundColor: c.flag }]} />
-      </View>
+    <View
+      style={[styles.track, { backgroundColor: dark ? c.trackNight : c.track }]}
+      pointerEvents="none"
+      aria-label={`World ${state.world}, ${Math.round(done * 100)}% through`}
+      testID="glider-world-progress"
+    >
+      <View style={[styles.trackFill, { width: `${done * 100}%`, backgroundColor: c.trackFill }]} />
+      <View style={[styles.trackFlag, { backgroundColor: c.flag }]} />
     </View>
   );
 };
@@ -322,7 +326,6 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
       {state.popups.map((p) => (
         <PopupText key={p.id} popup={p} time={state.time} x={birdX} y={birdY} />
       ))}
-      <Hud state={state} width={width} />
     </View>
   );
 };
@@ -428,6 +431,8 @@ export const GliderGame = ({
           original={<SwoopBird heavy={false} />}
         />
       }
+      titleExtra={<WorldBadge world={shown.world} />}
+      underBar={<WorldBar state={shown} dark={dark} />}
       hideStartCard={!!scene}
       overDetail={run?.ended === "night" ? `Night fell in World ${run.world}.` : null}
       onExit={onExit}
@@ -513,11 +518,9 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
-  hud: { position: "absolute", left: 12, right: 12, top: 10, flexDirection: "row", alignItems: "center", gap: 12 },
-  worldPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: fixedColours.games.panel },
-  worldText: { fontFamily: fonts.display, fontSize: 15, color: c.label },
-  track: { height: 8, borderRadius: 4, justifyContent: "center" },
-  trackFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 4 },
-  trackBird: { position: "absolute", width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
-  trackFlag: { position: "absolute", right: -2, top: -6, width: 6, height: 12, borderRadius: 2 },
+  worldPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, backgroundColor: fixedColours.games.panel },
+  worldText: { fontFamily: fonts.display, fontSize: 14, color: c.label },
+  track: { alignSelf: "stretch", height: 6, overflow: "hidden" },
+  trackFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderTopRightRadius: 3, borderBottomRightRadius: 3 },
+  trackFlag: { position: "absolute", right: 0, top: 0, bottom: 0, width: 6 },
 });
