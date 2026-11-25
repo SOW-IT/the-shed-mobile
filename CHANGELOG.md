@@ -52,6 +52,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Game over dims the whole screen**, the bands by the notch and the home
   bar too, and Sky Shooter and Mystic Man show a light clock on their dark
   screens.
+
 ## [2.13.15] - 2026-11-26
 
 ### Fixed
