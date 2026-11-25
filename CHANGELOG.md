@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.16] - 2026-11-26
+
+### Added
+- **Chickens and cows in the backyard.** A chicken coop (50 coins, 4 hens)
+  and a cow barn (80 coins, 2 cows) stand behind the plots, each with a pen.
+  Before you buy one its spot is a fenced patch with a price tag; tap it for
+  the offer, from anywhere in your backyard. Tap a bought coop or barn to buy
+  a chick (24) or a calf (55) and name it, and to rename an animal with a
+  name tag.
+- **Feeding.** Each day after buying needs one feed, any time that day.
+  Tap a hungry animal (it shows an empty bowl) to walk over and feed it one
+  grain or hay from your Bag. Unfed today it's hungry, slower and makes no
+  egg or milk; unfed two days in a row it's frail, grey and still; on the
+  third it wanders off for good. Feeding resets the count. Visitors can feed your animals with their own
+  feed, and the animal shows who fed it that day.
+- **Growing and producing.** Chicks grow into pullets and hens over 4 fed
+  days, calves into young cows and cows over 5; an unfed day pauses growth.
+  A grown, fed hen lays an egg and a cow has a bottle of milk each day. One
+  waits per animal until you tap to collect it, and it never spoils.
+- **Josh Kim's farm shop in the Garden.** Josh, by the flower bed, sells
+  seeds, grain and hay (+1 or +5) and name tags, and buys crops, eggs and
+  milk, with Sell all. Plot, coop and barn offers come from him too. Sijin in
+  the Café sells furniture and wallpaper only.
+- **Names over the animals,** with who fed them, and the hungry bowl, nest
+  egg or milk bottle above.
+- **Farm reminders** at 6 pm now also count hungry animals, eggs to collect
+  and cows to milk, still in one push a day.
+- **Farming in How to get coins,** each row taking you to your backyard.
+- **A tie-dye tank top and clear glasses** in the character editor.
+
+### Changed
+- **The plots moved down** to make room for the coop and the barn.
+
 ## [2.13.14] - 2026-11-25
 
 ### Added
