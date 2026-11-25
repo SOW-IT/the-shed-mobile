@@ -1,13 +1,13 @@
 appId: au.org.sow.theshed
 ---
-# Into the Chapel, onto a pew, then to the lectern, screenshotting each.
-# Screenshots come first and the one assertion that differs from main comes
-# last, so the before run (soft) still takes every shot.
+# In the Chapel: a pew sits you without asking about Devotionals, the
+# lectern stands you behind it facing the room, and a second tap there asks.
 #
 # The World's accessible targets don't take touches themselves: tapping one
 # by its label lands on the scene under it, as a finger would. The pew has
-# no target, so it's a point: the front left pew's middle seat on a 402 by
-# 874 screen (25%, 61%; Garden.tsx's camera, FOCUS { x: 0, z: -2.6 }).
+# no target, so it's a point: the front left pew's middle seat, 25% across
+# and 61% down (Garden.tsx's camera, FOCUS { x: 0, z: -2.6 }). "world-me"
+# is you, labelled with how you're placed (myPose.ts).
 - openLink: "theshedmobile://world"
 - extendedWaitUntil:
     visible:
@@ -15,60 +15,46 @@ appId: au.org.sow.theshed
     timeout: 60000
 - waitForAnimationToEnd:
     timeout: 5000
-# The Garden's pad to the Chapel.
 - tapOn: "Go to The Chapel"
 - extendedWaitUntil:
     visible: "Lectern.*"
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 5000
-- takeScreenshot: "${OUT}/check-chapel"
-# Sit on a pew.
+- takeScreenshot: "${OUT}/check-chapel-arrived"
+# A pew: seated, and nothing asks about Devotionals.
 - tapOn:
     point: "25%, 61%"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, sitting"
+    timeout: 20000
 - waitForAnimationToEnd:
-    timeout: 15000
-- takeScreenshot: "${OUT}/check-pew-seated"
-- runFlow:
-    when:
-      visible:
-        id: world-devotional-dialog
-    commands:
-      - tapOn:
-          id: world-devotional-cancel
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - takeScreenshot: "${OUT}/check-pew-seated-closed"
-# Tap the lectern.
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-chapel-pew-seated"
+- assertNotVisible:
+    id: world-devotional-dialog
+# The lectern: behind it, facing the room, and nothing asks yet.
 - tapOn: "Lectern.*"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, behind the lectern, facing the room"
+    timeout: 20000
 - waitForAnimationToEnd:
-    timeout: 15000
-- takeScreenshot: "${OUT}/check-lectern"
-- runFlow:
-    when:
-      visible:
-        id: world-devotional-dialog
-    commands:
-      - tapOn:
-          id: world-devotional-cancel
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - takeScreenshot: "${OUT}/check-lectern-closed"
-# A tap while you stand at the lectern asks about Devotionals, then and now.
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-chapel-lectern"
+- assertNotVisible:
+    id: world-devotional-dialog
+# Again, standing there: Devotionals asks.
 - tapOn: "Lectern.*"
 - extendedWaitUntil:
     visible:
       id: world-devotional-dialog
     timeout: 10000
-- takeScreenshot: "${OUT}/check-lectern-again"
-- tapOn:
-    id: world-devotional-cancel
 - waitForAnimationToEnd:
     timeout: 3000
-# New: sitting on a pew no longer asks about Devotionals.
+- takeScreenshot: "${OUT}/check-chapel-lectern-again"
 - tapOn:
-    point: "25%, 61%"
-- waitForAnimationToEnd:
-    timeout: 15000
-- assertNotVisible:
-    id: world-devotional-dialog
+    id: world-devotional-cancel

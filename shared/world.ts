@@ -519,7 +519,7 @@ export const SEATS: Record<Place, readonly Seat[]> = {
 export const seatIn = (place: Place, id: string | undefined): Seat | null =>
   SEATS[place].find((seat) => seat.id === id) ?? null;
 
-type Stand = { id: string; x: number; z: number; heading: number };
+type Stand = { id: string; x: number; z: number; heading: number; /** Says where you are, for VoiceOver. */ label: string };
 
 const lectern = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
 
@@ -529,7 +529,7 @@ const lectern = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
  */
 export const STANDS: Record<Place, readonly Stand[]> = {
   garden: [],
-  chapel: [{ id: "lectern", x: lectern.x, z: lectern.z - lectern.rz - 0.35, heading: FACING_CAMERA }],
+  chapel: [{ id: "lectern", x: lectern.x, z: lectern.z - lectern.rz - 0.35, heading: FACING_CAMERA, label: "behind the lectern, facing the room" }],
   campfire: [],
   cafe: [],
   beach: [],
