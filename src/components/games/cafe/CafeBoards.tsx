@@ -12,16 +12,16 @@ type BoardProps = {
   size: number;
   calm: boolean;
   winner: Winner | null;
+  names?: Record<Side, string>;
 };
 
 type Point = { x: number; z: number };
 
 const sideOfMark = (mark: number): Side | null => (mark === 1 ? "a" : mark === 2 ? "b" : null);
 const spots = (cells: readonly number[]) => cells.map((mark, index) => ({ mark, index }));
-const owner = (mark: number, side: Side) => {
-  const who = sideOfMark(mark);
-  return who === null ? "empty" : who === side ? "yours" : "theirs";
-};
+const ownerOf = (who: Side | null, side: Side, names?: Record<Side, string>) =>
+  who === null ? "empty" : names ? names[who] : who === side ? "yours" : "theirs";
+const owner = (mark: number, side: Side, names?: Record<Side, string>) => ownerOf(sideOfMark(mark), side, names);
 
 const DIM = 0.42;
 const HALO_STEP_MS = 45;
@@ -220,7 +220,7 @@ const MarkGlyph = ({ side, size }: { side: Side; size: number }) => {
 
 const TTT_GAP = 10;
 
-const TicTacToe = ({ board, side, canMove, onMove, size, calm }: BoardProps) => {
+const TicTacToe = ({ board, side, canMove, onMove, size, calm, names }: BoardProps) => {
   const c = useCafeTheme();
   const pad = 12;
   const cell = Math.min(84, Math.floor((size - pad * 2 - TTT_GAP * 2 - 5) / 3));
@@ -239,7 +239,7 @@ const TicTacToe = ({ board, side, canMove, onMove, size, calm }: BoardProps) => 
               onPress={() => onMove(index)}
               disabled={!canMove || mark !== 0}
               accessibilityRole="button"
-              accessibilityLabel={`Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}, ${owner(mark, side)}`}
+              accessibilityLabel={`Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}, ${owner(mark, side, names)}`}
               testID={`cafe-cell-${index}`}
               style={({ pressed }) => [
                 styles.square,
@@ -310,7 +310,7 @@ const boxesTouching = (line: number) => {
   return found;
 };
 
-const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner }: BoardProps) => {
+const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner, names }: BoardProps) => {
   const c = useCafeTheme();
   const pad = 26;
   const step = Math.min(62, Math.floor((size - pad * 2 - 2) / DOTS_BOXES));
@@ -327,7 +327,7 @@ const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner }: Boar
         const { row, col } = dotLine(top);
         const gold = winMark !== 0 && mark === winMark;
         return (
-          <View key={`box-${box}`} style={[styles.boxSpot, { left: pad + col * step, top: pad + row * step, width: step, height: step }]} accessibilityLabel={`Box ${owner(mark, side)}`}>
+          <View key={`box-${box}`} style={[styles.boxSpot, { left: pad + col * step, top: pad + row * step, width: step, height: step }]} accessibilityLabel={`Box ${owner(mark, side, names)}`}>
             <Box side={who} size={step - 14} play={justClosed.includes(box)} calm={calm} gold={gold} order={gold ? goldOrder++ : 0} dim={winMark !== 0 && !gold} />
           </View>
         );
@@ -346,7 +346,7 @@ const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner }: Boar
             onPress={() => onMove(index)}
             disabled={!canMove || who !== null}
             accessibilityRole="button"
-            accessibilityLabel={`${across ? "Across" : "Down"}, row ${row + 1}, column ${col + 1}, ${who === null ? "empty" : who === side ? "yours" : "theirs"}`}
+            accessibilityLabel={`${across ? "Across" : "Down"}, row ${row + 1}, column ${col + 1}, ${ownerOf(who, side, names)}`}
             testID={`cafe-line-${index}`}
             style={({ pressed }) => [styles.lineHit, frame, pressed && { opacity: 0.6 }]}
           >
@@ -382,7 +382,7 @@ const STAR_POINTS = [
   [9, 9],
 ] as const;
 
-const FiveInARow = ({ board, side, canMove, onMove, size, calm }: BoardProps) => {
+const FiveInARow = ({ board, side, canMove, onMove, size, calm, names }: BoardProps) => {
   const c = useCafeTheme();
   const { width: n } = gridOf("fiveInARow");
   const pad = 14;
@@ -416,7 +416,7 @@ const FiveInARow = ({ board, side, canMove, onMove, size, calm }: BoardProps) =>
               onPress={() => onMove(index)}
               disabled={!canMove || mark !== 0}
               accessibilityRole="button"
-              accessibilityLabel={`Row ${Math.floor(index / n) + 1}, column ${(index % n) + 1}, ${owner(mark, side)}`}
+              accessibilityLabel={`Row ${Math.floor(index / n) + 1}, column ${(index % n) + 1}, ${owner(mark, side, names)}`}
               testID={`cafe-point-${index}`}
               style={[styles.point, { left: (index % n) * cell, top: Math.floor(index / n) * cell, width: cell, height: cell }]}
             >

@@ -19,7 +19,6 @@ import { staffOnlyMessage } from "@shared/staffOnly";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApprovedPlaylistTab } from "./ApprovedPlaylistTab";
 import { MyRequestsTab } from "./MyRequestsTab";
 import { ToReviewTab } from "./ToReviewTab";
@@ -32,7 +31,6 @@ import { PraiseManagersTab } from "./PraiseManagersCard";
 
 export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
   const convex = useConvex();
-  const insets = useSafeAreaInsets();
   const me = useQuery(api.directory.me);
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -238,7 +236,6 @@ export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
             title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
             onPress={openNewRequest}
             onInfo={() => setGuideOpen(true)}
-            bottomOffset={onBack ? insets.bottom : 0}
           />
         }
       />

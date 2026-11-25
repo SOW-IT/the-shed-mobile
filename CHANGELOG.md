@@ -6,6 +6,45 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.14] - 2026-11-25
+
+### Added
+- **Spectate a Café game.** Tap someone who's playing, in the Café or in
+  People, and their card's **Play** button says **Spectate**. It opens their
+  board as it happens, with both players, whose turn it is and the timer, and
+  a **Watching** pill at the top. You can't move, and you can close it any
+  time. When the game ends you see who won, with **Close** and no Rematch.
+  The button goes back to **Play** once their game is over. Games on one
+  phone can't be spectated.
+- **See who's watching.** Players see a small eye with a count, such as
+  "2 watching", at the top of the board.
+
+### Changed
+- **Your best is the same on every device.** The Best on the Games list, on
+  each game's screen and on its game-over card is your own best for that
+  game across all your devices, signed in. A higher best saved on this
+  phone still counts and is published the usual way. Signed out or offline,
+  it's this device's best as before.
+
+### Fixed
+- **Café board, after chatting.** What you say shows over the board's title
+  in a solid bubble wide enough for a short sentence on one line, instead
+  of a see-through one squeezed over your name. The highlight on a player's
+  name goes when their turn ends, and the board lands on whole pixels when
+  the keyboard closes.
+- **Scroll the World chat during a Café game,** as a player or a spectator.
+
+## [2.13.13] - 2026-11-25
+
+### Fixed
+- **Bottom buttons sit higher on pages opened from the World.** The
+  Calendar from the notice board, the Praise List from the piano and other
+  pages with no tab bar under them had their bottom buttons down by the
+  iPhone's home bar. They now sit the same gap above it as they do above
+  the tab bar elsewhere, and lists still scroll their last row clear of
+  them. Forms opened from a page (a new event or design request, editing
+  Home) get the same lift.
+
 ## [2.13.12] - 2026-11-25
 
 ### Added
