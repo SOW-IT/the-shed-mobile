@@ -8,7 +8,7 @@ import { random } from "./random";
 
 export const GLIDER = {
   /** Gravity while light (let go) and heavy (held), in world units a second squared. */
-  lightGravity: 500,
+  lightGravity: 480,
   heavyGravity: 1850,
   /** Slowing on the ground and in the air, times the speed squared. */
   groundDrag: 0.00012,
