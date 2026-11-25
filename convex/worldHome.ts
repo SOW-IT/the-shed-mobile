@@ -6,6 +6,7 @@ import {
   FURNITURE,
   fitInRoom,
   HOME_MAX_ITEMS,
+  blocksBackDoor,
   isFurniture,
   isTurn,
   isWallpaper,
@@ -100,6 +101,7 @@ export const moveItem = mutation({
     if (!row || !placed) throw new ConvexError("That's been put away.");
     const problem = placementProblem(placed.item, args.x, args.z, args.turn);
     if (problem) throw new ConvexError(problem);
+    if (isFurniture(placed.item) && blocksBackDoor(placed.item, args.x, args.z, args.turn)) throw new ConvexError("Keep the back door clear.");
     const token = spendDecorate(row.bucket, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs };
     await ctx.db.patch("worldHomes", row._id, {

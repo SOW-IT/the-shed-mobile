@@ -237,7 +237,7 @@ export default function EventAttendanceScreen() {
   const router = useRouter();
   const { isAuthenticated } = useConvexAuth();
   const insets = useSafeAreaInsets();
-  const footerBottomOffset = insets.bottom + spacing.xl;
+  const footerBottomOffset = spacing.xl;
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const evId = eventId as Id<"events">;
 

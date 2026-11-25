@@ -519,7 +519,7 @@ describe("account.wipe", () => {
     });
   });
 
-  test("deletes the user's coins, home, invites and pokes, keeping everyone else's", async () => {
+  test("deletes the user's coins, home, farm, invites and pokes, keeping everyone else's", async () => {
     vi.useFakeTimers();
     const t = newConvex();
     const bucket = { tokens: 1, at: 0 };
@@ -530,6 +530,8 @@ describe("account.wipe", () => {
         await ctx.db.insert("worldWallets", { email, balance: 50, earnedDay: "2026-11-24", earnedToday: 0, items: {}, wallpapers: [] });
         await ctx.db.insert("coinLedger", { email, delta: 50, kind: "start", at: 0 });
         await ctx.db.insert("worldHomes", { owner: email, wallpaper: "plain", items: [], bucket });
+        await ctx.db.insert("worldFarms", { owner: email, plots: 4, seeds: { lettuce: 1 }, crops: {} });
+        await ctx.db.insert("worldPlants", { owner: email, plot: 0, crop: "lettuce", plantedAt: 0, waterings: [] });
       }
       await ctx.db.insert("worldInvites", { owner: GUEST, ownerName: "Gina", guest: OTHER, at: 0, expiresAt: 1 });
       await ctx.db.insert("worldInvites", { owner: OTHER, ownerName: "Other", guest: GUEST, at: 0, expiresAt: 1 });
@@ -543,6 +545,8 @@ describe("account.wipe", () => {
       expect(await ctx.db.query("worldWallets").collect()).toMatchObject([{ email: OTHER }]);
       expect(await ctx.db.query("coinLedger").collect()).toMatchObject([{ email: OTHER }]);
       expect(await ctx.db.query("worldHomes").collect()).toMatchObject([{ owner: OTHER }]);
+      expect(await ctx.db.query("worldFarms").collect()).toMatchObject([{ owner: OTHER }]);
+      expect(await ctx.db.query("worldPlants").collect()).toMatchObject([{ owner: OTHER }]);
       expect(await ctx.db.query("worldInvites").collect()).toEqual([]);
       expect(await ctx.db.query("worldPokes").collect()).toEqual([]);
     });

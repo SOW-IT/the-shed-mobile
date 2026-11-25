@@ -20,6 +20,7 @@ import {
 import { EVENT_REQUEST_ICON } from "@/components/events/eventRequestIcon";
 import {
   Card,
+  FooterAction,
   LoadingState,
   Muted,
   Screen,
@@ -212,18 +213,16 @@ export default function EventRequestsScreen() {
       activeKey={activeKey}
       onActiveKeyChange={setActive}
       fullWidth
-      header={{
-        title: "Event Requests",
-        icon: EVENT_REQUEST_ICON.outline,
-        action: me.canRequestEvents
-          ? {
-              label: "Request",
-              onPress: () => router.push("/event-requests/new"),
-              accessibilityLabel: "New event request",
-              testID: "event-requests-new",
-            }
-          : null,
-      }}
+      header={{ title: "Event Requests", icon: EVENT_REQUEST_ICON.outline }}
+      footer={
+        me.canRequestEvents ? (
+          <FooterAction
+            title="+ New Event Request"
+            onPress={() => router.push("/event-requests/new")}
+          />
+        ) : undefined
+      }
+      footerTabKey="mine"
       onEndReached={(key) => {
         if (key === "mine") mineLoadMoreRef.current?.();
         if (key === "all") allLoadMoreRef.current?.();

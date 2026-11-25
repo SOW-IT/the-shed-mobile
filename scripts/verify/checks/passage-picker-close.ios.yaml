@@ -34,13 +34,37 @@ appId: au.org.sow.theshed
     end: "50%, 30%"
     duration: 120
     waitToSettleTimeoutMs: 1
+# The backdrop above the sheet. Not higher: iOS keeps taps on the status bar
+# (about the top 7% on an iPhone with a Dynamic Island) for itself, so a tap
+# at 6% never reached the app, even with the list still. The sheet's top sits
+# at 15% or lower, as it's centred and at most 70% tall.
 - tapOn:
-    point: "50%, 6%"
+    point: "50%, 11%"
     retryTapIfNoChange: false
     waitToSettleTimeoutMs: 1
 - takeScreenshot: "${OUT}/check-book-backdrop"
 - assertNotVisible:
     id: sheet-list
+# The backdrop below the sheet, also while the list glides.
+- tapOn:
+    id: devotional-passage-book
+- extendedWaitUntil:
+    visible:
+      id: sheet-list
+    timeout: 5000
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- tapOn:
+    point: "50%, 91%"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 1
+- takeScreenshot: "${OUT}/check-book-backdrop-below"
+- assertNotVisible:
+    id: sheet-list
+# A swipe down on the header while the list glides.
 - tapOn:
     id: devotional-passage-book
 - extendedWaitUntil:
@@ -48,9 +72,15 @@ appId: au.org.sow.theshed
       id: sheet-header
     timeout: 5000
 - swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- swipe:
     from:
       id: sheet-header
     direction: DOWN
+    waitToSettleTimeoutMs: 1
 - takeScreenshot: "${OUT}/check-header-swipe"
 - assertNotVisible:
     id: sheet-list
@@ -71,7 +101,8 @@ appId: au.org.sow.theshed
     id: devotional-passage-book
 - tapOn: "Search books"
 - inputText: "Psal"
-- tapOn: "Psalms"
+# A book row reads "Psalms, 150 chapters", and Maestro matches the whole label.
+- tapOn: "Psalms.*"
 - extendedWaitUntil:
     visible:
       id: passage-chapter-1

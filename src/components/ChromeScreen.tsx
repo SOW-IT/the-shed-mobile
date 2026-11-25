@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { ReactNode, Ref, useRef } from "react";
+import { ReactNode, Ref, useRef, useState } from "react";
 import { Animated, Pressable, type ScrollViewInstance, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -8,13 +8,16 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { type ScreenHeader, useScreenHeader } from "@/components/nav/ScreenHeader";
+import { FooterHeightContext } from "@/components/ui";
 import { TopBar } from "@/components/nav/TopBar";
 import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
 import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { footerClearance } from "@/lib/footerClearance";
 
 export const ChromeScreen = ({
   children,
   floating,
+  footer,
   fullWidth = false,
   scrollRef,
   title,
@@ -23,6 +26,7 @@ export const ChromeScreen = ({
 }: {
   children?: ReactNode;
   floating?: ReactNode;
+  footer?: ReactNode;
   fullWidth?: boolean;
   scrollRef?: Ref<ScrollViewInstance>;
   // In the top bar; a wide screen has no top bar, so the screen shows it itself.
@@ -38,6 +42,7 @@ export const ChromeScreen = ({
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
   const wide = useWideLayout();
   const { topBarTitle, topBarRight, pageHeader } = useScreenHeader(header);
+  const [footerHeight, setFooterHeight] = useState(0);
   return (
     <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
       <KeyboardScrollView
@@ -54,6 +59,7 @@ export const ChromeScreen = ({
               : spacing.xs + TOP_BAR_HEIGHT + insets.top,
           },
           fullWidth && wide && { maxWidth: "100%" as const },
+          footer != null && { paddingBottom: footerClearance(footerHeight) },
         ]}
         {...scrollProps}
       >
@@ -90,6 +96,7 @@ export const ChromeScreen = ({
           </Animated.View>
         </View>
       )}
+      <FooterHeightContext.Provider value={setFooterHeight}>{footer}</FooterHeightContext.Provider>
       {onBack ? null : <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />}
       {floating}
     </View>

@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.10] - 2026-11-25
+## [2.13.15] - 2026-11-26
 
 ### Added
 - **The Games list shows who's playing each game right now.** A game's row
@@ -24,8 +24,8 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The World carries on behind the arcade.** The arcade's panel no longer
   dims the World or closes when you tap beside it: you can still walk, chat
   and tap people while it's open. Close it with ✕; opening another panel or
-  going to another place closes it too. "Play a game" in the list view opens
-  the same panel. Picking a game goes into it full screen, and leaving the
+  going to another place closes it too. Picking a game goes into it full
+  screen, and leaving the
   game, or pressing Play on a leaderboard you opened from there, brings you
   back to the World. The leaderboard opens from the panel's trophy, and the
   panel is still there when you come back. Your coins show in the panel on
@@ -39,6 +39,69 @@ All notable changes to **The SHED** mobile app. This project follows
   look: its cream chips along the top, and the games in a dark glass panel
   like the World's menus, over the garden's sky and lawn, the same in light
   and dark mode. The World row says who's online under its line.
+
+## [2.13.13] - 2026-11-25
+
+### Fixed
+- **Bottom buttons sit higher on pages opened from the World.** The
+  Calendar from the notice board, the Praise List from the piano and other
+  pages with no tab bar under them had their bottom buttons down by the
+  iPhone's home bar. They now sit the same gap above it as they do above
+  the tab bar elsewhere, and lists still scroll their last row clear of
+  them. Forms opened from a page (a new event or design request, editing
+  Home) get the same lift.
+
+## [2.13.12] - 2026-11-25
+
+### Added
+- **A backyard farm in the World.** Every home has a back door to a
+  backyard with 12 plots in a 3 by 4 grid. The front 4 are free; the rest
+  cost 10, 20, 40, 80, 160, 320, 640 and 1280 coins, bought in order, and
+  are the one thing you can buy from anywhere: tap a fenced plot for
+  Sijin's offer. The first visit gives you 4 lettuce seeds.
+- **Six crops.** Lettuce, carrot, strawberry, tomato, pumpkin and
+  watermelon take 1 to 7 days. Seeds cost 3 to 60 coins at Sijin's new
+  **Seeds** tab, and his **Sell** tab buys crops back for 4 to 80, or all
+  at once with **Sell all**.
+- **Watering.** Each day after planting needs one watering, any time that
+  day. Tap a thirsty plant (it has a water drop) to walk over and water it.
+  A day left dry wilts the plant: it loses a day of growing and a quarter
+  of its price, and the third wilt kills it. Ripe crops wait, with no
+  water. Visitors can water your plants, and the plot shows who did.
+- **The Bag** in the World menu holds your seeds and crops, stacked by how
+  often they wilted.
+- **Farm reminders.** One push at 6 pm Sydney time when something needs
+  water or is ready to harvest, at most once a day. Turn it off in World
+  Settings.
+- **Crops grow a little more every few hours**, with a new look each day:
+  watermelon goes from sprout to vine, leaves, a yellow flower and a small
+  striped melon to a big one; tomatoes flower, then go green, then red.
+  Seeds look like each crop's real seeds. Planting pats a seed into the
+  soil, watering tips a can over the plant and darkens the soil, and a
+  harvest pops the crop up and into the Bag with a "+1" chip. With Reduce
+  Motion or battery saver they change at once.
+
+### Removed
+- **The World's list view.** The World is always drawn now, also offline
+  and with VoiceOver; the plots, the back door, Sijin and people have
+  screen reader labels.
+
+## [2.13.11] - 2026-11-25
+
+### Fixed
+- **The passage picker check passes on iPhone again.** The app was already closing the Book, Chapter and Verse pickers mid-scroll (fixed in 2.13.1); the repo's own iPhone check was wrong. Its tap outside the sheet landed on the status bar, which iOS keeps for itself, so it failed even with the list still. It now taps just below the status bar, and also checks a tap below the sheet and a swipe down on the title bar while the list is moving. Its Psalms step looked for a row named exactly "Psalms" when the row reads "Psalms, 150 chapters", so that part never ran before.
+
+## [2.13.10] - 2026-11-25
+
+### Changed
+- **Each page's main button is back at the bottom.** Churches, Praise
+  List, Reimbursements, Event Requests, Design Requests, Mentoring,
+  Attendance and Grievances show their + button across the bottom of the
+  page again, with the ⓘ beside it where the page has one, instead of left
+  of the bell. Churches gets **+ Add church** there too. Page titles stay
+  in the middle of the top bar, and Devotionals keeps **Today** up there.
+  Who can use each button hasn't changed. Lists leave room at the end so
+  the last row scrolls clear of the button, on phones and wide screens.
 
 ## [2.13.8] - 2026-11-25
 

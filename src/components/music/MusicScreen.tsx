@@ -5,6 +5,7 @@ import {
   Card,
   ConfirmDialog,
   errorMessage,
+  FooterAction,
   LoadingState,
   Muted,
   Screen,
@@ -228,17 +229,15 @@ export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
           if (key === "toReview") reviewLoadMoreRef.current?.();
         }}
         floating={<Toast toast={toast} />}
-        header={{
-          title: "Praise List",
-          icon: "musical-notes-outline",
-          action: {
-            label: addsDirectly ? "Add" : "Request",
-            onPress: openNewRequest,
-            accessibilityLabel: addsDirectly ? "Add to the playlist" : "Make a request",
-            testID: "music-new-request",
-          },
-          info: { onPress: () => setGuideOpen(true), accessibilityLabel: "How the Praise List works" },
-        }}
+        floatingAboveFooter
+        header={{ title: "Praise List", icon: "musical-notes-outline" }}
+        footer={
+          <FooterAction
+            title={addsDirectly ? "+ Add to Playlist" : "+ Make Request"}
+            onPress={openNewRequest}
+            onInfo={() => setGuideOpen(true)}
+          />
+        }
       />
 
       <NewMusicRequestSheet
