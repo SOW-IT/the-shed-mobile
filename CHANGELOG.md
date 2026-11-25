@@ -49,6 +49,9 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
   target and holds after a big flight.
+- **Game over dims the whole screen**, the bands by the notch and the home
+  bar too, and Sky Shooter and Mystic Man show a light clock on their dark
+  screens.
 ## [2.13.15] - 2026-11-26
 
 ### Fixed
