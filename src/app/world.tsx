@@ -16,12 +16,12 @@ type AwayKind = "arcade" | "devotional" | "browse";
 export default function World() {
   const router = useRouter();
   const navigation = useNavigation();
-  // `?sheet=character` opens the character editor and `?sheet=poke` the list
-  // of people to poke.
+  // `?sheet=character` opens the character editor, `?sheet=poke` the list
+  // of people to poke and `?sheet=arcade` the arcade's games.
   const { sheet, poke, invite } = useLocalSearchParams<{ sheet?: string; poke?: string; invite?: string }>();
   const arrival = useMemo(() => (poke || invite ? { poke: poke || undefined, invite: invite || undefined } : undefined), [poke, invite]);
   const { isAuthenticated, isLoading } = useConvexAuth();
-  // Leave the garden while another screen (the games) covers it; come back on return.
+  // Leave the garden while another screen (a game) covers it; come back on return.
   const [focused, setFocused] = useState(true);
   const [awayKind, setAwayKind] = useState<AwayKind | null>(null);
   useFocusEffect(
@@ -68,10 +68,10 @@ export default function World() {
         onStay={stay}
         onLeave={leave}
         arrival={arrival}
-        opening={sheet === "character" || sheet === "poke" ? sheet : undefined}
-        onArcade={() => {
+        opening={sheet === "character" || sheet === "poke" || sheet === "arcade" ? sheet : undefined}
+        onGame={(target) => {
           setAwayKind("arcade");
-          router.push("/games");
+          router.push(target === "leaderboard" ? "/games/leaderboard" : `/games/${target}`);
         }}
         onCalendar={() => {
           setAwayKind("browse");

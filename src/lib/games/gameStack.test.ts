@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { GAME_SCREEN, GAMES_MENU, LEADERBOARD, routesToPlay } from "./gameStack";
+import { GAME_SCREEN, GAMES_MENU, LEADERBOARD, routesToPlay, WORLD } from "./gameStack";
 
 type Route = { name: string; params?: object };
 
@@ -57,6 +57,24 @@ describe("the games in the stack", () => {
     expect(routesToPlay([{ name: "(tabs)" }, { name: LEADERBOARD }], "flappy").map((route) => route.name)).toEqual([
       "(tabs)",
       GAMES_MENU,
+      GAME_SCREEN,
+    ]);
+  });
+
+  test("from the World's arcade, the game sits on the World and back goes to the World", () => {
+    const s = stack([{ name: "(tabs)" }, { name: WORLD }]);
+    s.push({ name: GAME_SCREEN, params: { game: "runner" } });
+    s.push({ name: LEADERBOARD, params: { game: "runner" } });
+    s.play("glider");
+    expect(s.names).toEqual(["(tabs)", WORLD, GAME_SCREEN]);
+    s.back();
+    expect(s.names.at(-1)).toBe(WORLD);
+  });
+
+  test("the leaderboard opened from the World's arcade gives way to the game on the World", () => {
+    expect(routesToPlay([{ name: "(tabs)" }, { name: WORLD }, { name: LEADERBOARD }], "flappy").map((route) => route.name)).toEqual([
+      "(tabs)",
+      WORLD,
       GAME_SCREEN,
     ]);
   });

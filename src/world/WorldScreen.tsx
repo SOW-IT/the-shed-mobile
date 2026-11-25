@@ -25,7 +25,7 @@ import {
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { announce } from "./announce";
@@ -47,7 +47,10 @@ import { useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
-import { CoinCounter, CoinsPanel, useCoins } from "./Coins";
+import { CoinsPanel, useCoins } from "./Coins";
+import { CoinCounter } from "@/components/games/CoinCounter";
+import type { GamesTarget } from "@/components/games/GamesMenu";
+import { ArcadePanel } from "./ArcadePanel";
 import { DecorateTray } from "./Decorate";
 import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
@@ -215,7 +218,7 @@ export const WorldScreen = ({
   leaveAsked = false,
   onStay,
   onLeave,
-  onArcade,
+  onGame,
   onCalendar,
   onPraise,
   onDevotional,
@@ -229,12 +232,13 @@ export const WorldScreen = ({
   leaveAsked?: boolean;
   onStay: () => void;
   onLeave: () => void;
-  onArcade: () => void;
+  /** Goes into a game, or the leaderboard, picked from the arcade panel. */
+  onGame: (target: GamesTarget) => void;
   onCalendar: () => void;
   onPraise: () => void;
   onDevotional: () => void;
-  /** A sheet to open on arrival, from a link: the character editor or the poke list. */
-  opening?: "character" | "poke";
+  /** A sheet to open on arrival, from a link: the character editor, the poke list or the arcade. */
+  opening?: "character" | "poke" | "arcade";
   /** False while another screen covers this one: the visit ends until it's back. */
   active?: boolean;
   awayKind?: AwayKind | null;
@@ -283,6 +287,17 @@ export const WorldScreen = ({
     if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
   };
   const [tray, setTray] = useState(false);
+  // The arcade's games, over the World rather than instead of it.
+  const [arcadeOpen, setArcadeOpen] = useState(opening === "arcade");
+  const openArcade = useCallback(() => {
+    setPlacesOpen(false);
+    setPeopleOpen(false);
+    setSettingsOpen(false);
+    setCoinsOpen(false);
+    setShopOpen(false);
+    setTray(false);
+    setArcadeOpen(true);
+  }, []);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const online = useWorldOnline() ?? 0;
@@ -291,6 +306,13 @@ export const WorldScreen = ({
   // The editor closes with the visit (your look goes with it); open it again after.
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
+  // Another panel opening, or going somewhere else, closes the arcade.
+  const [arcadePlace, setArcadePlace] = useState(world.place);
+  if (arcadePlace !== world.place) {
+    setArcadePlace(world.place);
+    setArcadeOpen(false);
+  }
+  if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || editing || decorating || sheet !== null)) setArcadeOpen(false);
   // Asks you've turned down, as `${from}:${askAt}`. Declining sends nothing:
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
@@ -425,13 +447,13 @@ export const WorldScreen = ({
       const kind = propTrip.kind;
       setPropTrip(null);
       if (!arrived) return;
-      if (kind === "arcade") onArcade();
+      if (kind === "arcade") openArcade();
       else if (kind === "noticeboard") onCalendar();
       else if (kind === "piano") onPraise();
       else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
-  }, [propTrip, onArcade, onCalendar, onPraise]);
+  }, [propTrip, openArcade, onCalendar, onPraise]);
 
   useEffect(() => {
     if (seatTrip === null) return;
@@ -621,7 +643,7 @@ export const WorldScreen = ({
     setPropTrip({ kind, since: Date.now() });
   };
 
-  const goToArcade = () => goToObject("arcade", onArcade);
+  const goToArcade = () => goToObject("arcade", openArcade);
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
   const goToPiano = () => goToObject("piano", onPraise);
   const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
@@ -759,7 +781,7 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || coinsOpen || peopleOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || peopleOpen || arcadeOpen || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
@@ -824,6 +846,19 @@ export const WorldScreen = ({
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
         showPlaces={view === "list"}
+      />
+      <ArcadePanel
+        open={arcadeOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        bottom={view === "list" ? Math.max(insets.bottom, 12) : Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + SHOP_CHAT_GAP}
+        // The panel covers the coins under the title on a narrow phone and in the list.
+        coins={view === "list" || !coinsBeside}
+        onOpen={(target) => {
+          // The panel stays for the leaderboard, there when you come back.
+          if (target !== "leaderboard") setArcadeOpen(false);
+          onGame(target);
+        }}
+        onClose={() => setArcadeOpen(false)}
       />
       <SettingsPanel open={settingsOpen} top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP} myName={me?.name ?? ""} onClose={() => setSettingsOpen(false)} />
       <DevotionalPromptDialog
@@ -917,7 +952,7 @@ export const WorldScreen = ({
           offline={offline}
           muted={muted}
           onBack={onBack}
-          onArcade={onArcade}
+          onArcade={openArcade}
           onPeople={() => setPeopleOpen(true)}
           placeTitle={placeTitle}
           extra={

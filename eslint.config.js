@@ -114,7 +114,7 @@ module.exports = defineConfig([
   },
   {
     // The palettes themselves.
-    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts", "src/world/palette.ts"],
+    files: ["src/theme.ts", "src/components/calendar/categoryColours.ts", "src/world/palette.ts", "src/worldColours.ts"],
     rules: { "no-restricted-syntax": ["error", ...webBlindDialogs, rawLinking, asNever, droppedTransform] },
   },
   {

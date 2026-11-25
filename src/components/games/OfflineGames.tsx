@@ -1,11 +1,11 @@
 import { AppIcon, Btn } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { spacing, typography, useAppTheme } from "@/theme";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { GameId } from "../../../shared/games";
 import { GAME_SCREENS } from "./gameScreens";
-import { GamesMenu } from "./GamesMenu";
+import { GamesMenu, GamesNotice } from "./GamesMenu";
 import { Leaderboard } from "./Leaderboard";
 
 /**
@@ -45,7 +45,6 @@ export const OfflineGames = ({
   /** Whether the menu always has a back button to the app behind it. */
   canClose?: boolean;
 }) => {
-  const t = useAppTheme();
   const [view, setView] = useState<GameId | "leaderboard" | "menu">("menu");
   // The game a leaderboard was opened from, so it opens on that game's tab.
   const [boardGame, setBoardGame] = useState<GameId | undefined>(undefined);
@@ -73,11 +72,7 @@ export const OfflineGames = ({
       onOpen={open}
       onBack={canClose || online ? onLeave : undefined}
       intro={
-        online ? null : (
-          <View style={[styles.banner, { backgroundColor: t.ghost }]} testID="offline-notice">
-            <Text style={[typography.body, styles.bannerText, { color: t.text }]}>You&apos;re offline.</Text>
-          </View>
-        )
+        online ? null : <GamesNotice testID="offline-notice">You&apos;re offline.</GamesNotice>
       }
     />
   );
@@ -95,6 +90,4 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   icon: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  banner: { borderRadius: radius.lg, padding: spacing.lg },
-  bannerText: { fontWeight: "600" },
 });
