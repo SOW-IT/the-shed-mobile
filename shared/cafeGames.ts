@@ -27,13 +27,9 @@ export type CafeBoard = {
   cells: number[];
   boxes: number[];
   turn: Side;
-  starter: Side;
-  round: number;
-  rounds: Winner[];
   missed: { a: number; b: number };
   last?: number;
   line?: number[];
-  previous?: { cells: number[]; line?: number[] };
 };
 
 const GRIDS = {
@@ -73,13 +69,10 @@ const boxesBeside = (line: number) => {
 
 const cellCount = (kind: CafeGameKind) => (kind === "dotsAndBoxes" ? DOTS_LINES : GRIDS[kind].width * GRIDS[kind].height);
 
-export const newBoard = (kind: CafeGameKind, starter: Side = "a"): CafeBoard => ({
+export const newBoard = (kind: CafeGameKind): CafeBoard => ({
   cells: Array.from({ length: cellCount(kind) }, () => 0),
   boxes: kind === "dotsAndBoxes" ? Array.from({ length: DOTS_BOXES * DOTS_BOXES }, () => 0) : [],
-  turn: starter,
-  starter,
-  round: 1,
-  rounds: [],
+  turn: "a",
   missed: { a: 0, b: 0 },
 });
 
@@ -125,7 +118,7 @@ const refuse = (reason: string): Refused => ({ ok: false, reason });
 const full = (cells: readonly number[]) => cells.every((cell) => cell !== 0);
 const fresh = (board: CafeBoard, side: Side) => ({ ...board, missed: { ...board.missed, [side]: 0 } });
 
-const placeOnGrid = (kind: "fourInARow" | "fiveInARow", board: CafeBoard, side: Side, index: number): Moved => {
+const placeOnGrid = (kind: Exclude<CafeGameKind, "dotsAndBoxes">, board: CafeBoard, side: Side, index: number): Moved => {
   const { width, height, need } = GRIDS[kind];
   const cells = [...board.cells];
   cells[index] = markOf(side);
@@ -134,38 +127,6 @@ const placeOnGrid = (kind: "fourInARow" | "fiveInARow", board: CafeBoard, side: 
   if (line) return { ok: true, board: { ...next, line }, winner: side };
   if (full(cells)) return { ok: true, board: next, winner: "draw" };
   return { ok: true, board: next };
-};
-
-export const roundsWon = (rounds: readonly Winner[], side: Side) => rounds.filter((r) => r === side).length;
-
-const TTT_ROUNDS = 3;
-const TTT_TO_WIN = 2;
-
-const placeTicTacToe = (board: CafeBoard, side: Side, index: number): Moved => {
-  const { width, height, need } = GRIDS.ticTacToe;
-  const cells = [...board.cells];
-  cells[index] = markOf(side);
-  const line = lineThrough(cells, width, height, index, need);
-  const next = { ...fresh(board, side), cells, last: index, turn: otherSide(side) };
-  if (!line && !full(cells)) return { ok: true, board: next };
-  const rounds: Winner[] = [...board.rounds, line ? side : "draw"];
-  const a = roundsWon(rounds, "a");
-  const b = roundsWon(rounds, "b");
-  const decided = a >= TTT_TO_WIN || b >= TTT_TO_WIN || rounds.length >= TTT_ROUNDS;
-  if (decided) {
-    return { ok: true, board: { ...next, rounds, ...(line ? { line } : {}) }, winner: a > b ? "a" : b > a ? "b" : "draw" };
-  }
-  const starter = otherSide(board.starter);
-  return {
-    ok: true,
-    board: {
-      ...newBoard("ticTacToe", starter),
-      round: board.round + 1,
-      rounds,
-      missed: next.missed,
-      previous: { cells, ...(line ? { line } : {}) },
-    },
-  };
 };
 
 export const boxesWon = (boxes: readonly number[], side: Side) => boxes.filter((box) => box === markOf(side)).length;
@@ -198,7 +159,6 @@ export const applyMove = (kind: CafeGameKind, board: CafeBoard, side: Side, move
     return placeOnGrid(kind, board, side, row * GRIDS.fourInARow.width + move);
   }
   if (move >= board.cells.length || board.cells[move] !== 0) return refuse("You can't go there.");
-  if (kind === "ticTacToe") return placeTicTacToe(board, side, move);
   if (kind === "dotsAndBoxes") return drawLine(board, side, move);
   return placeOnGrid(kind, board, side, move);
 };

@@ -20,7 +20,6 @@ import {
   playingLine,
   playingTag,
   recordScore,
-  roundsWon,
   type CafeBoard,
   type CafeGameKind,
   type MoveResult,
@@ -43,7 +42,7 @@ const play = (kind: CafeGameKind, moves: number[], board: CafeBoard = newBoard(k
 };
 
 const withCells = (kind: CafeGameKind, marks: Record<number, number>, turn: Side = "a"): CafeBoard => {
-  const board = newBoard(kind, turn);
+  const board = { ...newBoard(kind), turn };
   const cells = [...board.cells];
   for (const [index, mark] of Object.entries(marks)) cells[Number(index)] = mark;
   return { ...board, cells };
@@ -59,7 +58,7 @@ describe("the games", () => {
 
   test("boards start empty with the starter's turn", () => {
     expect(newBoard("fourInARow").cells).toHaveLength(42);
-    expect(newBoard("ticTacToe", "b")).toMatchObject({ turn: "b", starter: "b", round: 1, rounds: [] });
+    expect(newBoard("ticTacToe")).toMatchObject({ turn: "a", missed: { a: 0, b: 0 } });
     expect(newBoard("dotsAndBoxes")).toMatchObject({ cells: Array(DOTS_LINES).fill(0), boxes: Array(16).fill(0) });
     expect(newBoard("fiveInARow").cells).toHaveLength(169);
     expect(gridOf("fiveInARow")).toEqual({ width: 13, height: 13, need: 5 });
@@ -116,37 +115,18 @@ describe("Four in a Row", () => {
   });
 });
 
-describe("Tic-tac-toe, best of three", () => {
-  const aWinsRound = [0, 3, 1, 4, 2];
-  const bStartsAWins = [3, 0, 4, 1, 8, 2];
-  const drawnRound = [0, 1, 2, 4, 3, 5, 7, 6, 8];
-
-  test("winning a round clears the board, keeps it to show, and the other player starts", () => {
-    const { board, winner } = play("ticTacToe", aWinsRound);
-    expect(winner).toBeUndefined();
-    expect(board).toMatchObject({ round: 2, rounds: ["a"], turn: "b", starter: "b", previous: { line: [0, 1, 2] } });
-    expect(board.cells.every((cell) => cell === 0)).toBe(true);
-    expect(roundsWon(board.rounds, "a")).toBe(1);
+describe("Tic-tac-toe", () => {
+  test("three in a row across, down or diagonally wins the game", () => {
+    expect(play("ticTacToe", [0, 3, 1, 4, 2])).toMatchObject({ winner: "a", board: { line: [0, 1, 2] } });
+    expect(play("ticTacToe", [0, 1, 3, 2, 6])).toMatchObject({ winner: "a", board: { line: [0, 3, 6] } });
+    expect(play("ticTacToe", [0, 1, 4, 2, 8])).toMatchObject({ winner: "a", board: { line: [0, 4, 8] } });
+    expect(play("ticTacToe", [0, 2, 1, 4, 8, 6])).toMatchObject({ winner: "b", board: { line: [2, 4, 6] } });
   });
 
-  test("two rounds win the match", () => {
-    const after = play("ticTacToe", aWinsRound).board;
-    const { winner, board } = play("ticTacToe", bStartsAWins, after);
-    expect(winner).toBe("a");
-    expect(board.rounds).toEqual(["a", "a"]);
-    expect(board.line).toEqual([0, 1, 2]);
-  });
-
-  test("a drawn round counts, and after three rounds the most wins takes it or it's a draw", () => {
-    const first = play("ticTacToe", drawnRound).board;
-    expect(first).toMatchObject({ rounds: ["draw"], round: 2, starter: "b" });
-    expect(first.previous?.line).toBeUndefined();
-    const second = play("ticTacToe", [0, 1, 2, 4, 3, 5, 7, 6, 8], first).board;
-    expect(second.rounds).toEqual(["draw", "draw"]);
-    const third = play("ticTacToe", [0, 1, 2, 4, 3, 5, 7, 6, 8], second);
-    expect(third.winner).toBe("draw");
-    const bWins = play("ticTacToe", [0, 3, 1, 4, 8, 5], second);
-    expect(bWins.winner).toBe("b");
+  test("a full board with no line is a draw, and the game ends there", () => {
+    const { board, winner } = play("ticTacToe", [0, 1, 2, 4, 3, 5, 7, 6, 8]);
+    expect(winner).toBe("draw");
+    expect(board.cells.every((cell) => cell !== 0)).toBe(true);
   });
 });
 

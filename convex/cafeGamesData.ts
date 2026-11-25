@@ -7,13 +7,9 @@ export const cafeBoardValidator = v.object({
   cells: v.array(v.number()),
   boxes: v.array(v.number()),
   turn: cafeSideValidator,
-  starter: cafeSideValidator,
-  round: v.number(),
-  rounds: v.array(cafeWinnerValidator),
   missed: v.object({ a: v.number(), b: v.number() }),
   last: v.optional(v.number()),
   line: v.optional(v.array(v.number())),
-  previous: v.optional(v.object({ cells: v.array(v.number()), line: v.optional(v.array(v.number())) })),
 });
 
 export const cafeResultValidator = v.object({

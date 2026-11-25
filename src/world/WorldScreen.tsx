@@ -807,6 +807,7 @@ export const WorldScreen = ({
         place={world.place}
         serverNow={world.serverNow}
         bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + 12}
+        safe={{ top: insets.top, bottom: insets.bottom }}
         onNote={setNote}
       />
       <ShopPanel

@@ -264,7 +264,7 @@ describe("moves", () => {
       await ctx.db.insert("cafeRecords", { email: ANNA, kind: "ticTacToe", wins: 2, losses: 1, draws: 0 });
     });
     const board = await boardOf(t, gameId);
-    await t.run((ctx) => ctx.db.patch("cafeBoards", board._id, { board: { ...board.board, rounds: ["draw", "draw"], round: 3, cells: [1, 2, 1, 1, 2, 2, 2, 1, 0], turn: "a" } }));
+    await t.run((ctx) => ctx.db.patch("cafeBoards", board._id, { board: { ...board.board, cells: [1, 2, 1, 1, 2, 2, 2, 1, 0], turn: "a" } }));
     await anna.who.mutation(api.cafeGames.move, { gameId, move: 8 });
     expect(game.kind).toBe("ticTacToe");
     expect(await ben.who.query(api.cafeGames.record, { memberId: anna.memberId })).toEqual([{ kind: "ticTacToe", wins: 2, losses: 1, draws: 1 }]);
