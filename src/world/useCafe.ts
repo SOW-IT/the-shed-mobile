@@ -1,7 +1,7 @@
-import { applyMove, CAFE_PLACE, isCafeGameKind } from "@shared/cafeGames";
+import { applyMove, CAFE_PLACE, CAFE_WATCH_TOUCH_MS, isCafeGameKind } from "@shared/cafeGames";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -55,3 +55,33 @@ export const useCafe = ({ status, place, roomId }: { status: string; place: stri
 };
 
 export type Cafe = ReturnType<typeof useCafe>;
+
+export const useWatch = (gameId: Id<"cafeGames"> | null, onGone: (note: string) => void) => {
+  const view = useQuery(api.cafeGames.watching, gameId ? { gameId } : "skip");
+  const watchM = useMutation(api.cafeGames.watch);
+  const unwatchM = useMutation(api.cafeGames.unwatch);
+  const gone = useRef(onGone);
+  useEffect(() => {
+    gone.current = onGone;
+  }, [onGone]);
+  useEffect(() => {
+    if (!gameId) return;
+    let stopped = false;
+    const touch = () =>
+      void attempt(() => watchM({ gameId })).then((problem) => {
+        if (problem && !stopped) gone.current(problem);
+      });
+    touch();
+    const id = setInterval(touch, CAFE_WATCH_TOUCH_MS);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+      void unwatchM({ gameId }).catch(() => undefined);
+    };
+  }, [gameId, watchM, unwatchM]);
+  useEffect(() => {
+    if (gameId && view === null) gone.current("That game's over.");
+  }, [gameId, view]);
+  return gameId ? (view ?? null) : null;
+};
+

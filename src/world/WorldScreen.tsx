@@ -62,7 +62,7 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { gameLabel, playingByPerson } from "./cafe";
+import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
 
@@ -262,6 +262,7 @@ export const WorldScreen = ({
   const wallet = useCoins();
   const cafe = useCafe(world);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
+  const [watching, setWatching] = useState<Id<"cafeGames"> | null>(null);
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
@@ -416,6 +417,13 @@ export const WorldScreen = ({
     setSheet(null);
     setPicking({ memberId, name });
   };
+  const spectate = (gameId: string) => {
+    setPerson(null);
+    setSheet(null);
+    setWatching(gameId as Id<"cafeGames">);
+  };
+  const tappedGame = gameToWatch(cafe.playing, tapped?.memberId);
+  const selectedGame = gameToWatch(cafe.playing, selected?.memberId);
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
   const duelOpponent = myDuel ? (myDuel.a === world.memberId ? myDuel.b : myDuel.a) : null;
@@ -763,6 +771,13 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [following]);
 
+  const gameAction: HudAction[] = !selected
+    ? []
+    : selectedGame
+      ? [{ id: "spectate", label: "Spectate", hint: `Spectate ${selectedName}'s game`, icon: "eye-outline", onPress: () => spectate(selectedGame) }]
+      : world.place === "cafe"
+        ? [{ id: "play", label: "Play", hint: `Play a game with ${selectedName}`, emoji: "🎲", onPress: () => openPicker(selected.memberId, selected.name) }]
+        : [];
   // Only someone else is ever selected: tapping yourself opens nothing.
   const hudActions: HudAction[] = !selected || selected.isMe
     ? []
@@ -784,17 +799,7 @@ export const WorldScreen = ({
                   emoji: ASKS.rps.icon,
                   onPress: () => walkOverAndAsk(selected.memberId, "rps"),
                 },
-                ...(world.place === "cafe"
-                  ? [
-                      {
-                        id: "play",
-                        label: "Play",
-                        hint: `Play a game with ${selectedName}`,
-                        emoji: "🎲",
-                        onPress: () => openPicker(selected.memberId, selected.name),
-                      },
-                    ]
-                  : []),
+                ...gameAction,
               ]),
           ...(world.place === "cafe" && !selected.away && !selected.reading
             ? []
@@ -855,6 +860,8 @@ export const WorldScreen = ({
       safe={{ top: insets.top, bottom: insets.bottom }}
       onNote={setNote}
       onReturn={() => go("cafe")}
+      watch={watching}
+      onStopWatching={() => setWatching(null)}
     />
   );
   const sheets = (
@@ -894,7 +901,8 @@ export const WorldScreen = ({
         onWave={() => emote("wave")}
         onHighFive={highFive}
         onDuel={(to) => walkOverAndAsk(to, "rps")}
-        onPlay={world.place === "cafe" && tapped ? (to) => openPicker(to, tapped.name) : undefined}
+        onPlay={world.place === "cafe" && tapped && !tappedGame ? (to) => openPicker(to, tapped.name) : undefined}
+        onSpectate={tappedGame ? () => spectate(tappedGame) : undefined}
         onClose={() => setSheet(null)}
         onDone={setNote}
       />

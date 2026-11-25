@@ -75,7 +75,7 @@ import { sanitizePath } from "../shared/worldPath";
 import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
-import { cafeMoved, cafeSat } from "./cafeGames";
+import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -326,6 +326,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   }
   if (state) await ctx.db.delete("worldState", state._id);
   await cafeMoved(ctx, member.email, null, Date.now());
+  await dropWatchesOf(ctx, member.email);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
   const ping = await pingOf(ctx, member._id);
@@ -1959,6 +1960,7 @@ export const sweep = internalMutation({
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
       .take(SWEEP_BATCH);
     for (const row of oldInvites) await ctx.db.delete("worldInvites", row._id);
+    await dropStaleWatches(ctx, now);
 
     const meta = await sweeperMeta(ctx);
     const next = await nextSweep(ctx, now);

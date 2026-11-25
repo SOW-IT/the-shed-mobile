@@ -472,6 +472,15 @@ export default defineSchema({
     turnEndsAt: v.number(),
   }).index("by_gameId", ["gameId"]),
 
+  cafeWatchers: defineTable({
+    gameId: v.id("cafeGames"),
+    email: v.string(),
+    at: v.number(),
+  })
+    .index("by_gameId_and_email", ["gameId", "email"])
+    .index("by_email", ["email"])
+    .index("by_at", ["at"]),
+
   cafeRecords: defineTable({
     email: v.string(),
     kind: v.string(),
