@@ -21,6 +21,7 @@ export const useSwipeToClose = (visible: boolean, onClose: () => void) => {
     const settle = () =>
       Animated.spring(drag, { toValue: 0, useNativeDriver: USE_NATIVE_DRIVER, bounciness: 4 }).start();
     return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_event, gesture) => isSheetDrag(gesture.dx, gesture.dy),
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_event, gesture) => drag.setValue(sheetDragOffset(gesture.dy)),
