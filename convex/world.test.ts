@@ -450,6 +450,13 @@ describe("places", () => {
     expect(stood).toMatchObject({ ok: true, fromX: 0, fromZ: 0, toX: lectern.x, toZ: lectern.z, heading: 0 });
     expect(await ben.query(api.world.state, { memberId: a.memberId })).toMatchObject({ toX: lectern.x, toZ: lectern.z, heading: 0 });
     await expect(anna.mutation(api.world.move, { toX: 0, toZ: 0, stand: "pulpit" })).rejects.toThrow(/somewhere you can stand/);
+    // The app's path is kept, but a waypoint inside the lectern is moved out of it.
+    later(60_000);
+    const lecternBox = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
+    const round = await anna.mutation(api.world.move, { toX: 0, toZ: 0, stand: "lectern", path: [{ x: lecternBox.x, z: lecternBox.z }, { x: lectern.x, z: lectern.z }] });
+    if (!round.ok) throw new Error("move refused");
+    expect(round.path![0]).toEqual(clampTarget(lecternBox.x, lecternBox.z, "chapel"));
+    expect(round.path![0]).not.toEqual({ x: lecternBox.x, z: lecternBox.z });
 
     later(60_000);
     const off = await anna.mutation(api.world.move, { toX: 0, toZ: 0 });

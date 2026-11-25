@@ -558,7 +558,7 @@ export const useWorld = (
       const from = myWalkRef.current ? posAt(myWalkRef.current, now) : stand;
       const path = findPath(session.place, from, stand, obstaclesRef.current);
       if (!path) return;
-      const next = { ...headFor(myWalkRef.current, stand, now, path), heading: stand.heading };
+      const next = headFor(myWalkRef.current, stand, now, path, stand.heading);
       myWalkRef.current = next;
       setMyWalk(next);
       setTarget(stand);

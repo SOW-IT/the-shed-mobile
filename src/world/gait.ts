@@ -61,7 +61,8 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   const was = drawnPose(before.walk, before.gait, now);
   return {
     movingSince: was.strideAmp > 0 ? before.gait.movingSince : now,
-    heading: length(walk) < STILL ? (walk.heading ?? before.gait.heading) : posAt(walk, now).heading,
+    // A still walk keeps the way you're drawn facing (at the lectern, the room).
+    heading: length(walk) < STILL ? (walk.heading ?? was.heading) : posAt(walk, now).heading,
     turnFrom: was.heading,
     turnAt: now,
   };

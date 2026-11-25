@@ -48,6 +48,15 @@ describe("carryGait", () => {
     expect(carryGait(null, east, 5000)).toEqual(restingGait(east));
   });
 
+  test("a still step after standing at the lectern keeps facing the room, not the way you walked there", () => {
+    const toLectern: Walk = { ...east, heading: 0 };
+    const now = arrives + 60_000;
+    expect(drawnPose(toLectern, restingGait(toLectern), now).heading).toBeCloseTo(0);
+    const step: Walk = { fromX: toLectern.toX, fromZ: 0, toX: toLectern.toX + 0.01, toZ: 0, startedAt: now };
+    const gait = carryGait({ walk: toLectern, gait: restingGait(toLectern) }, step, now);
+    expect(drawnPose(step, gait, now + TURN_MS).heading).toBeCloseTo(0);
+  });
+
   test("arriving through a pad faces into the room at once, from any heading before", () => {
     const arrived: Walk = { fromX: 3.2, fromZ: 3.4, toX: 3.2, toZ: 3.4, startedAt: 9000, heading: -Math.PI / 2 };
     const fresh = drawnPose(arrived, restingGait(arrived), arrived.startedAt);
