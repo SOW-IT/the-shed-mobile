@@ -1,6 +1,7 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { useReducedMotion } from "react-native-reanimated";
 import { storedValue } from "../lib/deviceStorage";
+import { NAME_STYLES, styledName } from "../../shared/names";
 
 const choice = <T extends string>(key: string, values: readonly T[], initial: T) => {
   const store = storedValue<T>({
@@ -18,6 +19,7 @@ export const WORLD_SETTINGS = {
   pingMs: choice("worldPingMs", ["off", "on"] as const, "off"),
   motion: choice("worldMotion", ["auto", "full", "saver"] as const, "auto"),
   nameTags: choice("worldNameTags", ["all", "near"] as const, "all"),
+  cardNames: choice("worldCardNames", NAME_STYLES, "short"),
 };
 
 export type WorldSettingKey = keyof typeof WORLD_SETTINGS;
@@ -35,6 +37,11 @@ export const saverOn = (motion: WorldSettingValue<"motion">, systemReduce: boole
 export const useBatterySaver = () => {
   const [motion] = useWorldSetting("motion");
   return saverOn(motion, useReducedMotion());
+};
+
+export const useCardName = () => {
+  const [style] = useWorldSetting("cardNames");
+  return useCallback((name: string) => styledName(name, style), [style]);
 };
 
 const NEAR_TAG_RADIUS = 5;

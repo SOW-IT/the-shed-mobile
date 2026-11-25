@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Id } from "../../convex/_generated/dataModel";
 import { accepted, announce } from "./announce";
+import { useCardName } from "./settings";
 import { useChatLog } from "./useChatLog";
 import { PENDING, type useWorld } from "./useWorld";
 import { clock, lineWhere, saidLabel, systemLine } from "./view";
@@ -57,6 +58,7 @@ export const WorldList = ({
 }) => {
   const t = useAppTheme();
   const [draft, setDraft] = useState("");
+  const cardName = useCardName();
   const log = useChatLog(offline ? null : world.roomId, CHAT_LOG_SIZE);
 
   // Read new lines from others aloud as they arrive (VoiceOver), but not the
@@ -209,7 +211,7 @@ export const WorldList = ({
                 accessibilityLabel={p.isMe ? `${shortName(p.name)}, you. Change your look` : `${shortName(p.name)}, ${detail}${muted.has(p.memberId) ? ", muted" : ""}`}
                 style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.7 }]}
               >
-                <Text style={[typography.body, { color: t.text, flex: 1 }]}>{shortName(p.name)}</Text>
+                <Text style={[typography.body, { color: t.text, flex: 1 }]}>{cardName(p.name)}</Text>
                 <Text style={[typography.caption, { color: t.muted }]}>
                   {muted.has(p.memberId) ? "Muted" : detail}
                 </Text>

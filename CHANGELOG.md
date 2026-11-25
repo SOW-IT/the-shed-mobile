@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.51] - 2026-11-25
+
+### Added
+- **Leaderboards show when each score was set**, under the name: "24 Nov"
+  for this year, "24 Nov 2025" for an earlier one. It's the day of that
+  person's best run, on every game's leaderboard.
+- **A push when someone knocks you down the top 3.** If you're 1st, 2nd or
+  3rd on a game's leaderboard and someone's new best passes you, you get one
+  push, such as "Daniel Kim just beat you in Flap" with "You're now 3rd" or
+  "You're out of the top 3". Tapping it opens that game's leaderboard. An
+  equal score doesn't count as passing you.
+- **Player names setting in the World.** Settings in the World's top-left
+  menu has a Player names choice for the name tags over people, the People
+  list, a person's card, invites, asks and rock paper scissors: initials
+  ("DK"), first name and last initial ("Daniel K.", as before) or the full
+  name ("Daniel Kim"). The choices show your own name. It's saved on this
+  device and changes only what you see.
+
+### Changed
+- **Leaderboards show full names again**, such as "Daniel Kim", whatever the
+  World's Player names setting is. 2.12.47 had shortened them to "Daniel K.".
+
 ## [2.12.50] - 2026-11-25
 
 ### Changed

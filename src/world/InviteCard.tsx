@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Bust, usePresence } from "./Overlays";
 import { hud } from "./palette";
+import { useCardName } from "./settings";
 
 export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
   const [answer, setAnswer] = useState<"go" | "later" | null>(null);
+  const cardName = useCardName();
   const { mounted, shown: pop, calm } = usePresence(answer === null);
   const fired = useRef(false);
   useEffect(() => {
@@ -28,7 +30,7 @@ export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: 
         <Bust look={look} size={40} />
         <Text style={styles.house}>🏠</Text>
         <Text style={styles.text} numberOfLines={2}>
-          {`${shortName(name)} invited you home`}
+          {`${cardName(name)} invited you home`}
         </Text>
       </View>
       <View style={styles.row}>

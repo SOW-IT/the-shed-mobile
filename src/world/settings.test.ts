@@ -27,13 +27,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("a new device starts with times and ping off, initials, motion following the phone, and every tag", async () => {
+test("a new device starts with times and ping off, initials, motion following the phone, every tag, and short card names", async () => {
   const { WORLD_SETTINGS } = await fresh();
   expect(WORLD_SETTINGS.chatTimes.get()).toBe("off");
   expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
   expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
   expect(WORLD_SETTINGS.motion.get()).toBe("auto");
   expect(WORLD_SETTINGS.nameTags.get()).toBe("all");
+  expect(WORLD_SETTINGS.cardNames.get()).toBe("short");
   expect(saved.size).toBe(0);
 });
 
@@ -44,12 +45,14 @@ test("each choice is saved on this device and comes back next time", async () =>
   first.WORLD_SETTINGS.pingMs.set("on");
   first.WORLD_SETTINGS.motion.set("saver");
   first.WORLD_SETTINGS.nameTags.set("near");
+  first.WORLD_SETTINGS.cardNames.set("full");
   expect(Object.fromEntries(saved)).toEqual({
     worldChatTimes: "on",
     worldChatNames: "first",
     worldPingMs: "on",
     worldMotion: "saver",
     worldNameTags: "near",
+    worldCardNames: "full",
   });
   const next = await fresh(Object.fromEntries(saved));
   expect(next.WORLD_SETTINGS.chatTimes.get()).toBe("on");
@@ -57,11 +60,13 @@ test("each choice is saved on this device and comes back next time", async () =>
   expect(next.WORLD_SETTINGS.pingMs.get()).toBe("on");
   expect(next.WORLD_SETTINGS.motion.get()).toBe("saver");
   expect(next.WORLD_SETTINGS.nameTags.get()).toBe("near");
+  expect(next.WORLD_SETTINGS.cardNames.get()).toBe("full");
 });
 
 test("anything else saved under a key is ignored", async () => {
-  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "nickname", worldPingMs: "maybe", worldMotion: "fast" });
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "nickname", worldPingMs: "maybe", worldMotion: "fast", worldCardNames: "nickname" });
   expect(WORLD_SETTINGS.chatNames.get()).toBe("initials");
+  expect(WORLD_SETTINGS.cardNames.get()).toBe("short");
   expect(WORLD_SETTINGS.pingMs.get()).toBe("off");
   expect(WORLD_SETTINGS.motion.get()).toBe("auto");
 });

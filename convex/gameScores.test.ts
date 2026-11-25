@@ -3,10 +3,13 @@ import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
+import type { Beaten } from "../shared/leaderboard";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
 const CARA = "cara@sow.org.au";
+const DAN = "dan@sow.org.au";
+const EVE = "eve@sow.org.au";
 
 const run = (runId: string, score: number, game: GameId = "runner") => ({
   runId,
@@ -89,9 +92,10 @@ describe("leaderboard", () => {
   test("anyone can read it, signed out too, with no best of their own", async () => {
     const t = newConvex();
     expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({ top: [], me: null });
-    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-1", 300)] });
+    const best = run("run-anna-1", 300);
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [best] });
     expect(await t.query(api.gameScores.leaderboard, { game: "runner" })).toEqual({
-      top: [{ id: expect.any(String), rank: 1, name: "anna", score: 300, isMe: false }],
+      top: [{ id: expect.any(String), rank: 1, name: "anna", score: 300, playedAt: best.playedAt, isMe: false }],
       me: null,
     });
   });
@@ -116,7 +120,7 @@ describe("leaderboard", () => {
     expect(board?.top.map((row) => row.name).sort()).toEqual(["Anna Lee", "Ben Ng", "cara"]);
     expect(board?.me).toEqual({ score: 500, rank: 2 });
     expect(await asUser(t, BEN).query(api.gameScores.leaderboard, { game: "shooter" })).toEqual({
-      top: [{ id: expect.any(String), rank: 1, name: "cara", score: 40, isMe: false }],
+      top: [{ id: expect.any(String), rank: 1, name: "cara", score: 40, playedAt: expect.any(Number), isMe: false }],
       me: null,
     });
   });
@@ -208,6 +212,23 @@ describe("leaderboard pages", () => {
     expect(signedOut.page.every((row) => !row.isMe)).toBe(true);
   });
 
+  test("each row carries the date of that person's best run, not of a later lower one", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const best = { ...run("run-anna-1", 500), playedAt: Date.now() - 60 * 60 * 1000 };
+    await anna.mutation(api.gameScores.submitScores, { scores: [best] });
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-2", 200)] });
+    const args = { game: "runner" as const, paginationOpts: { numItems: 10, cursor: null } };
+    expect((await t.query(api.gameScores.leaderboardPage, args)).page.map((row) => [row.score, row.playedAt])).toEqual([
+      [500, best.playedAt],
+    ]);
+    const better = run("run-anna-3", 800);
+    await anna.mutation(api.gameScores.submitScores, { scores: [better] });
+    expect((await t.query(api.gameScores.leaderboardPage, args)).page.map((row) => [row.score, row.playedAt])).toEqual([
+      [800, better.playedAt],
+    ]);
+  });
+
   test("refuses a page bigger than the limit", async () => {
     const t = newConvex();
     await expect(
@@ -244,9 +265,8 @@ describe("resetScores", () => {
     });
     await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
     expect(await bests(t)).toEqual([[BEN, "flappy", 9, "run-ben-02"]]);
-    const jobs = await scheduled(t);
+    const jobs = (await scheduled(t)).filter((job) => job.name === "push:sendMany");
     expect(jobs).toHaveLength(1);
-    expect(jobs[0].name).toBe("push:sendMany");
     expect(jobs[0].args[0]).toEqual({ to: [ANNA, BEN].sort(), ...notice, url: "/games/runner" });
   });
 
@@ -274,5 +294,88 @@ describe("resetScores", () => {
     await t.mutation(internal.gameScores.resetScores, { game: "runner", ...notice });
     expect(await bests(t)).toHaveLength(1);
     expect((await scheduled(t)).map((job) => job.name).sort()).toEqual(["gameScores:resetScores", "push:sendMany"]);
+  });
+});
+
+describe("beaten in the top 3", () => {
+  const jobs = (t: T) => t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+  const seed = async (t: T) => {
+    for (const [email, score] of [[ANNA, 900], [BEN, 700], [CARA, 500], [EVE, 400]] as const) {
+      await asUser(t, email).mutation(api.gameScores.submitScores, { scores: [run(`run-seed-${score}`, score)] });
+    }
+  };
+  const clear = (t: T) =>
+    t.run(async (ctx) => {
+      for (const job of await ctx.db.system.query("_scheduled_functions").collect()) await ctx.scheduler.cancel(job._id);
+    });
+  const pending = async (t: T) => (await jobs(t)).filter((job) => job.state.kind === "pending");
+  const told = async (t: T) =>
+    (await pending(t)).filter((job) => job.name === "gameScores:tellBeaten").flatMap((job) => (job.args[0] as { beaten: Beaten[] }).beaten);
+
+  test("someone passed within the top 3 and someone pushed out of it are each told once", async () => {
+    const t = newConvex();
+    await seed(t);
+    await clear(t);
+    await asUser(t, DAN).mutation(api.gameScores.submitScores, { scores: [run("run-dan-01", 800)] });
+    const scheduled = (await pending(t)).filter((job) => job.name === "gameScores:tellBeaten");
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args[0]).toEqual({
+      game: "runner",
+      by: DAN,
+      beaten: [
+        { email: BEN, place: 3 },
+        { email: CARA, place: 4 },
+      ],
+    });
+  });
+
+  test("a tie, a climb below the top 3, and a first score off the podium tell nobody", async () => {
+    const t = newConvex();
+    await seed(t);
+    await clear(t);
+    await asUser(t, DAN).mutation(api.gameScores.submitScores, { scores: [run("run-dan-01", 500)] });
+    await asUser(t, EVE).mutation(api.gameScores.submitScores, { scores: [run("run-eve-02", 450)] });
+    await asUser(t, DAN).mutation(api.gameScores.submitScores, { scores: [run("run-dan-02", 100)] });
+    expect((await pending(t)).filter((job) => job.name === "gameScores:tellBeaten")).toEqual([]);
+  });
+
+  test("climbing past one person tells only them, never the player", async () => {
+    const t = newConvex();
+    await seed(t);
+    await clear(t);
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-02", 950)] });
+    const scheduled = (await pending(t)).filter((job) => job.name === "gameScores:tellBeaten");
+    expect(scheduled.map((job) => job.args[0])).toEqual([{ game: "runner", by: BEN, beaten: [{ email: ANNA, place: 2 }] }]);
+  });
+
+  test("two better runs in one send still tell each person once", async () => {
+    const t = newConvex();
+    await seed(t);
+    await clear(t);
+    await asUser(t, DAN).mutation(api.gameScores.submitScores, {
+      scores: [run("run-dan-01", 800), run("run-dan-02", 1000)],
+    });
+    const emails = (await told(t)).map((row) => row.email);
+    expect(emails.sort()).toEqual([ANNA, BEN, CARA].sort());
+  });
+
+  test("each person gets one push in the player's full name, opening the leaderboard", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: DAN, year: YEAR, name: "  Dan   de Silva " });
+    });
+    await t.mutation(internal.gameScores.tellBeaten, {
+      game: "flappy",
+      by: DAN,
+      beaten: [
+        { email: BEN, place: 3 },
+        { email: CARA, place: 4 },
+      ],
+    });
+    const pushes = (await jobs(t)).filter((job) => job.name === "push:send").map((job) => job.args[0]);
+    expect(pushes).toEqual([
+      { to: BEN, title: "Dan de Silva just beat you in Flap", body: "You're now 3rd", url: "/games/leaderboard?game=flappy" },
+      { to: CARA, title: "Dan de Silva just beat you in Flap", body: "You're out of the top 3", url: "/games/leaderboard?game=flappy" },
+    ]);
   });
 });

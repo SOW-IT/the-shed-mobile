@@ -41,7 +41,7 @@ import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import { duelLookFor, type DuelView } from "./duel";
 import { planClock, useFrameTicks } from "./frameClock";
-import { tagShown, useBatterySaver, useWorldSetting } from "./settings";
+import { tagShown, useBatterySaver, useCardName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
@@ -220,6 +220,7 @@ export const Garden = ({
 
   const saver = useBatterySaver();
   const [tagMode] = useWorldSetting("nameTags");
+  const cardName = useCardName();
   const [now, setNow] = useState(serverNow);
   // Your own walk as it is; others glide toward each new walk from the server.
   // A copy: a high five below steps people in and out of where they're drawn.
@@ -626,7 +627,7 @@ export const Garden = ({
     const waiting =
       p.me && p.ask && openAsk(p.ask, now) && !d && !answeredMine ? `${askInfo(p.ask.kind)?.ask ?? "…"}` : undefined;
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
-    const name = p.me ? "You" : shortName(p.name);
+    const name = p.me ? "You" : cardName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
     const speaking = Boolean(line || waiting || emote || p.away || p.reading) || typing !== undefined;
     if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
@@ -737,7 +738,7 @@ export const Garden = ({
           return (
             <View key={`ask-${p.memberId}`} style={[styles.ask, { left: Math.min(Math.max(4, head.x - ASK_CARD_WIDTH / 2), cam.width - ASK_CARD_WIDTH - 4), top }]} testID="world-ask">
               <Text style={styles.askText} numberOfLines={1}>
-                {info.icon} {shortName(p.name)}: {info.ask}
+                {info.icon} {cardName(p.name)}: {info.ask}
               </Text>
               <View style={styles.askRow}>
                 <Pressable

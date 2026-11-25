@@ -11,6 +11,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
 import { glass, signal } from "./palette";
+import { useCardName } from "./settings";
 import { problem } from "./Sheets";
 import type { WorldMember } from "./useWorld";
 
@@ -77,6 +78,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const cardName = useCardName();
   const waitMs = list ? list.pokeAgainAt - now : 0;
   const pokeAgainAt = list?.pokeAgainAt;
   useEffect(() => {
@@ -139,7 +141,7 @@ const OfflineList = ({ startOpen = false }: { startOpen?: boolean }) => {
                 </View>
                 <View style={styles.grow}>
                   <Text style={styles.name} numberOfLines={1}>
-                    {shortName(p.name)}
+                    {cardName(p.name)}
                   </Text>
                   <Text style={styles.where}>{p.lastSeenAt === null ? "Not been yet" : timeAgo(p.lastSeenAt, now)}</Text>
                 </View>
@@ -244,6 +246,7 @@ export const PeoplePanel = ({
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
+  const cardName = useCardName();
   const blocked = useQuery(api.world.myBlocks, overlay.mounted ? {} : "skip");
   const elsewhere = useQuery(api.world.elsewhere, overlay.mounted ? {} : "skip");
   const pings = useQuery(api.world.pings, overlay.mounted && roomId ? { roomId } : "skip");
@@ -287,7 +290,7 @@ export const PeoplePanel = ({
             <Animated.View key={p.memberId} style={itemStyle(overlay, next())}>
               <PersonRow
                 look={p.look}
-                name={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
+                name={p.isMe ? `${cardName(p.name)} (you)` : cardName(p.name)}
                 where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
@@ -321,7 +324,7 @@ export const PeoplePanel = ({
               ) : (
                 <PersonRow
                   look={row.look}
-                  name={shortName(row.name)}
+                  name={cardName(row.name)}
                   where={row.at ? placeLabel(row.at) : "Somewhere else"}
                   ping={row.ping}
                   label={row.at ? `${shortName(row.name)}, in ${PLACE_TITLES[row.at]}` : shortName(row.name)}

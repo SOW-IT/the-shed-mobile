@@ -1,16 +1,10 @@
-import { shortName } from "../../shared/names";
+import { styledName } from "../../shared/names";
 import { isPlace, PLACE_TITLES } from "../../shared/world";
 import { clock, lineText } from "./view";
 
 type ChatNameStyle = "initials" | "first";
 
-export const chatName = (name: string, style: ChatNameStyle): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return style === "initials" ? "?" : "Someone";
-  if (style === "first") return shortName(name);
-  const ends = words.length > 1 ? [words[0], words[words.length - 1]] : [words[0]];
-  return ends.map((word) => Array.from(word)[0].toUpperCase()).join("");
-};
+export const chatName = (name: string, style: ChatNameStyle): string => styledName(name, style === "first" ? "short" : "initials");
 
 export const placeTag = (place: string | undefined) => (place && isPlace(place) ? PLACE_TITLES[place].replace(/^The /, "") : "Elsewhere");
 

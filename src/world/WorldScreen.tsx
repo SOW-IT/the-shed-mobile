@@ -43,7 +43,7 @@ import { pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
 import { SettingsPanel } from "./SettingsPanel";
-import { useWorldSetting } from "./settings";
+import { useCardName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
@@ -295,6 +295,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const cardName = useCardName();
   const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
 
@@ -345,7 +346,7 @@ export const WorldScreen = ({
   };
   const nameOf = (memberId: string) => {
     const full = world.people.find((p) => p.memberId === memberId)?.name;
-    return full ? shortName(full) : "them";
+    return full ? cardName(full) : "them";
   };
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;

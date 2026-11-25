@@ -3,6 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
+import { styledName } from "@shared/names";
 import { chatName } from "./chatFormat";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock, WifiBars } from "./Overlays";
 import { glass, hud } from "./palette";
@@ -26,14 +27,16 @@ const Choice = <K extends WorldSettingKey>({
   setting,
   options,
   label,
+  fill = false,
 }: {
   setting: K;
   options: readonly { value: WorldSettingValue<K>; text: string; hint: string }[];
   label: string;
+  fill?: boolean;
 }) => {
   const [value, set] = useWorldSetting(setting);
   return (
-    <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <View style={[styles.choices, fill && styles.choicesFill]} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((option) => (
         <Pressable
           key={option.value}
@@ -42,7 +45,7 @@ const Choice = <K extends WorldSettingKey>({
           accessibilityState={{ checked: value === option.value }}
           accessibilityLabel={option.hint}
           testID={`world-setting-${setting}-${option.value}`}
-          style={({ pressed }) => [styles.choice, value === option.value && styles.choiceOn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.choice, fill && styles.choiceFill, value === option.value && styles.choiceOn, pressed && styles.pressed]}
         >
           <Text style={styles.choiceText} numberOfLines={1}>
             {option.text}
@@ -66,10 +69,22 @@ const Row = ({ icon, title, note, children, style }: { icon: string; title: stri
   </Animated.View>
 );
 
+const StackedRow = ({ icon, title, children, style }: { icon: string; title: string; children: ReactNode; style: object | null }) => (
+  <Animated.View style={[styles.row, styles.stacked, style]}>
+    <View style={styles.stackedHead}>
+      <Text style={styles.rowIcon}>{icon}</Text>
+      <Text style={styles.rowTitle} numberOfLines={1}>
+        {title}
+      </Text>
+    </View>
+    {children}
+  </Animated.View>
+);
+
 const SAMPLE_TIME = "[2:15 PM]";
 
 export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; top: number; myName: string; onClose: () => void }) => {
-  const overlay = useOverlayClock(open, 6);
+  const overlay = useOverlayClock(open, 7);
   const { width, height } = useWindowDimensions();
   const [times, setTimes] = useWorldSetting("chatTimes");
   const [ping, setPing] = useWorldSetting("pingMs");
@@ -133,6 +148,18 @@ export const SettingsPanel = ({ open, top, myName, onClose }: { open: boolean; t
               ]}
             />
           </Row>
+          <StackedRow icon="🪪" title="Player names" style={itemStyle(overlay, 6)}>
+            <Choice
+              setting="cardNames"
+              label="Player names"
+              fill
+              options={[
+                { value: "initials", text: styledName(name, "initials"), hint: "Initials" },
+                { value: "short", text: styledName(name, "short"), hint: "First name and last initial" },
+                { value: "full", text: styledName(name, "full"), hint: "Full name" },
+              ]}
+            />
+          </StackedRow>
         </ScrollView>
       </Animated.View>
     </View>
@@ -172,6 +199,10 @@ const styles = StyleSheet.create({
   choices: { flexDirection: "row", gap: 4, padding: 3, borderRadius: 16, backgroundColor: glass.scrim },
   choice: { minWidth: 46, height: 28, paddingHorizontal: 10, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   choiceOn: { backgroundColor: hud.accent },
+  choicesFill: { alignSelf: "stretch" },
+  choiceFill: { flex: 1, minWidth: 0 },
+  stacked: { flexDirection: "column", alignItems: "stretch" },
+  stackedHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   choiceText: { color: glass.text, fontWeight: "800", fontSize: 13 },
   pingSample: { flexDirection: "row", alignItems: "center", gap: 4 },
   pingMs: { color: glass.text, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
