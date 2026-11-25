@@ -32,8 +32,20 @@ export const restingGait = (walk: Walk): Gait => {
 
 export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
   const pose = posAt(walk, now);
+  if (walk.heading !== undefined && !pose.walking && length(walk) >= STILL) {
+    // A walk that ends facing a set way (the lectern) turns there on arrival.
+    const settling = clamp01((now - pose.arrivesAt) / TURN_MS);
+    const last = posAt(walk, pose.arrivesAt - 1).heading;
+    return {
+      ...pose,
+      heading: turnToward(last, walk.heading, easeOut(settling)),
+      stridePhase: Math.max(0, now - gait.movingSince) / 1000,
+      strideAmp: clamp01(1 - (now - pose.arrivesAt) / STOP_MS),
+      turning: settling < 1 && last !== walk.heading,
+    };
+  }
   const turned = clamp01((now - gait.turnAt) / TURN_MS);
-  const alongPath = walk.path && walk.path.length > 0 && length(walk) >= STILL && (pose.walking || walk.heading === undefined);
+  const alongPath = walk.path && walk.path.length > 0 && length(walk) >= STILL;
   const targetHeading = alongPath ? pose.heading : gait.heading;
   return {
     ...pose,
@@ -49,7 +61,8 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   const was = drawnPose(before.walk, before.gait, now);
   return {
     movingSince: was.strideAmp > 0 ? before.gait.movingSince : now,
-    heading: length(walk) < STILL ? (walk.heading ?? before.gait.heading) : posAt(walk, now).heading,
+    // A still walk keeps the way you're drawn facing (at the lectern, the room).
+    heading: length(walk) < STILL ? (walk.heading ?? was.heading) : posAt(walk, now).heading,
     turnFrom: was.heading,
     turnAt: now,
   };

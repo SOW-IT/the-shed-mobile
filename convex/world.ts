@@ -19,6 +19,7 @@ import {
   coversPadLabel,
   ELSEWHERE_NAMES,
   seatIn,
+  standIn,
   isPlace,
   PLACES,
   PLACE_TITLES,
@@ -78,6 +79,8 @@ import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
+import { IN_APP_MS, IN_APP_SCAN } from "../shared/appPresence";
+import { appPresenceOf } from "./presence";
 import { giveStarterSeeds } from "./farmData";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
@@ -634,21 +637,34 @@ const spend = (kind: StateBucket, state: Doc<"worldState">, now: number) =>
 /**
  * Walks to a spot: one write per tap. The walk starts where the server says
  * the person is now, so nobody can teleport, and ends inside the courtyard.
+ * With `stand` (behind the lectern), the spot and the way you then face come
+ * from the place's stands, the same for everyone watching.
  */
 export const move = mutation({
-  args: { toX: v.number(), toZ: v.number(), path: v.optional(v.array(worldWaypointValidator)) },
+  args: { toX: v.number(), toZ: v.number(), path: v.optional(v.array(worldWaypointValidator)), stand: v.optional(v.string()) },
   returns: v.union(v.object({ ok: v.literal(true), ...worldWalkFields, serverNow: v.number() }), turnedAway),
-  handler: async (ctx, { toX, toZ, path }) => {
+  handler: async (ctx, { toX, toZ, path, stand: standId }) => {
     const { member, state } = await requireMe(ctx);
+    const place = placeOf(member);
+    const stand = standId === undefined ? null : standIn(place, standId);
+    if (standId !== undefined && !stand) throw new ConvexError("That isn't somewhere you can stand.");
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const from = posAt(state, now);
-    const place = placeOf(member);
     const extra = await obstaclesIn(ctx, member);
-    const to = clampTarget(toX, toZ, place, extra);
+    const to = stand ?? clampTarget(toX, toZ, place, extra);
     const cleanPath = sanitizePath(path, place, extra);
-    const walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
+    const heading = stand?.heading;
+    const walk = {
+      fromX: from.x,
+      fromZ: from.z,
+      toX: to.x,
+      toZ: to.z,
+      startedAt: now,
+      ...(cleanPath ? { path: cleanPath } : {}),
+      ...(heading === undefined ? {} : { heading }),
+    };
     await ctx.db.patch("worldState", state._id, {
       fromX: walk.fromX,
       fromZ: walk.fromZ,
@@ -656,7 +672,7 @@ export const move = mutation({
       toZ: walk.toZ,
       startedAt: walk.startedAt,
       path: cleanPath,
-      heading: undefined,
+      heading,
       away: undefined,
       playing: undefined,
       reading: undefined,
@@ -1734,8 +1750,19 @@ const OFFLINE_NEVER_SCAN = 2000;
  * most `limit` people with their looks, and whether there are more, so the
  * list starts short and grows on "Show all".
  */
+const inAppEmails = async (ctx: Ctx, now: number) => {
+  const emails = new Set<string>();
+  const rows = await ctx.db
+    .query("appPresence")
+    .withIndex("by_appSeenAt", (q) => q.gt("appSeenAt", now - IN_APP_MS))
+    .order("desc")
+    .take(IN_APP_SCAN);
+  for (const row of rows) emails.add(row.email);
+  return emails;
+};
+
 export const offlineRecent = query({
-  args: { limit: v.number() },
+  args: { limit: v.number(), skipInApp: v.optional(v.boolean()), tick: v.optional(v.number()) },
   returns: v.object({
     people: v.array(
       v.object({ id: v.id("staffProfiles"), name: v.string(), lastOnlineAt: v.union(v.number(), v.null()), look: worldLookValidator })
@@ -1747,7 +1774,9 @@ export const offlineRecent = query({
     const isBlocked = await loadBlockFilter(ctx, email);
     const year = currentStaffYear();
     const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
-    const away = async (other: string) => other !== email && !(await memberByEmail(ctx, other)) && !(await isBlocked(other));
+    const inApp = args.skipInApp ? await inAppEmails(ctx, Date.now()) : new Set<string>();
+    const away = async (other: string) =>
+      other !== email && !inApp.has(other) && !(await memberByEmail(ctx, other)) && !(await isBlocked(other));
     const found: { profile: Doc<"staffProfiles">; lastOnlineAt: number | null }[] = [];
     const listed = new Set<string>();
     let more = false;
@@ -1782,12 +1811,56 @@ export const offlineRecent = query({
         found.push({ profile, lastOnlineAt: null });
       }
     }
+    const seenFloor = found.at(-1)?.lastOnlineAt ?? 0;
+    for (const entry of found) {
+      const appSeenAt = (await appPresenceOf(ctx, entry.profile.email))?.appSeenAt;
+      if (appSeenAt !== undefined && appSeenAt > (entry.lastOnlineAt ?? 0)) entry.lastOnlineAt = appSeenAt;
+    }
+    if (more) {
+      scanned = 0;
+      for await (const row of ctx.db.query("appPresence").withIndex("by_appSeenAt", (q) => q.gt("appSeenAt", seenFloor)).order("desc")) {
+        if (scanned++ === IN_APP_SCAN) break;
+        if (listed.has(row.email)) continue;
+        const profile = await getProfile(ctx, row.email, year);
+        if (!profile || !(await away(profile.email))) continue;
+        listed.add(profile.email);
+        found.push({ profile, lastOnlineAt: row.appSeenAt });
+      }
+    }
+    found.sort((a, b) => (b.lastOnlineAt ?? 0) - (a.lastOnlineAt ?? 0));
     const people = [];
-    for (const { profile, lastOnlineAt } of found) {
+    for (const { profile, lastOnlineAt } of found.slice(0, limit)) {
       const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
       people.push({ id: profile._id, name: profileName(profile), lastOnlineAt, look });
     }
     return { people, more };
+  },
+});
+
+export const inApp = query({
+  args: { limit: v.number(), tick: v.number() },
+  returns: v.object({
+    people: v.array(v.object({ id: v.id("staffProfiles"), name: v.string(), look: worldLookValidator })),
+    more: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const isBlocked = await loadBlockFilter(ctx, email);
+    const year = currentStaffYear();
+    const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
+    const found: Doc<"staffProfiles">[] = [];
+    for (const other of await inAppEmails(ctx, Date.now())) {
+      if (other === email || (await memberByEmail(ctx, other)) || (await isBlocked(other))) continue;
+      const profile = await getProfile(ctx, other, year);
+      if (profile) found.push(profile);
+    }
+    found.sort((a, b) => profileName(a).localeCompare(profileName(b)));
+    const people = [];
+    for (const profile of found.slice(0, limit)) {
+      const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
+      people.push({ id: profile._id, name: profileName(profile), look });
+    }
+    return { people, more: found.length > limit };
   },
 });
 

@@ -5,6 +5,7 @@ import {
   fullBucket,
   isPlace,
   seatIn,
+  standIn,
   takeToken,
   type Place,
   type Look,
@@ -277,7 +278,7 @@ export const useWorld = (
 
   const lastAction = useRef(0);
   // The spot waiting to be sent, whether a move is on its way, and its timer.
-  const pending = useRef<{ x: number; z: number; seat?: string } | null>(null);
+  const pending = useRef<{ x: number; z: number; seat?: string; stand?: string } | null>(null);
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Bumped when a visit ends, so a reply from the last visit can't queue a move in this one.
@@ -466,17 +467,18 @@ export const useWorld = (
     const sentIn = visit.current;
     stats.current.move++;
     const pathArg = path.length > 0 ? { path } : {};
-    (to.seat ? sitM({ seat: to.seat, ...pathArg }) : moveM({ toX: to.x, toZ: to.z, ...pathArg }))
+    (to.seat ? sitM({ seat: to.seat, ...pathArg }) : moveM({ toX: to.x, toZ: to.z, ...pathArg, ...(to.stand ? { stand: to.stand } : {}) }))
       .then((reply) => {
         if (sentIn !== visit.current) return;
         heard(reply.serverNow, sentAt);
         if (reply.ok) {
           stillReading();
           const { fromX, fromZ, toX, toZ, startedAt, path: route } = reply;
+          const heading = "heading" in reply && typeof reply.heading === "number" ? reply.heading : undefined;
           // While a finger is down the local walk leads; adopt the server's after release.
           if (!pending.current && !holding.current) {
             const now = serverNow();
-            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt, path: route }, now));
+            setMyWalk((walk) => blendIn(walk, { fromX, fromZ, toX, toZ, startedAt, path: route, ...(heading === undefined ? {} : { heading }) }, now));
             predicting.current = false;
           }
         } else {
@@ -539,6 +541,29 @@ export const useWorld = (
       setTarget(null);
       setMySeat(seat.id);
       pending.current = { x: seat.x, z: seat.z, seat: seat.id };
+      predicting.current = true;
+      lastAction.current = Date.now();
+      if (timer.current) clearTimeout(timer.current);
+      later(COALESCE_MS);
+    },
+    [session, serverNow, later]
+  );
+
+  /** Walks you to one of the place's stands (behind the lectern), to face the way it faces. */
+  const standAt = useCallback(
+    (standId: string) => {
+      const stand = session && standIn(session.place, standId);
+      if (!stand || !session) return;
+      const now = serverNow();
+      const from = myWalkRef.current ? posAt(myWalkRef.current, now) : stand;
+      const path = findPath(session.place, from, stand, obstaclesRef.current);
+      if (!path) return;
+      const next = headFor(myWalkRef.current, stand, now, path, stand.heading);
+      myWalkRef.current = next;
+      setMyWalk(next);
+      setTarget(stand);
+      setMySeat(null);
+      pending.current = { x: stand.x, z: stand.z, stand: stand.id };
       predicting.current = true;
       lastAction.current = Date.now();
       if (timer.current) clearTimeout(timer.current);
@@ -971,6 +996,7 @@ export const useWorld = (
     serverNow,
     walkTo,
     sitOn,
+    standAt,
     holdStart,
     holdMove,
     holdEnd,

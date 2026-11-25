@@ -87,6 +87,10 @@ async function deleteByEmail(
       (row) => ctx.db.delete("lastSeen", row._id)
     ),
     await deleteBatch(
+      await ctx.db.query("appPresence").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("appPresence", row._id)
+    ),
+    await deleteBatch(
       await ctx.db
         .query("appInstalls")
         .withIndex("by_email_and_platform", (q) => q.eq("email", email))

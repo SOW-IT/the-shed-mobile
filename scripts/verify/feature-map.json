@@ -57,13 +57,13 @@
     "src/types/**",
     "src/lib/{listKeys,errorReporting,appErrorKinds,staleRelease,restartHold,otaUpdates,otaUpdateButton,deviceStorage,navMenu,screenHeader,goBack,footerClearance,swipePage,sydneyTime,visibleColour,externalLinks,openExternalLink,notify,imageCacheKey,uploadLocalFile,csv,csvDownload,pdfWriter,universityLogos}.ts",
     "src/lib/pdfLibBundle.d.ts",
-    "src/hooks/{useRowIds,useKeyboardInset,keyboardOverlap,useRestartHold,useReportAppVersion,useAppUpdate,useReportSeen,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
+    "src/hooks/{useRowIds,useKeyboardInset,keyboardOverlap,useRestartHold,useReportAppVersion,useAppUpdate,useAppPresence,useHeldValue,useDebouncedValue,useMinuteTick,usePagedQuery,useListTopOnChange,useNavGroupOpen,useLandingTab,useCachedImageUri,useGoogleSignIn,useAppleSignIn,useBadgeSync,useStaffWaitingBadge}.ts",
     "convex/_generated/**",
     "convex/shared/**",
     "convex/tsconfig.json",
     "convex/env.d.ts",
     "convex/{environment,schema,auth,auth.config,http,crons,model,pagination,googleAuth,appleIdentity,appleRevoke,userLink,emails,comments,history,presence,actingAs,actingAsData,profile}.ts",
-    "shared/{datetime,numbers,deepLinks,appLinks,typedConfirm,staffOnly,actingAs}.ts"
+    "shared/{datetime,numbers,deepLinks,appLinks,typedConfirm,staffOnly,actingAs,appPresence}.ts"
   ],
   "smoke": ["/", "/home"],
   "areas": {
@@ -275,7 +275,7 @@
         "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
-      "checks": ["arcade-podium"]
+      "checks": ["chapel-pews", "arcade-podium"]
     },
     "devotionals": {
       "files": [

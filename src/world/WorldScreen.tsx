@@ -11,6 +11,7 @@ import {
   PLACE_TITLES,
   placeName,
   SEATS,
+  standIn,
   pingBars,
   portalReached,
   posAt,
@@ -92,14 +93,14 @@ const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const NOTICEBOARD = OBSTACLES.find((o) => o.id === "noticeboard")!;
 const NOTICES = OBSTACLES.find((o) => o.id === "notices")!;
 const PIANO = PLACE_OBSTACLES.chapel.find((o) => o.id === "piano")!;
-const LECTERN = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
 
 const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
   arcade: clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9, "garden"),
   noticeboard: clampTarget(NOTICEBOARD.x - 0.2, NOTICEBOARD.z + 1.0, "garden"),
   notices: clampTarget(NOTICES.x + 0.2, NOTICES.z + 1.0, "garden"),
   piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
-  lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
+  // Behind the lectern, facing the pews (see STANDS).
+  lectern: standIn("chapel", "lectern")!,
 };
 
 const AT_OBJECT = 0.35;
@@ -527,7 +528,6 @@ export const WorldScreen = ({
       else if (kind === "noticeboard") onCalendar();
       else if (kind === "notices") openBoard();
       else if (kind === "piano") onPraise();
-      else setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
   }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
@@ -551,9 +551,7 @@ export const WorldScreen = ({
         (!pose.walking && at - pose.arrivesAt > 400 && distance(pose, seat) > AT_OBJECT) ||
         Date.now() - seatTrip.since > OBJECT_TRIP_MS;
       if (!arrived && !strayed) return;
-      const place = seatTrip.place;
       setSeatTrip(null);
-      if (arrived && place === "chapel") setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
   }, [seatTrip]);
@@ -742,7 +740,6 @@ export const WorldScreen = ({
     const mePose = myPoseNow();
     if (me?.seat === free.id && mePose && !mePose.walking && distance(mePose, free) <= AT_OBJECT) {
       setSeatTrip(null);
-      if (world.place === "chapel") setDevotionalAsked(true);
       return;
     }
     world.sitOn(free.id);
@@ -762,7 +759,8 @@ export const WorldScreen = ({
       trigger();
       return;
     }
-    world.walkTo(spot.x, spot.z);
+    if (kind === "lectern") world.standAt("lectern");
+    else world.walkTo(spot.x, spot.z);
     setPropTrip({ kind, since: Date.now() });
   };
 
@@ -770,6 +768,8 @@ export const WorldScreen = ({
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
   const goToNotices = () => goToObject("notices", openBoard);
   const goToPiano = () => goToObject("piano", onPraise);
+  // The first tap takes you behind the lectern to face the room; a tap while
+  // you stand there offers Devotionals.
   const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
 
   const emote = (id: string) => void world.act(id).then((problem) => problem && setNote(problem));

@@ -53,6 +53,33 @@ All notable changes to **The SHED** mobile app. This project follows
   like the World's menus, over the garden's sky and lawn, the same in light
   and dark mode. The World row says who's online under its line.
 
+## [2.13.17] - 2026-11-26
+
+### Changed
+- **Sitting on a Chapel pew shows your face.** Pews face away from the
+  camera, so the 30 degree turn other seats get still showed the back of
+  your head. Pews now turn you 120 degrees, toward the aisle, to the same
+  three-quarter view as a café stool. Everyone in the room sees the same.
+- **Sitting on a pew no longer asks about Devotionals.**
+- **Tapping the lectern takes you behind it, facing the pews.** You walk
+  round to the far side and turn to face the room, the way whoever leads
+  would, and everyone watching sees you face the same way. Tap the
+  lectern again while you're standing there to open Devotionals.
+
+## [2.13.16] - 2026-11-26
+
+### Added
+- **In the app, on the World's People list.** Between the people in the
+  World and "Not here right now", a new list shows who has The SHED open
+  on any other screen, with Poke and Invite like the offline list. It
+  shows 10 at first, then "Show more", and hides when nobody is there.
+  Walking into the World moves someone up to the World lists straight
+  away; closing the app moves them down to "Not here right now", seen just
+  now. Blocks work the same as everywhere else in the World.
+- The app tells the server it's open once a minute while it's on screen,
+  and stops when it goes to the background. People on older versions show
+  in the World or under "Not here right now" as before.
+
 ## [2.13.15] - 2026-11-26
 
 ### Fixed
