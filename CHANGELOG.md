@@ -21,6 +21,13 @@ All notable changes to **The SHED** mobile app. This project follows
   only sky on screen.
 - **Swoop's world progress is a bar right across the top**, under the score
   bar, and the world you're on sits next to Swoop's name.
+- **Swoop's first worlds have much wider, gentler hills.** World 1's hills
+  are about two and a half times as wide as before, and each world after it
+  is a little narrower, back to the usual hills by world 6.
+- **New hill shapes from world 3:** double humps, a steep drop into a long
+  flat run-out, a long gentle ramp up to a sharp crest, flat-topped
+  plateaus, and valleys much deeper or shallower than the rest. They're
+  rare in world 3 and turn up more often in later worlds.
 
 ## [2.12.50] - 2026-11-25
 

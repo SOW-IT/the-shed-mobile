@@ -85,23 +85,29 @@ type WorldRules = {
   bumpiness: number;
   /** The widest angle, in radians, between the bird and the slope for a perfect landing. */
   tolerance: number;
+  oddity: number;
 };
 
 const degrees = (d: number) => (d * Math.PI) / 180;
 
+const WIDEST = 2.6;
+const WIDE_WORLDS = 5;
+
 export const worldRules = (world: number): WorldRules => {
   const n = Math.max(1, Math.floor(world)) - 1;
   const day = Math.max(18, 34 - 2 * n);
+  const wide = 1 + (WIDEST - 1) * Math.max(0, 1 - n / WIDE_WORLDS) ** 2;
   return {
     world: n + 1,
     length: 8000 + 1200 * n,
     day,
     bonusCap: day * 0.35,
-    span: Math.max(200, 330 - 15 * n),
+    span: Math.max(200, 330 - 15 * n) * wide,
     squeeze: Math.min(0.35, 0.04 * n),
     drop: Math.min(360, 200 + 20 * n),
     bumpiness: Math.min(0.5, 0.12 + 0.05 * n),
     tolerance: degrees(Math.max(10, 30 - 2 * n)),
+    oddity: Math.min(0.45, Math.max(0, 0.1 * (n - 1))),
   };
 };
 
@@ -110,18 +116,24 @@ export type HillPoint = { x: number; y: number };
 
 const worldSeed = (seed: number, world: number) => (seed ^ Math.imul(world, 0x9e3779b1)) | 0;
 
-/**
- * One world's ground, from its first hilltop at `start` to the last, both
- * at the standard height, so worlds join without a seam. The same seed and
- * world always give the same hills.
- */
-export const worldHills = (seed: number, world: number, start: number): HillPoint[] => {
+export const HILL_SHAPES = ["double", "cliff", "ramp", "plateau", "uneven"] as const;
+type HillShape = (typeof HILL_SHAPES)[number];
+type ShapedStretch = { shape: HillShape; from: number; to: number };
+
+const buildWorld = (seed: number, world: number, start: number) => {
   const rules = worldRules(world);
   const rng = { seed: worldSeed(seed, world) };
   const vary = (value: number) => value * (1 + (random(rng) * 2 - 1) * rules.bumpiness);
   const points: HillPoint[] = [{ x: start, y: GLIDER.peak }];
+  const shapes: ShapedStretch[] = [];
   let x: number = start;
   let y: number = GLIDER.peak;
+  let steepDown = false;
+  const to = (nextX: number, nextY: number) => {
+    x = nextX;
+    y = nextY;
+    points.push({ x, y });
+  };
   // Valley and hilltop pairs until the world is long enough; the pair that
   // gets there climbs back to the standard height.
   for (let last = false; !last; ) {
@@ -129,18 +141,41 @@ export const worldHills = (seed: number, world: number, start: number): HillPoin
     const down = Math.max(120, vary(rules.span));
     const up = Math.max(100, vary(rules.span) * (1 - rules.squeeze));
     last = x + down + up >= start + rules.length;
-    let valley = Math.max(GLIDER.floor, Math.min(y - 40, y - vary(rules.drop)));
+    const roomy = x + 3 * (down + up) < start + rules.length;
+    const shape =
+      roomy && rules.oddity > 0 && random(rng) < rules.oddity ? HILL_SHAPES[Math.floor(random(rng) * HILL_SHAPES.length)] : null;
+    const from = x;
+    const deepness = shape === "uneven" ? (random(rng) < 0.5 ? 0.45 : 1.6) : 1;
+    let valley = Math.max(GLIDER.floor, Math.min(y - 40, y - vary(rules.drop) * deepness));
     if (last) valley = Math.min(valley, GLIDER.peak - 60);
-    x += Math.max(down, slopeRun(y - valley));
-    y = valley;
-    points.push({ x, y });
+    const steep = steepDown || shape === "cliff";
+    steepDown = false;
+    to(x + (steep ? slopeRun(y - valley) * 1.05 : Math.max(down, slopeRun(y - valley))), valley);
+    if (shape === "cliff") to(x + down * 1.2, y);
     const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling, Math.max(y + 40, y + vary(rules.drop)));
-    x += Math.max(up, slopeRun(top - y));
-    y = top;
-    points.push({ x, y });
+    to(x + Math.max(shape === "ramp" ? up * 2.2 : up, slopeRun(top - y)), top);
+    if (shape === "ramp") steepDown = true;
+    if (shape === "plateau") to(x + up * 0.9, y);
+    if (shape === "double") {
+      const dip = Math.min(70, (top - valley) * 0.35);
+      to(x + Math.max(up * 0.6, 120), top - dip);
+      to(x + Math.max(up * 0.6, 120), top);
+    }
+    if (shape) shapes.push({ shape, from, to: x });
   }
-  return points;
+  return { points, shapes };
 };
+
+/**
+ * One world's ground, from its first hilltop at `start` to the last, both
+ * at the standard height, so worlds join without a seam. The same seed and
+ * world always give the same hills.
+ */
+export const worldHills = (seed: number, world: number, start: number): HillPoint[] =>
+  buildWorld(seed, world, start).points;
+
+export const worldShapes = (seed: number, world: number, start: number): ShapedStretch[] =>
+  buildWorld(seed, world, start).shapes;
 
 /** The shortest run a half wave of this height can have and stay under the steepest slope. */
 const slopeRun = (rise: number) => (Math.abs(rise) * Math.PI) / (2 * GLIDER.maxSlope);
@@ -337,8 +372,8 @@ const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
   return { x: state.x - view.width * VIEW.lead, y, zoom };
 };
 
-export const newGlider = (seed: number, aspect = 2): GliderState => {
-  const { end, hills } = hillsFrom(seed, 1, 0);
+export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
+  const { end, hills } = hillsFrom(seed, world, 0);
   const start = groundAt(hills, 0);
   const base = {
     x: 0,
@@ -352,7 +387,7 @@ export const newGlider = (seed: number, aspect = 2): GliderState => {
     time: 0,
     score: 0,
     seed,
-    world: 1,
+    world,
     worldStart: 0,
     worldEnd: end,
     ...base,
@@ -362,7 +397,7 @@ export const newGlider = (seed: number, aspect = 2): GliderState => {
     grounded: true,
     air: 0,
     heavy: false,
-    daylight: worldRules(1).day,
+    daylight: worldRules(world).day,
     regained: 0,
     streak: 0,
     bonus: 0,
@@ -570,7 +605,7 @@ export const colourAt = (stops: readonly (readonly [number, string])[], at: numb
  */
 export const autoHold = (state: GliderState): boolean => groundAt(state.hills, state.x).slope < 0;
 
-export const GLIDER_PREVIEWS = ["dive", "launch", "high", "world", "night"] as const;
+export const GLIDER_PREVIEWS = ["dive", "launch", "high", "world", "world3", "world6", "night"] as const;
 export type GliderPreview = (typeof GLIDER_PREVIEWS)[number];
 
 export const isGliderPreview = (value: string): value is GliderPreview =>
@@ -581,6 +616,8 @@ const previewDone: Record<GliderPreview, (state: GliderState, before: GliderStat
   launch: (state, before) => before.grounded && !state.grounded && state.vy > 250,
   high: (state, before) => before.vy > 0 && state.vy <= 0,
   world: (state, before) => state.world > before.world,
+  world3: (state) => state.time > 4,
+  world6: (state) => state.time > 4,
   night: (state) => state.over,
 };
 
@@ -591,7 +628,7 @@ const BIG_THROW = { vx: 800, vy: 900 } as const;
  * into a valley, taking off, just past a world's finish, or nightfall.
  */
 export const previewGlider = (kind: GliderPreview, aspect = 2): GliderState => {
-  const start = newGlider(1, aspect);
+  const start = newGlider(1, aspect, kind === "world3" ? 3 : kind === "world6" ? 6 : 1);
   let state = kind === "high" ? { ...start, ...BIG_THROW, grounded: false } : start;
   const done = previewDone[kind];
   for (let i = 0; i < 60 * 600; i++) {
