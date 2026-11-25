@@ -35,7 +35,26 @@ const throughTwoWorlds = () => {
 
 const frames = throughTwoWorlds();
 
+const throughBigSwing = () => {
+  let state = newGlider(2, ASPECT, 20);
+  const swing: GliderState[] = [state];
+  while (state.world === 20 && swing.length < 60 * 240) {
+    state = stepGlider(hold({ ...state, daylight: Math.max(state.daylight, 5) }, autoHold(state)), FRAME);
+    swing.push(state);
+  }
+  return swing;
+};
+
+const bigSwing = throughBigSwing();
+
 describe("Swoop's background", () => {
+  test("world 20's run reaches its flag and climbs and drops far more than world 1's", () => {
+    const heights = (run: GliderState[]) => run.map((frame) => groundAt(frame.hills, frame.x).y);
+    expect(bigSwing.at(-1)!.world).toBe(21);
+    const span = (run: GliderState[]) => Math.max(...heights(run)) - Math.min(...heights(run));
+    expect(span(bigSwing)).toBeGreaterThan(2 * span(frames.filter((frame) => frame.world === 1)));
+  });
+
   test("the run under test crosses two world changes and zooms out and back in", () => {
     expect(frames.at(-1)!.world).toBe(4);
     const zooms = frames.map((frame) => frame.camera.zoom);
@@ -71,13 +90,16 @@ describe("Swoop's background", () => {
   });
 
   test("the background follows the bird, not the zoom", () => {
-    const state = frames[600];
+    const state = frames.find((frame) => frame.camera.zoom < 0.95)!;
     expect(parallaxAnchor(state)).toBe(state.x - VIEW.width * VIEW.lead);
     expect(state.camera.x).not.toBe(parallaxAnchor(state));
   });
 });
 
-describe("Swoop's zoom", () => {
+describe.each([
+  ["through worlds 1 to 3", frames],
+  ["through world 20, where the ground rises and falls far more", bigSwing],
+] as const)("Swoop's zoom %s", (_, frames) => {
   const logs = frames.map((frame) => Math.log(frame.camera.zoom));
 
   test("changes a little each frame, and its rate of change changes even less", () => {

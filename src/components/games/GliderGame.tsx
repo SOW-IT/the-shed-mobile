@@ -217,7 +217,7 @@ const PopupText = ({ popup, time, x, y }: { popup: Popup; time: number; x: numbe
 const WorldBadge = ({ world }: { world: number }) => (
   <View style={styles.worldPill}>
     <Text style={styles.worldText} numberOfLines={1} testID="glider-world">
-      World {world}
+      Day {world}
     </Text>
   </View>
 );
@@ -228,7 +228,7 @@ const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
     <View
       style={[styles.track, { backgroundColor: dark ? c.trackNight : c.track }]}
       pointerEvents="none"
-      aria-label={`World ${state.world}, ${Math.round(done * 100)}% through`}
+      aria-label={`Day ${state.world}, ${Math.round(done * 100)}% through`}
       testID="glider-world-progress"
     >
       <View style={[styles.trackFill, { width: `${done * 100}%`, backgroundColor: c.trackFill }]} />
@@ -472,7 +472,7 @@ export const GliderGame = ({
       titleExtra={<WorldBadge world={shown.world} />}
       underBar={<WorldBar state={shown} dark={dark} />}
       hideStartCard={!!scene}
-      overDetail={run?.ended === "night" ? `Night fell in World ${run.world}.` : null}
+      overDetail={run?.ended === "night" ? `Night fell on day ${run.world}.` : null}
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}

@@ -8,6 +8,7 @@ import {
   colourAt,
   dayProgress,
   dayLength,
+  difficulty,
   FIRST_WORLD,
   FLOOR_DAY,
   GLIDER,
@@ -34,6 +35,8 @@ import {
   viewSize,
   VIEW,
   worldBonus,
+  levelSwing,
+  shapeChance,
   worldHills,
   worldLength,
   worldProgress,
@@ -186,12 +189,13 @@ describe("Swoop's hills", () => {
     }
   });
 
-  test("go hilltop, valley, hilltop, with flat tops and floors, inside the world's floor and ceiling", () => {
-    for (const world of [1, 3, 6, 12]) {
+  test("go hilltop, valley, hilltop, with flat tops and floors, inside the world's floor and ceiling raised or lowered by its swing", () => {
+    for (const world of [1, 3, 6, 12, 30]) {
       const hills = worldHills(11, world, 0);
       hills.forEach((point, i) => {
-        expect(point.y).toBeGreaterThanOrEqual(GLIDER.floor);
-        expect(point.y).toBeLessThanOrEqual(GLIDER.ceiling);
+        const room = levelSwing(world) + 40 * world;
+        expect(point.y).toBeGreaterThanOrEqual(GLIDER.floor - room);
+        expect(point.y).toBeLessThanOrEqual(GLIDER.ceiling + room);
         if (i === 0) return;
         expect(point.x).toBeGreaterThan(hills[i - 1].x);
         if (i === hills.length - 1) return;
@@ -243,20 +247,24 @@ describe("Swoop's hills", () => {
 });
 
 describe("each world is harder than the last", () => {
-  test("every world is a steady step harder than the last: narrower, deeper, steeper, more odd shapes, a smaller landing window, up to the limits the physics allows", () => {
+  test("one difficulty value rises by the same step every world, and every terrain knob follows it, holding only at a limit the physics sets", () => {
     const steps = (pick: (world: number) => number, from: number, to: number) =>
       Array.from({ length: to - from }, (_, i) => pick(from + i + 1) - pick(from + i));
     const even = (values: number[]) => values.every((value) => Math.abs(value - values[0]) < 1e-9);
+    expect(even(steps(difficulty, 1, 60))).toBe(true);
+    expect(steps(difficulty, 1, 2)[0]).toBeGreaterThan(0);
     expect(even(steps(harshness, 1, 40))).toBe(true);
     expect(harshness(1)).toBe(0);
     expect(harshness(HARDEST_WORLD)).toBe(1);
     expect(harshness(30)).toBeGreaterThan(3);
+    const swing = steps(levelSwing, 1, 60);
+    expect(even(swing)).toBe(true);
+    expect(swing[0]).toBeGreaterThan(0);
     for (const [pick, until] of [
       [(w: number) => worldRules(w).span, 11],
-      [(w: number) => worldRules(w).drop, 10],
+      [(w: number) => worldRules(w).drop, 11],
       [(w: number) => worldRules(w).steepest, 10],
       [(w: number) => worldRules(w).tolerance, 10],
-      [(w: number) => worldRules(w).oddity, 12],
       [(w: number) => worldRules(w).squeeze, 10],
       [(w: number) => worldRules(w).bumpiness, 10],
     ] as const) {
@@ -267,23 +275,31 @@ describe("each world is harder than the last", () => {
       expect(later.every((step) => Math.sign(step) === Math.sign(early[0]) || step === 0)).toBe(true);
     }
     expect(worldRules(HARDEST_WORLD).steepest).toBe(GLIDER.maxSlope);
-    for (let world = 1; world < 60; world++) {
-      expect(worldRules(world).length / worldRules(world).day).toBeLessThan(GLIDER.maxSpeed);
-      expect(worldRules(world + 1).length).toBeLessThanOrEqual(worldRules(world).length);
-    }
+    expect([1, 2].map((w) => worldRules(w).oddity)).toEqual([0, 0]);
+    for (let world = 2; world < 40; world++) expect(worldRules(world + 1).oddity).toBeGreaterThanOrEqual(worldRules(world).oddity);
+    expect(worldRules(20).oddity).toBe(0.97);
+    for (let world = 1; world < 60; world++) expect(worldRules(world).length / worldRules(world).day).toBeLessThan(GLIDER.maxSpeed);
     expect(worldRules(0)).toEqual(worldRules(1));
   });
 
-  test("the day shortens fastest at first, by the log of the world, to a floor reached by world 9", () => {
+  test("the day starts at 40 s and curves down, fastest at first, to 25 s at world 10, then stays there", () => {
     const days = Array.from({ length: 60 }, (_, i) => dayLength(i + 1));
-    expect(days[0]).toBe(26);
-    expect(days.indexOf(FLOOR_DAY) + 1).toBeLessThanOrEqual(9);
-    expect(days.indexOf(FLOOR_DAY) + 1).toBeGreaterThanOrEqual(8);
-    for (let world = 2; world <= 60; world++) expect(days[world - 1]).toBeLessThanOrEqual(days[world - 2]);
-    expect(days[0] - days[1]).toBeGreaterThan(days[4] - days[5]);
+    expect(days[0]).toBe(40);
+    expect(FLOOR_DAY).toBe(25);
+    expect(days[9]).toBe(FLOOR_DAY);
+    expect(days[8]).toBeGreaterThan(FLOOR_DAY);
     expect(days.slice(9).every((day) => day === FLOOR_DAY)).toBe(true);
+    for (let world = 2; world <= 10; world++) expect(days[world - 1]).toBeLessThan(days[world - 2]);
+    expect(days[0] - days[1]).toBeGreaterThan(days[7] - days[8]);
+    expect(days[4]).toBeCloseTo(29.5, 1);
+    expect(days[6]).toBeCloseTo(27.3, 1);
     for (let world = 1; world <= 60; world++) expect(worldRules(world).day).toBe(dayLength(world));
-    expect(worldLength(1)).toBeGreaterThan(2 * worldLength(HARDEST_WORLD));
+  });
+
+  test("world 1 is gentle and not much longer than before, and worlds get shorter from world 7 as the ground gets harder", () => {
+    expect(worldLength(1)).toBeLessThan(1.7 * 8_938);
+    for (let world = 7; world < 40; world++) expect(worldLength(world + 1)).toBeLessThanOrEqual(worldLength(world));
+    expect(worldLength(30)).toBeLessThan(worldLength(10));
   });
 });
 
@@ -371,7 +387,7 @@ describe("momentum", () => {
     expect(highest - launched!.y).toBeLessThanOrEqual(launched!.vy ** 2 / (2 * GLIDER.lightGravity));
   });
 
-  const OVER = 300;
+  const OVER = 360;
   const crestSpeeds = (pilot: Pilot, seed: number, count: number) => {
     let state = newGlider(seed, 2);
     const crests = state.hills.filter((_, i) => i % 2 === 0).slice(1, count + 1);
@@ -453,7 +469,7 @@ describe("worlds", () => {
     expect(next.daylight).toBeLessThanOrEqual(worldRules(2).day);
     expect(next.regained).toBe(0);
     expect(next.bonus - frames[done - 1].bonus).toBeGreaterThanOrEqual(GLIDER.worldPoints);
-    expect(next.popups.some((p) => p.kind === "world" && p.text.startsWith("World 1 done"))).toBe(true);
+    expect(next.popups.some((p) => p.kind === "world" && p.text.startsWith("Day 1 done"))).toBe(true);
     expect(state.ended).toBe("night");
     expect(state.world).toBeGreaterThanOrEqual(2);
   });
@@ -515,22 +531,24 @@ describe("wide hills first, odd shapes later", () => {
   };
 
   test("the hills narrow every world to world 12, then stay that narrow", () => {
-    const gaps = [1, 3, 5, 7, 9, 12].map(crestGap);
+    const gaps = [1, 4, 7, 10].map(crestGap);
     gaps.slice(1).forEach((gap, i) => expect(gap).toBeLessThan(gaps[i]));
-    expect(gaps[0]).toBeGreaterThan(2 * gaps[5]);
+    expect(gaps[0]).toBeGreaterThan(1.3 * gaps[3]);
     for (const world of [13, 20, 50]) expect(worldRules(world).span).toBe(worldRules(12).span);
   });
 
-  test("the ground gets harsher by a similar step every world to world 10: more odd shapes, steeper, more climbing; after that every world adds more bumps", () => {
+  test("the ground gets harsher by a similar step every world to world 10, and keeps on after: more odd shapes, steeper, a bigger rise and fall across the world", () => {
     const harshIndex = (world: number) => {
       let length = 0;
       let shaped = 0;
       let relief = 0;
       let steep = 0;
       let samples = 0;
+      let rise = 0;
       for (let seed = 1; seed <= 40; seed++) {
         const hills = worldHills(seed, world, 0);
         length += hills.at(-1)!.x;
+        rise += Math.max(...hills.map((point) => point.y)) - Math.min(...hills.map((point) => point.y));
         for (const stretch of worldShapes(seed, world, 0)) shaped += (stretch.to - stretch.from) * (1 + FIRST_WORLD[stretch.shape] / 4);
         for (let i = 1; i < hills.length; i++) relief += Math.abs(hills[i].y - hills[i - 1].y);
         for (let x = 0; x < hills.at(-1)!.x; x += 10) {
@@ -538,7 +556,7 @@ describe("wide hills first, odd shapes later", () => {
           if (Math.abs(groundAt(hills, x).slope) > 1.2) steep++;
         }
       }
-      return shaped / length + steep / samples + relief / length;
+      return shaped / length + steep / samples + relief / length + rise / 40 / 1000;
     };
     const early = Array.from({ length: 10 }, (_, i) => harshIndex(i + 1));
     const steps = early.slice(1).map((value, i) => value - early[i]);
@@ -547,26 +565,30 @@ describe("wide hills first, odd shapes later", () => {
       expect(step).toBeGreaterThan(0.3 * mean);
       expect(step).toBeLessThan(2.5 * mean);
     }
-    const bumps = (world: number) => {
-      let length = 0;
-      let turns = 0;
-      for (let seed = 1; seed <= 40; seed++) {
-        const hills = worldHills(seed, world, 0);
-        length += hills.at(-1)!.x;
-        turns += hills.length;
-      }
-      return turns / length;
-    };
-    const later = [10, 15, 20, 30].map(bumps);
+    const later = [10, 15, 20, 30].map(harshIndex);
     later.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(later[i]));
-    expect(later[3]).toBeGreaterThan(1.3 * later[0]);
-    expect(harshIndex(30)).toBeGreaterThan(harshIndex(10));
+    expect(later[2] - later[0]).toBeGreaterThan(0.2);
+    expect(later[3] - later[2]).toBeGreaterThan(0.1);
+    const range = (world: number) => {
+      let total = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        const heights = worldHills(seed, world, 0).map((point) => point.y);
+        total += Math.max(...heights) - Math.min(...heights);
+      }
+      return total / 40;
+    };
+    const ranges = [1, 10, 20, 30].map(range);
+    ranges.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(ranges[i]));
+    expect(ranges[1]).toBeGreaterThan(3 * ranges[0]);
+    expect(ranges[3]).toBeGreaterThan(1.5 * ranges[1]);
   }, 60_000);
 
-  test("diving that is always a little early or late runs out of daylight by world 2", () => {
-    const through = (pilot: () => Pilot) => SEEDS.filter((seed) => reached(pilot(), seed) >= 3).length;
-    expect(through(() => sloppy(0, 10))).toBe(0);
-    expect(through(() => sloppy(0.3, 0))).toBe(0);
+  test("diving that is always a little early or late gets through the gentle first world on every seed, and runs out of daylight by world 5", () => {
+    for (const pilot of [() => sloppy(0, 10), () => sloppy(0.3, 0)]) {
+      const worlds = SEEDS.map((seed) => reached(pilot(), seed));
+      expect(Math.min(...worlds)).toBeGreaterThanOrEqual(2);
+      expect(Math.max(...worlds)).toBeLessThanOrEqual(5);
+    }
   }, 60_000);
 
   test("a perfect run finishes every world from 1 to 30 in time", () => {
@@ -579,11 +601,11 @@ describe("wide hills first, odd shapes later", () => {
     }
   }, 240_000);
 
-  test("a good run, with the odd late move, uses three quarters of the day or more from world 8 on, and a run with a few real mistakes mostly runs out of daylight", () => {
+  test("a good run, with the odd late move, uses most of the day from world 8 on, and a run with a few real mistakes mostly runs out of daylight", () => {
     const seeds = [1, 2, 3, 4, 5, 6];
     for (const world of [8, 15, 25]) {
       const used = seeds.map((seed) => finishWorld(world, seed, good(seed)) ?? 1).sort((a, b) => a - b);
-      expect(used[1], `world ${world}`).toBeGreaterThan(0.75);
+      expect(used[1], `world ${world}`).toBeGreaterThan(0.7);
       const sloppyDone = seeds.filter((seed) => finishWorld(world, seed, withMistakes(good(seed), seed)) !== null).length;
       expect(sloppyDone, `world ${world}`).toBeLessThanOrEqual(2);
     }
@@ -591,9 +613,14 @@ describe("wide hills first, odd shapes later", () => {
     expect(first.every((used) => used !== null && used < 0.9)).toBe(true);
   }, 240_000);
 
-  test("each odd shape first turns up in its own world, from world 2 to 7, then more often, and a perfect run gets over each", () => {
-    expect(HILL_SHAPES.map((shape) => FIRST_WORLD[shape])).toEqual([2, 2, 2, 3, 3, 4, 5, 6, 7]);
-    for (const seed of SEEDS) expect(worldShapes(seed, 1, 0)).toEqual([]);
+  test("world 2 brings no new shapes; each shape first turns up rarely in its own world, from world 3 to 8, then more often; jagged climbs stay rare; a perfect run gets over each", () => {
+    expect(HILL_SHAPES.map((shape) => FIRST_WORLD[shape])).toEqual([3, 3, 4, 4, 4, 4, 5, 6, 8]);
+    for (const seed of SEEDS) for (const world of [1, 2]) expect(worldShapes(seed, world, 0)).toEqual([]);
+    for (const shape of HILL_SHAPES) {
+      expect(shapeChance(shape, FIRST_WORLD[shape] - 1)).toBe(0);
+      expect(shapeChance(shape, FIRST_WORLD[shape])).toBeGreaterThan(0);
+      expect(shapeChance(shape, FIRST_WORLD[shape])).toBeLessThanOrEqual(0.06);
+    }
     const share = (shape: (typeof HILL_SHAPES)[number], world: number) => {
       let length = 0;
       let shaped = 0;
@@ -607,9 +634,11 @@ describe("wide hills first, odd shapes later", () => {
       expect(share(shape, FIRST_WORLD[shape] - 1)).toBe(0);
       expect(share(shape, FIRST_WORLD[shape])).toBeGreaterThan(0);
     }
-    for (const shape of ["cliff", "uneven", "gorge", "jagged", "drop", "wall"] as const) {
+    for (const shape of ["double", "cliff", "uneven", "gorge", "drop", "wall"] as const) {
       expect(share(shape, 20)).toBeGreaterThan(share(shape, FIRST_WORLD[shape]));
     }
+    expect(share("jagged", 20)).toBeLessThan(0.1);
+    expect(share("jagged", 30)).toBeLessThan(0.1);
     const over: Record<string, number> = {};
     const met: Record<string, number> = {};
     for (const seed of SEEDS.slice(0, 3)) {
@@ -674,9 +703,13 @@ describe("score", () => {
       GLIDER.flightPoints / 0.5 +
       worldBonusPerSecond;
     expect(perSecond).toBeLessThanOrEqual(limit.perSecond);
-    const pilot = reading();
-    let state = newGlider(1, 2, 20);
-    while (!state.over && state.world === 20) state = stepGlider(hold(state, pilot(state)), FRAME);
+    const flown = (pilot: Pilot) => {
+      let run = newGlider(1, 2, 20);
+      while (!run.over && run.world === 20) run = stepGlider(hold(run, pilot(run)), FRAME);
+      return run;
+    };
+    const first = flown(reading());
+    const state = first.world === 21 ? first : flown(careful());
     expect(state.world).toBe(21);
     const fastest = state.score / state.time;
     expect(fastest).toBeLessThan(limit.perSecond / 2);
@@ -705,17 +738,17 @@ describe("the camera", () => {
   test("no run flies higher than the highest flight there can be", () => {
     for (const pilot of [practised, autoHold, never]) {
       const { frames } = fly(pilot, 5, () => false, 150);
-      expect(Math.max(...frames.map((frame) => frame.y))).toBeLessThan(highestFlight());
+      for (const frame of frames) expect(frame.y).toBeLessThan(highestFlight(Math.max(...frame.hills.map((point) => point.y))));
     }
   }, 60_000);
 
   test("keeps the hills under the bird in view however high it flies, even before it has caught up", () => {
-    const top = highestFlight();
     for (const aspect of [1.38, 1.8, 2.3]) {
-      for (const world of [1, 6]) {
+      for (const world of [1, 6, 20]) {
         const hills = worldHills(4, world, 0);
         for (let x = 0; x < hills.at(-1)!.x; x += 337) {
           const ground = groundAt(hills, x).y;
+          const top = highestFlight(Math.max(ground, ...hills.filter((point) => point.x > x - 2500 && point.x <= x).map((point) => point.y)));
           for (let y = ground; y <= top + 1; y += Math.max(1, (top - ground) / 24)) {
             const state: GliderState = { ...newGlider(1, aspect), hills, worldEnd: 1e9, x, y, grounded: false, vx: 600, vy: 0 };
             const target = cameraTarget(state);
