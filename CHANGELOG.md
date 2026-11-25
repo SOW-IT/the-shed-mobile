@@ -26,10 +26,12 @@ All notable changes to **The SHED** mobile app. This project follows
   25,000, triple rocks at 30,000, then a staircase, a switchback, a
   tunnel and a gauntlet by 100,000. Two vines in a row from 10,000 and a
   rock step from 15,000.
-- **Flap.** From 1,000 a new level every 1,000 points: pipes come further
-  apart on average and more often far apart, a far pair can also climb or
-  drop further, the gap narrows towards 120 and the top speed rises to
-  about 14% above v1's.
+- **Flap.** A point for each pipe, and nothing for time. Pipes come at a
+  steady rhythm. The opening starts roomy and narrows a little with every
+  pipe until pipe 184, where it stays just wide enough for a flap, and the
+  pipes speed up until pipe 150. Pipes turn a shade darker every 10 pipes,
+  and the sky every 50, through golden hour and dusk to a starry night at
+  pipe 500.
 - **Sky Shooter.** From 75 seconds a new wave every 30 seconds: more
   enemies, faster bullets and enemies, more big ones, and new bullet
   patterns: aimed doubles at 2 minutes, rings from big enemies at 2.5,
@@ -47,6 +49,7 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
   target and holds after a big flight.
+
 ## [2.13.13] - 2026-11-25
 
 ### Fixed
