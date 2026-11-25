@@ -6,19 +6,28 @@ vi.mock("expo-secure-store", () => ({}));
 
 const saved = new Map<string, string>();
 
-const fresh = async (stored: Record<string, string> = {}) => {
+type Settings = typeof import("./settings");
+
+const fresh = async (
+  stored: Record<string, string> = {},
+  { unwritable = [], meanwhile }: { unwritable?: string[]; meanwhile?: (settings: Settings) => void } = {}
+) => {
   vi.resetModules();
   saved.clear();
   for (const [key, value] of Object.entries(stored)) saved.set(key, value);
   vi.stubGlobal("window", {
     localStorage: {
       getItem: (key: string) => saved.get(key) ?? null,
-      setItem: (key: string, value: string) => saved.set(key, value),
+      setItem: (key: string, value: string) => {
+        if (unwritable.includes(key)) throw new Error("storage full");
+        saved.set(key, value);
+      },
       removeItem: (key: string) => saved.delete(key),
     },
   });
   const settings = await import("./settings");
   for (const store of Object.values(settings.WORLD_SETTINGS)) store.subscribe(() => undefined);
+  meanwhile?.(settings);
   await new Promise((resolve) => setTimeout(resolve, 0));
   return settings;
 };
@@ -95,6 +104,24 @@ test("a Names choice already saved is kept, and the old keys are cleared", async
   const { WORLD_SETTINGS } = await fresh({ worldNames: "full", worldChatNames: "initials" });
   expect(WORLD_SETTINGS.names.get()).toBe("full");
   expect(Object.fromEntries(saved)).toEqual({ worldNames: "full" });
+});
+
+test("a Names choice made while the old one is being read is kept", async () => {
+  const { WORLD_SETTINGS } = await fresh(
+    { worldChatNames: "initials" },
+    { meanwhile: (settings) => settings.WORLD_SETTINGS.names.set("full") }
+  );
+  expect(WORLD_SETTINGS.names.get()).toBe("full");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "full" });
+});
+
+test("the old keys stay until the carried-over choice is saved", async () => {
+  const { WORLD_SETTINGS } = await fresh({ worldChatNames: "initials" }, { unwritable: ["worldNames"] });
+  expect(WORLD_SETTINGS.names.get()).toBe("initials");
+  expect(Object.fromEntries(saved)).toEqual({ worldChatNames: "initials" });
+  const next = await fresh(Object.fromEntries(saved));
+  expect(next.WORLD_SETTINGS.names.get()).toBe("initials");
+  expect(Object.fromEntries(saved)).toEqual({ worldNames: "initials" });
 });
 
 test("battery saver follows Reduce Motion until it's set by hand", async () => {

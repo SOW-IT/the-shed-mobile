@@ -15,7 +15,7 @@ export const LEADERBOARD_SIZE = 10;
 export const MAX_PAGE_SIZE = 50;
 /** Past this many people ahead of you, the board says "500+" for your place. */
 export const RANK_LIMIT = 500;
-const BEATEN_WATCH = 25;
+const PODIUM_LIMIT = 200;
 
 const queuedScoreValidator = v.object({
   runId: v.string(),
@@ -66,12 +66,7 @@ export const submitScores = mutation({
       const run = { ...entry, updatedAt: now };
       const newBest = !best || (best.runId !== entry.runId && entry.score > best.score);
       if (newBest) {
-        const board = await ctx.db
-          .query("gameScores")
-          .withIndex("by_game_and_score", (q) => q.eq("game", entry.game))
-          .order("desc")
-          .take(BEATEN_WATCH);
-        const beaten = beatenInTop(board, email, best?.score ?? null, entry.score);
+        const beaten = beatenInTop(await podiumOf(ctx, entry.game, entry.score), email, best?.score ?? null, entry.score);
         if (beaten.length > 0) {
           await ctx.scheduler.runAfter(0, internal.gameScores.tellBeaten, { game: entry.game, by: email, beaten });
         }
@@ -95,6 +90,21 @@ const topPlace = async (ctx: Ctx, game: GameId, score: number): Promise<number> 
     .withIndex("by_game_and_score", (q) => q.eq("game", game).gt("score", score))
     .take(PLACE_COINS.length);
   return ahead.length + 1;
+};
+
+const podiumOf = async (ctx: Ctx, game: GameId, score: number) => {
+  const top = await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game))
+    .order("desc")
+    .take(PLACE_COINS.length);
+  const lowest = top.length > 0 ? top[top.length - 1].score : null;
+  if (lowest === null || lowest >= score) return [];
+  return await ctx.db
+    .query("gameScores")
+    .withIndex("by_game_and_score", (q) => q.eq("game", game).gte("score", lowest))
+    .order("desc")
+    .take(PODIUM_LIMIT);
 };
 
 const nameFor = async (ctx: Ctx, email: string): Promise<string> => {

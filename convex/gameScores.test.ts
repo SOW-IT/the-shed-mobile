@@ -329,6 +329,22 @@ describe("beaten in the top 3", () => {
     });
   });
 
+  test("everyone tied in 3rd is told, however many there are", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-01", 900)] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [run("run-ben-01", 700)] });
+    const tied = Array.from({ length: 30 }, (_, n) => `tied${n}@sow.org.au`);
+    for (const [n, email] of tied.entries()) {
+      await asUser(t, email).mutation(api.gameScores.submitScores, { scores: [run(`run-tied-${n}`, 500)] });
+    }
+    await clear(t);
+    await asUser(t, DAN).mutation(api.gameScores.submitScores, { scores: [run("run-dan-01", 800)] });
+    const beaten = await told(t);
+    expect(beaten.find((row) => row.email === BEN)).toEqual({ email: BEN, place: 3 });
+    expect(beaten.filter((row) => row.place === 4).map((row) => row.email).sort()).toEqual([...tied].sort());
+    expect(beaten).toHaveLength(31);
+  });
+
   test("a tie, a climb below the top 3, and a first score off the podium tell nobody", async () => {
     const t = newConvex();
     await seed(t);

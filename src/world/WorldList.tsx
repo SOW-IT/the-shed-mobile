@@ -166,7 +166,7 @@ export const WorldList = ({
           return (
             <Card key={`ask-${p.memberId}`} style={styles.card}>
               <Text style={[typography.headline, { color: t.text }]} accessibilityRole="header" testID="world-list-ask">
-                {info.icon} {p.name}: {info.ask}
+                {info.icon} {worldName(p.name)}: {info.ask}
               </Text>
               <Muted>{`${left} second${left === 1 ? "" : "s"} to answer.`}</Muted>
               <View style={styles.compose}>

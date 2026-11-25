@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { useReducedMotion } from "react-native-reanimated";
-import { readStored, removeStored, storedValue } from "../lib/deviceStorage";
+import { readStored, removeStored, storedValue, tryWriteStored } from "../lib/deviceStorage";
 import { NAME_STYLES, styledName, type NameStyle } from "../../shared/names";
 
 const choice = <T extends string>(key: string, values: readonly T[], initial: T) => {
@@ -22,14 +22,22 @@ const namesFromOld = (players: string | null, chat: string | null): NameStyle | 
   return null;
 };
 
+const NAMES_KEY = "worldNames";
+
 const namesChoice = () => {
-  const store = choice("worldNames", NAME_STYLES, "short");
+  const store = choice(NAMES_KEY, NAME_STYLES, "short");
   let checked = false;
+  let picked = false;
+  const set = (next: NameStyle) => {
+    picked = true;
+    store.set(next);
+  };
   const carryOver = async () => {
-    const [current, players, chat] = await Promise.all([readStored("worldNames"), readStored(OLD_NAME_KEYS.players), readStored(OLD_NAME_KEYS.chat)]);
-    const old = current === null ? namesFromOld(players, chat) : null;
-    if (old) store.set(old);
-    if (players !== null || chat !== null) await Promise.all([removeStored(OLD_NAME_KEYS.players), removeStored(OLD_NAME_KEYS.chat)]);
+    const [current, players, chat] = await Promise.all([readStored(NAMES_KEY), readStored(OLD_NAME_KEYS.players), readStored(OLD_NAME_KEYS.chat)]);
+    const old = current === null && !picked ? namesFromOld(players, chat) : null;
+    const carried = old ? await tryWriteStored(NAMES_KEY, old) : true;
+    if (old && !picked) store.set(old);
+    if (carried && (players !== null || chat !== null)) await Promise.all([removeStored(OLD_NAME_KEYS.players), removeStored(OLD_NAME_KEYS.chat)]);
   };
   const subscribe = (listener: () => void) => {
     if (!checked) {
@@ -38,7 +46,7 @@ const namesChoice = () => {
     }
     return store.subscribe(listener);
   };
-  return { ...store, subscribe };
+  return { ...store, set, subscribe };
 };
 
 export const WORLD_SETTINGS = {
