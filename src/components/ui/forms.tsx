@@ -8,6 +8,7 @@ import { useRegisterModal } from "./modalPresence";
 import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
 import { styles } from "./styles";
+import { useSwipeToClose } from "./swipeToClose";
 
 export const Field = ({
   label,
@@ -166,6 +167,7 @@ export const OptionSheet = ({
 }) => {
   const t = useAppTheme();
   useRegisterModal(visible);
+  const swipe = useSwipeToClose(visible, onClose);
   /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
@@ -190,8 +192,8 @@ export const OptionSheet = ({
           pointerEvents="box-none"
           style={styles.dialogOuter}
         >
-          <View style={[styles.dialog, { backgroundColor: t.card }]}>
-            <View style={styles.optionSheetHeader}>
+          <Animated.View style={[styles.dialog, { backgroundColor: t.card }, swipe.dragStyle]}>
+            <View style={styles.optionSheetHeader} testID="sheet-header" {...swipe.headerHandlers}>
               <Text
                 style={[typography.headline, { color: t.text, flex: 1 }]}
                 numberOfLines={1}
@@ -203,6 +205,7 @@ export const OptionSheet = ({
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
+                testID="sheet-close"
                 style={({ pressed }) => [
                   styles.optionSheetClose,
                   { backgroundColor: t.ghost },
@@ -216,6 +219,8 @@ export const OptionSheet = ({
               style={styles.sheetScroll}
               contentContainerStyle={bodyStyle}
               keyboardShouldPersistTaps="handled"
+              onScrollEndDrag={swipe.onScrollEndDrag}
+              testID="sheet-list"
             >
               {retainedChildren}
             </ScrollView>
@@ -224,7 +229,7 @@ export const OptionSheet = ({
                 {retainedFooter}
               </View>
             ) : null}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </FastModal>

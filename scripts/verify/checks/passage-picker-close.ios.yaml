@@ -1,0 +1,118 @@
+appId: au.org.sow.theshed
+---
+- openLink: "theshedmobile://devotionals/${DEVOTIONAL_EMPTY_DATE}"
+- extendedWaitUntil:
+    visible:
+      id: devotional-passage-book
+    timeout: 20000
+- tapOn:
+    id: devotional-passage-book
+- extendedWaitUntil:
+    visible:
+      id: sheet-list
+    timeout: 5000
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- tapOn:
+    id: sheet-close
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 1
+- takeScreenshot: "${OUT}/check-book-close-button"
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-book
+- extendedWaitUntil:
+    visible:
+      id: sheet-list
+    timeout: 5000
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- tapOn:
+    point: "50%, 6%"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 1
+- takeScreenshot: "${OUT}/check-book-backdrop"
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-book
+- extendedWaitUntil:
+    visible:
+      id: sheet-header
+    timeout: 5000
+- swipe:
+    from:
+      id: sheet-header
+    direction: DOWN
+- takeScreenshot: "${OUT}/check-header-swipe"
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-book
+- extendedWaitUntil:
+    visible:
+      id: sheet-list
+    timeout: 5000
+- swipe:
+    start: "50%, 35%"
+    end: "50%, 85%"
+    duration: 600
+- takeScreenshot: "${OUT}/check-pull-down"
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-book
+- tapOn: "Search books"
+- inputText: "Psal"
+- tapOn: "Psalms"
+- extendedWaitUntil:
+    visible:
+      id: passage-chapter-1
+    timeout: 5000
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- tapOn:
+    id: sheet-close
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 1
+- takeScreenshot: "${OUT}/check-chapter-close-button"
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-chapter
+- scrollUntilVisible:
+    element:
+      id: passage-chapter-119
+    direction: DOWN
+- tapOn:
+    id: passage-chapter-119
+- assertNotVisible:
+    id: sheet-list
+- tapOn:
+    id: devotional-passage-from
+- extendedWaitUntil:
+    visible:
+      id: sheet-list
+    timeout: 5000
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 30%"
+    duration: 120
+    waitToSettleTimeoutMs: 1
+- tapOn:
+    id: sheet-close
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 1
+- takeScreenshot: "${OUT}/check-verse-close-button"
+- assertNotVisible:
+    id: sheet-list

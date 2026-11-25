@@ -153,6 +153,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   optionSheetHeader: {
+    userSelect: "none",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
