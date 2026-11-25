@@ -298,6 +298,9 @@ export const WorldScreen = ({
   // The arcade's games, over the World rather than instead of it.
   const [arcadeOpen, setArcadeOpen] = useState(opening === "arcade");
   const openArcade = useCallback(() => {
+    // Anything that would close the arcade the moment it opens goes first.
+    setSheet(null);
+    setDecorating(false);
     setPlacesOpen(false);
     setPeopleOpen(false);
     setShopOpen(false);
@@ -352,7 +355,12 @@ export const WorldScreen = ({
     } else if (opening === "character") {
       setPeopleOpen(false);
       setEditorAsked(true);
-    } else if (opening === "arcade") openArcade();
+    } else if (opening === "arcade") {
+      // A link can arrive over the editor, or before a pending one opens.
+      setEditing(false);
+      setEditorAsked(false);
+      openArcade();
+    }
   }
   useEffect(() => {
     if (opening === "arcade") onOpeningUsed?.();
@@ -361,10 +369,12 @@ export const WorldScreen = ({
   const hasMe = world.people.some((p) => p.isMe);
   if (editing && !hasMe && world.status !== "in") setEditing(false);
   // Another panel opening, or going somewhere else, closes the arcade.
-  const [arcadePlace, setArcadePlace] = useState(world.place);
-  if (arcadePlace !== world.place) {
+  // Only a move after joining counts: the first join can land somewhere other
+  // than the default place (your saved one), and that's not you travelling.
+  const [arcadePlace, setArcadePlace] = useState<Place | null>(null);
+  if (world.status === "in" && arcadePlace !== world.place) {
+    if (arcadePlace !== null) setArcadeOpen(false);
     setArcadePlace(world.place);
-    setArcadeOpen(false);
   }
   if (arcadeOpen && (placesOpen || peopleOpen || settingsOpen || coinsOpen || shopOpen || boardOpen || editing || decorating || sheet !== null)) setArcadeOpen(false);
   // Asks you've turned down, as `${from}:${askAt}`. Declining sends nothing:

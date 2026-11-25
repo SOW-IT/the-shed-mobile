@@ -7,10 +7,8 @@ import { withHeight } from "../shared/world";
 import { gameIdValidator } from "./gameScoreData";
 import { nameFor } from "./gameScores";
 import { optionalEmail, requireEmail } from "./model";
+import { loadBlockFilter } from "./world";
 import { worldLookValidator } from "./worldData";
-
-/** How many blocks either way are read to hide players; more than anyone has. */
-const BLOCK_SCAN = 500;
 
 const removePlayer = async (ctx: MutationCtx, email: string) => {
   for (const row of await ctx.db.query("gamePlayers").withIndex("by_email", (q) => q.eq("email", email)).take(10)) {
@@ -99,16 +97,7 @@ export const nowPlaying = query({
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return [];
-    const hidden = new Set<string>();
-    for (const row of await ctx.db
-      .query("worldBlocks")
-      .withIndex("by_email_and_blockedEmail", (q) => q.eq("email", email))
-      .take(BLOCK_SCAN)) {
-      hidden.add(row.blockedEmail);
-    }
-    for (const row of await ctx.db.query("worldBlocks").withIndex("by_blockedEmail", (q) => q.eq("blockedEmail", email)).take(BLOCK_SCAN)) {
-      hidden.add(row.email);
-    }
+    const isBlocked = await loadBlockFilter(ctx, email);
     const result = [];
     for (const game of GAME_IDS) {
       const rows = await ctx.db
@@ -116,7 +105,8 @@ export const nowPlaying = query({
         .withIndex("by_game_and_since", (q) => q.eq("game", game))
         .order("desc")
         .take(PLAYING_SCAN);
-      const others = rows.filter((row) => row.email !== email && !hidden.has(row.email));
+      const others = [];
+      for (const row of rows) if (row.email !== email && !(await isBlocked(row.email))) others.push(row);
       if (others.length === 0) continue;
       const players: { id: Id<"gamePlayers">; name: string; look: typeof worldLookValidator.type | null }[] = [];
       for (const row of others.slice(0, PLAYING_SHOWN)) {

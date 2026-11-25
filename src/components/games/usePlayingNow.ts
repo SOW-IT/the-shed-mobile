@@ -7,9 +7,10 @@ import { api } from "../../../convex/_generated/api";
 import { PLAYING_BEAT_MS, type GameId } from "../../../shared/games";
 
 const useForeground = () => {
-  const [active, setActive] = useState(AppState.currentState !== "background");
+  // "inactive" on iOS is the app switcher or Notification Center: not in front.
+  const [active, setActive] = useState(AppState.currentState === "active");
   useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => setActive(state !== "background"));
+    const sub = AppState.addEventListener("change", (state) => setActive(state === "active"));
     return () => sub.remove();
   }, []);
   return active;

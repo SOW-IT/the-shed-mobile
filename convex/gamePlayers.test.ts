@@ -3,6 +3,7 @@ import { api, internal } from "./_generated/api";
 import { asUser, newConvex, type T } from "../test/convexFixture";
 import { PLAYING_BEAT_MS, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
 import { withHeight } from "../shared/world";
+import { BLOCKED_BY_SCAN } from "./world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -207,6 +208,19 @@ describe("nowPlaying", () => {
     });
     const [flappy] = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
     expect(flappy).toMatchObject({ count: PLAYING_SCAN, more: true });
+  });
+
+  test("still hides someone who blocked you when more people block you than the World reads at once", async () => {
+    const t = newConvex();
+    await t.run(async (ctx) => {
+      // More than the scan reads, with Ben's block last, past it.
+      for (let i = 0; i <= BLOCKED_BY_SCAN; i++) await ctx.db.insert("worldBlocks", { email: `s${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
+      await ctx.db.insert("worldBlocks", { email: BEN, blockedEmail: ANNA, blockedName: "Anna" });
+    });
+    await asUser(t, BEN).mutation(api.gamePlayers.playing, { game: "runner" });
+    await asUser(t, CARA).mutation(api.gamePlayers.playing, { game: "runner" });
+    const seen = await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {});
+    expect(seen).toMatchObject([{ game: "runner", count: 1 }]);
   });
 
   test("hides people blocked in the World, either way", async () => {
