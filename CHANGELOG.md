@@ -8,8 +8,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.13.1] - 2026-11-25
 
+### Fixed
+- **On iPhone a picker closes while its list is still moving.** After a
+  flick through the devotional Book list, tapping the close button or
+  outside the sheet did nothing until the list stopped. Now it closes
+  straight away, in the Book, Chapter and Verse pickers and every other
+  picker and sheet.
+
 ### Added
-- **Swipe a sheet down to close it.** Drag the title bar of a picker or sheet down, or flick it, and it closes; let go early and it springs back. On iPhone, pulling a list down past its top closes the sheet too. This works on every picker and sheet, including the devotional Book, Chapter and Verse pickers.
+- **Swipe a sheet down to close it.** Drag a picker's or sheet's title bar
+  down, or flick it, and it closes; let go early and it springs back. On
+  iPhone, pulling a list down past its top closes it too.
 
 ## [2.13.0] - 2026-11-25
 
