@@ -142,6 +142,20 @@ describe("a home's door", () => {
     expect(await backTo(t, ANNA)).toBe("chapel");
   });
 
+  test("remembers the place even for someone with no visitor row yet", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query("worldVisitors").collect()) await ctx.db.delete("worldVisitors", row._id);
+    });
+    later(5000);
+    await anna.mutation(api.world.travel, { to: "beach" });
+    later(5000);
+    await anna.mutation(api.world.travel, { to: "home" });
+    expect(await backTo(t, ANNA)).toBe("beach");
+  });
+
   test("leads to the Garden when there's no place to go back to", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
