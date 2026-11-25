@@ -24,7 +24,7 @@ import { ChurchMap, churchMapAvailable, type ChurchPin } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
 import { FilterChip, FilterRow, FilterSummary, NoMatches } from "./FilterChips";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger, Facts } from "./ui";
+import { Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger, Facts } from "./ui";
 
 type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number] & {
   everyone: number;
@@ -150,7 +150,6 @@ function ChurchCard({
 }
 
 export function ChurchesView() {
-  const t = useAppTheme();
   const router = useRouter();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const directory = useQuery(api.churches.directory);
@@ -215,15 +214,14 @@ export function ChurchesView() {
   const selected = shown.find((entry) => entry.church._id === selectedId) ?? null;
 
   return (
-    <ChromeScreen scrollRef={scrollRef}>
-      <View style={styles.header}>
-        <Text accessibilityRole="header" style={[typography.largeTitle, { color: t.text, flex: 1 }]}>
-          Churches
-        </Text>
-        {canEdit ? (
-          <Btn title="Add" icon="add" variant="tonal" onPress={() => setForm({ church: null })} />
-        ) : null}
-      </View>
+    <ChromeScreen
+      scrollRef={scrollRef}
+      header={{
+        title: "Churches",
+        icon: "business-outline",
+        action: canEdit ? { label: "Add", onPress: () => setForm({ church: null }), accessibilityLabel: "Add a church", testID: "churches-add" } : null,
+      }}
+    >
       {directory === undefined ? (
         <LoadingState />
       ) : directory.length === 0 ? (
@@ -314,7 +312,6 @@ export function ChurchesView() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   filters: { gap: spacing.sm },
   dot: { width: 9, height: 9, borderRadius: 5 },
   peopleTitle: { marginBottom: spacing.xs },

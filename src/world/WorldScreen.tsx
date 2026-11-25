@@ -217,6 +217,8 @@ const PingBars = ({ ms, onPress }: { ms: number | null; onPress: () => void }) =
  * Shed World, the Garden. Tap the ground to walk; type to talk to people
  * nearby. Shows the list view instead offline, with VoiceOver, or by choice.
  */
+const NOTE_LIVE_REGION = Platform.OS === "web" ? "none" : "polite";
+
 export const WorldScreen = ({
   onBack,
   leaveAsked = false,
@@ -834,7 +836,7 @@ export const WorldScreen = ({
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
-        <Text style={styles.note} accessibilityLiveRegion="polite">
+        <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
           {note}
         </Text>
       </View>
@@ -1212,7 +1214,7 @@ export const WorldScreen = ({
           />
         )}
         {note && !overlayOpen ? (
-          <Text style={styles.note} accessibilityLiveRegion="polite">
+          <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
             {note}
           </Text>
         ) : null}

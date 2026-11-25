@@ -1,5 +1,6 @@
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
+import { type ScreenHeader, useScreenHeader } from "@/components/nav/ScreenHeader";
 import { TopBar } from "@/components/nav/TopBar";
 import { useWideLayout } from "@/components/nav/layout";
 import { FooterHeightContext, TabBar } from "@/components/ui";
@@ -107,8 +108,7 @@ export const PagerScreen = ({
   floatingAboveFooter = false,
   fullWidth = false,
   onBack,
-  title,
-  topBarRight,
+  header,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -121,13 +121,13 @@ export const PagerScreen = ({
   floatingAboveFooter?: boolean;
   fullWidth?: boolean;
   onBack?: () => void;
-  title?: ReactNode;
-  topBarRight?: ReactNode;
+  header?: ScreenHeader;
 }) => {
   const t = useAppTheme();
   const frameRef = useRef<ViewInstance>(null);
   const keyboardInset = useKeyboardInset(frameRef, false);
   const wide = useWideLayout();
+  const { topBarTitle, topBarRight, pageHeader } = useScreenHeader(header);
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
@@ -413,7 +413,7 @@ export const PagerScreen = ({
                 <TopBar
                   photo={me?.photo ?? null}
                   name={me?.name ?? null}
-                  title={title}
+                  title={topBarTitle}
                   right={topBarRight}
                   onBack={onBack}
                 />
@@ -422,6 +422,9 @@ export const PagerScreen = ({
             <View
               onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
             >
+              {pageHeader ? (
+                <View style={[styles.wideHeader, fullWidth && { maxWidth: "100%" as const }]}>{pageHeader}</View>
+              ) : null}
               <TabBar
                 segments={tabs}
                 active={activeKey}
@@ -491,6 +494,14 @@ const styles = StyleSheet.create({
   },
   chromeGroup: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
+  wideHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    maxWidth: 720,
+    width: "100%",
+    alignSelf: "center",
+  },
   wideBack: {
     flexDirection: "row",
     alignItems: "center",

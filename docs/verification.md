@@ -15,8 +15,9 @@ node scripts/verify.mjs --only calendar      # one area of the feature map
 ```
 
 It exits non-zero if any step fails. Two kinds of step only warn and never
-fail the run: a changed native fingerprint, and the **before** passes on the
-base (its local backend, web and iOS). Anything else about the base, such as
+fail the run: the native fingerprint check (a changed fingerprint, or one
+that couldn't be worked out), and the **before** passes on the base (its
+local backend, web and iOS). Anything else about the base, such as
 checking it out or reading its seed, still fails the run.
 A zero exit doesn't mean the fingerprint is unchanged, so read the summary.
 The agent skill that drives it is

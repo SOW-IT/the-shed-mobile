@@ -4,6 +4,7 @@ import {
   badgeText,
   drawerItems,
   NAV_HREFS,
+  NAV_LABELS,
   navEntries,
   navViewer,
   roleLine,
@@ -157,19 +158,39 @@ describe("who sees which pages", () => {
 
   test("the drawer holds only what the bottom tabs and sidebar leave out", () => {
     expect(drawerItems(signedOut)).toEqual([]);
-    expect(drawerItems(guest)).toEqual(["devotionals", "garden"]);
+    expect(drawerItems(guest)).toEqual(["org", "garden"]);
     expect(drawerItems(financeHead)).toEqual(drawerItems(staff));
     for (const viewer of [staff, campusLeader, admin]) {
       const drawer = drawerItems(viewer);
       expect(drawer).toEqual(
-        expect.arrayContaining(["garden", "devotionals", "music", "churches", "insights"]),
+        expect.arrayContaining(["garden", "org", "music", "churches", "insights"]),
       );
       expect(
         drawer.filter((key) =>
-          ["home", "attendance", "calendar", "org", "grievances", "profile"].includes(key),
+          ["home", "attendance", "calendar", "devotionals", "grievances", "profile"].includes(key),
         ),
       ).toEqual([]);
     }
+  });
+});
+
+describe("Devotionals and People", () => {
+  test("signed in, Devotionals takes People's place in the tabs and sidebar, and People moves to the drawer", () => {
+    for (const viewer of [guest, staff, admin, campusLeader]) {
+      expect(drawerItems(viewer)).toContain("org");
+      expect(drawerItems(viewer)).not.toContain("devotionals");
+      const sidebar = sidebarItems(viewer);
+      expect(sidebar.indexOf("devotionals")).toBeLessThan(sidebar.indexOf("org"));
+      expect(sidebar[sidebar.indexOf("devotionals") + 1]).toBe("churches");
+    }
+  });
+
+  test("signed out, People stays where it was, since there's no drawer and no Devotionals", () => {
+    expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
+  });
+
+  test("the org chart is called People", () => {
+    expect(NAV_LABELS.org).toBe("People");
   });
 });
 
@@ -208,7 +229,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(admin))).toEqual([
       { kind: "item", key: "churches" },
       { kind: "item", key: "music" },
-      { kind: "item", key: "devotionals" },
+      { kind: "item", key: "org" },
       {
         kind: "group",
         key: "requests",
@@ -238,7 +259,7 @@ describe("navEntries", () => {
     expect(navEntries(drawerItems(campusLeader))).toEqual([
       { kind: "item", key: "churches" },
       { kind: "item", key: "music" },
-      { kind: "item", key: "devotionals" },
+      { kind: "item", key: "org" },
       { kind: "item", key: "insights" },
       { kind: "item", key: "garden" },
     ]);

@@ -7,6 +7,7 @@ import { api } from "../../convex/_generated/api";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
+import { type ScreenHeader, useScreenHeader } from "@/components/nav/ScreenHeader";
 import { TopBar } from "@/components/nav/TopBar";
 import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
 import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
@@ -17,6 +18,7 @@ export const ChromeScreen = ({
   fullWidth = false,
   scrollRef,
   title,
+  header,
   onBack,
 }: {
   children?: ReactNode;
@@ -25,6 +27,7 @@ export const ChromeScreen = ({
   scrollRef?: Ref<ScrollViewInstance>;
   // In the top bar; a wide screen has no top bar, so the screen shows it itself.
   title?: ReactNode;
+  header?: ScreenHeader;
   onBack?: () => void;
 }) => {
   const t = useAppTheme();
@@ -34,6 +37,7 @@ export const ChromeScreen = ({
   const keyboardInset = useKeyboardInset(frameRef, false);
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
   const wide = useWideLayout();
+  const { topBarTitle, topBarRight, pageHeader } = useScreenHeader(header);
   return (
     <View ref={frameRef} style={[styles.screen, { backgroundColor: t.background }]}>
       <KeyboardScrollView
@@ -65,6 +69,7 @@ export const ChromeScreen = ({
             <Text style={[typography.label, { color: t.text }]}>Back</Text>
           </Pressable>
         ) : null}
+        {pageHeader}
         {children}
       </KeyboardScrollView>
       {wide ? null : (
@@ -80,7 +85,7 @@ export const ChromeScreen = ({
             ]}
           >
             <Animated.View style={barOpacityStyle}>
-              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} title={title} onBack={onBack} />
+              <TopBar photo={me?.photo ?? null} name={me?.name ?? null} title={topBarTitle ?? title} right={topBarRight} onBack={onBack} />
             </Animated.View>
           </Animated.View>
         </View>

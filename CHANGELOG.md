@@ -38,6 +38,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.13.5] - 2026-11-25
 
+### Changed
+- **Devotionals is a bottom tab.** It takes the place of the org chart,
+  with the same book icon as before. The org chart is now **People** in
+  the side menu, and links to it still open it. Signed out, People stays
+  a tab.
+- **Page titles sit in the top bar.** Churches, Praise List,
+  Reimbursements, Event Requests, Design Requests, Mentoring, Insights,
+  Announcements, Admin, Attendance and Grievances show their name in the
+  middle of the top bar, like Devotionals. Each page's main button (Add,
+  Request, Raise, Member, Event, Pairing, Mentor) is in the top bar too,
+  left of the bell, instead of at the bottom of the page. Who can use it
+  hasn't changed. On a wide screen the page shows its title and button
+  itself.
+
 ### Fixed
 - **Review items left open on merged PRs (#480 to #544).** A walk the
   system interrupts (a call, a system gesture) ends where your finger last
