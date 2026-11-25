@@ -355,16 +355,11 @@ const appEnv = {
   CI: "1",
 };
 
-// Interaction checks an area lists in the feature map: scripts/verify/checks/
-// <name>.web.mjs runs after the web sweep and <name>.ios.yaml after the iOS
-// route flow, so a check can drive what route flows only open.
 const CHECKS_DIR = join(ROOT, "scripts/verify/checks");
 const planChecks = (areas, extension) =>
   [...new Set(areas.flatMap((name) => MAP.areas[name]?.checks ?? []))]
     .map((name) => ({ name, file: join(CHECKS_DIR, `${name}.${extension}`) }))
     .filter(({ file }) => existsSync(file));
-// The seed's ids and dates as Maestro variables: devotionalEmptyDate becomes
-// DEVOTIONAL_EMPTY_DATE.
 const seedVariables = (seed) =>
   Object.entries(seed)
     .filter(([, value]) => typeof value === "string" || typeof value === "number")

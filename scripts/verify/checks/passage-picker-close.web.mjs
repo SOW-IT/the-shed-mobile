@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// Scrolls the devotional Book picker to the end, then closes it each way a
-// person would: the close button, Escape, the backdrop and a drag down on the
-// header. Each close must leave no sheet behind. verify runs it on web after
-// the route sweep, with the sweep's seed and an admin session.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -66,6 +62,29 @@ try {
       await page.getByPlaceholder("Search books").waitFor({ state: "hidden" });
     }
   }
+  const scrollSheetAndClose = async (name, last) => {
+    const list = await page.getByTestId("sheet-list").boundingBox();
+    await page.mouse.move(list.x + list.width / 2, list.y + list.height / 2);
+    for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 600);
+    await page.getByTestId(last).waitFor();
+    await page.screenshot({ path: `${OUT}/${name}-scrolled.png` });
+    await page.getByTestId("sheet-close").click();
+    await page.getByTestId("sheet-list").waitFor({ state: "hidden", timeout: 3_000 }).catch(() => {});
+    if (await page.getByTestId("sheet-list").isVisible()) {
+      failures.push(`${name}: the sheet stayed open`);
+      await page.screenshot({ path: `${OUT}/${name}-still-open.png` });
+    }
+  };
+  await page.getByTestId("devotional-passage-book").click();
+  await page.getByPlaceholder("Search books").fill("Psal");
+  await page.getByRole("radio", { name: /^Psalms/ }).click();
+  await page.getByTestId("passage-chapter-1").waitFor();
+  await scrollSheetAndClose("chapter", "passage-chapter-150");
+  await page.getByTestId("devotional-passage-chapter").click();
+  await page.getByTestId("passage-chapter-119").click();
+  await page.getByTestId("sheet-list").waitFor({ state: "hidden" });
+  await page.getByTestId("devotional-passage-from").click();
+  await scrollSheetAndClose("verse", "passage-verse-176");
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
 } finally {
@@ -73,5 +92,5 @@ try {
 }
 
 for (const failure of failures) console.log(`✘ ${failure}`);
-console.log(failures.length === 0 ? "Book picker closes after scrolling: close button, Escape, backdrop, header drag." : `${failures.length} way(s) failed.`);
+console.log(failures.length === 0 ? "Passage pickers close after scrolling: Book by close button, Escape, backdrop and header drag; Chapter and Verse by close button." : `${failures.length} way(s) failed.`);
 process.exit(failures.length === 0 ? 0 : 1);
