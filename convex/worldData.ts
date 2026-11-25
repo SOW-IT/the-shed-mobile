@@ -58,8 +58,8 @@ export const worldWalkFields = {
   toZ: v.number(),
   startedAt: v.number(),
   path: v.optional(v.array(worldWaypointValidator)),
-  // Which way someone standing still faces, when the server chose it:
-  // arriving through a pad, facing into the room.
+  // Which way someone faces once the walk ends, when the server chose it:
+  // arriving through a pad facing into the room, or behind the lectern.
   heading: v.optional(v.number()),
 };
 

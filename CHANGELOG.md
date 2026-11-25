@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.17] - 2026-11-26
+## [2.13.18] - 2026-11-26
 
 ### Added
 - **Chickens and cows in the backyard.** A chicken coop (50 coins, 4 hens)
@@ -38,6 +38,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **The plots moved down** to make room for the coop and the barn.
+
+## [2.13.17] - 2026-11-26
+
+### Changed
+- **Sitting on a Chapel pew shows your face.** Pews face away from the
+  camera, so the 30 degree turn other seats get still showed the back of
+  your head. Pews now turn you 120 degrees, toward the aisle, to the same
+  three-quarter view as a café stool. Everyone in the room sees the same.
+- **Sitting on a pew no longer asks about Devotionals.**
+- **Tapping the lectern takes you behind it, facing the pews.** You walk
+  round to the far side and turn to face the room, the way whoever leads
+  would, and everyone watching sees you face the same way. Tap the
+  lectern again while you're standing there to open Devotionals.
 
 ## [2.13.16] - 2026-11-26
 
