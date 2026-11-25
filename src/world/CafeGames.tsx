@@ -442,7 +442,7 @@ const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolea
     if (mine && Platform.OS !== "web") void Haptics.selectionAsync();
   }, [mine, endsAt]);
   const steadyStyle = useAnimatedStyle(() => ({ opacity: steady.get() }));
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.6 * pulse.get() }));
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.75 * pulse.get() }));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" testID={mine ? "cafe-edge-mine" : "cafe-edge-none"}>
       <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: colour, borderWidth: PULSE_WIDTH, borderRadius: EDGE_RADIUS }, pulseStyle]} />
@@ -451,7 +451,7 @@ const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolea
   );
 };
 
-const GLOW_WIDTH = 46;
+const GLOW_WIDTH = 56;
 const BEAT_MS = 520;
 const STILL_GLOW = 0.85;
 
@@ -468,10 +468,13 @@ const LowTimeGlow = ({ colour, active, endsAt, now, serverNow, calm }: { colour:
     const at = serverNow();
     const delay = lowTimeDelay(endsAt, at);
     level.set(lowTimeLevel(endsAt, at));
-    level.set(withDelay(delay, withTiming(1, { duration: Math.max(0, Math.min(LOW_TIME_MS, endsAt - at)), easing: Easing.in(Easing.quad) })));
+    level.set(withDelay(delay, withTiming(1, { duration: Math.max(0, Math.min(LOW_TIME_MS, endsAt - at)), easing: Easing.linear })));
     beat.set(withDelay(delay, withRepeat(withSequence(withTiming(1, { duration: BEAT_MS }), withTiming(0, { duration: BEAT_MS })), -1)));
   }, [active, calm, endsAt, foreground, level, beat, serverNow]);
-  const glow = useAnimatedStyle(() => ({ opacity: level.get() * (0.55 + 0.45 * beat.get()) }));
+  const glow = useAnimatedStyle(() => {
+    const lit = level.get();
+    return { opacity: Math.min(1, lit * 4) * (0.35 + 0.65 * lit) * (0.6 + 0.4 * beat.get()) };
+  });
   const still = calm && active && endsAt - now <= LOW_TIME_MS;
   if (calm && !still) return null;
   const sides = (

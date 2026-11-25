@@ -17,7 +17,7 @@ const SHOWN_LINES = 5;
 const END_SLACK = 6;
 const PAD = 2;
 const MOST = LINE_HEIGHT * SHOWN_LINES;
-const FADE_HEIGHT = 14;
+const FADE_HEIGHT = 18;
 
 const fitWhole = (heights: readonly number[]) => {
   let total = 0;
