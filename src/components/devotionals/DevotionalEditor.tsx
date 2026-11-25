@@ -177,17 +177,16 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     }
   }, [saveOnline]);
 
-  const syncing = useRef(false);
+  const inFlight = useRef<Promise<boolean> | null>(null);
   const leaving = useRef(false);
-  const syncToServer = useCallback(
+  const runSync = useCallback(
     async (showFeedback: boolean): Promise<boolean> => {
       const {
         contentChanged: contentNeedsSave,
         pendingSharing: sharingToSave,
         offline: isOffline,
       } = latestRef.current;
-      if (syncing.current || (!contentNeedsSave && !sharingToSave)) return true;
-      syncing.current = true;
+      if (!contentNeedsSave && !sharingToSave) return true;
       if (showFeedback) {
         setSaving(true);
         setError(null);
@@ -216,11 +215,22 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         }
         return sharingError === null;
       } finally {
-        syncing.current = false;
         if (showFeedback) setSaving(false);
       }
     },
     [setPersonalSharing, syncContent]
+  );
+
+  const syncToServer = useCallback(
+    (showFeedback: boolean): Promise<boolean> => {
+      if (inFlight.current) return inFlight.current;
+      const run = runSync(showFeedback).finally(() => {
+        inFlight.current = null;
+      });
+      inFlight.current = run;
+      return run;
+    },
+    [runSync]
   );
 
   const syncRef = useRef(syncToServer);
@@ -236,7 +246,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   );
 
   const handleBack = async () => {
-    if (pendingSharing) {
+    const running = inFlight.current;
+    if (running && !(await running)) return;
+    if (latestRef.current.pendingSharing) {
       if (!(await syncToServer(true))) return;
     } else {
       void syncToServer(false);
