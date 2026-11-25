@@ -48,6 +48,8 @@ const CHUNK = STRIP * CHUNK_STRIPS;
 /** How far below the bottom of the world the ground is filled. */
 const GRASS = 6;
 /** The bird's own drawing, before it's scaled to the board. */
+const LAST_PRACTICE_WORLD = 200;
+
 const BIRD = 40;
 
 const STARS = [
@@ -386,7 +388,7 @@ export const GliderGame = ({
   active = true,
   guard,
   scene,
-  startScore: startWorld,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
@@ -397,6 +399,7 @@ export const GliderGame = ({
   startScore?: number;
 }) => {
   const session = useGameSession<GliderState>("glider");
+  const startWorld = startScore === undefined ? undefined : Math.min(startScore, LAST_PRACTICE_WORLD);
   const look = useGameLook("glider");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();

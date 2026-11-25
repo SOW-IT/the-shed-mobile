@@ -264,7 +264,7 @@ describe("Mystic Man past 10,000", () => {
             const gap = after.front - before.back;
             const floor = after.fromChain
               ? comboGap(before.kind, after.kind, before.speed, Infinity)
-              : minimumGap(before.speed, Infinity);
+              : minimumGap(before.speed, before.time);
             expect(gap).toBeGreaterThanOrEqual(floor - 1);
             if (after.fromChain) chained++;
           }
@@ -527,3 +527,35 @@ describe("Mystic Man's obstacles in v2", () => {
   });
 });
 
+
+describe("Mystic Man's combos", () => {
+  test.each([25_000, 40_000, 100_000])("never run longer than the longest combo allowed at %i, phrases included", (score) => {
+    let combos = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const { spawns } = spawnsFrom(runnerAt(PHONE_BOARD, seed, score), 20);
+      let length = 0;
+      let startedAt = 0;
+      for (const spawn of [...spawns, null]) {
+        if (spawn && spawn.fromChain) {
+          length++;
+          continue;
+        }
+        if (length > 1) {
+          combos++;
+          expect(length).toBeLessThanOrEqual(longestCombo(startedAt));
+        }
+        length = spawn && spawn.chained ? 1 : 0;
+        startedAt = spawn?.time ?? 0;
+      }
+    }
+    expect(combos).toBeGreaterThan(10);
+  });
+
+  test("a fast frame is moved in pieces, so a small rock can't slip past him between two frames", () => {
+    const fast = runnerAt(PHONE_BOARD, 1, 200_000);
+    expect(fast.speed).toBeGreaterThan(2_040);
+    const rock = { id: 999, group: 999, pattern: "rock" as const, kind: "rock" as const, x: 67, width: 14, height: 30, bottom: 0 };
+    const next = stepRunner({ ...fast, obstacles: [rock], nextIn: Infinity }, FRAME);
+    expect(next.over).toBe(true);
+  });
+});

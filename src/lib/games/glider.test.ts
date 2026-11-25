@@ -608,7 +608,11 @@ describe("wide hills first, odd shapes later", () => {
   test("in the middle worlds a good run, with the odd late move, uses most of the day, and a run with a few real mistakes mostly runs out of daylight", () => {
     const seeds = [1, 2, 3, 4, 5, 6];
     for (const world of [8, 12, 15]) {
-      const used = seeds.map((seed) => finishWorld(world, seed, good(seed)) ?? 1).sort((a, b) => a - b);
+      const used = seeds
+        .map((seed) => finishWorld(world, seed, good(seed)))
+        .filter((share): share is number => share !== null)
+        .sort((a, b) => a - b);
+      expect(used.length, `world ${world}`).toBeGreaterThanOrEqual(3);
       expect(used[1], `world ${world}`).toBeGreaterThan(0.7);
       const sloppyDone = seeds.filter((seed) => finishWorld(world, seed, withMistakes(good(seed), seed)) !== null).length;
       expect(sloppyDone, `world ${world}`).toBeLessThanOrEqual(2);

@@ -588,7 +588,9 @@ export const Segmented = ({
             style={styles.segment}
             onPress={() => onChange(segment.key)}
             accessibilityLabel={segment.accessibilityLabel}
+            accessibilityRole={segment.accessibilityLabel ? "button" : undefined}
             accessibilityState={segment.accessibilityLabel ? { selected } : undefined}
+            {...(segment.accessibilityLabel ? { "aria-pressed": selected } : null)}
             testID={segment.accessibilityLabel ? `segment-${segment.key}` : undefined}
           >
             <Text

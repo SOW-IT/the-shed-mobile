@@ -343,7 +343,8 @@ const patternsFor = (state: RunnerState): readonly PatternKind[] => {
   const kinds = late.length > 0 ? [...COMBO_KINDS, ...late] : COMBO_KINDS;
   const combo: PatternKind[] = [];
   while (combo.length < length) {
-    if (phrases.length > 0 && random(state) < PHRASE_SHARE) combo.push(...pick(state, phrases).kinds);
+    const phrase = phrases.length > 0 && random(state) < PHRASE_SHARE ? pick(state, phrases) : null;
+    if (phrase && combo.length + phrase.kinds.length <= length) combo.push(...phrase.kinds);
     else combo.push(pick(state, kinds));
   }
   return combo;
@@ -406,7 +407,8 @@ export const makePattern = (state: RunnerState, kind: PatternKind, x: number, ch
       return [base({ kind: "tall", x, width: Math.min(width, Math.floor(jumpReach(s, height))), height, bottom: 0 })];
     }
     case "wide": {
-      const height = size(PATTERN_RULES.wide.height);
+      const [shortest, tallest] = ranged(spread, PATTERN_RULES.wide.height);
+      const height = choice === "least" ? Math.round(tallest) : choice === "most" ? Math.round(shortest) : size(PATTERN_RULES.wide.height);
       // Longer than a hop reaches, shorter than the big jump's reach.
       const low = clearableLength(RUNNER.hopSpeed, height, s) + 10;
       const high = jumpReach(s, height);
@@ -536,8 +538,17 @@ const hits = (state: RunnerState, obstacle: Obstacle) => {
   return overlapsX && overlapsY;
 };
 
+const MAX_STEP_TRAVEL = 24;
+
 export const stepRunner = (previous: RunnerState, dt: number): RunnerState => {
   if (previous.over) return previous;
+  const pieces = Math.max(1, Math.ceil((runnerSpeed(previous.time + dt) * dt) / MAX_STEP_TRAVEL - 1e-9));
+  let state = previous;
+  for (let i = 0; i < pieces && !state.over; i++) state = stepOnce(state, dt / pieces);
+  return state;
+};
+
+const stepOnce = (previous: RunnerState, dt: number): RunnerState => {
   const state: RunnerState = { ...previous };
   state.time += dt;
   state.speed = runnerSpeed(state.time);
