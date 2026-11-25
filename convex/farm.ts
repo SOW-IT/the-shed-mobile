@@ -20,7 +20,8 @@ import {
 } from "../shared/farm";
 import { BACKYARD, NPC } from "../shared/world";
 import { ensureWallet } from "./coins";
-import { ensureFarm, farmOf, noteWaterer } from "./farmData";
+import { animalsOf, ensureFarm, farmOf, noteWaterer } from "./farmData";
+import { animalNudge, animalNudgeText, goodsList } from "../shared/animals";
 import { type Ctx, optionalEmail, requireEmail } from "./model";
 import { blockedEither, memberByEmail, nameFor, ownerOf, placeOf, requireMe } from "./world";
 
@@ -42,7 +43,7 @@ const checkPlot = (plot: number) => {
   if (!Number.isInteger(plot) || plot < 0 || plot >= PLOT_COUNT) throw new ConvexError("That isn't one of the plots.");
 };
 
-const inBackyard = async (ctx: MutationCtx) => {
+export const inBackyard = async (ctx: MutationCtx) => {
   const me = await requireMe(ctx);
   const owner = placeOf(me.member) === BACKYARD ? await ownerOf(ctx, me.member) : null;
   if (!owner) throw new ConvexError("Go to the backyard first.");
@@ -50,13 +51,13 @@ const inBackyard = async (ctx: MutationCtx) => {
   return { ...me, owner };
 };
 
-const asOwner = async (ctx: MutationCtx) => {
+export const asOwner = async (ctx: MutationCtx) => {
   const me = await inBackyard(ctx);
   if (me.owner !== me.email) throw new ConvexError("Only the owner can do that here.");
   return me;
 };
 
-const atSijin = async (ctx: MutationCtx) => {
+export const atSijin = async (ctx: MutationCtx) => {
   const me = await requireMe(ctx);
   if (placeOf(me.member) !== NPC.place) throw new ConvexError(`Find ${NPC.name} in the Café to shop.`);
   return me;
@@ -111,12 +112,22 @@ export const farm = query({
 
 export const bag = query({
   args: {},
-  returns: v.union(v.null(), v.object({ seeds: v.record(v.string(), v.number()), crops: v.record(v.string(), v.number()), reminders: v.boolean() })),
+  returns: v.union(
+    v.null(),
+    v.object({
+      seeds: v.record(v.string(), v.number()),
+      crops: v.record(v.string(), v.number()),
+      reminders: v.boolean(),
+      feed: v.record(v.string(), v.number()),
+      goods: v.record(v.string(), v.number()),
+      nameTags: v.number(),
+    })
+  ),
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
     const row = await farmOf(ctx, email);
-    return { seeds: row?.seeds ?? {}, crops: row?.crops ?? {}, reminders: row?.reminders !== false };
+    return { seeds: row?.seeds ?? {}, crops: row?.crops ?? {}, reminders: row?.reminders !== false, feed: row?.feed ?? {}, goods: row?.goods ?? {}, nameTags: row?.nameTags ?? 0 };
   },
 });
 
@@ -236,25 +247,32 @@ export const buySeeds = mutation({
 });
 
 export const sell = mutation({
-  args: { stack: v.optional(v.string()) },
+  args: { stack: v.optional(v.string()), goods: v.optional(v.boolean()) },
   returns: v.object({ balance: v.number(), coins: v.number() }),
-  handler: async (ctx, { stack }) => {
+  handler: async (ctx, { stack, goods }) => {
     const me = await atSijin(ctx);
     const now = Date.now();
     const row = await farmOf(ctx, me.email);
     const selling = bagStacks(row?.crops ?? {}).filter((s) => stack === undefined || s.key === stack);
-    if (!row || selling.length === 0) throw new ConvexError("Nothing to sell.");
+    const goodsSold = goods === true ? goodsList(row?.goods ?? {}).filter((g) => stack === undefined || g.id === stack) : [];
+    if (!row || selling.length + goodsSold.length === 0) throw new ConvexError("Nothing to sell.");
     const crops = { ...row.crops };
+    const kept = { ...row.goods };
     let coins = 0;
     for (const s of selling) {
       delete crops[s.key];
       coins += s.count * s.price;
       await ctx.db.insert("coinLedger", { email: me.email, delta: s.count * s.price, kind: "crop-sell", item: s.key, at: now });
     }
+    for (const g of goodsSold) {
+      delete kept[g.id];
+      coins += g.count * g.price;
+      await ctx.db.insert("coinLedger", { email: me.email, delta: g.count * g.price, kind: "product-sell", item: g.id, at: now });
+    }
     const wallet = await ensureWallet(ctx, me.email, now);
     const balance = wallet.balance + coins;
     await ctx.db.patch("worldWallets", wallet._id, { balance });
-    await ctx.db.patch("worldFarms", row._id, { crops });
+    await ctx.db.patch("worldFarms", row._id, { crops, ...(goodsSold.length > 0 ? { goods: kept } : {}) });
     return { balance, coins };
   },
 });
@@ -276,10 +294,13 @@ const remindBatch = async (ctx: MutationCtx, day: string, cursor: string | null,
   let sent = 0;
   for (const row of page.page) {
     if (row.reminders === false || row.pushedDay === day) continue;
-    const nudge = farmNudge(await plantsOf(ctx, row.owner), row.pushedAt ?? 0, now);
-    if (!nudge.due) continue;
+    const since = row.pushedAt ?? 0;
+    const nudge = farmNudge(await plantsOf(ctx, row.owner), since, now);
+    const animals = animalNudge(await animalsOf(ctx, row.owner), since, now);
+    if (!nudge.due && !animals.due) continue;
     await ctx.db.patch("worldFarms", row._id, { pushedDay: day, pushedAt: now });
-    await ctx.scheduler.runAfter(0, internal.push.send, { to: row.owner, title: "Your backyard", body: nudgeText(nudge), url: "/world" });
+    const body = [nudgeText(nudge), ...animalNudgeText(animals)].filter((part) => part !== "").join(" · ");
+    await ctx.scheduler.runAfter(0, internal.push.send, { to: row.owner, title: "Your backyard", body, url: "/world" });
     sent++;
   }
   return sent;

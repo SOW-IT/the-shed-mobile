@@ -396,7 +396,31 @@ export default defineSchema({
     reminders: v.optional(v.boolean()),
     pushedDay: v.optional(v.string()),
     pushedAt: v.optional(v.number()),
+    feed: v.optional(v.record(v.string(), v.number())),
+    goods: v.optional(v.record(v.string(), v.number())),
+    nameTags: v.optional(v.number()),
+    wandered: v.optional(v.array(v.string())),
   }).index("by_owner", ["owner"]),
+
+  worldBuildings: defineTable({
+    owner: v.string(),
+    kind: v.string(),
+    boughtAt: v.number(),
+  }).index("by_owner_and_kind", ["owner", "kind"]),
+
+  worldAnimals: defineTable({
+    owner: v.string(),
+    kind: v.string(),
+    name: v.string(),
+    boughtAt: v.number(),
+    feedings: v.array(v.object({ at: v.number(), email: v.string(), name: v.string() })),
+    collectedAt: v.optional(v.number()),
+  }).index("by_owner_and_kind", ["owner", "kind"]),
+
+  worldFeeders: defineTable({
+    email: v.string(),
+    owner: v.string(),
+  }).index("by_email_and_owner", ["email", "owner"]),
 
   worldPlants: defineTable({
     owner: v.string(),
@@ -423,7 +447,7 @@ export default defineSchema({
   coinLedger: defineTable({
     email: v.string(),
     delta: v.number(),
-    kind: v.union(v.literal("start"), v.literal("game"), v.literal("buy"), v.literal("seed-buy"), v.literal("crop-sell"), v.literal("plot-buy")),
+    kind: v.union(v.literal("start"), v.literal("game"), v.literal("buy"), v.literal("seed-buy"), v.literal("crop-sell"), v.literal("plot-buy"), v.literal("building-buy"), v.literal("animal-buy"), v.literal("feed-buy"), v.literal("nametag-buy"), v.literal("product-sell")),
     runId: v.optional(v.string()),
     game: v.optional(v.string()),
     item: v.optional(v.string()),

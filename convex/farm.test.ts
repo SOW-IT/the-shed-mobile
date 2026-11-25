@@ -317,7 +317,7 @@ describe("planting, watering and harvesting", () => {
     later(DAY_MS);
     expect(await anna.mutation(api.farm.harvest, { plot: 1 })).toMatchObject({ ok: true, crop: "carrot", wilts: 1 });
     expect((await farmRow(t, ANNA))?.crops).toEqual({ [stackKey("lettuce", 0)]: 1, [stackKey("carrot", 1)]: 1 });
-    expect(await anna.query(api.farm.bag, {})).toEqual({ seeds: { lettuce: 0, carrot: 0 }, crops: { "lettuce:0": 1, "carrot:1": 1 }, reminders: true });
+    expect(await anna.query(api.farm.bag, {})).toEqual({ seeds: { lettuce: 0, carrot: 0 }, crops: { "lettuce:0": 1, "carrot:1": 1 }, reminders: true, feed: {}, goods: {}, nameTags: 0 });
   });
 
   test("a dead plant is cleared for free and the seed is lost", async () => {
@@ -432,7 +432,7 @@ describe("who can do what", () => {
     expect(await t.query(api.farm.farm, {})).toBeNull();
     expect(await t.query(api.farm.bag, {})).toBeNull();
     expect(await asUser(t, CARA).query(api.farm.farm, {})).toMatchObject({ mine: true, plots: FREE_PLOTS, plants: [] });
-    expect(await asUser(t, CARA).query(api.farm.bag, {})).toEqual({ seeds: {}, crops: {}, reminders: true });
+    expect(await asUser(t, CARA).query(api.farm.bag, {})).toEqual({ seeds: {}, crops: {}, reminders: true, feed: {}, goods: {}, nameTags: 0 });
   });
 });
 

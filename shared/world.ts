@@ -3,7 +3,7 @@
 // time) and every phone works out where that person is from it, so the
 // backend never sees a position per frame.
 
-import { PLOT_OBSTACLES } from "./farm";
+import { PEN_OBSTACLES, PLOT_OBSTACLES } from "./farm";
 
 export const WORLD_PLACE = "garden";
 /** People per room. A full room opens the next instance of the place. */
@@ -412,7 +412,7 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "palm", x: -3.0, z: 5.4, rx: 0.35, rz: 0.35 },
   ],
   home: [],
-  backyard: PLOT_OBSTACLES,
+  backyard: [...PLOT_OBSTACLES, ...PEN_OBSTACLES],
 };
 
 type Portal = { to: Place; x: number; z: number };
