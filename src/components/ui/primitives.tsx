@@ -3,6 +3,7 @@ import { Animated, Easing, Image, Modal, Platform, StyleProp, StyleSheet, Text, 
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
 import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
 import { keyed } from "@/lib/listKeys";
+import { touchBoundary } from "@shared/modalTouches";
 import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
@@ -84,6 +85,8 @@ export const FadeInView = ({
   );
 };
 
+const modalTouches = Platform.OS === "web" ? undefined : touchBoundary;
+
 export const FastModal = ({
   visible,
   onRequestClose,
@@ -119,7 +122,9 @@ export const FastModal = ({
   if (!mounted) return null;
   return (
     <Modal visible transparent animationType="none" onRequestClose={onRequestClose}>
-      <Animated.View style={{ flex: 1, opacity }}>{children}</Animated.View>
+      <Animated.View style={{ flex: 1, opacity }} {...modalTouches}>
+        {children}
+      </Animated.View>
     </Modal>
   );
 };
