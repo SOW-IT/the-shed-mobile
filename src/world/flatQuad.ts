@@ -13,6 +13,7 @@ export type FlatTransform = [
 
 type FlatPiece =
   | { kind: "rect"; key: string; transform: FlatTransform }
+  | { kind: "band"; key: string; transform: FlatTransform }
   | { kind: "triangle"; key: string; transform: FlatTransform }
   | { kind: "dot"; key: string; x: number; y: number; r: number };
 
@@ -102,7 +103,7 @@ const rounded = (q: readonly Pt[], r: number): (FlatPiece | null)[] | null => {
   }
   const bands = inner.map((p, i): FlatPiece | null => {
     const transform = flatWarp(add(p, times(inward[i], SEAM)), sub(inner[(i + 1) % 4], p), times(inward[i], -(r + SEAM)));
-    return transform && { kind: "rect", key: `b${i}`, transform };
+    return transform && { kind: "band", key: `b${i}`, transform };
   });
   const dots = inner.map((p, i): FlatPiece => ({ kind: "dot", key: `d${i}`, x: p.x, y: p.y, r }));
   return [...triangles(inner), ...bands, ...dots];

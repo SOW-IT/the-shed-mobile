@@ -71,7 +71,7 @@ test("a rounded quad in perspective keeps round corners: an inset core, four ban
   const r = cornerRadius(trapezoid, 30);
   expect(r).toBeCloseTo(0.3 * Math.hypot(40, 100));
   const pieces = flatPieces(trapezoid, 30);
-  expect(pieces.map((p) => p.kind)).toEqual(["triangle", "triangle", "rect", "rect", "rect", "rect", "dot", "dot", "dot", "dot"]);
+  expect(pieces.map((p) => p.kind)).toEqual(["triangle", "triangle", "band", "band", "band", "band", "dot", "dot", "dot", "dot"]);
   const dots = pieces.filter((p) => p.kind === "dot");
   for (const dot of dots) {
     expect(dot.r).toBeCloseTo(r);
@@ -80,7 +80,7 @@ test("a rounded quad in perspective keeps round corners: an inset core, four ban
     expect(dot.y).toBeCloseTo(dot.y < 60 ? 10 + r : 110 - r);
   }
   const top = pieces[2];
-  if (top.kind !== "rect") throw new Error("not a band");
+  if (top.kind !== "band") throw new Error("not a band");
   near(place(top.transform, 0, S), { x: dots[0].x, y: 10 }, 1);
 });
 

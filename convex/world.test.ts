@@ -1741,10 +1741,17 @@ describe("join and leave lines", () => {
     expect((await ben.query(api.world.chatLog, { roomId: a.roomId }))![1]).toMatchObject({ name: "anna", text: "joined the World", kind: "join", here: true });
   });
 
+  const delivered = new WeakMap<T, Set<string>>();
   const sayLeftLines = async (t: T) => {
+    const done = delivered.get(t) ?? new Set<string>();
+    delivered.set(t, done);
     const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
-    const due = jobs.filter((job) => job.name.includes("sayLeft") && job.state.kind === "pending");
-    for (const job of due) await t.mutation(internal.world.sayLeft, job.args[0]);
+    const due = jobs.filter((job) => job.name.includes("sayLeft") && !done.has(job._id) && job.scheduledTime <= Date.now() + 100);
+    for (const job of due) {
+      expect(job.scheduledTime - job.args[0].leftAt).toBeCloseTo(LEAVE_GRACE_MS, -2);
+      done.add(job._id);
+      await t.mutation(internal.world.sayLeft, job.args[0]);
+    }
     return due.length;
   };
 
@@ -1757,8 +1764,11 @@ describe("join and leave lines", () => {
     expect(await sayLeftLines(t)).toBe(0);
     await anna.mutation(api.world.leave, {});
     expect(await systemLines(t)).toEqual(["anna joined the World"]);
-    later(LEAVE_GRACE_MS);
+    later(LEAVE_GRACE_MS - 1000);
+    expect(await sayLeftLines(t)).toBe(0);
+    later(1000);
     expect(await sayLeftLines(t)).toBe(1);
+    expect(await sayLeftLines(t)).toBe(0);
     expect(await systemLines(t)).toEqual(["anna joined the World", "anna left"]);
   });
 

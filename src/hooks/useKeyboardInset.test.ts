@@ -3,14 +3,17 @@ import { keyboardOverlap, watchKeyboardTop } from "./useKeyboardInset";
 
 type KeyboardEvent = { endCoordinates: { screenY: number; height: number } };
 
-const { listeners, platform } = vi.hoisted(() => ({
+const { listeners, platform, shown } = vi.hoisted(() => ({
   listeners: new Map<string, (e: KeyboardEvent) => void>(),
   platform: { OS: "android" },
+  shown: { metrics: undefined as { screenY: number; height: number } | undefined },
 }));
 
 vi.mock("react-native", () => ({
   Platform: platform,
   Keyboard: {
+    isVisible: () => shown.metrics !== undefined,
+    metrics: () => shown.metrics,
     addListener: (event: string, fn: (e: KeyboardEvent) => void) => {
       listeners.set(event, fn);
       return { remove: () => listeners.delete(event) };
@@ -20,6 +23,7 @@ vi.mock("react-native", () => ({
 
 beforeEach(() => {
   listeners.clear();
+  shown.metrics = undefined;
 });
 
 test("on Android it follows the top of the keyboard while it's open", () => {
@@ -31,6 +35,14 @@ test("on Android it follows the top of the keyboard while it's open", () => {
   expect(seen).toEqual([520, null]);
   stop();
   expect(listeners.size).toBe(0);
+});
+
+test("a screen that opens while the keyboard is already up gets its top straight away", () => {
+  platform.OS = "android";
+  shown.metrics = { screenY: 520, height: 312 };
+  const seen: (number | null)[] = [];
+  watchKeyboardTop((top) => seen.push(top))();
+  expect(seen).toEqual([520]);
 });
 
 test("iOS and the web leave it to the scroll view's own keyboard insets", () => {

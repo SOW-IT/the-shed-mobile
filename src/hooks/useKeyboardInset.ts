@@ -10,6 +10,8 @@ export const watchKeyboardTop = (onTop: (keyboardTop: number | null) => void) =>
   if (Platform.OS !== "android") return () => undefined;
   const show = Keyboard.addListener("keyboardDidShow", (e) => onTop(e.endCoordinates.screenY));
   const hide = Keyboard.addListener("keyboardDidHide", () => onTop(null));
+  const open = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
+  if (open) onTop(open.screenY);
   return () => {
     show.remove();
     hide.remove();
