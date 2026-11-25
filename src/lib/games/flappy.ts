@@ -2,6 +2,7 @@
 // point a second for staying alive. Pure: each step takes a state and returns
 // the next. y grows downward, as on screen.
 import { FLAPPY_V2 } from "./flappyTuning";
+import { blend } from "./glider";
 import { between, random } from "./random";
 
 export const FLAPPY = {
@@ -121,12 +122,19 @@ const fading = (step: number, since: number, time: number) =>
 export const shades = (state: Pick<FlappyState, "gaps" | "time" | "pipeShadeSince" | "skySince">) => {
   const pipe = pipeShadeStep(state.gaps);
   const sky = skyStep(state.gaps);
+  const skyShare = sky === 0 ? 0 : fading(sky, state.skySince, state.time) / FLAPPY_V2.skySteps;
   return {
     pipe: pipe === 0 ? 0 : fading(pipe, state.pipeShadeSince, state.time) / FLAPPY_V2.pipeShadeSteps,
-    sky: sky === 0 ? 0 : fading(sky, state.skySince, state.time) / FLAPPY_V2.skySteps,
+    sky: skyShare,
+    ground: skyShare,
     stars: sky >= FLAPPY_V2.starsFromSkyStep,
   };
 };
+
+export const skyStops = (colours: readonly string[]) =>
+  FLAPPY_V2.skyStopsAt.map((at, i) => [at, colours[Math.min(i, colours.length - 1)]] as const);
+
+export const pipeRim = (body: string, light: string) => blend(body, light, FLAPPY_V2.rimLift);
 
 export const flappyAt = (width: number, height: number, seed: number, pipes: number): FlappyState => {
   const gaps = Math.max(0, Math.floor(pipes));

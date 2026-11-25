@@ -1,5 +1,6 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { birdX, FLAPPY, flap, flappyAt, newFlappy, shades, stepFlappy, type FlappyState } from "@/lib/games/flappy";
+import { birdX, FLAPPY, flap, flappyAt, newFlappy, pipeRim, shades, skyStops, stepFlappy, type FlappyState } from "@/lib/games/flappy";
+import { FLAPPY_V2 } from "@/lib/games/flappyTuning";
 import { blend, colourAt } from "@/lib/games/glider";
 import { newSeed, random } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
@@ -24,23 +25,29 @@ const CLOUDS = [
 ];
 
 const HEAD = FLAPPY.radius * 2 + 8;
-const DARK_SKY = 0.55;
 
 const STARS = (() => {
   const rng = { seed: 23 };
   return Array.from({ length: 28 }, (_, i) => ({ id: i, x: random(rng), y: random(rng) * 0.6, size: i % 4 === 0 ? 3 : 2 }));
 })();
 
+const SKY = skyStops(c.skyColours);
+const GROUND = skyStops(c.groundColours);
+const GRASS = skyStops(c.grassColours);
+
 const tones = (state: FlappyState) => {
   const shade = shades(state);
-  const sky = colourAt(c.skyStops, shade.sky);
+  const sky = colourAt(SKY, shade.sky);
+  const pipe = blend(c.pipe, c.pipeDark, shade.pipe);
   return {
     sky,
-    cloud: blend(c.cloud, sky, shade.sky * 0.7),
-    pipe: blend(c.pipe, c.pipeDark, shade.pipe),
-    pipeEdge: blend(c.pipeEdge, c.pipeRim, shade.pipe),
+    cloud: blend(c.cloud, sky, shade.sky * FLAPPY_V2.cloudFade),
+    pipe,
+    pipeEdge: pipeRim(pipe, c.pipeRim),
+    ground: colourAt(GROUND, shade.ground),
+    grass: colourAt(GRASS, shade.ground),
     stars: shade.stars,
-    dark: shade.sky >= DARK_SKY,
+    dark: shade.sky >= FLAPPY_V2.darkSkyFrom,
   };
 };
 
@@ -136,11 +143,11 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
         </View>
       ))}
       </View>
-      <View style={[styles.ground, { top: floor, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.ground }]}>
-        <View style={[styles.grass, { backgroundColor: c.grass }]}>
+      <View style={[styles.ground, { top: floor, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: tone.ground }]}>
+        <View style={[styles.grass, { backgroundColor: tone.grass }]}>
           <View style={[styles.tufts, { transform: [{ translateX: grassShift }] }]}>
             {Array.from({ length: Math.ceil((state.width + reach.left + reach.right) / 24) + 2 }, (_, i) => (
-              <View key={`tuft-${i}`} style={[styles.tuft, { backgroundColor: c.pipeEdge }]} />
+              <View key={`tuft-${i}`} style={[styles.tuft, { backgroundColor: tone.pipe }]} />
             ))}
           </View>
         </View>

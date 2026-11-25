@@ -12,15 +12,18 @@ import {
   MAX_GAP_DROP,
   MAX_GAP_RISE,
   newFlappy,
+  pipeRim,
   pipeShadeStep,
   pipeSpeed,
   shades,
   skyStep,
+  skyStops,
   stepFlappy,
   type FlappyState,
   type Pipe,
 } from "./flappy";
 import { FLAPPY_V2 } from "./flappyTuning";
+import { blend } from "./glider";
 
 const FRAME = 1 / 60;
 const TAP_FRAMES = 9;
@@ -181,6 +184,15 @@ describe("Flap v2 pipes", () => {
   );
 });
 
+/* eslint-disable no-restricted-syntax -- the shading maths is checked on plain sample colours, not the game's palette */
+const SAMPLE = ["#000000", "#111111", "#222222", "#333333", "#444444", "#555555"];
+const DAY_PIPE = "#40a050";
+const DARK_PIPE = "#103018";
+const LIGHT = "#c0ffd0";
+/* eslint-enable no-restricted-syntax */
+
+const brightness = (hex: string) => [1, 3, 5].reduce((sum, at) => sum + parseInt(hex.slice(at, at + 2), 16), 0) / (3 * 255);
+
 describe("Flap v2 colours", () => {
   test("the pipes go a step darker every 10 pipes, darkest from 100", () => {
     expect([0, 9, 10, 50, 100, 500].map(pipeShadeStep)).toEqual([0, 0, 1, 5, 10, 10]);
@@ -199,7 +211,27 @@ describe("Flap v2 colours", () => {
     expect(at(3 + FLAPPY_V2.fadeSeconds).sky).toBeCloseTo(1 / FLAPPY_V2.skySteps, 9);
     expect(at(60).sky).toBeCloseTo(1 / FLAPPY_V2.skySteps, 9);
     expect(at(3.5).pipe).toBeCloseTo(4.5 / FLAPPY_V2.pipeShadeSteps, 9);
-    expect(shades({ gaps: 0, time: 1, pipeShadeSince: -1e9, skySince: -1e9 })).toEqual({ pipe: 0, sky: 0, stars: false });
+    expect(shades({ gaps: 0, time: 1, pipeShadeSince: -1e9, skySince: -1e9 })).toEqual({ pipe: 0, sky: 0, ground: 0, stars: false });
+  });
+
+  test("the ground darkens in the sky's steps, and the pipe rim in the pipe's, at 0, 100, 300 and 500", () => {
+    const at = (pipes: number) => shades(flappyAt(390, 700, 1, pipes));
+    expect([0, 100, 300, 500].map((pipes) => at(pipes).ground)).toEqual([0, 0.2, 0.6, 1]);
+    for (const pipes of [0, 100, 300, 500]) expect(at(pipes).ground).toBe(at(pipes).sky);
+    expect([0, 100, 300, 500].map((pipes) => at(pipes).pipe)).toEqual([0, 1, 1, 1]);
+    const stops = skyStops(SAMPLE);
+    expect(stops.map(([where]) => where)).toEqual([...FLAPPY_V2.skyStopsAt]);
+    expect(stops.map(([, colour]) => colour)).toEqual(SAMPLE);
+    const rims = [0, 100, 300, 500].map((pipes) => {
+      const body = blend(DAY_PIPE, DARK_PIPE, at(pipes).pipe);
+      const rim = pipeRim(body, LIGHT);
+      expect(brightness(rim)).toBeGreaterThan(brightness(body));
+      expect(brightness(rim) - brightness(body)).toBeLessThan(0.3 * (brightness(LIGHT) - brightness(body)));
+      return brightness(rim);
+    });
+    expect(rims[1]).toBeLessThan(rims[0]);
+    expect(rims[2]).toBe(rims[1]);
+    expect(rims[3]).toBe(rims[1]);
   });
 
   test("passing the pipe that starts a step starts its fade", () => {
