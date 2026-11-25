@@ -8,8 +8,9 @@ import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
 import { needsLeaveConfirm } from "@/lib/games/leave";
 import { useNoSwipeBack } from "@/hooks/useNoSwipeBack";
-import { cardFitScale, groundLine, type Size } from "@/lib/games/fit";
-import { fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
+import { cardFitScale, type Size } from "@/lib/games/fit";
+import { decoration, fitPlayArea, GAME_VIEWS, idealBoard } from "@/lib/games/playArea";
+import { BoardReach } from "./boardReach";
 import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -28,11 +29,12 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GAME_INFO, type GameId } from "../../../shared/games";
 
 const g = fixedColours.games;
 const SHORT_STAGE = 440;
+const NO_REACH = { left: 0, top: 0, right: 0, bottom: 0 };
 const ACTIONS_WIDTH = 200;
 const MIN_TEXT_COLUMN = 180;
 const CARD_EDGE = 1;
@@ -165,7 +167,6 @@ export const GameFrame = ({
   onLeaderboard,
   guard,
   insets,
-  ground,
   hideStartCard = false,
   startExtra = null,
   overDetail = null,
@@ -194,12 +195,6 @@ export const GameFrame = ({
    * and asks to leave in place rather than in a modal.
    */
   insets?: { top: number; right: number; bottom: number; left: number };
-  /**
-   * The scene's ground, carried on to the screen's edges so no sky shows
-   * under it or beside it: where it starts in the scene, its colour, and the
-   * band along its top.
-   */
-  ground?: { top: number; colour: string; band?: { colour: string; height: number } };
   /** A still preview board, for screenshots: nothing over it. */
   hideStartCard?: boolean;
   startExtra?: ReactNode;
@@ -236,17 +231,12 @@ export const GameFrame = ({
   const [stage, onOwnStageLayout] = useStage();
   const [room, onRoomLayout] = useStage();
   const [chrome, onChromeLayout] = useStage();
-  const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
   const [readyCardHeight, setReadyCardHeight] = useState<number | null>(null);
   const onReadyCardLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
     setReadyCardHeight((current) => (current === height ? current : height));
   };
-  const onLayout = (event: LayoutChangeEvent) => {
-    const { y, height } = event.nativeEvent.layout;
-    setStageBox((current) => (current && current.y === y && current.height === height ? current : { y, height }));
-    onOwnStageLayout(event);
-  };
+  const onLayout = (event: LayoutChangeEvent) => onOwnStageLayout(event);
   const ideal = room && chrome ? idealBoard(room, chrome.height, GAME_VIEWS[game]) : null;
   const idealWidth = ideal?.width ?? 0;
   const idealHeight = ideal?.height ?? 0;
@@ -262,7 +252,9 @@ export const GameFrame = ({
   }, [measured, scale, onScale]);
   const short = stage !== null && stage.height < SHORT_STAGE;
   const wide = short && stage.width >= WIDE_MIN_WIDTH;
-  const groundAt = ground && shown && stageBox ? groundLine(stageBox, shown.height, ground.top, 1) : null;
+  const safe = useSafeAreaInsets();
+  const frameInsets = insets ?? { top: safe.top, right: 0, bottom: safe.bottom, left: 0 };
+  const deco = room && area && chrome ? decoration(room, frameInsets, area, chrome.height, GAME_VIEWS[game].aspects) : null;
   const content =
     area && shown && chrome
       ? {
@@ -307,22 +299,18 @@ export const GameFrame = ({
   return (
     <Frame insets={insets} style={[styles.screen, { backgroundColor: g.letterbox }]}>
       <View style={styles.room} onLayout={onRoomLayout}>
+      {deco ? (
+        <View
+          pointerEvents="none"
+          testID="game-scenery"
+          style={[styles.scenery, { left: deco.left, top: deco.top, width: deco.width, height: deco.height, backgroundColor: background }]}
+        />
+      ) : null}
       <View
         testID="game-play-area"
-        style={[
-          styles.area,
-          { backgroundColor: background },
-          area ? { left: area.left, top: area.top, width: area.width, height: area.height } : styles.areaMeasuring,
-        ]}
+        style={[styles.area, area ? { left: area.left, top: area.top, width: area.width, height: area.height } : styles.areaMeasuring]}
       >
       <View style={content}>
-      {ground && groundAt !== null ? (
-        <View pointerEvents="none" style={[styles.ground, { top: groundAt, backgroundColor: ground.colour }]}>
-          {ground.band ? (
-            <View style={{ height: ground.band.height, backgroundColor: ground.band.colour }} />
-          ) : null}
-        </View>
-      ) : null}
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
       <StatusBar hidden={phase === "playing"} style={statusBar} animated />
       <View onLayout={onChromeLayout}>
@@ -351,10 +339,10 @@ export const GameFrame = ({
         {area && shown ? (
           <View
             testID="game-board"
-            style={[styles.board, { width: shown.width, height: shown.height, backgroundColor: background }]}
+            style={{ width: shown.width, height: shown.height }}
             pointerEvents="box-none"
           >
-            {children}
+            <BoardReach.Provider value={deco?.reach ?? NO_REACH}>{children}</BoardReach.Provider>
           </View>
         ) : null}
         {phase === "ready" && !hideStartCard ? (
@@ -432,7 +420,8 @@ export const startHintFor = (touch: string, keys: string) =>
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   room: { flex: 1 },
-  area: { position: "absolute", overflow: "hidden" },
+  area: { position: "absolute" },
+  scenery: { position: "absolute" },
   areaMeasuring: { left: 0, top: 0, right: 0, bottom: 0, opacity: 0 },
   bar: {
     flexDirection: "row",
@@ -458,12 +447,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
-  ground: { position: "absolute", left: 0, right: 0, bottom: 0 },
-  // Full screen: the board meets the edges, so no rounded corners.
-  board: { overflow: "hidden" },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
   overlayWide: { padding: spacing.md },
   overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },

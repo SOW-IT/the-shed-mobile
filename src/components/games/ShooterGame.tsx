@@ -8,6 +8,7 @@ import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame"
 import type { LeaveGuard } from "./GameFrame";
 import type { Size } from "@/lib/games/fit";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
 
 const c = fixedColours.games.shooter;
 const PHONE_BOARD = { width: 390, height: GAME_VIEWS.shooter.size };
@@ -87,6 +88,21 @@ const Scene = ({ state }: { state: ShooterState }) => (
     ))}
   </>
 );
+
+const Sky = ({ width, height }: Size) => {
+  const reach = useBoardReach();
+  return (
+    <View
+      style={[
+        styles.clip,
+        { left: -reach.left, top: -reach.top, width: width + reach.left + reach.right, height: height + reach.top + reach.bottom },
+      ]}
+      pointerEvents="none"
+    >
+      <Stars width={width + reach.left + reach.right} height={height + reach.top + reach.bottom} />
+    </View>
+  );
+};
 
 /** Sky Shooter: drag to fly; the plane fires on its own. */
 export const ShooterGame = ({
@@ -171,14 +187,17 @@ export const ShooterGame = ({
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      <Stars width={world?.width ?? width} height={world?.height ?? height} />
-      <Scene state={run ?? preview} />
+      <Sky width={world?.width ?? width} height={world?.height ?? height} />
+      <View style={[styles.clip, { width: world?.width ?? width, height: world?.height ?? height }]} pointerEvents="none">
+        <Scene state={run ?? preview} />
+      </View>
     </GameFrame>
   );
 };
 
 const styles = StyleSheet.create({
   dot: { position: "absolute", left: 0, top: 0, borderRadius: 2, opacity: 0.7 },
+  clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   entity: { position: "absolute", left: 0, top: 0, alignItems: "center" },
   fuselage: { position: "absolute", width: 10, height: 30, top: 2, borderRadius: 5 },
   wings: { position: "absolute", width: 34, height: 9, top: 14, borderRadius: 4 },

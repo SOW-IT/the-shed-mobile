@@ -1,10 +1,11 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
 import type { Size } from "@/lib/games/fit";
 import {
   colourAt,
   blend,
-  dayProgress,
+  parallaxShift,
   GLIDER,
   groundAt,
   hold,
@@ -247,14 +248,16 @@ const FarHills = ({ shift, width, colour, size, top }: { shift: number; width: n
 };
 
 const Scene = ({ state, width, height, look }: { state: GliderState; width: number; height: number; look: Look | null }) => {
-  const progress = dayProgress(state);
+  const reach = useBoardReach();
+  const progress = state.daySeen;
   const sky = colourAt(c.sky, progress);
   const { camera } = state;
   const view = viewSize(width / height, camera.zoom);
   const px = height / view.height;
+  const steadyPx = height / viewSize(width / height, 1).height;
   const top = camera.y + view.height;
-  const first = Math.floor(camera.x / CHUNK) - 1;
-  const last = Math.floor((camera.x + view.width) / CHUNK);
+  const first = Math.floor((camera.x - reach.left / px) / CHUNK) - 1;
+  const last = Math.floor((camera.x + view.width + reach.right / px) / CHUNK);
   const chunks = [];
   for (let i = Math.max(-1, first); i <= last; i++) chunks.push(i);
   const screenX = (x: number) => (x - camera.x) * px;
@@ -290,8 +293,22 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ]}
         testID="glider-sun"
       />
-      <FarHills shift={camera.x * px * 0.1} width={width} colour={blend(c.farHill, c.night, dusk * 0.6)} size={height * 0.42} top={height * 0.42} />
-      <FarHills shift={camera.x * px * 0.22} width={width} colour={blend(c.nearHill, c.night, dusk * 0.6)} size={height * 0.32} top={height * 0.6} />
+      <View style={[styles.reach, { left: -reach.left, width: width + reach.left + reach.right, height }]} pointerEvents="none">
+        <FarHills
+          shift={parallaxShift(camera.x, "far") * steadyPx - reach.left}
+          width={width + reach.left + reach.right}
+          colour={blend(c.farHill, c.night, dusk * 0.6)}
+          size={height * 0.42}
+          top={height * 0.42}
+        />
+        <FarHills
+          shift={parallaxShift(camera.x, "near") * steadyPx - reach.left}
+          width={width + reach.left + reach.right}
+          colour={blend(c.nearHill, c.night, dusk * 0.6)}
+          size={height * 0.32}
+          top={height * 0.6}
+        />
+      </View>
       <View
         style={[
           styles.world,
@@ -307,7 +324,13 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ))}
         <FinishFlag x={state.worldEnd} y={groundAt(state.hills, state.worldEnd).y} world={state.world} />
       </View>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: c.night, opacity: dusk * 0.45 }]} pointerEvents="none" />
+      <View
+        style={[
+          styles.reach,
+          { left: -reach.left, top: -reach.top, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.night, opacity: dusk * 0.45 },
+        ]}
+        pointerEvents="none"
+      />
       <View
         style={[
           styles.bird,
@@ -402,7 +425,7 @@ export const GliderGame = ({
   );
 
   const shown = run ?? preview;
-  const progress = dayProgress(shown);
+  const progress = shown.daySeen;
   const sky = colourAt(c.sky, progress);
   // Past dusk the sky is dark: white score bar and status bar.
   const dark = progress > 0.86;
@@ -466,6 +489,7 @@ const styles = StyleSheet.create({
   star: { position: "absolute", width: 3, height: 3, borderRadius: 1.5 },
   sun: { position: "absolute", left: 0, top: 0 },
   farHill: { position: "absolute" },
+  reach: { position: "absolute", top: 0 },
   bird: { position: "absolute", left: 0, top: 0, width: BIRD, height: BIRD, transformOrigin: "bottom center" },
   birdBox: { width: BIRD, height: BIRD, alignItems: "center", justifyContent: "flex-end" },
   squash: { transform: [{ scaleX: 1.12 }, { scaleY: 0.86 }], transformOrigin: "bottom center" },

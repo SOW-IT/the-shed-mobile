@@ -349,6 +349,7 @@ export type GliderState = {
   heavy: boolean;
   /** Seconds of daylight left in this world. */
   daylight: number;
+  daySeen: number;
   /** Daylight won back so far in this world. */
   regained: number;
   streak: number;
@@ -442,6 +443,7 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     air: 0,
     heavy: false,
     daylight: worldRules(world).day,
+    daySeen: 0,
     regained: 0,
     streak: 0,
     bonus: 0,
@@ -463,6 +465,10 @@ export const resize = (state: GliderState, aspect: number): GliderState =>
 /** How far through the day it is, from 0 at sunrise to 1 at nightfall. */
 export const dayProgress = (state: Pick<GliderState, "daylight" | "world">) =>
   Math.max(0, Math.min(1, 1 - state.daylight / worldRules(state.world).day));
+
+const PARALLAX = { far: 0.04, near: 0.09 } as const;
+
+export const parallaxShift = (cameraX: number, layer: keyof typeof PARALLAX) => cameraX * PARALLAX[layer];
 
 /** How far through the world the bird is, from 0 to 1. */
 export const worldProgress = (state: Pick<GliderState, "x" | "worldStart" | "worldEnd">) =>
@@ -555,6 +561,7 @@ const nextWorld = (state: GliderState) => {
   const behind = state.hills.filter((point) => point.x < state.worldStart);
   state.hills = [...behind.slice(-6), ...hills];
   state.daylight = worldRules(state.world).day;
+  state.daySeen = 0;
   state.regained = 0;
   popup(state, "world", `World ${rules.world} done +${earned.toLocaleString()}`);
 };
@@ -589,6 +596,7 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
   }
   state.popups = state.popups.filter((p) => state.time - p.born < GLIDER.popupSeconds);
   state.camera = followCamera(state.camera, state, dt);
+  state.daySeen = Math.max(state.daySeen, dayProgress(state));
   state.score = gliderScore(state);
   return state;
 };

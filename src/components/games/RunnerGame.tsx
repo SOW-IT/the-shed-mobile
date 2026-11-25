@@ -24,6 +24,7 @@ import type { Look } from "@shared/world";
 import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
 import type { Size } from "@/lib/games/fit";
 import { Sideways, useSideways } from "./Sideways";
 
@@ -122,6 +123,7 @@ const Runner = ({ look, slide, state }: { look: Look | null; slide: boolean; sta
 };
 
 const Scene = ({ state, height, look }: { state: RunnerState; height: number; look: Look | null }) => {
+  const reach = useBoardReach();
   const groundY = height - GROUND;
   const slide = sliding(state);
   const manWidth = slide ? 40 : RUNNER.width;
@@ -131,7 +133,7 @@ const Scene = ({ state, height, look }: { state: RunnerState; height: number; lo
   return (
     <>
       <View style={[styles.moon, { backgroundColor: c.moon }]} />
-      {[0, 1].map((copy) => (
+      {[-1, 0, 1, 2].map((copy) => (
         <View
           key={copy}
           style={[
@@ -140,16 +142,23 @@ const Scene = ({ state, height, look }: { state: RunnerState; height: number; lo
           ]}
         />
       ))}
-      <View style={[styles.ground, { top: groundY, backgroundColor: c.ground, borderTopColor: c.groundLine }]}>
+      <View
+        style={[
+          styles.ground,
+          { top: groundY, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.ground, borderTopColor: c.groundLine },
+        ]}
+      >
         <View style={[styles.dashes, { transform: [{ translateX: dashShift }] }]}>
-          {Array.from({ length: Math.ceil(state.width / 40) + 2 }, (_, i) => (
+          {Array.from({ length: Math.ceil((state.width + reach.left + reach.right) / 40) + 2 }, (_, i) => (
             <View key={`dash-${i}`} style={[styles.dash, { backgroundColor: c.groundLine }]} />
           ))}
         </View>
       </View>
-      {state.obstacles.map((o) => (
-        <ObstacleView key={o.id} o={o} groundY={groundY} />
-      ))}
+      <View style={[styles.clip, { width: state.width, height }]} pointerEvents="none">
+        {state.obstacles.map((o) => (
+          <ObstacleView key={o.id} o={o} groundY={groundY} />
+        ))}
+      </View>
       <View
         testID="runner-man"
         style={[
@@ -314,7 +323,8 @@ export const RunnerGame = ({
 const styles = StyleSheet.create({
   moon: { position: "absolute", right: 36, top: 24, width: 34, height: 34, borderRadius: 17, opacity: 0.9 },
   hill: { position: "absolute", left: 0, width: 320, height: 140, borderRadius: 160 },
-  ground: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopWidth: 2, overflow: "hidden" },
+  ground: { position: "absolute", borderTopWidth: 2, overflow: "hidden" },
+  clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   dashes: { flexDirection: "row", gap: 22, marginTop: 14 },
   dash: { width: 18, height: 2, opacity: 0.5 },
   rock: {

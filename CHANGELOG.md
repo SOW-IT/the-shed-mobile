@@ -31,8 +31,13 @@ All notable changes to **The SHED** mobile app. This project follows
   coming, and a small phone draws it a little smaller. Phones and tablets
   are filled edge to edge; a screen of an unusual shape, like a wide
   computer window for Flap, gets plain black borders.
+- **Each game's scene reaches the edges of the screen,** around the notch
+  and the home bar too, instead of stopping at a plain strip.
 
 ### Fixed
+- **Swoop's sun moves smoothly and never slides back** when good flying wins
+  daylight back; it waits instead. The far hills drift slowly, as far-off
+  hills should, and no longer jump when the camera zooms.
 - **A swipe from the left edge no longer leaves the World in a browser,**
   the same as in the games. Leave from the World's menu.
 

@@ -19,6 +19,7 @@ import {
   lowestGround,
   maxGliderScore,
   maxWorldScore,
+  parallaxShift,
   newGlider,
   previewGlider,
   resize,
@@ -702,3 +703,33 @@ describe("previews", () => {
     expect(night.over && night.ended === "night").toBe(true);
   });
 });
+
+describe("the sun and the far hills", () => {
+  test("the sun only moves forward or holds still in a world, even when good flying wins daylight back", () => {
+    let state = newGlider(2, 2);
+    let won = 0;
+    for (let i = 0; i < 60 * 120 && !state.over; i++) {
+      const before = state;
+      state = stepGlider(hold(state, practised(state)), FRAME);
+      if (state.world !== before.world) {
+        expect(state.daySeen).toBeLessThan(0.05);
+        continue;
+      }
+      if (dayProgress(state) < dayProgress(before)) won++;
+      expect(state.daySeen).toBeGreaterThanOrEqual(before.daySeen);
+      expect(state.daySeen).toBeGreaterThanOrEqual(dayProgress(state));
+      expect(state.daySeen - before.daySeen).toBeLessThan(0.01);
+    }
+    expect(won).toBeGreaterThan(0);
+  }, 60_000);
+
+  test("the far hills slide the way the ground does, much slower, the farther ones slowest, whatever the zoom", () => {
+    for (const layer of ["far", "near"] as const) {
+      expect(parallaxShift(1000, layer)).toBeGreaterThan(parallaxShift(0, layer));
+      expect(parallaxShift(2000, layer) - parallaxShift(1000, layer)).toBeCloseTo(parallaxShift(1000, layer) - parallaxShift(0, layer));
+      expect(parallaxShift(1000, layer)).toBeLessThan(100);
+    }
+    expect(parallaxShift(1000, "far")).toBeLessThan(parallaxShift(1000, "near"));
+  });
+});
+

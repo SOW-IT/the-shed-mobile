@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { GAME_IDS, type GameId } from "../../../shared/games";
-import { fitPlayArea, GAME_VIEWS, idealBoard } from "./playArea";
+import { decoration, fitPlayArea, GAME_VIEWS, idealBoard } from "./playArea";
 
 const CHROME = 53;
 
@@ -78,3 +78,40 @@ describe("each game shows the same distance ahead on every screen, only bigger o
     expect(fitPlayArea({ width: 0, height: 0 }, { width: 390, height: 700 }, CHROME).scale).toBe(0);
   });
 });
+
+describe("the scene carries on to the screen's edges, decoration only", () => {
+  const decorate = (game: GameId, device: Device) => {
+    const turned = SIDEWAYS.includes(game) && device.touch;
+    const insets = turned
+      ? { top: 0, right: device.bottom, bottom: 0, left: device.top }
+      : { top: device.top, right: 0, bottom: device.bottom, left: 0 };
+    const { room, area } = layout(game, device);
+    return { area, insets, deco: decoration(room, insets, area, CHROME, GAME_VIEWS[game].aspects) };
+  };
+
+  test("on a notched iPhone the scene fills the whole screen, safe areas included", () => {
+    const phone = DEVICES["iPhone 15"];
+    for (const game of GAME_IDS.filter((g) => g !== "shooter")) {
+      const { deco, area, insets } = decorate(game, phone);
+      const turned = SIDEWAYS.includes(game);
+      expect(deco.width).toBeCloseTo(turned ? phone.height : phone.width);
+      expect(deco.height).toBeCloseTo(turned ? phone.width : phone.height);
+      expect(deco.reach.left).toBeCloseTo(insets.left / area.scale);
+      expect(deco.reach.right).toBeCloseTo(insets.right / area.scale);
+      expect(deco.reach.top).toBeCloseTo((insets.top + CHROME * area.scale) / area.scale);
+    }
+  });
+
+  test("outside a game's shapes the black borders stay: nothing is drawn past the play area", () => {
+    for (const [game, name] of [["flappy", "desktop"], ["shooter", "desktop"]] as const) {
+      const { deco, area } = decorate(game, DEVICES[name]);
+      expect(deco.width).toBeCloseTo(area.width);
+      expect(deco.reach.left).toBeCloseTo(0);
+      expect(deco.reach.right).toBeCloseTo(0);
+    }
+    const ipad = DEVICES["iPad portrait"];
+    expect(decorate("shooter", ipad).deco.width).toBeCloseTo(ipad.height * GAME_VIEWS.shooter.aspects[1]);
+    expect(decorate("shooter", ipad).deco.width).toBeLessThan(ipad.width);
+  });
+});
+
