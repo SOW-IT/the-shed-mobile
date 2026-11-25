@@ -1,9 +1,10 @@
 import { fonts } from "@/theme";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { bagStacks, CROPS, seedList, stackLabel, type CropId } from "@shared/farm";
 import { NPC } from "@shared/world";
 import { useState, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { CropThumb, SeedCluster } from "./Farm";
 import { blurBehind, Bust, itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
@@ -84,7 +85,7 @@ export const BagPanel = ({ open, top, bag, onClose }: { open: boolean; top: numb
       )}
     >
       {(overlay) => (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.body}>
           <Animated.View style={itemStyle(overlay, 1)}>
             <Text style={styles.section} accessibilityRole="header">
               Seeds
@@ -122,7 +123,7 @@ export const BagPanel = ({ open, top, bag, onClose }: { open: boolean; top: numb
               </View>
             ))}
           </View>
-        </ScrollView>
+        </SharpScrollView>
       )}
     </Panel>
   );
