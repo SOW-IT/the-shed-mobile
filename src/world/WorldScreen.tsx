@@ -423,7 +423,9 @@ export const WorldScreen = ({
     setSheet(null);
     setWatching(gameId as Id<"cafeGames">);
   };
-  const cafeSheetUp = cafe.game !== null || watching !== null;
+  const [sheetTop, setSheetTop] = useState<number | null>(null);
+  const [logBottom, setLogBottom] = useState(0);
+  const logOverCafe = sheetTop !== null && !keyboard.open && logBottom <= sheetTop;
   const tappedGame = gameToWatch(cafe.playing, tapped?.memberId);
   const selectedGame = gameToWatch(cafe.playing, selected?.memberId);
 
@@ -864,6 +866,7 @@ export const WorldScreen = ({
       onReturn={() => go("cafe")}
       watch={watching}
       onStopWatching={() => setWatching(null)}
+      onSheetTop={setSheetTop}
     />
   );
   const sheets = (
@@ -1207,7 +1210,7 @@ export const WorldScreen = ({
           <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
-      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, cafeSheetUp && !keyboard.open ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row">
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
         {decorating ? null : (
           <ChatLog
             roomId={world.status === "in" ? world.roomId : null}

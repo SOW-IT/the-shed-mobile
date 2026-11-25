@@ -412,18 +412,19 @@ const Player = ({
   );
 };
 
-const Said = ({ text, end, wide, testID }: { text: string | null; end: boolean; wide: boolean; testID: string }) => {
+const SAID_WIDE = 0.82;
+const SAID_HALF = 0.49;
+
+const Said = ({ text, end, maxWidth, testID }: { text: string | null; end: boolean; maxWidth: number; testID: string }) => {
   const c = useCafeTheme();
   if (!text) return null;
   return (
-    <View
-      style={[styles.said, end ? styles.saidEnd : styles.saidStart, wide ? styles.saidWide : styles.saidHalf, { backgroundColor: c.sheet, borderColor: c.sheetEdge, shadowColor: c.shadow }]}
-      pointerEvents="none"
-      testID={testID}
-    >
-      <Text style={[styles.saidText, { color: c.text }]} numberOfLines={2}>
-        {text}
-      </Text>
+    <View style={[styles.saidLane, end ? styles.saidLaneEnd : styles.saidLaneStart, { width: maxWidth }]} pointerEvents="none">
+      <View style={[styles.said, end ? styles.saidEnd : styles.saidStart, { backgroundColor: c.sheet, borderColor: c.sheetEdge, shadowColor: c.shadow }]} testID={testID}>
+        <Text style={[styles.saidText, { color: c.text }]} numberOfLines={2}>
+          {text}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -572,6 +573,7 @@ const CafeSheet = ({
   onRematch,
   onClose,
   onSeen,
+  onTop,
 }: {
   game: SheetGame;
   side: Side | null;
@@ -591,6 +593,7 @@ const CafeSheet = ({
   onRematch: () => void;
   onClose: () => void;
   onSeen: (gameId: Id<"cafeGames">) => void;
+  onTop?: (top: number | null) => void;
 }) => {
   const c = useCafeTheme();
   const calm = useBatterySaver();
@@ -622,6 +625,11 @@ const CafeSheet = ({
   });
   const lifted = useAnimatedStyle(() => ({ transform: [{ translateY: lift ? -lift.get() : 0 }] }));
   const onSeenRef = useRef(onSeen);
+  const onTopRef = useRef(onTop);
+  useEffect(() => {
+    onTopRef.current = onTop;
+  }, [onTop]);
+  useEffect(() => () => onTopRef.current?.(null), []);
   useEffect(() => {
     onSeenRef.current = onSeen;
   }, [onSeen]);
@@ -667,6 +675,7 @@ const CafeSheet = ({
             calm ? { opacity: shown, ...swipe.dragStyle } : { opacity: shown, transform: [{ translateY: Animated.add(shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }), swipe.drag) }] },
           ]}
           testID="cafe-sheet"
+          onLayout={(e) => onTopRef.current?.(e.nativeEvent.layout.y)}
           accessibilityViewIsModal
         >
           <ScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
@@ -699,8 +708,8 @@ const CafeSheet = ({
               <Player name={names[mine]} look={looks[mine]} side={mine} boxes={dots ? myBoxes : null} end={false} active={leftTurn} winner={winner === mine} calm={calm} testID={watching ? "cafe-plate-a" : "cafe-plate-me"} />
               <Text style={[styles.vs, { color: c.faint }]}>vs</Text>
               <Player name={them} look={looks[theirs]} side={theirs} boxes={dots ? theirBoxes : null} end active={live && !leftTurn} winner={winner === theirs} calm={calm} testID={watching ? "cafe-plate-b" : "cafe-plate-them"} />
-              <Said text={said[mine]} end={false} wide={!said[theirs]} testID={watching ? "cafe-plate-a-said" : "cafe-plate-me-said"} />
-              <Said text={said[theirs]} end wide={!said[mine]} testID={watching ? "cafe-plate-b-said" : "cafe-plate-them-said"} />
+              <Said text={said[mine]} end={false} maxWidth={Math.floor((sheetWidth - 32) * (said[theirs] ? SAID_HALF : SAID_WIDE))} testID={watching ? "cafe-plate-a-said" : "cafe-plate-me-said"} />
+              <Said text={said[theirs]} end maxWidth={Math.floor((sheetWidth - 32) * (said[mine] ? SAID_HALF : SAID_WIDE))} testID={watching ? "cafe-plate-b-said" : "cafe-plate-them-said"} />
             </View>
             {live ? (
               <View style={styles.turnStrip}>
@@ -790,6 +799,7 @@ export const CafeLayer = ({
   onReturn,
   watch,
   onStopWatching,
+  onSheetTop,
 }: {
   cafe: Cafe;
   people: readonly Seated[];
@@ -804,6 +814,7 @@ export const CafeLayer = ({
   onReturn: () => void;
   watch: Id<"cafeGames"> | null;
   onStopWatching: () => void;
+  onSheetTop?: (top: number | null) => void;
 }) => {
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const [closedGame, setClosedGame] = useState<string | null>(null);
@@ -881,6 +892,7 @@ export const CafeLayer = ({
           onRematch={() => void games.rematch(game.id).then(say)}
           onClose={() => setClosedGame(game.id)}
           onSeen={seen}
+          onTop={onSheetTop}
         />
       ) : watched ? (
         <CafeSheet
@@ -903,6 +915,7 @@ export const CafeLayer = ({
           onRematch={() => undefined}
           onClose={onStopWatching}
           onSeen={() => undefined}
+          onTop={onSheetTop}
         />
       ) : null}
     </>
@@ -950,10 +963,10 @@ const styles = StyleSheet.create({
   chipText: { fontWeight: "700", fontSize: 12.5, fontVariant: ["tabular-nums"] },
   sheet: { position: "absolute", alignSelf: "center" },
   headNoHandle: { paddingTop: 2 },
+  saidLane: { position: "absolute", bottom: "100%", marginBottom: -14 },
+  saidLaneStart: { left: 4, alignItems: "flex-start" },
+  saidLaneEnd: { right: 4, alignItems: "flex-end" },
   said: {
-    position: "absolute",
-    bottom: "100%",
-    marginBottom: -14,
     paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: 12,
@@ -963,10 +976,8 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  saidStart: { left: 4, borderBottomLeftRadius: 3 },
-  saidEnd: { right: 4, borderBottomRightRadius: 3 },
-  saidWide: { maxWidth: "82%" },
-  saidHalf: { maxWidth: "49%" },
+  saidStart: { borderBottomLeftRadius: 3 },
+  saidEnd: { borderBottomRightRadius: 3 },
   saidText: { fontSize: 12.5, fontWeight: "700" },
   glow: { position: "absolute", top: 0, bottom: 0, width: GLOW_WIDTH },
   glowLeft: { left: 0 },
