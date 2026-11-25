@@ -11,6 +11,50 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Fixed
 - **The passage picker check passes on iPhone again.** The app was already closing the Book, Chapter and Verse pickers mid-scroll (fixed in 2.13.1); the repo's own iPhone check was wrong. Its tap outside the sheet landed on the status bar, which iOS keeps for itself, so it failed even with the list still. It now taps just below the status bar, and also checks a tap below the sheet and a swipe down on the title bar while the list is moving. Its Psalms step looked for a row named exactly "Psalms" when the row reads "Psalms, 150 chapters", so that part never ran before.
 
+## [2.13.7] - 2026-11-25
+
+### Fixed
+- **Names that were only an email address now read as a name.** Someone with
+  no staff profile this year, such as last year's staff, showed in the World
+  and on game leaderboards as their email's "first.last". They now show as
+  "First Last", so the World's tag reads "First L.". A real name from Google
+  is kept as it is.
+
+## [2.13.6] - 2026-11-25
+
+### Changed
+- **Mystic Man goes faster and chains obstacles after 10,000 points.** Up
+  to 10,000 nothing changes. From there the top speed climbs from 1200 to
+  1500 by 20,000 and then keeps creeping up towards 2000, never reaching it.
+  Obstacles come in longer, tighter chains with less of a break between
+  them, steeply up to 20,000 and a little more with every point after. Every
+  chain is still clearable at the speed it comes at.
+- **Swoop's worlds are narrower and rougher.** Worlds 1 and 2 are a quarter
+  and a fifth narrower, and the hills close in until world 5, then stay
+  that close. From world 3 the ground gets more uneven every world, with a
+  big step at world 7 and again at 8: steeper faces, deeper drops, more
+  cliffs and double humps, uneven valleys back to back and less flat ground
+  to recover on. Worlds stop getting longer at world 7, and the day is long
+  enough for good flying to finish every one. Finishing a world pays up to
+  2,500 points, from world 10 on.
+- **Flap gets less predictable as you score.** Pipes start evenly spaced,
+  then come closer together and farther apart, and each gap sits farther
+  from the last. Every gap can still be reached from the one before.
+- **Every game shows the same distance ahead on every screen.** A tablet
+  or computer draws the game bigger instead of showing more of what's
+  coming, and a small phone draws it a little smaller. Phones and tablets
+  are filled edge to edge; a screen of an unusual shape, like a wide
+  computer window for Flap, gets plain black borders.
+- **Each game's scene reaches the edges of the screen,** around the notch
+  and the home bar too, instead of stopping at a plain strip.
+
+### Fixed
+- **Swoop's sun moves smoothly and never slides back** when good flying wins
+  daylight back; it waits instead. The far hills drift slowly, as far-off
+  hills should, and no longer jump when the camera zooms.
+- **A swipe from the left edge no longer leaves the World in a browser,**
+  the same as in the games. Leave from the World's menu.
+
 ## [2.13.5] - 2026-11-25
 
 ### Changed

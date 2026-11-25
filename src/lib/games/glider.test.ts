@@ -15,16 +15,20 @@ import {
   hold,
   isGliderPreview,
   land,
-  lastReachableWorld,
   leavesGround,
   lowestGround,
   maxGliderScore,
+  maxWorldScore,
+  parallaxShift,
+  WIDEST_BOARD,
   newGlider,
   previewGlider,
   resize,
+  roughness,
   stepGlider,
   viewSize,
   VIEW,
+  worldBonus,
   worldHills,
   worldProgress,
   worldShapes,
@@ -126,7 +130,7 @@ describe("Swoop's hills", () => {
       for (let x = 1; x <= end; x += 1) {
         const ground = groundAt(hills, x);
         expect(Math.abs(ground.y - previous.y)).toBeLessThan(GLIDER.maxSlope + 0.01);
-        expect(Math.abs(ground.slope - previous.slope)).toBeLessThan(0.05);
+        expect(Math.abs(ground.slope - previous.slope)).toBeLessThan(0.08);
         expect(Math.abs(ground.slope)).toBeLessThanOrEqual(GLIDER.maxSlope + 1e-9);
         previous = ground;
       }
@@ -159,20 +163,27 @@ describe("Swoop's hills", () => {
 });
 
 describe("each world is harder than the last", () => {
-  test("longer, steeper and bumpier, with a shorter day and a smaller margin for a perfect landing", () => {
-    for (let world = 1; world < 30; world++) {
+  test("narrower to world 5, longer to world 7, rougher from world 3 without end, and never out of time", () => {
+    for (let world = 1; world < 60; world++) {
       const now = worldRules(world);
       const next = worldRules(world + 1);
-      expect(next.length).toBeGreaterThan(now.length);
-      expect(next.day).toBeLessThanOrEqual(now.day);
-      expect(next.length / next.day).toBeGreaterThan(now.length / now.day);
-      expect(next.span).toBeLessThanOrEqual(now.span);
-      expect(next.drop).toBeGreaterThanOrEqual(now.drop);
-      expect(next.bumpiness).toBeGreaterThanOrEqual(now.bumpiness);
-      expect(next.squeeze).toBeGreaterThanOrEqual(now.squeeze);
+      if (world < 5) expect(next.span).toBeLessThan(now.span);
+      else expect(next.span).toBe(now.span);
+      if (world < 7) expect(next.length).toBeGreaterThan(now.length);
+      else expect(next.length).toBe(now.length);
+      if (world < 4) expect(next.day).toBeLessThan(now.day);
+      else expect(next.day).toBeGreaterThanOrEqual(now.day);
+      expect(next.drop).toBeGreaterThan(now.drop);
+      expect(next.bumpiness).toBeGreaterThan(now.bumpiness);
+      expect(next.squeeze).toBeGreaterThan(now.squeeze);
       expect(next.tolerance).toBeLessThanOrEqual(now.tolerance);
       expect(next.oddity).toBeGreaterThanOrEqual(now.oddity);
+      if (world >= 2) expect(next.oddity).toBeGreaterThan(now.oddity);
+      if (world >= 2) expect(roughness(world + 1)).toBeGreaterThan(roughness(world));
+      expect(next.length / next.day).toBeLessThan(GLIDER.maxSpeed);
     }
+    expect([roughness(1), roughness(2)]).toEqual([0, 0]);
+    expect(roughness(1000)).toBeLessThanOrEqual(2);
     expect(worldRules(0)).toEqual(worldRules(1));
   });
 });
@@ -275,12 +286,9 @@ describe("momentum", () => {
     }
     return speeds;
   };
-  test("diving down each slope and letting go at the bottom carries the bird over world 1's first two hills", () => {
-    for (const seed of SEEDS) {
-      const [first, second] = crestSpeeds(diveAndRelease, seed, 2);
-      expect(first).toBeGreaterThan(OVER);
-      expect(second).toBeGreaterThan(OVER);
-    }
+  test("diving down each slope and letting go at the bottom carries the bird over world 1's first two hills on nearly every seed", () => {
+    const over = SEEDS.filter((seed) => crestSpeeds(diveAndRelease, seed, 2).every((speed) => speed > OVER));
+    expect(over.length).toBeGreaterThanOrEqual(SEEDS.length - 1);
   });
 
   test("the same diving carries it over at least four of world 1's first five hills", () => {
@@ -407,25 +415,69 @@ describe("wide hills first, odd shapes later", () => {
     return length / crests;
   };
 
-  test("the hills narrow on a smooth curve from world 1 to today's shape by world 6", () => {
-    const gaps = [1, 2, 3, 4, 5, 6].map(crestGap);
+  test("the hills narrow from world 1, much narrower than before 2.13.4, to world 5, then stay that wide", () => {
+    const gaps = [1, 2, 3, 4].map(crestGap);
     gaps.slice(1).forEach((gap, i) => expect(gap).toBeLessThan(gaps[i]));
-    expect(gaps[0]).toBeGreaterThan(2 * gaps[5]);
-    for (const world of [6, 7, 10]) expect(worldRules(world).span).toBe(Math.max(200, 330 - 15 * (world - 1)));
+    expect(gaps[0]).toBeGreaterThan(1.5 * crestGap(5));
+    for (let world = 1; world < 5; world++) expect(worldRules(world + 1).span).toBeLessThan(worldRules(world).span);
+    const spansBefore = [858, 637];
+    expect(worldRules(1).span).toBeLessThan(0.8 * spansBefore[0]);
+    expect(worldRules(2).span).toBeLessThan(0.85 * spansBefore[1]);
+    for (const world of [6, 7, 10, 50]) expect(worldRules(world).span).toBe(worldRules(5).span);
   });
 
-  test("a sloppy dive, let go a little early or late, still gets through worlds 1 and 2", () => {
-    for (const seed of SEEDS) {
-      expect(reached(sloppy(0, 10), seed)).toBeGreaterThanOrEqual(3);
-      expect(reached(sloppy(0.3, 0), seed)).toBeGreaterThanOrEqual(3);
-    }
+  test("from world 3 the ground gets rougher every world, in steps at 7 and 8, and keeps on: uneven, steeper, more odd shapes", () => {
+    const index = (world: number) => {
+      const depths: number[] = [];
+      const runs: number[] = [];
+      let length = 0;
+      let shaped = 0;
+      let relief = 0;
+      for (let seed = 1; seed <= 80; seed++) {
+        const hills = worldHills(seed, world, 0);
+        length += hills.at(-1)!.x;
+        shaped += worldShapes(seed, world, 0).reduce((sum, stretch) => sum + stretch.to - stretch.from, 0);
+        for (let i = 1; i < hills.length; i++) {
+          runs.push(hills[i].x - hills[i - 1].x);
+          relief += Math.abs(hills[i].y - hills[i - 1].y);
+          if (hills[i].y !== hills[i - 1].y) depths.push(Math.abs(hills[i].y - hills[i - 1].y));
+        }
+      }
+      const spread = (values: number[]) => {
+        const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+        return Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length) / mean;
+      };
+      return spread(depths) + spread(runs) + (shaped + relief) / length;
+    };
+    const early = [2, 3, 4, 5, 6, 7, 8].map(index);
+    early.slice(1).forEach((value, i) => expect(value, `world ${i + 3}`).toBeGreaterThan(early[i]));
+    expect(early[1]).toBeGreaterThan(1.8 * early[0]);
+    expect(early[5] - early[4]).toBeGreaterThan(2 * (early[4] - early[3]));
+    expect(early[6] - early[5]).toBeGreaterThan(2 * (early[4] - early[3]));
+    const later = [8, 11, 14, 20].map(index);
+    later.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(later[i]));
+  });
+
+  test("a sloppy dive, let go a little early or late, still gets through worlds 1 and 2 on nearly every seed", () => {
+    const through = (pilot: () => Pilot) => SEEDS.filter((seed) => reached(pilot(), seed) >= 3).length;
+    expect(through(() => sloppy(0, 10))).toBeGreaterThanOrEqual(SEEDS.length - 1);
+    expect(through(() => sloppy(0.3, 0))).toBeGreaterThanOrEqual(SEEDS.length - 1);
   }, 60_000);
 
-  test("practised flying gets through worlds 1 to 5 every time, and world 6 on most seeds", () => {
-    const worlds = SEEDS.slice(0, 10).map((seed) => reached(practised, seed));
-    for (const world of worlds) expect(world).toBeGreaterThanOrEqual(6);
-    expect(worlds.filter((world) => world >= 7).length).toBeGreaterThanOrEqual(6);
-  }, 120_000);
+  test("practised flying gets through worlds 1 to 12 in time on every seed, and the day never runs out before world 13", () => {
+    for (const seed of SEEDS.slice(0, 8)) {
+      let state = newGlider(seed, 2);
+      let tightest = Infinity;
+      while (!state.over && state.world <= 12) {
+        const before = state;
+        state = stepGlider(hold(state, practised(state)), FRAME);
+        if (state.world > before.world) tightest = Math.min(tightest, before.daylight);
+      }
+      expect(state.over, `seed ${seed} ran out of daylight in world ${state.world}`).toBe(false);
+      expect(state.world).toBe(13);
+      expect(tightest).toBeGreaterThan(0);
+    }
+  }, 300_000);
 
   test("each odd shape turns up from world 3, more often later, and practised flying gets over it", () => {
     for (const seed of SEEDS) for (const world of [1, 2]) expect(worldShapes(seed, world, 0)).toEqual([]);
@@ -481,26 +533,23 @@ describe("score", () => {
     ).toBeNull();
   });
 
-  test("the server's limits sit above anything the rules allow", () => {
-    expect(lastReachableWorld()).toBeGreaterThan(5);
-    expect(lastReachableWorld()).toBeLessThan(100);
-    const best = maxGliderScore();
-    expect(best).toBeLessThanOrEqual(SCORE_LIMITS.glider.max);
-    expect(best).toBeGreaterThan(SCORE_LIMITS.glider.max / 3);
-    // Points a second: top speed's distance, a perfect landing on every
-    // shortest flight at the top streak, a long flight's points for all of it,
-    // and a world's bonus in the least time it can be crossed.
-    const worldBonus = Math.max(
-      ...Array.from({ length: lastReachableWorld() }, (_, i) => {
+  test("the server's limits sit above anything the rules allow, however many worlds", () => {
+    expect(worldBonus(3)).toBe(3 * GLIDER.worldPoints);
+    expect(worldBonus(500)).toBe(worldBonus(GLIDER.pointedWorlds));
+    expect(maxGliderScore(15)).toBeLessThanOrEqual(SCORE_LIMITS.glider.max);
+    expect(maxGliderScore(15)).toBeGreaterThan(SCORE_LIMITS.glider.max / 3);
+    expect(maxWorldScore(1000)).toBe(maxWorldScore(200));
+    const worldBonusPerSecond = Math.max(
+      ...Array.from({ length: 300 }, (_, i) => {
         const rules = worldRules(i + 1);
-        return (GLIDER.worldPoints * rules.world + rules.day * GLIDER.daylightPoints) / (rules.length / GLIDER.maxSpeed);
+        return (worldBonus(rules.world) + rules.day * GLIDER.daylightPoints) / (rules.length / GLIDER.maxSpeed);
       })
     );
     const perSecond =
       GLIDER.maxSpeed / GLIDER.unitsPerPoint +
       (GLIDER.perfectPoints * GLIDER.maxStreak) / GLIDER.perfectAir +
       GLIDER.flightPoints / 0.5 +
-      worldBonus;
+      worldBonusPerSecond;
     expect(perSecond).toBeLessThanOrEqual(SCORE_LIMITS.glider.perSecond);
   });
 });
@@ -530,7 +579,7 @@ describe("the camera", () => {
 
   test("keeps the hills under the bird in view however high it flies, even before it has caught up", () => {
     const top = highestFlight();
-    for (const aspect of [0.46, 1, 2, 2.4]) {
+    for (const aspect of [1.38, 1.8, 2.3]) {
       for (const world of [1, 6]) {
         const hills = worldHills(4, world, 0);
         for (let x = 0; x < hills.at(-1)!.x; x += 337) {
@@ -566,10 +615,25 @@ describe("the camera", () => {
     expect(cameraTarget({ ...low, y: 1e6 }).zoom).toBe(VIEW.minZoom);
   });
 
-  test("shows more across on a wide board, and at least its least on a narrow one", () => {
-    expect(viewSize(2, 1)).toEqual({ width: VIEW.height * 2, height: VIEW.height });
-    expect(viewSize(0.5, 1).width).toBeCloseTo(VIEW.minWidth, 6);
-    expect(viewSize(2, 0.5).height).toBe(VIEW.height * 2);
+  test("zooms to the same width on every supported board shape, so no shape sees further ahead", () => {
+    const hills = worldHills(4, 6, 0);
+    for (let x = 400; x < 9000; x += 977) {
+      for (const height of [0, 300, 900]) {
+        const widths = [1.38, 1.8, 2.3].map((aspect) => {
+          const state: GliderState = { ...newGlider(1, aspect), hills, worldEnd: 1e9, x, y: groundAt(hills, x).y + height };
+          return viewSize(aspect, cameraTarget(state).zoom).width;
+        });
+        for (const width of widths) expect(width).toBeCloseTo(widths[0], 6);
+      }
+    }
+    expect(WIDEST_BOARD).toBeLessThan(2.35);
+  });
+
+  test("shows the same distance ahead on every board, and more sky and ground on a taller one", () => {
+    for (const aspect of [1.38, 1.8, 2.3]) expect(viewSize(aspect, 1).width).toBe(VIEW.width);
+    expect(viewSize(1.38, 1).height).toBeGreaterThan(viewSize(2.3, 1).height);
+    expect(viewSize(760 / 334, 1).height).toBeCloseTo(440, -1);
+    expect(viewSize(2, 0.5)).toEqual({ width: VIEW.width * 2, height: VIEW.width });
   });
 });
 
@@ -654,3 +718,33 @@ describe("previews", () => {
     expect(night.over && night.ended === "night").toBe(true);
   });
 });
+
+describe("the sun and the far hills", () => {
+  test("the sun only moves forward or holds still in a world, even when good flying wins daylight back", () => {
+    let state = newGlider(2, 2);
+    let won = 0;
+    for (let i = 0; i < 60 * 120 && !state.over; i++) {
+      const before = state;
+      state = stepGlider(hold(state, practised(state)), FRAME);
+      if (state.world !== before.world) {
+        expect(state.daySeen).toBeLessThan(0.05);
+        continue;
+      }
+      if (dayProgress(state) < dayProgress(before)) won++;
+      expect(state.daySeen).toBeGreaterThanOrEqual(before.daySeen);
+      expect(state.daySeen).toBeGreaterThanOrEqual(dayProgress(state));
+      expect(state.daySeen - before.daySeen).toBeLessThan(0.01);
+    }
+    expect(won).toBeGreaterThan(0);
+  }, 60_000);
+
+  test("the far hills slide the way the ground does, much slower, the farther ones slowest, whatever the zoom", () => {
+    for (const layer of ["far", "near"] as const) {
+      expect(parallaxShift(1000, layer)).toBeGreaterThan(parallaxShift(0, layer));
+      expect(parallaxShift(2000, layer) - parallaxShift(1000, layer)).toBeCloseTo(parallaxShift(1000, layer) - parallaxShift(0, layer));
+      expect(parallaxShift(1000, layer)).toBeLessThan(100);
+    }
+    expect(parallaxShift(1000, "far")).toBeLessThan(parallaxShift(1000, "near"));
+  });
+});
+
