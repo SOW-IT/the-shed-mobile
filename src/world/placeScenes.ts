@@ -1,3 +1,4 @@
+import { FREE_PLOTS, PLOT_SIZE, PLOTS } from "../../shared/farm";
 import { isFurniture, wallpaperOr, type FurnitureId, type Placed, type WallpaperId } from "../../shared/home";
 import { PLACE_OBSTACLES, type Place } from "../../shared/world";
 import type { Camera, Vec3 } from "./camera";
@@ -400,15 +401,86 @@ const wallPattern = (b: Builder, z: number, paper: (typeof WALLPAPER_LOOKS)[Wall
   }
 };
 
+const YARD_TREES: [number, number, number][] = [
+  [-6.4, -12.5, 1.3],
+  [6.6, -11.5, 1.4],
+  [-7.2, -2, 1.1],
+  [7.4, 1, 1.2],
+];
+
+const buildBackyard = (cam: Camera, plots: number): Scene => {
+  const c = places.backyard;
+  const g = new Builder(cam, "g");
+  g.groundDisc(0, -2, 34, 34, c.grass);
+  for (let z = -16; z <= 10; z += 2) {
+    g.groundQuad([[-9, z - 0.5], [9, z - 0.5], [9, z + 0.5], [-9, z + 0.5]], c.stripe);
+  }
+  g.groundQuad([[-0.7, 1.6], [0.7, 1.6], [0.9, 8], [-0.9, 8]], c.path, 0.004);
+  for (const z of [2.25, -0.4, -3.2, -6.0]) g.groundQuad([[-3.8, z - 0.5], [3.8, z - 0.5], [3.8, z + 0.5], [-3.8, z + 0.5]], c.path, 0.004);
+  for (const [x, z, s] of YARD_TREES) g.groundDisc(x - 0.9 * s, z - 0.6 * s, 1.3 * s, 1.0 * s, garden.shadow);
+  const halfW = PLOT_SIZE.w / 2;
+  const halfD = PLOT_SIZE.d / 2;
+  for (const plot of PLOTS) {
+    const owned = plot.index < Math.max(plots, FREE_PLOTS);
+    const rim = 0.08;
+    g.groundQuad(
+      [[plot.x - halfW - rim, plot.z - halfD - rim], [plot.x + halfW + rim, plot.z - halfD - rim], [plot.x + halfW + rim, plot.z + halfD + rim], [plot.x - halfW - rim, plot.z + halfD + rim]],
+      owned ? c.soilDark : c.fenceDark,
+      0.006
+    );
+    g.groundQuad([[plot.x - halfW, plot.z - halfD], [plot.x + halfW, plot.z - halfD], [plot.x + halfW, plot.z + halfD], [plot.x - halfW, plot.z + halfD]], owned ? c.soil : c.locked, 0.008);
+    if (owned) {
+      for (const k of [-0.5, 0, 0.5]) g.groundQuad([[plot.x - halfW + 0.12, plot.z + k * halfD - 0.03], [plot.x + halfW - 0.12, plot.z + k * halfD - 0.03], [plot.x + halfW - 0.12, plot.z + k * halfD + 0.03], [plot.x - halfW + 0.12, plot.z + k * halfD + 0.03]], c.furrow, 0.01);
+    }
+  }
+  drawPads(g, "backyard");
+  const ground = g.take();
+
+  const b = new Builder(cam, "b");
+  const trees = [...YARD_TREES].sort((p, q) => depthOf(cam, q[0], q[1]) - depthOf(cam, p[0], p[1]));
+  for (const [x, z, s] of trees) {
+    b.cylinder(x, z, 0, 1.6 * s, 0.22 * s, 0.16 * s, garden.trunk);
+    b.ball([x, 2.2 * s, z], 1.15 * s, garden.canopy, { ink: 0.06 });
+    b.ball([x + 0.6 * s, 2.9 * s, z + 0.2], 0.75 * s, garden.canopyLight, { ink: 0.05 });
+  }
+  for (let x = -5.4; x <= 5.4; x += 1.2) b.box(x, 0.55, -11.6, 0.16, 1.1, 0.16, c.fenceDark, 0.03);
+  for (const y of [0.35, 0.85]) b.box(0, y, -11.55, 11, 0.14, 0.06, c.fence, 0.03);
+  b.box(-3.6, 1.0, -12.6, 2.2, 2.0, 1.4, c.shed, 0.05);
+  b.box(-3.6, 2.1, -12.6, 2.6, 0.22, 1.8, c.roof, 0.05);
+  b.box(-3.3, 0.7, -11.88, 0.6, 1.3, 0.04, c.door, 0.03);
+  const backdrop = b.take();
+
+  const { props, add } = propsFor(cam);
+  add("barrel", 3.6, -10.2, (p) => {
+    p.cylinder(3.6, -10.2, 0, 0.9, 0.38, 0.36, c.barrel);
+    p.cylinder(3.6, -10.2, 0.25, 0.32, 0.39, 0.39, c.barrelBand, { ink: false });
+    p.cylinder(3.6, -10.2, 0.62, 0.69, 0.38, 0.38, c.barrelBand, { ink: false });
+    p.groundDisc(3.6, -10.2, 0.3, 0.3, c.water, { y: 0.9 });
+  });
+  for (const plot of PLOTS) {
+    if (plot.index < Math.max(plots, FREE_PLOTS)) continue;
+    const front = plot.z + halfD + 0.02;
+    add(`fence-${plot.index}`, plot.x, front, (p) => {
+      for (const dx of [-halfW, 0, halfW]) p.cylinder(plot.x + dx, front, 0, 0.42, 0.05, 0.05, c.fenceDark);
+      for (const y of [0.16, 0.32]) {
+        p.line([plot.x - halfW, y, front], [plot.x + halfW, y, front], 5, garden.ink);
+        p.line([plot.x - halfW, y, front], [plot.x + halfW, y, front], 3, c.fence);
+      }
+    });
+  }
+  return { sky: c.sky, ground, backdrop, props };
+};
+
 const NO_HOME: HomeLook = { wallpaper: "plain", items: [] };
 
-const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook) => Scene> = {
+const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook, plots: number) => Scene> = {
   garden: buildGarden,
   chapel: buildChapel,
   campfire: buildCampfire,
   cafe: buildCafe,
   beach: buildBeach,
   home: buildHome,
+  backyard: (cam, _inside, plots) => buildBackyard(cam, plots),
 };
 
-export const buildScene = (place: Place, cam: Camera, inside: HomeLook = NO_HOME): Scene => BUILDERS[place](cam, inside);
+export const buildScene = (place: Place, cam: Camera, inside: HomeLook = NO_HOME, plots = FREE_PLOTS): Scene => BUILDERS[place](cam, inside, plots);

@@ -6,6 +6,30 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.7] - 2026-11-25
+
+### Added
+- **A backyard farm in the World.** Every home has a back door to a
+  backyard with 12 plots in a 3 by 4 grid. The front 4 are free; the rest
+  cost 10, 20, 40, 80, 160, 320, 640 and 1280 coins, bought in order, and
+  are the one thing you can buy from anywhere: tap a fenced plot for
+  Sijin's offer. The first visit gives you 4 lettuce seeds.
+- **Six crops.** Lettuce, carrot, strawberry, tomato, pumpkin and
+  watermelon take 1 to 7 days. Seeds cost 3 to 60 coins at Sijin's new
+  **Seeds** tab, and his **Sell** tab buys crops back for 4 to 80, or all
+  at once with **Sell all**.
+- **Watering.** Each day after planting needs one watering, any time that
+  day. Tap a thirsty plant (it has a water drop) to walk over and water it.
+  A day left dry wilts the plant: it loses a day of growing and a quarter
+  of its price, and the third wilt kills it. Ripe crops wait, with no
+  water. Visitors can water your plants, and the plot shows who did.
+- **The Bag** in the World menu holds your seeds and crops, stacked by how
+  often they wilted.
+- **Farm reminders.** One push at 6 pm Sydney time when something needs
+  water or is ready to harvest, at most once a day. Turn it off in World
+  Settings.
+- **The list view's Farm section** has the same actions as the backyard.
+
 ## [2.13.5] - 2026-11-25
 
 ### Changed

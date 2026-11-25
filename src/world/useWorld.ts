@@ -323,7 +323,7 @@ export const useWorld = (
     lastAction.current = sentAt;
     const asked = arrivalRef.current;
     arrivalRef.current = undefined;
-    joinM(asked ?? {})
+    joinM({ ...asked, backyard: true })
       .then((joined) => {
         if (cancelled) return;
         heard(joined.serverNow, sentAt);
@@ -695,7 +695,7 @@ export const useWorld = (
   );
 
   const travel = useCallback(
-    async (to: Place, { toMember, invite }: { toMember?: MemberId; invite?: Id<"worldInvites"> } = {}): Promise<string | null> => {
+    async (to: Place, { toMember, invite, door }: { toMember?: MemberId; invite?: Id<"worldInvites">; door?: boolean } = {}): Promise<string | null> => {
       if (!session || travelling.current) return null;
       travelling.current = true;
       pending.current = null;
@@ -704,7 +704,7 @@ export const useWorld = (
       const sentAt = Date.now();
       const sentIn = visit.current;
       try {
-        const reply = await travelM({ to, ...(toMember ? { toMember } : {}), ...(invite ? { invite } : {}) });
+        const reply = await travelM({ to, ...(toMember ? { toMember } : {}), ...(invite ? { invite } : {}), ...(door ? { door } : {}) });
         if (sentIn !== visit.current) return null;
         heard(reply.serverNow, sentAt);
         if (!reply.ok) return turnedAwayText(reply);

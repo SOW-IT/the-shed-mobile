@@ -62,6 +62,8 @@ import {
   WORLD_PLACE,
   HOME,
   HOME_ARRIVAL,
+  BACKYARD,
+  isPrivatePlace,
   ARRIVE_NEAR,
   INVITE_MS,
   POKE_ARRIVAL_MS,
@@ -76,6 +78,7 @@ import { isGameId } from "../shared/games";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { cafeMoved, cafeSat } from "./cafeGames";
+import { giveStarterSeeds } from "./farmData";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -206,14 +209,15 @@ const rememberHomeFrom = async (ctx: MutationCtx, email: string, name: string, f
 /** Where a home's door takes someone: back where they came from, else the Garden. */
 export const homeBackTo = async (ctx: Ctx, email: string): Promise<Place> => {
   const from = (await visitorOf(ctx, email))?.homeFrom;
-  return from !== undefined && isPlace(from) && from !== HOME ? from : WORLD_PLACE;
+  return from !== undefined && isPlace(from) && !isPrivatePlace(from) ? from : WORLD_PLACE;
 };
 
 type Arrival = { place: Place; owner?: string; roomId?: Id<"worldRooms">; spot: { x: number; z: number } };
 
-const cameBackTo = (visitor: Doc<"worldVisitors"> | null): Arrival | null => {
+const cameBackTo = (visitor: Doc<"worldVisitors"> | null, backyardKnown: boolean): Arrival | null => {
   if (!visitor || !isPlace(visitor.lastPlace) || visitor.lastX === undefined || visitor.lastZ === undefined) return null;
-  if (visitor.lastPlace === HOME) return { place: HOME, owner: visitor.email, spot: clampTarget(visitor.lastX, visitor.lastZ, HOME) };
+  if (visitor.lastPlace === BACKYARD && !backyardKnown) return { place: HOME, owner: visitor.email, spot: { ...HOME_ARRIVAL } };
+  if (isPrivatePlace(visitor.lastPlace)) return { place: visitor.lastPlace, owner: visitor.email, spot: clampTarget(visitor.lastX, visitor.lastZ, visitor.lastPlace) };
   return { place: visitor.lastPlace, spot: clampTarget(visitor.lastX, visitor.lastZ, visitor.lastPlace) };
 };
 
@@ -246,7 +250,7 @@ const addChatLine = async (ctx: MutationCtx, speaker: Speaker, line: ChatLine, n
 };
 
 const joinedLine = (member: Doc<"worldMembers">): ChatLine => ({
-  text: placeOf(member) === HOME ? "came in" : JOINED_WORLD,
+  text: isPrivatePlace(placeOf(member)) ? "came in" : JOINED_WORLD,
   kind: "join",
 });
 
@@ -320,7 +324,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
     const now = Date.now();
     const spot = state ? posAt(state, now) : null;
     const room = await ctx.db.get("worldRooms", member.roomId);
-    const someoneElses = placeOf(member) === HOME && room?.owner !== member.email;
+    const someoneElses = isPrivatePlace(placeOf(member)) && room?.owner !== member.email;
     const leftAt = spot && !someoneElses ? { lastPlace: placeOf(member), lastX: spot.x, lastZ: spot.z } : undefined;
     await markSeen(ctx, member.email, member.name, now, leftAt);
   }
@@ -365,6 +369,11 @@ export const homeOf = async (ctx: Ctx, member: Doc<"worldMembers">): Promise<str
   return (await ctx.db.get("worldRooms", member.roomId))?.owner ?? null;
 };
 
+export const ownerOf = async (ctx: Ctx, member: Doc<"worldMembers">): Promise<string | null> => {
+  if (!isPrivatePlace(placeOf(member))) return null;
+  return (await ctx.db.get("worldRooms", member.roomId))?.owner ?? null;
+};
+
 export const homeRowOf = (ctx: Ctx, owner: string) =>
   ctx.db
     .query("worldHomes")
@@ -387,21 +396,21 @@ const liveInvite = async (ctx: Ctx, owner: string, guest: string, now: number) =
 const mayEnterHome = async (ctx: Ctx, owner: string, email: string, now: number) =>
   owner === email || ((await liveInvite(ctx, owner, email, now)) !== null && !(await blockedEither(ctx, owner, email)));
 
-const homeRoom = async (ctx: MutationCtx, owner: string): Promise<Doc<"worldRooms"> | null> => {
+const privateRoom = async (ctx: MutationCtx, place: Place, owner: string): Promise<Doc<"worldRooms"> | null> => {
   const found = await ctx.db
     .query("worldRooms")
-    .withIndex("by_owner", (q) => q.eq("owner", owner))
+    .withIndex("by_owner_and_place", (q) => q.eq("owner", owner).eq("place", place))
     .first();
   if (found) return found.memberCount < HOME_CAP ? found : null;
-  const roomId = await ctx.db.insert("worldRooms", { place: HOME, instance: 1, memberCount: 0, owner });
+  const roomId = await ctx.db.insert("worldRooms", { place, instance: 1, memberCount: 0, owner });
   return (await ctx.db.get("worldRooms", roomId))!;
 };
 
 const roomFor = async (ctx: MutationCtx, place: Place, owner: string | undefined) =>
-  place === HOME ? (owner ? await homeRoom(ctx, owner) : null) : await roomWithSpace(ctx, place);
+  isPrivatePlace(place) ? (owner ? await privateRoom(ctx, place, owner) : null) : await roomWithSpace(ctx, place);
 
 const roomWithSpace = async (ctx: MutationCtx, place: Place = WORLD_PLACE): Promise<Doc<"worldRooms">> => {
-  if (place === HOME) return await roomWithSpace(ctx, WORLD_PLACE);
+  if (isPrivatePlace(place)) return await roomWithSpace(ctx, WORLD_PLACE);
   const rooms = await ctx.db
     .query("worldRooms")
     .withIndex("by_place_and_instance", (q) => q.eq("place", place))
@@ -433,7 +442,10 @@ const roomWithSpace = async (ctx: MutationCtx, place: Place = WORLD_PLACE): Prom
 const beside = (at: { x: number; z: number }, place: Place, extra: ReturnType<typeof homeObstacles>) =>
   clampTarget(at.x + ARRIVE_NEAR * 0.8, at.z + ARRIVE_NEAR * 0.6, place, extra);
 
-const pokedTo = async (ctx: MutationCtx, email: string, rawId: string, now: number): Promise<Arrival | null> => {
+const asHomeWhenUnknown = (arrival: Arrival, backyardKnown: boolean): Arrival =>
+  arrival.place === BACKYARD && !backyardKnown ? { place: HOME, owner: arrival.owner, spot: { ...HOME_ARRIVAL } } : arrival;
+
+const pokedTo = async (ctx: MutationCtx, email: string, rawId: string, now: number, backyardKnown: boolean): Promise<Arrival | null> => {
   const pokeId = ctx.db.normalizeId("worldPokes", rawId);
   const poke = pokeId && (await ctx.db.get("worldPokes", pokeId));
   if (!poke || poke.to !== email || now - poke.at > POKE_ARRIVAL_MS || (await blockedEither(ctx, email, poke.from))) return null;
@@ -441,15 +453,16 @@ const pokedTo = async (ctx: MutationCtx, email: string, rawId: string, now: numb
   const pokerState = poker && (await stateOf(ctx, poker._id));
   if (poker && pokerState) {
     const place = placeOf(poker);
-    const owner = (await homeOf(ctx, poker)) ?? undefined;
+    const owner = (await ownerOf(ctx, poker)) ?? undefined;
     if (!owner || (await mayEnterHome(ctx, owner, email, now))) {
-      return { place, owner, roomId: poker.roomId, spot: beside(posAt(pokerState, now), place, await obstaclesIn(ctx, poker)) };
+      const there = { place, owner, roomId: poker.roomId, spot: beside(posAt(pokerState, now), place, await obstaclesIn(ctx, poker)) };
+      return asHomeWhenUnknown(there, backyardKnown);
     }
   }
   if (!isPlace(poke.place)) return null;
-  if (poke.place === HOME && (!poke.owner || !(await mayEnterHome(ctx, poke.owner, email, now)))) return null;
+  if (isPrivatePlace(poke.place) && (!poke.owner || !(await mayEnterHome(ctx, poke.owner, email, now)))) return null;
   const extra = poke.place === HOME && poke.owner ? homeObstacles((await homeRowOf(ctx, poke.owner))?.items ?? []) : [];
-  return { place: poke.place, owner: poke.owner, spot: beside({ x: poke.x, z: poke.z }, poke.place, extra) };
+  return asHomeWhenUnknown({ place: poke.place, owner: poke.owner, spot: beside({ x: poke.x, z: poke.z }, poke.place, extra) }, backyardKnown);
 };
 
 const invitedTo = async (ctx: MutationCtx, email: string, rawId: string, now: number): Promise<Arrival | null> => {
@@ -463,7 +476,7 @@ const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"wor
   const stays = current && current.place === wanted.place && current.owner === wanted.owner;
   if (stays && (wanted.roomId === undefined || wanted.roomId === current._id)) return current;
   const kept = wanted.roomId ? await ctx.db.get("worldRooms", wanted.roomId) : null;
-  const cap = wanted.place === HOME ? HOME_CAP : ROOM_CAP;
+  const cap = isPrivatePlace(wanted.place) ? HOME_CAP : ROOM_CAP;
   if (kept && kept.place === wanted.place && kept.owner === wanted.owner && kept.memberCount < cap) return kept;
   return await roomFor(ctx, wanted.place, wanted.owner);
 };
@@ -488,7 +501,7 @@ const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: numb
     if (state) taken.push(posAt(state, now));
   }
   const place = isPlace(room.place) ? room.place : WORLD_PLACE;
-  const extra = room.owner ? homeObstacles((await homeRowOf(ctx, room.owner))?.items ?? []) : [];
+  const extra = room.place === HOME && room.owner ? homeObstacles((await homeRowOf(ctx, room.owner))?.items ?? []) : [];
   return clearSpot(place, spot, { taken, extra, labels: !coversPadLabel(place, spot) });
 };
 
@@ -507,7 +520,7 @@ const FRESH_IN_ROOM = {
 };
 
 export const join = mutation({
-  args: { poke: v.optional(v.string()), invite: v.optional(v.string()) },
+  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()) },
   returns: v.object({
     roomId: v.id("worldRooms"),
     memberId: v.id("worldMembers"),
@@ -518,6 +531,7 @@ export const join = mutation({
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
     const now = Date.now();
+    const backyardKnown = args.backyard === true;
     const quietReturn = backWithinGrace(await visitorOf(ctx, email), now);
     let member = await memberByEmail(ctx, email);
     if (member && !(await stateOf(ctx, member._id))) {
@@ -527,7 +541,7 @@ export const join = mutation({
     let room = member && (await ctx.db.get("worldRooms", member.roomId));
     const askedFor = async () =>
       (args.invite !== undefined ? await invitedTo(ctx, email, args.invite, now) : null) ??
-      (args.poke !== undefined ? await pokedTo(ctx, email, args.poke, now) : null);
+      (args.poke !== undefined ? await pokedTo(ctx, email, args.poke, now, backyardKnown) : null);
     if (!member || !room) {
       if (member) await removeMember(ctx, member);
       // Back soon after leaving: the rate limits carry on where they were,
@@ -542,7 +556,7 @@ export const join = mutation({
         await ctx.db.patch("worldThrottle", kept._id, { joinBucket: token.bucket, at: now });
         buckets = { moveBucket: kept.moveBucket, actBucket: kept.actBucket, sayBucket: kept.sayBucket };
       }
-      const wanted = (await askedFor()) ?? cameBackTo(await visitorOf(ctx, email));
+      const wanted = (await askedFor()) ?? cameBackTo(await visitorOf(ctx, email), backyardKnown);
       const wantedRoom = wanted && (await arrivalRoom(ctx, wanted));
       const back = wantedRoom ? wanted : null;
       room = wantedRoom ?? (await roomWithSpace(ctx));
@@ -585,6 +599,7 @@ export const join = mutation({
     }
     await touchPresence(ctx, member._id, now);
     await ensureSweeper(ctx, now);
+    if (placeOf(member) === BACKYARD && room.owner === email) await giveStarterSeeds(ctx, email, now);
     return { roomId: room._id, memberId: member._id, instance: room.instance, place: placeOf(member), serverNow: now };
   },
 });
@@ -688,7 +703,7 @@ export const sit = mutation({
 const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
 
 export const travel = mutation({
-  args: { to: v.string(), toMember: v.optional(v.id("worldMembers")), invite: v.optional(v.string()) },
+  args: { to: v.string(), toMember: v.optional(v.id("worldMembers")), invite: v.optional(v.string()), door: v.optional(v.boolean()) },
   returns: v.union(
     v.object({
       ok: v.literal(true),
@@ -713,14 +728,15 @@ export const travel = mutation({
         ? await ctx.db.get("worldRooms", target.roomId)
         : null;
     let owner: string | undefined;
-    if (to === HOME) {
+    if (isPrivatePlace(to)) {
       const inviteId = args.invite === undefined ? null : ctx.db.normalizeId("worldInvites", args.invite);
       const invite = inviteId && (await ctx.db.get("worldInvites", inviteId));
       if (args.invite !== undefined && (!invite || invite.guest !== email)) throw new ConvexError("That invite isn't yours.");
-      owner = invite ? invite.owner : email;
-      if (!(await mayEnterHome(ctx, owner, email, now))) throw new ConvexError("That invite has run out. Ask them for another.");
+      const throughDoor = args.door === true && isPrivatePlace(from) && from !== to && here.owner !== undefined;
+      owner = invite ? invite.owner : throughDoor ? here.owner! : email;
+      if (!throughDoor && !(await mayEnterHome(ctx, owner, email, now))) throw new ConvexError("That invite has run out. Ask them for another.");
     }
-    const cap = to === HOME ? HOME_CAP : ROOM_CAP;
+    const cap = isPrivatePlace(to) ? HOME_CAP : ROOM_CAP;
     const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;
     if (from === to && here.owner === owner && !joinable) {
       const { fromX, fromZ, toX, toZ, startedAt, path, heading } = state;
@@ -742,9 +758,10 @@ export const travel = mutation({
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     const room = joinable ?? (await roomFor(ctx, to, owner));
-    if (!room) throw new ConvexError("Their home is full. Try again in a bit.");
+    if (!room) throw new ConvexError(`Their ${to === BACKYARD ? "backyard" : "home"} is full. Try again in a bit.`);
     await switchRoom(ctx, member, here, room, to);
-    if (to === HOME && from !== HOME) await rememberHomeFrom(ctx, email, member.name, from, now);
+    if (isPrivatePlace(to) && !isPrivatePlace(from)) await rememberHomeFrom(ctx, email, member.name, from, now);
+    if (to === BACKYARD && owner === email) await giveStarterSeeds(ctx, email, now);
     // Through a pad: on the pad back to where you came from, facing into the
     // room (or the nearest clear spot when someone's on it), the same for
     // everyone watching.
@@ -1408,7 +1425,7 @@ export const chatLog = query({
     let scanned = 0;
     for await (const row of rows) {
       if (lines.length === cap || scanned++ === CHAT_SCAN) break;
-      if (row.place === HOME && row.roomId !== roomId) continue;
+      if (isPrivatePlace(row.place) && row.roomId !== roomId) continue;
       if (!hidden.has(row.email)) hidden.set(row.email, await isBlocked(row.email));
       if (hidden.get(row.email)) continue;
       lines.push({
@@ -1419,7 +1436,7 @@ export const chatLog = query({
         at: row.at,
         isMe: row.email === me.email,
         place: row.place,
-        here: row.place === undefined || row.place === HOME ? row.roomId === roomId : row.place === placeOf(me),
+        here: row.place === undefined || isPrivatePlace(row.place) ? row.roomId === roomId : row.place === placeOf(me),
         kind: row.kind,
       });
     }
@@ -1529,7 +1546,7 @@ const pokedOf = (ctx: Ctx, email: string) =>
  * the limits: one poke an hour each, and nobody poked twice in
  * POKED_GAP_MS. The two pokes (by visitor or by staff profile) share it.
  */
-const placeWords = (place: Place) => (place === HOME ? "my home" : PLACE_TITLES[place].replace(/^The /, "the "));
+const placeWords = (place: Place) => (place === HOME ? "my home" : place === BACKYARD ? "my backyard" : PLACE_TITLES[place].replace(/^The /, "the "));
 
 const upsertInvite = async (ctx: MutationCtx, me: { email: string; member: Doc<"worldMembers"> }, guest: string, now: number) => {
   const found = await ctx.db
@@ -1571,7 +1588,7 @@ const sendPoke = async (
   else if (poked) await ctx.db.patch("worldPoked", poked._id, { lastPokedAt: now });
   else await ctx.db.insert("worldPoked", { email: target.email, lastPokedAt: now });
   const place = placeOf(me.member);
-  const owner = (await homeOf(ctx, me.member)) ?? undefined;
+  const owner = (await ownerOf(ctx, me.member)) ?? undefined;
   let url: string;
   let title: string;
   let fallback: string;

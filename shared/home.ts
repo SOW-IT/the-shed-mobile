@@ -40,6 +40,7 @@ export const HOME_MAX_ITEMS = 30;
 export const MAX_OWNED_EACH = 10;
 export const HOME_DOOR = { x: 0, z: 7 } as const;
 export const DOOR_CLEAR = 2;
+export const BACK_DOOR = { x: 0, z: -10 } as const;
 
 type Turn = 0 | 1 | 2 | 3;
 export const isTurn = (value: number): value is Turn => value === 0 || value === 1 || value === 2 || value === 3;
@@ -66,20 +67,31 @@ export const placementProblem = (item: string, x: number, z: number, turn: numbe
   return null;
 };
 
+export const blocksBackDoor = (item: FurnitureId, x: number, z: number, turn: number) => {
+  const { hw, hd } = footprint(item, turn);
+  const nx = Math.max(x - hw, Math.min(BACK_DOOR.x, x + hw));
+  const nz = Math.max(z - hd, Math.min(BACK_DOOR.z, z + hd));
+  return Math.hypot(nx - BACK_DOOR.x, nz - BACK_DOOR.z) < DOOR_CLEAR;
+};
+
 export const fitInRoom = (item: FurnitureId, x: number, z: number, turn: Turn): { x: number; z: number } | null => {
   const { hw, hd } = footprint(item, turn);
   const cz = Math.min(WALK_BOUNDS.maxZ - hd, Math.max(WALK_BOUNDS.minZ + hd, z));
   const half = Math.min(halfWidthAt(cz + hd), halfWidthAt(cz - hd)) - hw;
   if (half < 0) return null;
+  const fits = (at: { x: number; z: number }) => placementProblem(item, at.x, at.z, turn) === null && !blocksBackDoor(item, at.x, at.z, turn);
   const spot = { x: Math.min(half, Math.max(-half, x)), z: cz };
-  if (placementProblem(item, spot.x, spot.z, turn) === null) return spot;
-  const pushed = { x: spot.x, z: Math.min(spot.z, HOME_DOOR.z - DOOR_CLEAR - hd - 0.01) };
-  return placementProblem(item, pushed.x, pushed.z, turn) === null ? pushed : null;
+  const tries = [
+    spot,
+    { x: spot.x, z: Math.min(spot.z, HOME_DOOR.z - DOOR_CLEAR - hd - 0.01) },
+    { x: spot.x, z: Math.max(spot.z, BACK_DOOR.z + DOOR_CLEAR + hd + 0.01) },
+  ];
+  return tries.find(fits) ?? null;
 };
 
 export const homeObstacles = (items: readonly Placed[]) =>
   items.flatMap((p) => {
-    if (!isFurniture(p.item) || !FURNITURE[p.item].solid) return [];
+    if (!isFurniture(p.item) || !FURNITURE[p.item].solid || blocksBackDoor(p.item, p.x, p.z, p.turn)) return [];
     const { hw, hd } = footprint(p.item, p.turn);
     return [{ id: p.key, x: p.x, z: p.z, rx: hw + 0.15, rz: hd + 0.15 }];
   });

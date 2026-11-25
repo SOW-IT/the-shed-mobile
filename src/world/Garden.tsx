@@ -1,4 +1,5 @@
 import {
+  BACKYARD,
   BUBBLE_MS,
   TYPING_MS,
   inWater,
@@ -46,6 +47,8 @@ import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./sett
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
 import { CampfireFlames } from "./Campfire";
+import { FlyingCrop, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
+import { PLOT_SIZE, PLOTS, plotPrice, type CropId, type Stage } from "@shared/farm";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { mouthAt } from "./talk";
@@ -70,6 +73,19 @@ type GardenPerson = {
   seat?: string;
   typing?: number;
   playing?: PlayingTag;
+};
+
+export type GardenFarm = {
+  plots: number;
+  mine: boolean;
+  plants: readonly { plot: number; crop: string; stage: Stage; wilted: boolean; thirsty: boolean; note?: string }[];
+  card: { plot: number; text: string } | null;
+  watering: { plot: number; key: number } | null;
+  flying: { plot: number; crop: CropId; key: number } | null;
+  bagAt: { x: number; y: number };
+  onTapPlot: (plot: number) => void;
+  onWatered: () => void;
+  onFlown: () => void;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
@@ -145,6 +161,7 @@ export const Garden = ({
   ball = null,
   onKick,
   paused = false,
+  farm = null,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -188,6 +205,7 @@ export const Garden = ({
   ball?: Ball | null;
   onKick?: (dirX: number, dirZ: number) => void;
   paused?: boolean;
+  farm?: GardenFarm | null;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -199,7 +217,8 @@ export const Garden = ({
     if (!size || size.width !== width || size.height !== height) setSize({ width, height });
   };
   const cam = useMemo(() => size && makeCamera(size.width, size.height, FOCUS), [size]);
-  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined), [cam, place, home]);
+  const plots = farm?.plots;
+  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined, plots), [cam, place, home, plots]);
   const propActors = useMemo(
     () =>
       scene
@@ -225,7 +244,7 @@ export const Garden = ({
             const reach = PORTAL_RADIUS * middle.scale + PAD_LABEL_BESIDE_GAP;
             const toRight = pad.x <= 0;
             return {
-              to: place === "home" && homeExit ? homeExit : pad.to,
+              to: place === "home" && pad.to !== BACKYARD && homeExit ? homeExit : pad.to,
               x: pad.x,
               z: pad.z,
               up,
@@ -432,6 +451,10 @@ export const Garden = ({
       const box = hitBox(figureFor(cam, NPC_POSE), NPC.look);
       if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return { kind: "npc" };
     }
+    if (farm && place === BACKYARD) {
+      const plot = plotAtScreen(cam, x, y);
+      if (plot !== null) return { kind: "plot", index: plot };
+    }
     if (decor) {
       const item = itemAt(scene.props, x, y);
       if (item) return { kind: "item", key: item };
@@ -516,6 +539,7 @@ export const Garden = ({
     else if (p.hit.kind === "lectern") onTapLectern?.();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
     else if (p.hit.kind === "npc") onTapNpc?.();
+    else if (p.hit.kind === "plot") farm?.onTapPlot(p.hit.index);
     else if (p.hit.kind === "ball" && placed && rolled) {
       const dir = kickDirection(placed, rolled);
       onKick?.(dir.x, dir.z);
@@ -549,6 +573,47 @@ export const Garden = ({
   if (place === "campfire") {
     const base = cam.project([FIRE.x, 0, FIRE.z]);
     actors.push({ depth: base.depth - 0.001, key: "fire-flames", node: <CampfireFlames x={base.x} y={base.y} scale={base.scale} live={!paused && !saver} /> });
+  }
+  const farmLabels: ReactNode[] = [];
+  if (farm && place === BACKYARD) {
+    const live = !paused && !saver;
+    for (const plant of farm.plants) {
+      const spot = PLOTS[plant.plot];
+      if (!spot) continue;
+      const at = cam.project([spot.x, 0, spot.z]);
+      actors.push({
+        depth: at.depth,
+        key: `plant-${plant.plot}`,
+        node: <PlantView x={at.x} y={at.y} scale={at.scale * PLANT_SCALE} crop={plant.crop} stage={plant.stage} wilted={plant.wilted} thirsty={plant.thirsty} live={live} />,
+      });
+      if (plant.note) {
+        const below = cam.project([spot.x, 0, spot.z + PLOT_SIZE.d / 2 - 0.1]);
+        farmLabels.push(<PlotNote key={`note-${plant.plot}`} x={below.x} y={below.y - 18} text={plant.note} />);
+      }
+    }
+    if (farm.mine) {
+      for (const spot of PLOTS) {
+        const price = plotPrice(spot.index);
+        if (spot.index < farm.plots || price === null) continue;
+        const at = cam.project([spot.x, 0, spot.z]);
+        farmLabels.push(<PriceTag key={`price-${spot.index}`} x={at.x} y={at.y} price={price} />);
+      }
+    }
+    if (farm.watering) {
+      const spot = PLOTS[farm.watering.plot];
+      const at = cam.project([spot.x, 0, spot.z]);
+      actors.push({ depth: at.depth - 0.5, key: `can-${farm.watering.key}`, node: <WateringCan x={at.x} y={at.y} scale={at.scale * PLANT_SCALE * 0.8} live={live} onDone={farm.onWatered} /> });
+    }
+    if (farm.card) {
+      const spot = PLOTS[farm.card.plot];
+      const top = cam.project([spot.x, 1.1, spot.z]);
+      farmLabels.push(<PlotCard key="card" x={top.x} y={top.y} text={farm.card.text} stageWidth={cam.width} />);
+    }
+    if (farm.flying) {
+      const spot = PLOTS[farm.flying.plot];
+      const from = cam.project([spot.x, 0.3, spot.z]);
+      farmLabels.push(<FlyingCrop key={`fly-${farm.flying.key}`} from={from} to={farm.bagAt} crop={farm.flying.crop} live={live} onDone={farm.onFlown} />);
+    }
   }
   if (rolled) {
     const ground = cam.project([rolled.x, 0, rolled.z]);
@@ -751,6 +816,7 @@ export const Garden = ({
         {layered.map((a) => (
           <Fragment key={a.key}>{a.node}</Fragment>
         ))}
+        {farmLabels}
       </View>
       </View>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -833,9 +899,23 @@ type Hit =
   | { kind: "npc" }
   | { kind: "ball" }
   | { kind: "item"; key: string }
+  | { kind: "plot"; index: number }
   | { kind: "floor" }
   | { kind: "ground" };
 const ITEM = "item:";
+const PLANT_HEIGHT = 1.6;
+const PLANT_SCALE = 2.1;
+
+const plotAtScreen = (cam: ReturnType<typeof makeCamera>, x: number, y: number): number | null => {
+  const hits = PLOTS.filter((spot) => {
+    const left = cam.project([spot.x - PLOT_SIZE.w / 2, 0, spot.z]).x;
+    const right = cam.project([spot.x + PLOT_SIZE.w / 2, 0, spot.z]).x;
+    const top = cam.project([spot.x, PLANT_HEIGHT, spot.z]).y;
+    const bottom = cam.project([spot.x, 0, spot.z + PLOT_SIZE.d / 2]).y;
+    return x >= left && x <= right && y >= top && y <= bottom;
+  });
+  return hits.sort((a, b) => b.z - a.z)[0]?.index ?? null;
+};
 const NPC_POSE = { x: NPC.x, z: NPC.z, heading: NPC.heading, walking: false, arrivesAt: 0, stridePhase: 0, strideAmp: 0 };
 const NPC_TAG = "☕ Sijin Y.";
 const SEATED_WITHIN = 0.25;
