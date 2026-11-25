@@ -1,9 +1,9 @@
 import { bodyScale, FULL_OUTFITS, lookPart, nudge, type EmoteId, type Look, type MutualKind, type Pose } from "@shared/world";
 import { memo, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
-import { Ellipse, quadTransform } from "./Shapes";
+import { Ellipse, flatQuad, quadTransform } from "./Shapes";
 import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
@@ -127,7 +127,7 @@ export const hitBox = (f: Figure, look?: Look) => ({
   bottom: f.foot.y + 0.1 * f.s,
 });
 
-const quad = (pts: { x: number; y: number }[], fill: string, key: string, radius = 0) => (
+const quad = (pts: { x: number; y: number }[], fill: string, key: string, radius = 0) => Platform.OS === "android" ? flatQuad(pts, fill, key, radius) : (
   <View
     key={key}
     pointerEvents="none"

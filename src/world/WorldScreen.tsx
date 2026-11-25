@@ -39,7 +39,7 @@ import { PeoplePanel } from "./People";
 import { connectionLabel, DevotionalPromptDialog, LeaveDialog, PLACE_ICONS, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
-import { pickView } from "./view";
+import { canDrawOn, pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
 import { SettingsPanel } from "./SettingsPanel";
@@ -80,14 +80,15 @@ const useKeyboardLift = (bottomInset: number) => {
   const [lift] = useState(() => new Animated.Value(0));
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    if (Platform.OS === "web") return;
+    const ios = Platform.OS === "ios";
     const move = (toValue: number, duration: number) =>
       Animated.timing(lift, { toValue, duration: duration || 250, useNativeDriver: true }).start();
-    const show = Keyboard.addListener("keyboardWillShow", (e) => {
+    const show = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => {
       setOpen(true);
       move(-Math.max(0, e.endCoordinates.height - bottomInset + KEYBOARD_GAP), e.duration);
     });
-    const hide = Keyboard.addListener("keyboardWillHide", (e) => {
+    const hide = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", (e) => {
       setOpen(false);
       move(0, e.duration);
     });
@@ -242,9 +243,9 @@ export const WorldScreen = ({
   const offline = useOffline();
   const foreground = useForeground();
   const screenReader = useScreenReader();
-  const view = pickView({ offline, screenReader, canDraw: Platform.OS !== "android" });
+  const view = pickView({ offline, screenReader, canDraw: canDrawOn(Platform.OS, Platform.Version) });
   const away = awayKind !== null;
-  const world = useWorld(!offline && active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
+  const world = useWorld(active, awayKind === "arcade", arrival, view === "list", awayKind === "devotional");
   const wallet = useCoins();
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
