@@ -1,10 +1,11 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { ordinal, PLACE_COINS } from "@shared/coins";
 import { FARMER, NPC } from "@shared/world";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { Bust } from "./Overlays";
@@ -124,7 +125,7 @@ export const CoinsPanel = ({
         testID="world-coins-panel"
         accessibilityViewIsModal
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
         <View style={styles.hero}>
           {SPARKS.map((spark) => (
             <Animated.Text
@@ -187,7 +188,7 @@ export const CoinsPanel = ({
           <Bust look={NPC.look} size={36} />
           <Text style={styles.shopText}>{NPC.name.split(" ")[0]} in the Café sells furniture for your home.</Text>
         </View>
-        </ScrollView>
+        </SharpScrollView>
         <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="world-coins-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
           <Ionicons name="close" size={18} color={hud.forest} />
         </Pressable>
