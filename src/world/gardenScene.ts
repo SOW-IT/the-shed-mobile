@@ -385,6 +385,52 @@ export const buildGarden = (cam: Camera): Scene => {
     },
     "noticeboard"
   );
+  // The board on the left: cork in a wooden frame, with papers pinned on.
+  const notices = OBSTACLES.find((o) => o.id === "notices")!;
+  prop(
+    "notices",
+    notices.x,
+    notices.z,
+    (p) => {
+      const { x, z } = notices;
+      p.groundDisc(x + 0.25, z - 0.2, 0.75, 0.45, garden.shadow);
+      p.box(x - 0.46, 0.55, z, 0.11, 1.1, 0.11, garden.trunk);
+      p.box(x + 0.46, 0.55, z, 0.11, 1.1, 0.11, garden.trunk);
+      p.box(x, 1.28, z, 1.24, 1.06, 0.14, garden.corkFrame);
+      const frontZ = z + 0.075;
+      p.face(
+        [
+          [x - 0.52, 1.72, frontZ],
+          [x + 0.52, 1.72, frontZ],
+          [x + 0.52, 0.84, frontZ],
+          [x - 0.52, 0.84, frontZ],
+        ],
+        garden.cork
+      );
+      // Four papers, each a little askew, with a pin at the top.
+      const papers: [number, number, number, number][] = [
+        [-0.27, 1.5, 0.2, 0.05],
+        [0.2, 1.52, 0.18, -0.06],
+        [-0.22, 1.08, 0.17, -0.04],
+        [0.24, 1.1, 0.19, 0.07],
+      ];
+      papers.forEach(([dx, cy, half, tilt], i) => {
+        const cx = x + dx;
+        const corners: [number, number][] = [
+          [-half, half * 0.95],
+          [half, half * 0.95],
+          [half, -half * 0.95],
+          [-half, -half * 0.95],
+        ];
+        p.face(
+          corners.map(([px, py]) => [cx + px - py * tilt, cy + py + px * tilt, frontZ + 0.006] as [number, number, number]),
+          garden.notes[i % garden.notes.length]
+        );
+        p.ball([cx, cy + half * 0.8, frontZ + 0.02], 0.035, garden.blooms[(i + 3) % garden.blooms.length], { ink: 0.012 });
+      });
+    },
+    "notices"
+  );
   prop("basket", 3.7, 2.1, (p) => p.cylinder(3.7, 2.1, 0, 0.32, 0.24, 0.3, garden.basket));
   const arcade = OBSTACLES.find((o) => o.id === "arcade")!;
   prop(

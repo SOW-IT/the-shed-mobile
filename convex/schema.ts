@@ -304,6 +304,17 @@ export default defineSchema({
     .index("by_email_and_blockedEmail", ["email", "blockedEmail"])
     .index("by_blockedEmail", ["blockedEmail"]),
 
+  // Notices an admin pins to the World's notice board, beside each person's
+  // own notifications. Read newest first; the board holds a few dozen.
+  worldNotices: defineTable({
+    authorEmail: v.string(),
+    authorName: v.string(),
+    title: v.optional(v.string()),
+    text: v.string(),
+    editedAt: v.optional(v.number()),
+    editedBy: v.optional(v.string()),
+  }),
+
   worldVisitors: defineTable({
     email: v.string(),
     name: v.string(),

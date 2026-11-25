@@ -35,6 +35,7 @@ import { Garden, type HighlightTarget, type InteractivePropId } from "./Garden";
 import { hud } from "./palette";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
+import { NoticeBoardPanel } from "./NoticeBoard";
 import { PeoplePanel } from "./People";
 import { connectionLabel, DevotionalPromptDialog, LeaveDialog, WifiBars, WorldMenu, type MenuEntry } from "./Overlays";
 import { useWorld } from "./useWorld";
@@ -100,12 +101,14 @@ const useKeyboardLift = (bottomInset: number) => {
 
 const ARCADE = OBSTACLES.find((o) => o.id === "arcade")!;
 const NOTICEBOARD = OBSTACLES.find((o) => o.id === "noticeboard")!;
+const NOTICES = OBSTACLES.find((o) => o.id === "notices")!;
 const PIANO = PLACE_OBSTACLES.chapel.find((o) => o.id === "piano")!;
 const LECTERN = PLACE_OBSTACLES.chapel.find((o) => o.id === "lectern")!;
 
 const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
   arcade: clampTarget(ARCADE.x + 0.9, ARCADE.z + 0.9, "garden"),
   noticeboard: clampTarget(NOTICEBOARD.x - 0.2, NOTICEBOARD.z + 1.0, "garden"),
+  notices: clampTarget(NOTICES.x + 0.2, NOTICES.z + 1.0, "garden"),
   piano: clampTarget(PIANO.x + 0.2, PIANO.z + 1.1, "chapel"),
   lectern: clampTarget(LECTERN.x, LECTERN.z + 1.0, "chapel"),
 };
@@ -217,6 +220,7 @@ export const WorldScreen = ({
   onArcade,
   onCalendar,
   onPraise,
+  onOpenLink,
   onDevotional,
   active = true,
   awayKind = null,
@@ -231,6 +235,8 @@ export const WorldScreen = ({
   onArcade: () => void;
   onCalendar: () => void;
   onPraise: () => void;
+  /** Opens an app link (a notification's) over the World, which waits. */
+  onOpenLink: (url: string) => void;
   onDevotional: () => void;
   /** A sheet to open on arrival, from a link: the character editor or the poke list. */
   opening?: "character" | "poke";
@@ -249,6 +255,7 @@ export const WorldScreen = ({
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const [shopOpen, setShopOpen] = useState(false);
   const [coinsOpen, setCoinsOpen] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [decorating, setDecorating] = useState(false);
   const [chosenItem, setChosenItem] = useState<string | null>(null);
   const placeItemM = useMutation(api.worldHome.placeItem);
@@ -427,6 +434,7 @@ export const WorldScreen = ({
       if (!arrived) return;
       if (kind === "arcade") onArcade();
       else if (kind === "noticeboard") onCalendar();
+      else if (kind === "notices") setBoardOpen(true);
       else if (kind === "piano") onPraise();
       else setDevotionalAsked(true);
     }, 120);
@@ -623,6 +631,7 @@ export const WorldScreen = ({
 
   const goToArcade = () => goToObject("arcade", onArcade);
   const goToNoticeBoard = () => goToObject("noticeboard", onCalendar);
+  const goToNotices = () => goToObject("notices", () => setBoardOpen(true));
   const goToPiano = () => goToObject("piano", onPraise);
   const goToLectern = () => goToObject("lectern", () => setDevotionalAsked(true));
 
@@ -737,7 +746,7 @@ export const WorldScreen = ({
           },
         ];
 
-  const overlayOpen = shopOpen || coinsOpen || peopleOpen || sheet !== null || editing;
+  const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || sheet !== null || editing;
   const noteOver =
     note && overlayOpen ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
@@ -748,6 +757,16 @@ export const WorldScreen = ({
     ) : null;
   const sheets = (
     <>
+      <NoticeBoardPanel
+        open={boardOpen}
+        top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
+        onClose={() => setBoardOpen(false)}
+        onOpenLink={(url) => {
+          setBoardOpen(false);
+          onOpenLink(url);
+        }}
+        onNote={setNote}
+      />
       <ShopPanel
         open={shopOpen}
         top={view === "list" ? insets.top + 64 : insets.top + TOP_BAR_GAP}
@@ -906,6 +925,7 @@ export const WorldScreen = ({
                 {world.place === NPC.place ? (
                   <RoundButton icon="cart-outline" label={`Shop with ${NPC.name}`} onPress={() => setShopOpen(true)} testID="world-list-shop" />
                 ) : null}
+                <RoundButton icon="clipboard-outline" label="Notice board" onPress={() => setBoardOpen(true)} testID="world-list-notices" />
                 <RoundButton icon="settings-outline" label="Settings" onPress={() => setSettingsOpen(true)} testID="world-list-settings" />
               </View>
               {inviteCard}
@@ -985,6 +1005,7 @@ export const WorldScreen = ({
         onKick={world.kick}
         onTapArcade={goToArcade}
         onTapNoticeBoard={goToNoticeBoard}
+        onTapNotices={goToNotices}
         onTapPiano={goToPiano}
         onTapLectern={goToLectern}
         onTapSeat={sitNear}

@@ -344,6 +344,8 @@ export const OBSTACLES = [
   { id: "birdbath", x: 0, z: -2.4, rx: 0.8, rz: 0.8 },
   { id: "arcade", x: -3.1, z: 5.7, rx: 0.6, rz: 0.5 },
   { id: "noticeboard", x: 3.0, z: -6.0, rx: 0.65, rz: 0.4 },
+  // The notice board on the left: your notifications and the admins' notices.
+  { id: "notices", x: -3.0, z: -6.0, rx: 0.65, rz: 0.4 },
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 

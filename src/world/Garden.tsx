@@ -67,10 +67,10 @@ type GardenPerson = {
   typing?: number;
 };
 
-export type InteractivePropId = "arcade" | "noticeboard" | "piano" | "lectern";
+export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
 export type HighlightTarget = { kind: "prop"; id: InteractivePropId } | { kind: "seat"; id: string };
 
-const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "piano", "lectern"]);
+const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "notices", "piano", "lectern"]);
 const isInteractiveProp = (value: string | undefined): value is InteractivePropId =>
   value !== undefined && INTERACTIVE_PROPS.has(value);
 
@@ -119,6 +119,7 @@ export const Garden = ({
   onTapPerson,
   onTapArcade,
   onTapNoticeBoard,
+  onTapNotices,
   onTapPiano,
   onTapLectern,
   onTapSeat,
@@ -149,6 +150,8 @@ export const Garden = ({
   onTapPerson: (memberId: string) => void;
   onTapArcade: () => void;
   onTapNoticeBoard?: () => void;
+  /** The board on the left: your notifications and the admins' notices. */
+  onTapNotices?: () => void;
   onTapPiano?: () => void;
   onTapLectern?: () => void;
   onTapSeat: (seatId: string) => void;
@@ -370,8 +373,7 @@ export const Garden = ({
     timer: ReturnType<typeof setTimeout> | null;
     /** The last point of this press that was on the ground. */
     spot: { x: number; z: number } | null;
-    backSwipe: boolean;
-  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null, backSwipe: false });
+  }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null });
 
   /** Where a touch is on the stage. Children don't take touches, so it's the stage's own. */
   const where = (e: GestureResponderEvent) => {
@@ -448,12 +450,12 @@ export const Garden = ({
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
     if (hit.kind === "item" || hit.kind === "floor") {
-      press.current = { ...at, hit, walking: false, timer: null, spot: null, backSwipe: false };
+      press.current = { ...at, hit, walking: false, timer: null, spot: null };
       return;
     }
-    const backSwipe = Platform.OS === "ios" && at.x < BACK_SWIPE_EDGE && hit.kind === "ground";
-    press.current = { ...at, hit, walking: hit.kind === "ground" && !backSwipe, timer: null, spot: null, backSwipe };
-    if (backSwipe) return;
+    // The World has no swipe back (you leave from its menu), so a touch at the
+    // screen's edge walks like anywhere else.
+    press.current = { ...at, hit, walking: hit.kind === "ground", timer: null, spot: null };
     if (hit.kind === "ground") walkFrom(at.x, at.y, "start");
     else {
       press.current.timer = setTimeout(() => {
@@ -467,7 +469,7 @@ export const Garden = ({
   const onMove = (e: GestureResponderEvent) => {
     const at = where(e);
     const p = press.current;
-    if (!at || p.backSwipe || p.hit.kind === "item" || p.hit.kind === "floor") return;
+    if (!at || p.hit.kind === "item" || p.hit.kind === "floor") return;
     if (!p.walking) {
       if (Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
       if (p.timer) clearTimeout(p.timer);
@@ -482,11 +484,11 @@ export const Garden = ({
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
     const at = where(e) ?? p;
-    if (p.backSwipe) return;
     if (p.walking) return walkFrom(at.x, at.y, "end");
     if (p.hit.kind === "person") onTapPerson(p.hit.id);
     else if (p.hit.kind === "arcade") onTapArcade();
     else if (p.hit.kind === "noticeboard") onTapNoticeBoard?.();
+    else if (p.hit.kind === "notices") onTapNotices?.();
     else if (p.hit.kind === "piano") onTapPiano?.();
     else if (p.hit.kind === "lectern") onTapLectern?.();
     else if (p.hit.kind === "seat") onTapSeat(p.hit.id);
@@ -795,6 +797,7 @@ type Hit =
   | { kind: "person"; id: string }
   | { kind: "arcade" }
   | { kind: "noticeboard" }
+  | { kind: "notices" }
   | { kind: "piano" }
   | { kind: "lectern" }
   | { kind: "seat"; id: string }
@@ -875,7 +878,6 @@ const Spark = ({ x, y, size, t }: { x: number; y: number; size: number; t: numbe
   );
 };
 
-const BACK_SWIPE_EDGE = 24;
 /** Holding this long on a person or the arcade walks instead of opening them. */
 const HOLD_TO_WALK_MS = 300;
 /** A finger that moves this far (pixels) is dragging, not tapping. */
