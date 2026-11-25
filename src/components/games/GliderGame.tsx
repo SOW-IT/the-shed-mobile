@@ -1,15 +1,16 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
+import type { Size } from "@/lib/games/fit";
 import {
   colourAt,
   blend,
-  dayProgress,
+  parallaxShift,
   GLIDER,
   groundAt,
   hold,
   newGlider,
   previewGlider,
-  resize,
   stepGlider,
   viewSize,
   worldProgress,
@@ -24,12 +25,13 @@ import type { Look } from "@shared/world";
 import { memo, useEffect, useMemo, useState } from "react";
 import { PanResponder, Platform, StyleSheet, Text, View } from "react-native";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
-import { GameFrame, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
 import { Sideways, useSideways } from "./Sideways";
 
 const c = fixedColours.games.glider;
-const MAX_BOARD = { width: 1400, height: 720 };
+const BOARD_WIDTH = GAME_VIEWS.glider.size;
+const PHONE_BOARD = { width: BOARD_WIDTH, height: 334 };
 const HOLD_KEYS = new Set([" ", "ArrowDown", "s", "S"]);
 const START_HINT =
   Platform.OS === "web" ? "Hold the screen, or space, to start. Hold to dive, let go to fly." : "Hold to start.";
@@ -246,14 +248,16 @@ const FarHills = ({ shift, width, colour, size, top }: { shift: number; width: n
 };
 
 const Scene = ({ state, width, height, look }: { state: GliderState; width: number; height: number; look: Look | null }) => {
-  const progress = dayProgress(state);
+  const reach = useBoardReach();
+  const progress = state.daySeen;
   const sky = colourAt(c.sky, progress);
   const { camera } = state;
   const view = viewSize(width / height, camera.zoom);
   const px = height / view.height;
+  const steadyPx = height / viewSize(width / height, 1).height;
   const top = camera.y + view.height;
-  const first = Math.floor(camera.x / CHUNK) - 1;
-  const last = Math.floor((camera.x + view.width) / CHUNK);
+  const first = Math.floor((camera.x - reach.left / px) / CHUNK) - 1;
+  const last = Math.floor((camera.x + view.width + reach.right / px) / CHUNK);
   const chunks = [];
   for (let i = Math.max(-1, first); i <= last; i++) chunks.push(i);
   const screenX = (x: number) => (x - camera.x) * px;
@@ -289,8 +293,22 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ]}
         testID="glider-sun"
       />
-      <FarHills shift={camera.x * px * 0.1} width={width} colour={blend(c.farHill, c.night, dusk * 0.6)} size={height * 0.42} top={height * 0.42} />
-      <FarHills shift={camera.x * px * 0.22} width={width} colour={blend(c.nearHill, c.night, dusk * 0.6)} size={height * 0.32} top={height * 0.6} />
+      <View style={[styles.reach, { left: -reach.left, width: width + reach.left + reach.right, height }]} pointerEvents="none">
+        <FarHills
+          shift={parallaxShift(camera.x, "far") * steadyPx - reach.left}
+          width={width + reach.left + reach.right}
+          colour={blend(c.farHill, c.night, dusk * 0.6)}
+          size={height * 0.42}
+          top={height * 0.42}
+        />
+        <FarHills
+          shift={parallaxShift(camera.x, "near") * steadyPx - reach.left}
+          width={width + reach.left + reach.right}
+          colour={blend(c.nearHill, c.night, dusk * 0.6)}
+          size={height * 0.32}
+          top={height * 0.6}
+        />
+      </View>
       <View
         style={[
           styles.world,
@@ -304,9 +322,19 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         {chunks.map((index) => (
           <GrassChunk key={`g${index}`} hills={state.hills} index={index} />
         ))}
-        <FinishFlag x={state.worldEnd} y={groundAt(state.hills, state.worldEnd).y} world={state.world} />
       </View>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: c.night, opacity: dusk * 0.45 }]} pointerEvents="none" />
+      <View style={[styles.flagClip, { width, height }]} pointerEvents="none">
+        <View style={[styles.world, { transform: [{ translateX: -camera.x * px }, { translateY: top * px }, { scale: px }] }]}>
+          <FinishFlag x={state.worldEnd} y={groundAt(state.hills, state.worldEnd).y} world={state.world} />
+        </View>
+      </View>
+      <View
+        style={[
+          styles.reach,
+          { left: -reach.left, top: -reach.top, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.night, opacity: dusk * 0.45 },
+        ]}
+        pointerEvents="none"
+      />
       <View
         style={[
           styles.bird,
@@ -352,21 +380,14 @@ export const GliderGame = ({
   const look = useGameLook("glider");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
-  const aspect = height > 0 ? width / height : 2;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
+  const aspect = width / height;
   const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect)), [scene, aspect]);
   const inputOn = active && !session.paused;
   const latest = useLatest({ session, aspect });
 
   useGameLoop(phase === "playing" && inputOn, (dt) => setRun((state) => state && advance(state, dt, stepGlider)));
-  // A turned phone or a resized window changes what the camera shows, not the run.
-  useEffect(() => {
-    if (height > 0) setRun((state) => state && resize(state, aspect));
-  }, [aspect, height, setRun]);
-
   // Input switched off (the leave dialog, another screen in front): a
   // release in the meantime goes unheard, so the bird lets go now.
   useEffect(() => {
@@ -408,7 +429,7 @@ export const GliderGame = ({
   );
 
   const shown = run ?? preview;
-  const progress = dayProgress(shown);
+  const progress = shown.daySeen;
   const sky = colourAt(c.sky, progress);
   // Past dusk the sky is dark: white score bar and status bar.
   const dark = progress > 0.86;
@@ -420,8 +441,8 @@ export const GliderGame = ({
       statusBar={dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      onStageLayout={onStageLayout}
+      world={run ? { width: BOARD_WIDTH, height: BOARD_WIDTH / run.aspect } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={START_HINT}
       startExtra={
@@ -440,11 +461,11 @@ export const GliderGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      {board ? <Scene state={shown} width={width} height={height} look={look} /> : null}
+      <Scene state={shown} width={BOARD_WIDTH} height={BOARD_WIDTH / shown.aspect} look={look} />
     </GameFrame>
   );
   return (
-    <Sideways turned={turned} background={sky}>
+    <Sideways turned={turned}>
       {frame}
     </Sideways>
   );
@@ -472,6 +493,8 @@ const styles = StyleSheet.create({
   star: { position: "absolute", width: 3, height: 3, borderRadius: 1.5 },
   sun: { position: "absolute", left: 0, top: 0 },
   farHill: { position: "absolute" },
+  reach: { position: "absolute", top: 0 },
+  flagClip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   bird: { position: "absolute", left: 0, top: 0, width: BIRD, height: BIRD, transformOrigin: "bottom center" },
   birdBox: { width: BIRD, height: BIRD, alignItems: "center", justifyContent: "flex-end" },
   squash: { transform: [{ scaleX: 1.12 }, { scaleY: 0.86 }], transformOrigin: "bottom center" },

@@ -1,7 +1,7 @@
 // Flap: tap to flap through the gaps in the pipes. Ten points a gap, and a
 // point a second for staying alive. Pure: each step takes a state and returns
 // the next. y grows downward, as on screen.
-import { between } from "./random";
+import { between, random } from "./random";
 
 export const FLAPPY = {
   /** The bird's x, as a share of the board's width. */
@@ -20,6 +20,10 @@ export const FLAPPY = {
   narrowestGap: 150,
   /** The score by which about two thirds of the speed-up and narrowing is done. */
   rampScore: 250,
+  closestSpacing: 180,
+  farthestSpacing: 300,
+  varietyScore: 400,
+  leastJumpShare: 0.6,
 } as const;
 
 export type Pipe = { id: number; x: number; gapTop: number; gapHeight: number; passed: boolean };
@@ -36,6 +40,7 @@ export type FlappyState = {
   pipes: Pipe[];
   /** Distance until the next pipe appears at the right edge. */
   nextIn: number;
+  space: number;
   nextId: number;
   seed: number;
 };
@@ -51,6 +56,7 @@ export const newFlappy = (width: number, height: number, seed: number): FlappySt
   vy: 0,
   pipes: [],
   nextIn: width * 0.55,
+  space: FLAPPY.spacing,
   nextId: 1,
   seed,
 });
@@ -74,18 +80,33 @@ const flappyScore = (gaps: number, time: number) => gaps * FLAPPY.pointsPerGap +
 export const MAX_GAP_RISE = 240;
 export const MAX_GAP_DROP = 320;
 
+export const variety = (score: number) => 1 - Math.exp(-Math.max(0, score) / FLAPPY.varietyScore);
+
+export const reachShare = (space: number) =>
+  Math.min(1, (space - FLAPPY.pipeWidth) / (FLAPPY.spacing - FLAPPY.pipeWidth));
+
+const nextSpace = (state: FlappyState) => {
+  const v = variety(state.score);
+  return between(state, FLAPPY.spacing - (FLAPPY.spacing - FLAPPY.closestSpacing) * v, FLAPPY.spacing + (FLAPPY.farthestSpacing - FLAPPY.spacing) * v);
+};
+
+const nextGapTop = (state: FlappyState, gap: number) => {
+  const top = 60;
+  const bottom = Math.max(61, state.height - FLAPPY.groundHeight - 60 - gap);
+  const previous = state.pipes.at(-1)?.gapTop;
+  if (previous === undefined) return between(state, top, bottom);
+  const reach = reachShare(state.space);
+  const rise = Math.max(0, Math.min(previous - top, MAX_GAP_RISE * reach));
+  const drop = Math.max(0, Math.min(bottom - previous, MAX_GAP_DROP * reach));
+  const up = random(state) * (rise + drop) < rise;
+  const jump = (up ? rise : drop) * between(state, FLAPPY.leastJumpShare * variety(state.score), 1);
+  return Math.max(top, Math.min(bottom, previous + (up ? -jump : jump)));
+};
+
 const newPipe = (state: FlappyState): Pipe => {
   const gap = gapHeight(state.score);
-  const floor = state.height - FLAPPY.groundHeight;
-  const previous = state.pipes.at(-1)?.gapTop;
-  let low = 60;
-  let high = Math.max(61, floor - 60 - gap);
-  if (previous !== undefined) {
-    low = Math.max(low, previous - MAX_GAP_RISE);
-    high = Math.max(low + 1, Math.min(high, previous + MAX_GAP_DROP));
-  }
-  const gapTop = between(state, low, high);
-  return { id: state.nextId++, x: state.width + 4, gapTop, gapHeight: gap, passed: false };
+  const gapTop = nextGapTop(state, gap);
+  return { id: state.nextId++, x: state.width + 4 + Math.min(0, state.nextIn), gapTop, gapHeight: gap, passed: false };
 };
 
 const hitsPipe = (state: FlappyState, pipe: Pipe) => {
@@ -120,7 +141,8 @@ export const stepFlappy = (previous: FlappyState, dt: number): FlappyState => {
   state.nextIn -= travelled;
   if (state.nextIn <= 0) {
     pipes.push(newPipe(state));
-    state.nextIn += FLAPPY.spacing;
+    state.space = nextSpace(state);
+    state.nextIn += state.space;
   }
   state.pipes = pipes;
 

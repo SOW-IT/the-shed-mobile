@@ -26,6 +26,7 @@ import {
   minimumGap,
   comboGap,
   COMBO_FROM_SECONDS,
+  HARD_FROM_SECONDS,
   longestCombo,
   MAX_COMBO,
   type PatternKind,
@@ -132,7 +133,8 @@ describe("runner", () => {
   test("speeds up over time, up to a top speed, and scores the distance", () => {
     expect(runnerSpeed(0)).toBe(RUNNER.startSpeed);
     expect(runnerSpeed(10)).toBeGreaterThan(RUNNER.startSpeed);
-    expect(runnerSpeed(1000)).toBe(RUNNER.topSpeed);
+    expect(runnerSpeed(1000)).toBeGreaterThan(RUNNER.topSpeed);
+    expect(runnerSpeed(1e6)).toBeLessThanOrEqual(RUNNER.ceilingSpeed);
     const state = runFor(blank(), 2, stepRunner);
     expect(state.score).toBe(Math.floor(state.distance / RUNNER.stride));
     expect(state.score).toBeGreaterThan(40);
@@ -302,7 +304,7 @@ describe("runner", () => {
     expect(longestCombo(COMBO_FROM_SECONDS - 1)).toBe(0);
     expect(longestCombo(COMBO_FROM_SECONDS)).toBe(2);
     expect(longestCombo(60)).toBeGreaterThan(longestCombo(30));
-    expect(longestCombo(10_000)).toBe(MAX_COMBO);
+    expect(longestCombo(HARD_FROM_SECONDS - 1)).toBe(MAX_COMBO);
   });
 
   test("combos leave room for a human: a little early or a little late still clears them", () => {
@@ -325,7 +327,7 @@ describe("runner", () => {
     }
     expect(combos).toBeGreaterThan(100);
     // Late in a run they reach the longest there is.
-    expect(longest).toBe(MAX_COMBO);
+    expect(longest).toBeGreaterThanOrEqual(MAX_COMBO);
   });
 
   test("a preview board shows the asked-for patterns in order, sized for the given time", () => {

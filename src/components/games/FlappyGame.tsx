@@ -4,14 +4,16 @@ import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
-import { GameFrame, startHintFor, useGameSession, useLatest, useStage } from "./GameFrame";
+import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
-import { fitBoard } from "@/lib/games/fit";
+import { GAME_VIEWS } from "@/lib/games/playArea";
+import { useBoardReach } from "./boardReach";
+import type { Size } from "@/lib/games/fit";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
 import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
-const MAX_BOARD = { width: 720, height: 1400 };
+const PHONE_BOARD = { width: GAME_VIEWS.flappy.size, height: 700 };
 const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
 const CLOUDS = [
@@ -48,6 +50,7 @@ const Bird = ({ state, look: wanted }: { state: FlappyState; look: Look | null }
   const box = look ? HEAD : size + 6;
   return (
     <View
+      testID="flappy-bird"
       style={[
         styles.bird,
         {
@@ -67,6 +70,7 @@ const Bird = ({ state, look: wanted }: { state: FlappyState; look: Look | null }
 };
 
 const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
+  const reach = useBoardReach();
   const floor = state.height - FLAPPY.groundHeight;
   const grassShift = -((state.time * 160) % 24);
   return (
@@ -80,6 +84,7 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
           ]}
         />
       ))}
+      <View style={[styles.clip, { width: state.width, height: state.height }]} pointerEvents="none">
       {state.pipes.map((pipe) => (
         <View key={pipe.id} style={[styles.pipeColumn, { transform: [{ translateX: pipe.x }] }]}>
           <View
@@ -98,10 +103,11 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
           />
         </View>
       ))}
-      <View style={[styles.ground, { top: floor, backgroundColor: c.ground }]}>
+      </View>
+      <View style={[styles.ground, { top: floor, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.ground }]}>
         <View style={[styles.grass, { backgroundColor: c.grass }]}>
           <View style={[styles.tufts, { transform: [{ translateX: grassShift }] }]}>
-            {Array.from({ length: Math.ceil(state.width / 24) + 2 }, (_, i) => (
+            {Array.from({ length: Math.ceil((state.width + reach.left + reach.right) / 24) + 2 }, (_, i) => (
               <View key={`tuft-${i}`} style={[styles.tuft, { backgroundColor: c.pipeEdge }]} />
             ))}
           </View>
@@ -127,10 +133,8 @@ export const FlappyGame = ({
   const session = useGameSession<FlappyState>("flappy");
   const look = useGameLook("flappy");
   const { run, setRun, phase } = session;
-  const [stage, onStageLayout] = useStage();
-  const board = stage && fitBoard(stage, MAX_BOARD);
-  const width = board?.width ?? 0;
-  const height = board?.height ?? 0;
+  const [board, setBoard] = useState<Size | null>(null);
+  const { width, height } = board ?? PHONE_BOARD;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
   const latest = useLatest({ session, width, height });
   const scene = run ?? preview;
@@ -166,9 +170,8 @@ export const FlappyGame = ({
       ink={c.eye}
       session={session}
       score={run?.score ?? 0}
-      board={board}
-      world={run ? { width: run.width, height: run.height } : null}
-      onStageLayout={onStageLayout}
+      world={run ? { width: run.width, height: run.height } : board}
+      onBoard={setBoard}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Tap", "press space")}
       startExtra={
@@ -181,13 +184,8 @@ export const FlappyGame = ({
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}
-      ground={{
-        top: scene.height - FLAPPY.groundHeight,
-        colour: c.ground,
-        band: { colour: c.grass, height: GRASS_HEIGHT },
-      }}
     >
-      {board ? <Scene state={scene} look={look} /> : null}
+      <Scene state={scene} look={look} />
     </GameFrame>
   );
 };
@@ -202,7 +200,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderRadius: 6,
   },
-  ground: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  ground: { position: "absolute" },
+  clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   grass: { height: GRASS_HEIGHT, overflow: "hidden" },
   tufts: { flexDirection: "row", gap: 14, marginTop: 9 },
   tuft: { width: 10, height: 5, borderRadius: 2 },
