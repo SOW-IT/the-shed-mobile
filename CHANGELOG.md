@@ -27,9 +27,9 @@ All notable changes to **The SHED** mobile app. This project follows
   tunnel and a gauntlet by 100,000. Two vines in a row from 10,000 and a
   rock step from 15,000.
 - **Flap.** A point for each pipe, and nothing for time. Pipes come at a
-  steady rhythm. The opening narrows a little with every pipe until pipe
-  150, where it stays just wide enough for a flap, and the pipes speed up
-  until pipe 100. The sky drifts from afternoon through sunset to night
+  steady rhythm. The opening narrows a little with every pipe and the
+  pipes speed up, both until pipe 100, where the opening stays just wide
+  enough for a flap. The sky drifts from afternoon through sunset to night
   by pipe 200 and stays dark, with the ground and clouds darkening along
   with it. The board stays phone-shaped: on an iPad or a wide window it
   gets black side borders instead of growing wider.
