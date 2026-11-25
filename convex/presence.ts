@@ -1,24 +1,65 @@
+import { v } from "convex/values";
+import { shouldWriteAppSeen } from "../shared/appPresence";
 import { staffEmailCandidates } from "../shared/rollcallImport";
-import { mutation, QueryCtx } from "./_generated/server";
+import { mutation, MutationCtx, QueryCtx } from "./_generated/server";
 import { optionalEmail } from "./model";
 
 export const SEEN_WRITE_INTERVAL_MS = 5 * 60_000;
 
 const RECENT_SESSIONS = 20;
 
+const touchLastSeen = async (ctx: MutationCtx, email: string, now: number, gap: number) => {
+  const existing = await ctx.db
+    .query("lastSeen")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+  if (existing && now - existing.at < gap) return;
+  if (existing) await ctx.db.patch("lastSeen", existing._id, { at: now });
+  else await ctx.db.insert("lastSeen", { email, at: now });
+};
+
+export const appPresenceOf = (ctx: QueryCtx, email: string) =>
+  ctx.db
+    .query("appPresence")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
 export const markSeen = mutation({
   args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const email = await optionalEmail(ctx);
+    if (email) await touchLastSeen(ctx, email, Date.now(), SEEN_WRITE_INTERVAL_MS);
+    return null;
+  },
+});
+
+export const appHeartbeat = mutation({
+  args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
     const now = Date.now();
-    const existing = await ctx.db
-      .query("lastSeen")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
-    if (existing && now - existing.at < SEEN_WRITE_INTERVAL_MS) return null;
-    if (existing) await ctx.db.patch("lastSeen", existing._id, { at: now });
-    else await ctx.db.insert("lastSeen", { email, at: now });
+    await touchLastSeen(ctx, email, now, SEEN_WRITE_INTERVAL_MS);
+    const row = await appPresenceOf(ctx, email);
+    if (!shouldWriteAppSeen(row?.appSeenAt, now)) return null;
+    if (row) await ctx.db.patch("appPresence", row._id, { appSeenAt: now });
+    else await ctx.db.insert("appPresence", { email, appSeenAt: now });
+    return null;
+  },
+});
+
+export const appAway = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const row = await appPresenceOf(ctx, email);
+    if (!row) return null;
+    await touchLastSeen(ctx, email, Date.now(), 0);
+    await ctx.db.delete("appPresence", row._id);
     return null;
   },
 });
@@ -49,6 +90,7 @@ export async function lastOnlineAt(ctx: QueryCtx, email: string): Promise<number
       .withIndex("by_email", (q) => q.eq("email", candidate))
       .unique();
     saw(seen?.at);
+    saw((await appPresenceOf(ctx, candidate))?.appSeenAt);
     const installs = await ctx.db
       .query("appInstalls")
       .withIndex("by_email_and_platform", (q) => q.eq("email", candidate))
