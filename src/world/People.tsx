@@ -225,6 +225,7 @@ export const PeoplePanel = ({
   onClose,
   pokeListOpen = false,
   showPlaces = false,
+  playing,
 }: {
   open: boolean;
   top: number;
@@ -241,6 +242,7 @@ export const PeoplePanel = ({
   onClose: () => void;
   pokeListOpen?: boolean;
   showPlaces?: boolean;
+  playing?: ReadonlyMap<string, string>;
 }) => {
   const overlay = useOverlayClock(open);
   const { width, height } = useWindowDimensions();
@@ -288,7 +290,7 @@ export const PeoplePanel = ({
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
-                where={p.away ? "🕹️ At the arcade" : placeLabel(place)}
+                where={p.away ? "🕹️ At the arcade" : (playing?.get(p.memberId) ?? placeLabel(place))}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${shortName(p.name)} (you)` : shortName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}

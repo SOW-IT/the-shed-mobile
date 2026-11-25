@@ -327,3 +327,17 @@ export const shade = (hex: string, amount: number): string => {
   shadeCache.set(key, result);
   return result;
 };
+
+export const cafe = {
+  board: "#F1E6CC",
+  hole: "#E2D3B0",
+  edge: "#0F2523",
+  a: "#C9603A",
+  b: "#1D4A41",
+  aSoft: "#F6E3D8",
+  bSoft: "#DCE8E0",
+  line: "#0F2523",
+  emptyLine: "rgba(15, 37, 35, 0.14)",
+  win: "#F6D365",
+  last: "#FFFEF8",
+} as const;

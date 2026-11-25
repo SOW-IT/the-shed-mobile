@@ -66,6 +66,7 @@ type GardenPerson = {
   reading?: boolean;
   seat?: string;
   typing?: number;
+  playing?: string;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "piano" | "lectern";
@@ -628,7 +629,7 @@ export const Garden = ({
     const head = cam.project([pose.x, headTop(p.look) + figure.bob + seatRise - (swimming ? swimSink(p.look) : 0), pose.z]);
     const name = p.me ? "You" : shortName(p.name);
     const typing = line || waiting ? undefined : typingSince[i];
-    const speaking = Boolean(line || waiting || emote || p.away || p.reading) || typing !== undefined;
+    const speaking = Boolean(line || waiting || emote || p.away || p.reading || p.playing) || typing !== undefined;
     if (!tagShown({ mode: tagMode, me: p.me, distance: mine ? Math.hypot(pose.x - mine.x, pose.z - mine.z) : null, speaking })) return;
     actors.push({
       depth: figure.foot.depth,
@@ -645,7 +646,7 @@ export const Garden = ({
           emote={emote}
           emoteRise={rise}
           lineFade={line && !chant ? bubbleFades[i] : 1}
-          status={p.away ? AWAY_STATUS : undefined}
+          status={p.away ? AWAY_STATUS : p.playing}
           reading={p.reading}
           shout={chant !== undefined && SHOUTS.has(chant)}
           calm={saver}

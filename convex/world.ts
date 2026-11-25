@@ -72,6 +72,7 @@ import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, 
 import { sanitizePath } from "../shared/worldPath";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, optionalEmail, requireEmail, resolveName } from "./model";
+import { cafeMoved, cafeSat } from "./cafeGames";
 
 // Shed World, the Garden. See docs/context/world.md for the write budget.
 // Every mutation writes at most the caller's own state row, plus their
@@ -277,6 +278,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
     await markSeen(ctx, member.email, member.name, now, leftAt);
   }
   if (state) await ctx.db.delete("worldState", state._id);
+  await cafeMoved(ctx, member.email, null, Date.now());
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
   const ping = await pingOf(ctx, member._id);
@@ -424,6 +426,7 @@ const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: D
   if (here.memberCount <= 1) await deleteRoom(ctx, here._id);
   else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
+  await cafeMoved(ctx, member.email, room._id, Date.now());
 };
 
 const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: number; z: number }, now: number, except?: Id<"worldMembers">) => {
@@ -513,6 +516,7 @@ export const join = mutation({
       });
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
+      await cafeMoved(ctx, email, room._id, now);
       await markSeen(ctx, email, member.name, now);
       await addChatLine(ctx, member, joinedLine(member), now);
     } else {
@@ -622,6 +626,7 @@ export const sit = mutation({
       seat: seat.id,
       moveBucket: token.bucket,
     });
+    await cafeSat(ctx, member, seat.id, now);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, ...walk, serverNow: now };
   },

@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { WorldMember } from "./useWorld";
 import { shortName } from "@shared/names";
+import { CafeRecord } from "./CafeGames";
 
 export const problem = (e: unknown) => (e instanceof ConvexError ? String(e.data) : "That didn't work. Try again.");
 
@@ -23,6 +24,7 @@ export const PersonSheet = ({
   onWave,
   onHighFive,
   onDuel,
+  onPlay,
   onClose,
   onDone,
 }: {
@@ -33,6 +35,7 @@ export const PersonSheet = ({
   onWave: () => void;
   onHighFive: (to: Id<"worldMembers">) => void;
   onDuel: (to: Id<"worldMembers">) => void;
+  onPlay?: (to: Id<"worldMembers">) => void;
   onClose: () => void;
   onDone: (note: string) => void;
 }) => {
@@ -85,6 +88,14 @@ export const PersonSheet = ({
         </View>
       ) : (
         <View style={styles.stack}>
+          {person ? <CafeRecord memberId={person.memberId} testID="world-person-record" /> : null}
+          {onPlay ? (
+            <Btn
+              title="Play a game"
+              icon="dice-outline"
+              onPress={() => onPlay(person!.memberId)}
+            />
+          ) : null}
           {safetyOnly ? null : (
             <>
             <Btn
