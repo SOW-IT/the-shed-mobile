@@ -430,6 +430,7 @@ export default defineSchema({
     invitedBy: v.optional(v.string()),
     invitedAt: v.number(),
     joinedAt: v.optional(v.number()),
+    joinedOn: v.optional(v.string()),
   })
     .index("by_groupId_and_email", ["groupId", "email"])
     .index("by_groupId_and_status", ["groupId", "status"])

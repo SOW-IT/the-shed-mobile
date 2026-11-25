@@ -251,8 +251,9 @@ export const DevotionalGroupScreen = ({
 
   const todayInRange = isDateInRange(today, group.startDate, group.endDate);
   const todayDone = group.todayDone ?? 0;
-  const todayRatio = group.memberCount > 0 ? Math.min(1, todayDone / group.memberCount) : 0;
-  const todayAllDone = todayInRange && group.memberCount > 0 && todayDone >= group.memberCount;
+  const todayTotal = group.todayTotal ?? group.memberCount;
+  const todayRatio = todayTotal > 0 ? Math.min(1, todayDone / todayTotal) : 0;
+  const todayAllDone = todayInRange && todayTotal > 0 && todayDone >= todayTotal;
 
   const handleEdit = async (values: GroupFormValues) => {
     await updateGroup({ groupId, ...values });
@@ -288,7 +289,7 @@ export const DevotionalGroupScreen = ({
             <View style={styles.todayTop} testID="group-today-progress">
               <View style={styles.todayNumbers}>
                 <Text style={[typography.title, { color: t.text }]}>
-                  {todayDone} of {group.memberCount} done today
+                  {todayDone} of {todayTotal} done today
                 </Text>
                 <Text style={[typography.caption, { color: todayAllDone ? t.success : t.muted }]}>
                   {todayAllDone
@@ -390,7 +391,7 @@ export const DevotionalGroupScreen = ({
               {week.map((cell) => {
                 const inRange = cell.inMonth && isDateInRange(cell.key, group.startDate, group.endDate);
                 const future = isFutureDevotionalDate(cell.key, today);
-                const total = progress?.totalMembers ?? group.memberCount;
+                const total = progress?.dayTotals[cell.key] ?? group.memberCount;
                 const done = progress?.doneCounts[cell.key] ?? 0;
                 const tier = completionTier(done, total, future);
                 const palette = t.devoCalendar[tier];

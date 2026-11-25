@@ -18,7 +18,7 @@ export const SHARING_LEVEL_LABELS: Record<DevotionalSharingLevel, string> = {
   everything: "Everything",
 };
 
-export const INVITE_SHARING_NOTE = "If you accept, the group sees your progress for all its days, including days before you joined.";
+export const INVITE_SHARING_NOTE = "Shares from the day you join.";
 
 export const SHARING_LEVEL_DESCRIPTIONS: Record<DevotionalSharingLevel, string> = {
   count: "Whether you did it that day",

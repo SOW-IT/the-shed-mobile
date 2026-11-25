@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { completionTier } from "../shared/devotionalGroups";
 import { api, internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { asUser, newConvex } from "../test/convexFixture";
 
 const ANNA = "anna@sow.org.au";
@@ -16,10 +18,31 @@ const seedUsers = async (t: ReturnType<typeof newConvex>) => {
   }));
 };
 
+const NOW = Date.UTC(2026, 10, 25, 2, 0);
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(Date.UTC(2026, 10, 25, 2, 0));
+  vi.setSystemTime(NOW);
 });
+
+const NOV_1 = Date.UTC(2026, 10, 1, 2, 0);
+
+const acceptAt = async (
+  user: ReturnType<typeof asUser>,
+  groupId: Id<"devotionalGroups">,
+  at: number
+) => {
+  vi.setSystemTime(at);
+  await user.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+};
+
+const dayTotalsFrom = (from: string, to: string, count: number) => {
+  const totals: Record<string, number> = {};
+  for (let day = Number(from.slice(8)); day <= Number(to.slice(8)); day++) {
+    totals[`${from.slice(0, 8)}${String(day).padStart(2, "0")}`] = count;
+  }
+  return totals;
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -155,6 +178,7 @@ describe("devotional groups", () => {
   });
 
   test("enforces effective sharing level (lower of group and person) and done rule", async () => {
+    vi.setSystemTime(NOV_1);
     const t = newConvex();
     await seedUsers(t);
     const anna = asUser(t, ANNA);
@@ -182,10 +206,11 @@ describe("devotional groups", () => {
 
     for (const gid of [everythingGroup, passageGroup, countGroup]) {
       await anna.mutation(api.devotionalGroups.invite, { groupId: gid, email: BEN });
-      await ben.mutation(api.devotionalGroups.respondInvite, { groupId: gid, accept: true });
+      await acceptAt(ben, gid, NOV_1);
       await anna.mutation(api.devotionalGroups.invite, { groupId: gid, email: CARA });
-      await cara.mutation(api.devotionalGroups.respondInvite, { groupId: gid, accept: true });
+      await acceptAt(cara, gid, NOV_1);
     }
+    vi.setSystemTime(NOW);
 
     await anna.mutation(api.devotionals.save, {
       date: "2026-11-20",
@@ -293,6 +318,7 @@ describe("devotional groups", () => {
   });
 
   test("handles decline, leave, owner cannot leave, owner edits, and date range limits", async () => {
+    vi.setSystemTime(NOV_1);
     const t = newConvex();
     await seedUsers(t);
     const anna = asUser(t, ANNA);
@@ -319,7 +345,8 @@ describe("devotional groups", () => {
     await cara.mutation(api.devotionalGroups.respondInvite, { groupId, accept: false });
     expect(await cara.query(api.devotionalGroups.getGroup, { groupId, today: "2026-11-25" })).toBeNull();
 
-    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    await acceptAt(ben, groupId, NOV_1);
+    vi.setSystemTime(NOW);
 
     await anna.mutation(api.devotionals.save, {
       date: "2026-11-05",
@@ -360,6 +387,7 @@ describe("devotional groups", () => {
       month: 11,
       totalMembers: 2,
       doneCounts: { "2026-11-15": 2 },
+      dayTotals: dayTotalsFrom("2026-11-10", "2026-11-30", 2),
     });
 
     const octProgress = await ben.query(api.devotionalGroups.monthProgress, {
@@ -372,6 +400,7 @@ describe("devotional groups", () => {
       month: 10,
       totalMembers: 2,
       doneCounts: {},
+      dayTotals: {},
     });
 
     await anna.mutation(api.devotionalGroups.update, {
@@ -922,4 +951,126 @@ test("the 8pm reminder pages through groups in batches and still sends once per 
 
   const logs = await t.run((ctx) => ctx.db.query("devotionalReminderLogs").collect());
   expect(logs.map((l) => l.email).sort()).toEqual([BEN, CARA]);
+});
+
+describe("late joiners share from the day they join", () => {
+  const save = (user: ReturnType<typeof asUser>, date: string, verse: number) =>
+    user.mutation(api.devotionals.save, {
+      date,
+      passage: `Psalm ${Number(date.slice(8))}:${verse}`,
+      notes: "Notes",
+      prayerPoints: "Prayer",
+      base: null,
+    });
+
+  const setUp = async () => {
+    vi.setSystemTime(NOV_1);
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "November Devos",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "everything",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await acceptAt(ben, groupId, NOV_1);
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+    await acceptAt(cara, groupId, Date.UTC(2026, 10, 19, 14, 30));
+    vi.setSystemTime(NOW);
+    for (const date of ["2026-11-10", "2026-11-22"]) {
+      await save(anna, date, 1);
+      await save(ben, date, 2);
+      await save(cara, date, 3);
+    }
+    const caraMembership = () =>
+      t.run(async (ctx) =>
+        ctx.db
+          .query("devotionalGroupMembers")
+          .withIndex("by_groupId_and_email", (q) => q.eq("groupId", groupId).eq("email", CARA))
+          .unique()
+      );
+    return { t, anna, ben, cara, groupId, caraMembership };
+  };
+
+  test("accepting stores the join day in Sydney's calendar", async () => {
+    const { caraMembership } = await setUp();
+    expect((await caraMembership())?.joinedOn).toBe("2026-11-20");
+  });
+
+  test("a late joiner's earlier days are hidden in every group query", async () => {
+    const { anna, cara, groupId } = await setUp();
+
+    for (const viewer of [anna, cara]) {
+      const before = await viewer.query(api.devotionalGroups.dayDetail, { groupId, date: "2026-11-10" });
+      expect(before!.members.map((m) => m.email).sort()).toEqual([ANNA, BEN]);
+      expect(before).toMatchObject({ doneCount: 2, totalMembers: 2 });
+
+      const after = await viewer.query(api.devotionalGroups.dayDetail, { groupId, date: "2026-11-22" });
+      expect(after).toMatchObject({ doneCount: 3, totalMembers: 3 });
+      expect(after!.members.find((m) => m.email === CARA)).toMatchObject({
+        done: true,
+        passage: "Psalm 22:3",
+      });
+    }
+
+    const groupOnEarlierDay = await anna.query(api.devotionalGroups.getGroup, { groupId, today: "2026-11-10" });
+    expect(groupOnEarlierDay).toMatchObject({ todayDone: 2, todayTotal: 2, memberCount: 3 });
+    const caraOnEarlierDay = await cara.query(api.devotionalGroups.getGroup, { groupId, today: "2026-11-10" });
+    expect(caraOnEarlierDay).toMatchObject({ todayDone: 2, todayTotal: 2, meDoneToday: true });
+
+    const summary = await anna.query(api.devotionalGroups.mySummary, { today: "2026-11-10" });
+    expect(summary.groups[0]).toMatchObject({ todayDone: 2, todayTotal: 2, memberCount: 3 });
+    const summaryToday = await anna.query(api.devotionalGroups.mySummary, { today: "2026-11-22" });
+    expect(summaryToday.groups[0]).toMatchObject({ todayDone: 3, todayTotal: 3 });
+
+    const caraHistory = await cara.query(api.devotionals.byMonth, { year: 2026, month: 11 });
+    expect(caraHistory.map((row) => row.date)).toEqual(["2026-11-10", "2026-11-22"]);
+  });
+
+  test("each day counts only the members who had joined, so a full early day stays green", async () => {
+    const { anna, groupId } = await setUp();
+    const progress = await anna.query(api.devotionalGroups.monthProgress, { groupId, year: 2026, month: 11 });
+    expect(progress!.doneCounts).toEqual({ "2026-11-10": 2, "2026-11-22": 3 });
+    expect(progress!.dayTotals).toEqual({
+      ...dayTotalsFrom("2026-11-01", "2026-11-19", 2),
+      ...dayTotalsFrom("2026-11-20", "2026-11-30", 3),
+    });
+    expect(completionTier(progress!.doneCounts["2026-11-10"], progress!.dayTotals["2026-11-10"], false)).toBe("full");
+    expect(completionTier(progress!.doneCounts["2026-11-22"], progress!.dayTotals["2026-11-22"], false)).toBe("full");
+  });
+
+  test("a membership from before join days were stored shares from the group start", async () => {
+    const { t, anna, groupId, caraMembership } = await setUp();
+    const row = await caraMembership();
+    await t.run(async (ctx) => {
+      await ctx.db.patch("devotionalGroupMembers", row!._id, { joinedOn: undefined });
+    });
+    const detail = await anna.query(api.devotionalGroups.dayDetail, { groupId, date: "2026-11-10" });
+    expect(detail).toMatchObject({ doneCount: 3, totalMembers: 3 });
+    const progress = await anna.query(api.devotionalGroups.monthProgress, { groupId, year: 2026, month: 11 });
+    expect(progress!.dayTotals).toEqual(dayTotalsFrom("2026-11-01", "2026-11-30", 3));
+    expect(progress!.doneCounts["2026-11-10"]).toBe(3);
+  });
+
+  test("the owner counts from the group start even with a later join day", async () => {
+    const { t, ben, groupId } = await setUp();
+    await t.run(async (ctx) => {
+      const owner = await ctx.db
+        .query("devotionalGroupMembers")
+        .withIndex("by_groupId_and_email", (q) => q.eq("groupId", groupId).eq("email", ANNA))
+        .unique();
+      await ctx.db.patch("devotionalGroupMembers", owner!._id, { joinedOn: "2026-11-25" });
+    });
+    const detail = await ben.query(api.devotionalGroups.dayDetail, { groupId, date: "2026-11-10" });
+    expect(detail!.members.find((m) => m.email === ANNA)).toMatchObject({
+      done: true,
+      passage: "Psalm 10:1",
+    });
+    const progress = await ben.query(api.devotionalGroups.monthProgress, { groupId, year: 2026, month: 11 });
+    expect(progress!.dayTotals["2026-11-01"]).toBe(2);
+  });
 });

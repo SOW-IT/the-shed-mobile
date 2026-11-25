@@ -133,14 +133,15 @@ export const DevotionalGroupsTab = () => {
                 <SectionTitle chip={summary.groups.length}>Your groups</SectionTitle>
               ) : null}
               {summary.groups.map((group) => {
+                const todayTotal = group.todayTotal ?? group.memberCount;
                 const ratio =
-                  group.todayDone !== null && group.memberCount > 0
-                    ? Math.min(1, group.todayDone / group.memberCount)
+                  group.todayDone !== null && todayTotal > 0
+                    ? Math.min(1, group.todayDone / todayTotal)
                     : null;
                 const allDone =
                   group.todayDone !== null &&
-                  group.memberCount > 0 &&
-                  group.todayDone >= group.memberCount;
+                  todayTotal > 0 &&
+                  group.todayDone >= todayTotal;
                 return (
                   <Pressable
                     key={group.id}
@@ -182,7 +183,7 @@ export const DevotionalGroupsTab = () => {
                                 },
                               ]}
                             >
-                              {group.todayDone} of {group.memberCount} done today
+                              {group.todayDone} of {todayTotal} done today
                             </Text>
                             {allDone ? (
                               <Ionicons name="checkmark-circle" size={16} color={t.success} />
