@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { personAt } from "./personHit";
+import { personAt, tapTarget } from "./personHit";
 
 const box = (left: number, top: number) => ({ left, right: left + 40, top, bottom: top + 80 });
 
@@ -20,5 +20,29 @@ describe("what a tap on a person hits", () => {
   test("of two people under the finger, the one nearer the camera wins", () => {
     const front = { id: "front", me: false, box: box(300, 100), depth: 2 };
     expect(personAt([cara, front], 310, 120)?.id).toBe("front");
+  });
+});
+
+describe("you are see-through to taps", () => {
+  const board = { id: "notices", box: { left: 90, right: 200, top: 60, bottom: 160 }, depth: 9 };
+  const me = { id: "me", me: true, box: { left: 120, right: 160, top: 90, bottom: 170 }, depth: 7 };
+
+  test("standing in front of the notice board, a tap on you opens the board", () => {
+    expect(tapTarget([me], [board], 140, 120)).toEqual({ kind: "prop", prop: board });
+  });
+
+  test("a tap on you with nothing behind you is a tap on the ground", () => {
+    expect(tapTarget([me], [board], 140, 168)).toBeNull();
+  });
+
+  test("someone else in front of the board still takes the tap; the board in front of them takes it instead", () => {
+    const ben = { ...me, id: "ben", me: false };
+    expect(tapTarget([ben], [board], 140, 120)).toEqual({ kind: "person", person: ben });
+    expect(tapTarget([{ ...ben, depth: 12 }], [board], 140, 120)).toEqual({ kind: "prop", prop: board });
+  });
+
+  test("a prop counts a few points outside its box, so a tap at its edge still lands", () => {
+    expect(tapTarget([], [board], 204, 120)).toEqual({ kind: "prop", prop: board });
+    expect(tapTarget([], [board], 210, 120)).toBeNull();
   });
 });
