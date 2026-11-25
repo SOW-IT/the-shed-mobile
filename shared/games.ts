@@ -22,7 +22,7 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   },
   glider: {
     title: "Swoop",
-    blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each world before dark. Best sideways.",
+    blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each day before dark. Best sideways.",
   },
 };
 
