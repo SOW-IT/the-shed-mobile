@@ -13,7 +13,6 @@ vi.mock("../deviceStorage", () => ({
 
 const { persisted } = await import("./persisted");
 
-/** Lets queued promise callbacks run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("persisted", () => {
@@ -27,7 +26,6 @@ describe("persisted", () => {
     await settle();
     const second = best.update(() => 200);
     await settle();
-    // Only the first write has started; the second waits for it.
     expect(writes.map((w) => w.value)).toEqual(["100"]);
     writes[0].finish(true);
     await first;
@@ -35,7 +33,6 @@ describe("persisted", () => {
     expect(writes.map((w) => w.value)).toEqual(["100", "200"]);
     writes[1].finish(false);
     await second;
-    // 200 never saved, so a change that leaves the value alone still retries it.
     const retry = best.update((current) => Math.max(current, 90));
     await settle();
     expect(writes.map((w) => w.value)).toEqual(["100", "200", "200"]);

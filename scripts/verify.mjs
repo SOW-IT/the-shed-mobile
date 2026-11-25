@@ -643,9 +643,6 @@ const publish = (artifacts, slug) => {
   return `${pngs.length} images at ${commit.slice(0, 7)}; table in ${relative(ROOT, join(artifacts, "screenshots.md"))}, all of them at https://github.com/${repo}/blob/${commit}/${slug}/README.md`;
 };
 
-// Set once this run starts stopping and starting processes. Until then (bad
-// arguments, a plan that can't be made, --dry-run) an exit leaves alone
-// whatever another run in this worktree has going.
 let started = false;
 
 const main = async () => {

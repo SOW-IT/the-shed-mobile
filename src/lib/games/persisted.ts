@@ -1,5 +1,3 @@
-// A value the games keep on the phone (bests, the score queue, character
-// choices), loaded once and saved after each change.
 import { readStored, tryWriteStored } from "../deviceStorage";
 
 /**
@@ -26,9 +24,6 @@ export const persisted = <T>(
   // A write that failed stays owed, so the next change saves it even when
   // that change leaves the value as it was.
   let unsaved = false;
-  // Writes go one at a time, each saving the value as it is when its turn
-  // comes, so a slow earlier write can't finish last and mark a newer value
-  // that failed to save as saved.
   let writing: Promise<void> = Promise.resolve();
   const save = () =>
     (writing = writing.then(async () => {

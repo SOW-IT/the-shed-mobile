@@ -27,7 +27,6 @@ const RUNNING = new Set(["IN_PROGRESS", "QUEUED", "PENDING", "EXPECTED", "WAITIN
 const pending = checks.filter((c) => RUNNING.has(c.state));
 // Anything not known to be a pass or still running (STALE, a state GitHub adds later) counts as failed.
 const failed = checks.filter((c) => !PASSED.has(c.state) && !RUNNING.has(c.state));
-// The CI jobs themselves must show up and succeed, not just whatever has run so far.
 const missing = requiredNotPassed(checks);
 
 const query = `query($owner:String!,$repo:String!,$number:Int!,$after:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){
@@ -61,9 +60,6 @@ const comments = paged(`repos/${owner}/${repo}/issues/${number}/comments?per_pag
 const reviews = paged(`repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`, "[.[] | {id, login: .user.login, at: .submitted_at, commit: .commit_id, body}]");
 const plain = (body) => body.replace(/<[^>]+>/g, " ").replace(/[>#*]/g, " ").replace(/\s+/g, " ");
 const rabbitComments = comments.filter((c) => isRabbit(c.login)).map((c) => ({ at: c.at, text: plain(c.body), body: c.body }));
-// The commits CodeRabbit finished reviewing: a review submitted on one, or
-// its summary saying it found nothing to add up to it. A range named while a
-// review runs, or in a rate-limit notice, doesn't count.
 const reviewedShas = reviewedCommits({ reviews: reviews.filter((r) => isRabbit(r.login)), comments: rabbitComments });
 const reviewedHead = reviewedShas.includes(pr.headRefOid);
 const latest = (items) => items.reduce((a, b) => (!a || b.at > a.at ? b : a), null);

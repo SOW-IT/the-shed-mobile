@@ -23,15 +23,9 @@ export type PreviewSpin = {
   touched: boolean;
 };
 
-/** How close the preview is framed: the whole figure, the head, or the face. */
 export type PreviewShot = "full" | "head" | "face";
 const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, head: 1, face: 2 };
 
-/**
- * Whether moving between tabs turns the preview to face you again: any move
- * to a closer shot does (Body to Hair, Hair to Eyes), even after a turn by
- * hand. Staying as close, or moving out, keeps your turn.
- */
 export const previewRecenters = (from: PreviewShot, to: PreviewShot) => SHOT_CLOSENESS[to] > SHOT_CLOSENESS[from];
 
 export const previewEaseInOut = (p: number) =>

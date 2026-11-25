@@ -1283,6 +1283,9 @@ export const pings = query({
   },
 });
 
+const withoutOldSay = <Row extends { say?: { at: number } }>(row: Row | null) =>
+  row?.say && Date.now() - row.say.at >= CHAT_TTL_MS ? { ...row, say: undefined } : row;
+
 /**
  * One member's walk, emote and line. Each phone subscribes once per person,
  * so a tap pushes one small row, not the whole room.
@@ -1311,13 +1314,11 @@ export const state = query({
     const member = await ctx.db.get("worldMembers", memberId);
     const me = member && (await meIn(ctx, member.roomId));
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
-    const row = await stateOf(ctx, memberId);
+    const row = withoutOldSay(await stateOf(ctx, memberId));
     if (!row) return null;
     const { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
-    // A line past the chat TTL is gone, even before the sweeper clears it.
-    const said = say && Date.now() - say.at < CHAT_TTL_MS ? say : undefined;
-    return { fromX, fromZ, toX, toZ, startedAt, path, act, say: said, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
+    return { fromX, fromZ, toX, toZ, startedAt, path, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat, typing: typingAt };
   },
 });
 
@@ -1757,11 +1758,6 @@ export const purgeChat = internalMutation({
   },
 });
 
-/**
- * A line someone said long ago stays on their state row until they say
- * another; take it off once it's past the chat TTL. Says whether more may be
- * left (a full batch).
- */
 const clearOldSays = async (ctx: MutationCtx, now: number) => {
   const oldSay = await ctx.db
     .query("worldState")
@@ -1771,7 +1767,6 @@ const clearOldSays = async (ctx: MutationCtx, now: number) => {
   return oldSay.length === SWEEP_BATCH;
 };
 
-/** Carries on clearing expired lines from state rows until none are left. */
 export const clearSays = internalMutation({
   args: {},
   returns: v.null(),
@@ -1825,6 +1820,8 @@ export const sweep = internalMutation({
         .take(CHAT_ROOM_CAP + SWEEP_BATCH);
       for (const row of lines.slice(CHAT_ROOM_CAP)) await ctx.db.delete("worldChat", row._id);
     }
+    // A line someone said long ago stays on their state row until they say
+    // another; take it off once it's past the chat TTL.
     if (await clearOldSays(ctx, now)) await ctx.scheduler.runAfter(0, internal.world.clearSays, {});
     const oldThrottles = await ctx.db
       .query("worldThrottle")

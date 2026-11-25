@@ -738,10 +738,8 @@ export const useWorld = (
         holding.current = false;
         if (timer.current) clearTimeout(timer.current);
         timer.current = null;
-        // Keep the route too: a trip to the room you're already in hands back
-        // the walk you're on, and dropping its path would cut the corners.
-        const { fromX, fromZ, toX, toZ, startedAt, path } = reply;
-        const arrived = { fromX, fromZ, toX, toZ, startedAt, ...(path ? { path } : {}) };
+        const { fromX, fromZ, toX, toZ, startedAt } = reply;
+        const arrived = { fromX, fromZ, toX, toZ, startedAt };
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
         setMySeat(null);

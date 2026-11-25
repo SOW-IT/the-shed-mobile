@@ -30,10 +30,5 @@ export const groundLine = (
   scale: number
 ): number => stage.y + (stage.height - shownHeight) / 2 + groundTop * scale;
 
-/**
- * How much to shrink a start card so it fits a short stage with `margin`
- * left above and below: 1 when it already fits. Shrinking (not scrolling)
- * keeps a tap beside the card starting the game.
- */
 export const cardFitScale = (cardHeight: number | null, stageHeight: number | null, margin: number): number =>
   cardHeight && stageHeight ? Math.min(1, Math.max(0, stageHeight - 2 * margin) / cardHeight) : 1;

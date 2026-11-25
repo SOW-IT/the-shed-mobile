@@ -261,8 +261,6 @@ export const GameFrame = ({
   };
   const [stage, onOwnStageLayout] = useStage();
   const [stageBox, setStageBox] = useState<{ y: number; height: number } | null>(null);
-  // The start card's own height, so on a short stage it can shrink to fit
-  // instead of being cut off at the top and bottom.
   const [readyCardHeight, setReadyCardHeight] = useState<number | null>(null);
   const onReadyCardLayout = (event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;

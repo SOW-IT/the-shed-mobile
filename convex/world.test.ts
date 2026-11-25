@@ -421,7 +421,6 @@ describe("places", () => {
     await ben.mutation(api.world.travel, { to: "chapel" });
     await cara.mutation(api.world.travel, { to: "chapel" });
     await t.run(async (ctx) => {
-      // 201 others first, so Cara's block is past the 201 rows the filter reads.
       for (let i = 0; i < 201; i++) await ctx.db.insert("worldBlocks", { email: `stranger${i}@sow.org.au`, blockedEmail: ANNA, blockedName: "Anna" });
       await ctx.db.insert("worldBlocks", { email: CARA, blockedEmail: ANNA, blockedName: "Anna" });
     });

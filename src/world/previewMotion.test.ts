@@ -162,11 +162,9 @@ describe("previewMotion", () => {
   });
 
   it("faces you again on any move to a closer shot, and keeps your turn otherwise", () => {
-    // Body to Hair or Eyes, and Hair to Eyes (the case that used to keep a turn).
     expect(previewRecenters("full", "head")).toBe(true);
     expect(previewRecenters("full", "face")).toBe(true);
     expect(previewRecenters("head", "face")).toBe(true);
-    // Between face tabs, or moving out.
     expect(previewRecenters("face", "face")).toBe(false);
     expect(previewRecenters("face", "head")).toBe(false);
     expect(previewRecenters("head", "full")).toBe(false);

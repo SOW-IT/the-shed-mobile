@@ -81,20 +81,10 @@ export const coveringReview = ({ head, headFiles, reviewed }) => {
   return match ? { commit: match.sha, how: "same app and Convex changes" } : null;
 };
 
-/** Why CodeRabbit skipped a review, from its notice. Never empty. */
 export const skipReason = (text) => text.match(/Review skipped:?\s*(.{0,100})/i)?.[1]?.trim() || "review skipped";
 
 const RESTRICTED = /rate limited|review limit reached|review skipped/i;
 
-/**
- * The commits CodeRabbit finished reviewing, newest first: each commit it
- * submitted a review on, then each its summary comment says it reviewed with
- * nothing to add ("No actionable comments", with the range "... and <sha>").
- * A comment that only names a range, as one does while a review is still
- * running or in a rate-limit or skip notice, doesn't count.
- * @param {{ reviews: { commit?: string | null, at?: string | null }[], comments: { text: string, body: string }[] }} activity
- *   CodeRabbit's own reviews and comments only.
- */
 export const reviewedCommits = ({ reviews, comments }) => [
   ...reviews
     .filter((r) => r.commit)
