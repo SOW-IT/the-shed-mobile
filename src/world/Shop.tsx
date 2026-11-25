@@ -12,7 +12,7 @@ import { blurBehind, Bust, itemStyle, popStyle, scrimStyle, useOverlayClock } fr
 import { glass, gold, hud } from "./palette";
 import { FurnitureThumb, WallpaperSwatch } from "./Thumb";
 import { bagStacks, CROP_IDS, CROPS, MAX_SEED_BUY, sellAllTotal, stackLabel, type CropId } from "@shared/farm";
-import { CropThumb, SeedPacket } from "./Farm";
+import { CropThumb, SeedCluster } from "./Farm";
 import { Days } from "./FarmPanels";
 
 type Tab = "furniture" | "wallpaper" | "seeds" | "sell";
@@ -168,7 +168,7 @@ export const ShopPanel = ({
                   testID={`world-shop-seed-${id}`}
                   style={({ pressed }) => [styles.card, { width: tile }, choice === id && styles.cardOn, pressed && styles.pressed]}
                 >
-                  <SeedPacket crop={id} size={tile - 34} />
+                  <SeedCluster crop={id} size={tile - 34} />
                   <Text style={styles.cardName} numberOfLines={1}>
                     {CROPS[id].label}
                   </Text>

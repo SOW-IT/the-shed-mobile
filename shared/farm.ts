@@ -106,6 +106,52 @@ export const growth = (plant: PlantTimes, now: number): Growth => {
   }
 };
 
+type Step =
+  | "seed"
+  | "sprout"
+  | "leaves"
+  | "head"
+  | "tops"
+  | "tall"
+  | "shoulder"
+  | "flowers"
+  | "berries"
+  | "stem"
+  | "flower"
+  | "green"
+  | "vine"
+  | "bloom"
+  | "small"
+  | "bigger"
+  | "big";
+
+const SEED_SHARE = 0.25;
+
+const CROP_STEPS: Record<CropId, readonly Step[]> = {
+  lettuce: ["leaves", "head"],
+  carrot: ["tops", "shoulder"],
+  strawberry: ["leaves", "flowers", "berries"],
+  tomato: ["sprout", "stem", "flower", "green"],
+  pumpkin: ["sprout", "vine", "flower", "small", "big"],
+  watermelon: ["sprout", "vine", "leaves", "flower", "small", "bigger", "big"],
+};
+
+type Look = { step: Step | "ripe"; k: number; size: number };
+
+export const growthLook = (crop: string, progress: number, ripe = false): Look => {
+  if (ripe) return { step: "ripe", k: 1, size: 1 };
+  const kind: CropId = isCrop(crop) ? crop : "lettuce";
+  const steps = CROP_STEPS[kind];
+  const p = Math.min(Math.max(progress, 0), 0.9999);
+  const size = 0.4 + 0.5 * p;
+  const firstEnd = 1 / steps.length;
+  if (p < firstEnd * SEED_SHARE) return { step: "seed", k: p / (firstEnd * SEED_SHARE), size };
+  const at = p * steps.length;
+  const day = Math.floor(at);
+  const from = day === 0 ? SEED_SHARE : 0;
+  return { step: steps[day], k: (at - day - from) / (1 - from), size };
+};
+
 export const timeLeft = (ms: number): string => {
   if (ms >= DAY_MS) {
     const days = Math.ceil(ms / DAY_MS);

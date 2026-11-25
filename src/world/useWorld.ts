@@ -1,5 +1,4 @@
 import {
-  ASK_MS,
   CHAT_LOG_SIZE,
   clampTarget,
   cleanLine,
@@ -221,7 +220,6 @@ export const useWorld = (
   enabled: boolean,
   away = false,
   arrival?: { poke?: string; invite?: string },
-  tickEverySecond = true,
   reading = false,
   game?: string
 ) => {
@@ -953,35 +951,6 @@ export const useWorld = (
       ping: m.isMe ? (myBars ?? undefined) : undefined,
     };
   }), [members, states, myWalk, mySeat, myBars]);
-
-  // A once-a-second clock while anyone is walking or an ask to you is open,
-  // so "can hear you", the High five button and ask countdowns stay current
-  // outside the garden's own frame clock (the list view, the sheets). It
-  // restarts when a walk or an ask changes and stops once nothing is moving.
-  const latest = useRef(people);
-  useEffect(() => {
-    latest.current = people;
-  });
-  const liveKey = people.map((p) => `${p.walk?.startedAt ?? ""}:${p.ask?.at ?? ""}`).join(",");
-  const myId = session?.memberId ?? null;
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!tickEverySecond) return;
-    const live = () => {
-      const now = serverNow();
-      return latest.current.some(
-        (p) =>
-          (p.walk !== null && posAt(p.walk, now).walking) ||
-          (p.ask !== undefined && p.ask.to === myId && now - p.ask.at < ASK_MS)
-      );
-    };
-    if (!live()) return;
-    const id = setInterval(() => {
-      setTick((n) => n + 1);
-      if (!live()) clearInterval(id);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [liveKey, myId, serverNow, tickEverySecond]);
 
   return {
     status: error ? ("error" as const) : roster ? ("in" as const) : ("joining" as const),

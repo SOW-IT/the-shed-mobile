@@ -29,8 +29,8 @@ import {
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { makeCamera } from "./camera";
-import { itemAt, type Prim, type Prop } from "./gardenScene";
-import { garden, hud, places } from "./palette";
+import { Builder, itemAt, type Prim, type Prop } from "./gardenScene";
+import { farm as farmPalette, garden, hud, places } from "./palette";
 import { popShadow } from "./popShadow";
 import { buildScene, type HomeLook } from "./placeScenes";
 import { footprint, isFurniture } from "@shared/home";
@@ -47,7 +47,7 @@ import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./sett
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
 import { CampfireFlames } from "./Campfire";
-import { FlyingCrop, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
+import { FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
 import { PLOT_SIZE, PLOTS, plotPrice, type CropId, type Stage } from "@shared/farm";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
@@ -78,7 +78,7 @@ type GardenPerson = {
 export type GardenFarm = {
   plots: number;
   mine: boolean;
-  plants: readonly { plot: number; crop: string; stage: Stage; wilted: boolean; thirsty: boolean; note?: string }[];
+  plants: readonly { plot: number; crop: string; stage: Stage; progress: number; wilted: boolean; thirsty: boolean; wet: boolean; note?: string }[];
   card: { plot: number; text: string } | null;
   watering: { plot: number; key: number } | null;
   flying: { plot: number; crop: CropId; key: number } | null;
@@ -86,6 +86,8 @@ export type GardenFarm = {
   onTapPlot: (plot: number) => void;
   onWatered: () => void;
   onFlown: () => void;
+  planting: { plot: number; crop: CropId; key: number } | null;
+  onPlanted: () => void;
 };
 
 export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
@@ -579,12 +581,17 @@ export const Garden = ({
     const live = !paused && !saver;
     for (const plant of farm.plants) {
       const spot = PLOTS[plant.plot];
-      if (!spot) continue;
+      if (!spot || farm.planting?.plot === plant.plot) continue;
       const at = cam.project([spot.x, 0, spot.z]);
+      if (plant.wet) {
+        const wet = new Builder(cam, `wet-${plant.plot}`);
+        wet.groundQuad([[spot.x - PLOT_SIZE.w / 2, spot.z - PLOT_SIZE.d / 2], [spot.x + PLOT_SIZE.w / 2, spot.z - PLOT_SIZE.d / 2], [spot.x + PLOT_SIZE.w / 2, spot.z + PLOT_SIZE.d / 2], [spot.x - PLOT_SIZE.w / 2, spot.z + PLOT_SIZE.d / 2]], farmPalette.wet, 0.012);
+        actors.push({ depth: at.depth + 100, key: `wet-${plant.plot}`, node: <Layer prims={wet.take()} /> });
+      }
       actors.push({
         depth: at.depth,
         key: `plant-${plant.plot}`,
-        node: <PlantView x={at.x} y={at.y} scale={at.scale * PLANT_SCALE} crop={plant.crop} stage={plant.stage} wilted={plant.wilted} thirsty={plant.thirsty} live={live} />,
+        node: <PlantView x={at.x} y={at.y} scale={at.scale * PLANT_SCALE} crop={plant.crop} stage={plant.stage} progress={plant.progress} wilted={plant.wilted} thirsty={plant.thirsty} live={live} />,
       });
       if (plant.note) {
         const below = cam.project([spot.x, 0, spot.z + PLOT_SIZE.d / 2 - 0.1]);
@@ -603,6 +610,11 @@ export const Garden = ({
       const spot = PLOTS[farm.watering.plot];
       const at = cam.project([spot.x, 0, spot.z]);
       actors.push({ depth: at.depth - 0.5, key: `can-${farm.watering.key}`, node: <WateringCan x={at.x} y={at.y} scale={at.scale * PLANT_SCALE * 0.8} live={live} onDone={farm.onWatered} /> });
+    }
+    if (farm.planting) {
+      const spot = PLOTS[farm.planting.plot];
+      const at = cam.project([spot.x, 0, spot.z]);
+      actors.push({ depth: at.depth, key: `planting-${farm.planting.key}`, node: <PlantingPuff x={at.x} y={at.y} scale={at.scale * PLANT_SCALE} crop={farm.planting.crop} live={live} onDone={farm.onPlanted} /> });
     }
     if (farm.card) {
       const spot = PLOTS[farm.card.plot];

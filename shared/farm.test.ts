@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { CropId } from "./farm";
 import {
   bagStacks,
   CROP_IDS,
@@ -8,6 +9,7 @@ import {
   farmNudge,
   farmPushDay,
   growth,
+  growthLook,
   isCrop,
   nudgeText,
   parseStack,
@@ -224,5 +226,54 @@ describe("reminders", () => {
     expect(farmPushDay(Date.UTC(2026, 11, 1, 8, 13))).toBeNull();
     expect(farmPushDay(Date.UTC(2026, 5, 1, 8, 13))).toBe("2026-06-01");
     expect(farmPushDay(Date.UTC(2026, 5, 1, 7, 13))).toBeNull();
+  });
+});
+
+describe("how a plant looks each day", () => {
+  const dayByDay = (crop: CropId) =>
+    Array.from({ length: CROPS[crop].days }, (_, day) => growthLook(crop, (day + 0.5) / CROPS[crop].days).step);
+
+  test("every crop has its own step for each day", () => {
+    expect(dayByDay("carrot")).toEqual(["tops", "shoulder"]);
+    expect(dayByDay("strawberry")).toEqual(["leaves", "flowers", "berries"]);
+    expect(dayByDay("tomato")).toEqual(["sprout", "stem", "flower", "green"]);
+    expect(dayByDay("pumpkin")).toEqual(["sprout", "vine", "flower", "small", "big"]);
+    expect(dayByDay("watermelon")).toEqual(["sprout", "vine", "leaves", "flower", "small", "bigger", "big"]);
+  });
+
+  test("lettuce grows through its one day: seed, leaves, then a head", () => {
+    expect([0, 0.25, 0.5, 0.75].map((p) => growthLook("lettuce", p).step)).toEqual(["seed", "leaves", "head", "head"]);
+  });
+
+  test("the first hours of the first day are a seed in the soil", () => {
+    for (const crop of CROP_IDS) expect(growthLook(crop, 0).step).toBe("seed");
+    expect(growthLook("watermelon", 0.02)).toMatchObject({ step: "seed" });
+    expect(growthLook("watermelon", 0.04).step).toBe("sprout");
+  });
+
+  test("size and the step's progress grow through each day", () => {
+    const early = growthLook("tomato", 0.27);
+    const late = growthLook("tomato", 0.48);
+    expect(early.step).toBe(late.step);
+    expect(late.k).toBeGreaterThan(early.k);
+    expect(late.size).toBeGreaterThan(early.size);
+    expect(growthLook("tomato", 0.5).k).toBe(0);
+  });
+
+  test("ripe looks ripe, and an unknown crop grows like lettuce", () => {
+    expect(growthLook("tomato", 1, true)).toEqual({ step: "ripe", k: 1, size: 1 });
+    expect(growthLook("kale", 0.75).step).toBe("head");
+    expect(growthLook("tomato", 1.5).step).toBe("green");
+  });
+
+  test("a wilted window holds the look where it was", () => {
+    const dry = tomato([]);
+    const beforeDry = growthLook("tomato", growth(dry, day(1) + 1).progress);
+    const stillDry = growthLook("tomato", growth(dry, day(2) - 1).progress);
+    expect(stillDry.step).toBe(beforeDry.step);
+    expect(stillDry.size).toBeCloseTo(beforeDry.size, 3);
+    const watered = growthLook("tomato", growth(tomato([day(1) + 1]), day(2) - 1).progress);
+    expect(watered.step).toBe("stem");
+    expect(watered.size).toBeGreaterThan(stillDry.size);
   });
 });

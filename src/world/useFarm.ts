@@ -31,9 +31,8 @@ export const useMinuteClock = (serverNow: () => number, on: boolean) => {
   return now;
 };
 
-export const useFarm = ({ roomId, inBackyard, wantOwn }: { roomId: Id<"worldRooms"> | null; inBackyard: boolean; wantOwn: boolean }) => {
+export const useFarm = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | null; inBackyard: boolean }) => {
   const here = useQuery(api.farm.farm, inBackyard && roomId ? { roomId } : "skip");
-  const own = useQuery(api.farm.farm, !inBackyard && wantOwn ? {} : "skip");
   const bag = useQuery(api.farm.bag, {});
   const waterM = useMutation(api.farm.water);
   const plantM = useMutation(api.farm.plant);
@@ -73,6 +72,6 @@ export const useFarm = ({ roomId, inBackyard, wantOwn }: { roomId: Id<"worldRoom
     return { ok: true };
   }, "That didn't save."), [remindersM]);
 
-  return { view: inBackyard ? here : own, bag, water, plant, harvest, clear, buyPlot, buySeeds, sell, setReminders };
+  return { view: inBackyard ? here : undefined, bag, water, plant, harvest, clear, buyPlot, buySeeds, sell, setReminders };
 };
 
