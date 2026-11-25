@@ -67,8 +67,9 @@ export const useWatch = (gameId: Id<"cafeGames"> | null, onGone: (note: string) 
   useEffect(() => {
     if (!gameId) return;
     let stopped = false;
+    const visit = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     const touch = () =>
-      void attempt(() => watchM({ gameId })).then((problem) => {
+      void attempt(() => watchM({ gameId, visit })).then((problem) => {
         if (problem && !stopped) gone.current(problem);
       });
     touch();
@@ -76,7 +77,7 @@ export const useWatch = (gameId: Id<"cafeGames"> | null, onGone: (note: string) 
     return () => {
       stopped = true;
       clearInterval(id);
-      void unwatchM({ gameId }).catch(() => undefined);
+      void unwatchM({ gameId, visit }).catch(() => undefined);
     };
   }, [gameId, watchM, unwatchM]);
   useEffect(() => {

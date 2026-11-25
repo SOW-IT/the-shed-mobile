@@ -18,6 +18,7 @@ import {
   scoreProblem,
   shownBests,
   stringifyBests,
+  submittableFor,
   withBest,
   withBestRun,
   type QueuedScore,
@@ -238,5 +239,29 @@ describe("bests across devices", () => {
     expect(parseBestRuns(JSON.stringify({ [ANNA]: { runner: best, flappy: best, shooter: { score: 3 } }, [BEN]: "x" }), NOW)).toEqual({ [ANNA]: { runner: best } });
     expect(parseBestRuns("null", NOW)).toEqual({});
     expect(parseBestRuns("{", NOW)).toEqual({});
+  });
+});
+
+describe("queued runs on a shared phone", () => {
+  const ANNA = "anna@sow.org.au";
+  const BEN = "ben@sow.org.au";
+
+  test("each account keeps its own queued best, and only its own runs and signed-out runs are sent for it", () => {
+    const annas = entry({ runId: "run-anna-1", score: 500, account: ANNA });
+    const bens = entry({ runId: "run-ben-1", score: 100, account: BEN });
+    const nobodys = entry({ runId: "run-nobody-1", score: 50, game: "flappy" });
+    const queue = [annas, bens, nobodys].reduce<QueuedScore[]>((q, run) => enqueueScore(q, run, NOW), []);
+    expect(queue).toEqual([annas, bens, nobodys]);
+    const { account: _anna, ...annaSent } = annas;
+    const { account: _ben, ...benSent } = bens;
+    expect(submittableFor(queue, ANNA)).toEqual([annaSent, nobodys]);
+    expect(submittableFor(queue, BEN)).toEqual([benSent, nobodys]);
+    expect(submittableFor(queue, "cara@sow.org.au")).toEqual([nobodys]);
+    expect(submittableFor(queue, ANNA).every((run) => !("account" in run))).toBe(true);
+  });
+
+  test("a saved queue keeps who each run belongs to", () => {
+    const annas = entry({ runId: "run-anna-1", account: ANNA });
+    expect(parseQueue(JSON.stringify([annas, { ...annas, runId: "run-bad-1", account: 7 }]))).toEqual([annas]);
   });
 });

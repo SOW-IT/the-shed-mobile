@@ -67,8 +67,14 @@ export const useServerBests = () => {
 export const useBests = (): LocalBests => {
   const local = useLocalBests();
   const runs = useBestRuns();
+  const { isAuthenticated } = useConvexAuth();
+  const offline = useOffline();
   const account = useServerBests();
-  return useMemo(() => (account ? shownBests(bestsFromRuns(runsOf(runs, account.email)), account.bests) : local), [local, runs, account]);
+  const deviceOnly = !isAuthenticated || offline;
+  return useMemo(
+    () => (deviceOnly ? local : account ? shownBests(bestsFromRuns(runsOf(runs, account.email)), account.bests) : NO_BESTS),
+    [deviceOnly, local, runs, account]
+  );
 };
 
 export const queueRuns = (runs: readonly QueuedScore[]): Promise<void> =>
@@ -86,6 +92,7 @@ export const recordRun = (game: GameId, score: number, durationMs: number, accou
     score,
     durationMs: Math.max(1, Math.round(durationMs)),
     playedAt: Date.now(),
+    ...(account ? { account } : {}),
   };
   return Promise.all([
     bests.update((current) => withBest(current, game, score)),

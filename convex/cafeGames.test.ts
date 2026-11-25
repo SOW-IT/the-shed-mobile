@@ -492,7 +492,7 @@ describe("spectating", () => {
 
   test("a spectator sees the live board but can't move, give up, ask for a rematch or close it", async () => {
     const { t, anna, ben, cara, gameId } = await startGame();
-    expect(await cara.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: true });
+    expect(await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: true });
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).toEqual({
       id: gameId,
       kind: "fourInARow",
@@ -514,18 +514,18 @@ describe("spectating", () => {
 
   test("players can't watch their own game, and strangers, other rooms and blocks can't watch at all", async () => {
     const { t, anna, cara, gameId } = await startGame();
-    expect(await anna.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That's your game." });
+    expect(await anna.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That's your game." });
     expect(await anna.who.query(api.cafeGames.watching, { gameId })).toBeNull();
     const stranger = asUser(t, "dana@sow.org.au");
-    expect(await stranger.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
+    expect(await stranger.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game isn't here." });
     expect(await stranger.query(api.cafeGames.watching, { gameId })).toBeNull();
     const elsewhere = asUser(t, "eve@sow.org.au");
     await elsewhere.mutation(api.world.join, {});
     expect(await elsewhere.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true });
-    expect(await elsewhere.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
+    expect(await elsewhere.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game isn't here." });
     expect(await elsewhere.query(api.cafeGames.watching, { gameId })).toBeNull();
     await t.run((ctx) => ctx.db.insert("worldBlocks", { email: ANNA, blockedEmail: CARA, blockedName: "cara" }));
-    expect(await cara.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game isn't here." });
+    expect(await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game isn't here." });
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).toBeNull();
     expect(await watchers(t)).toEqual([]);
   });
@@ -534,21 +534,37 @@ describe("spectating", () => {
     const { t, anna, ben, cara, gameId } = await startGame();
     const dana = await inCafe(t, "dana@sow.org.au");
     expect(await countFor(anna.who)).toBe(0);
-    await cara.who.mutation(api.cafeGames.watch, { gameId });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     expect(await countFor(anna.who)).toBe(1);
-    await dana.who.mutation(api.cafeGames.watch, { gameId });
-    await cara.who.mutation(api.cafeGames.watch, { gameId });
+    await dana.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     expect(await countFor(anna.who)).toBe(2);
     expect(await countFor(ben.who)).toBe(2);
-    await cara.who.mutation(api.cafeGames.unwatch, { gameId });
-    await cara.who.mutation(api.cafeGames.unwatch, { gameId });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-1" });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-1" });
     expect(await countFor(ben.who)).toBe(1);
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).not.toBeNull();
   });
 
+  test("one account watching from two tabs counts once, and closing one tab leaves the other watching", async () => {
+    const { t, anna, cara, gameId } = await startGame();
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-2" });
+    expect(await watchers(t)).toHaveLength(2);
+    expect(await countFor(anna.who)).toBe(1);
+    await anna.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect(await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-3" })).toEqual({ ok: true });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-1" });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-3" });
+    expect((await watchers(t)).map((row) => row.visit)).toEqual(["tab-2"]);
+    expect(await cara.who.query(api.cafeGames.watching, { gameId })).toMatchObject({ result: { why: "gaveUp" } });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-2" });
+    expect(await cara.who.query(api.cafeGames.watching, { gameId })).toBeNull();
+  });
+
   test("leaving the Café for another place stops watching at once", async () => {
     const { t, anna, cara, gameId } = await startGame();
-    await cara.who.mutation(api.cafeGames.watch, { gameId });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     expect(await countFor(anna.who)).toBe(1);
     expect(await cara.who.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true });
     expect(await watchers(t)).toEqual([]);
@@ -558,14 +574,14 @@ describe("spectating", () => {
   test("a spectator who stops sending heartbeats is swept, and one who leaves the World goes at once", async () => {
     const { t, anna, cara, gameId } = await startGame();
     const dana = await inCafe(t, "dana@sow.org.au");
-    await cara.who.mutation(api.cafeGames.watch, { gameId });
-    await dana.who.mutation(api.cafeGames.watch, { gameId });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
+    await dana.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     const firstAt = (await watchers(t))[0].at;
     later(CAFE_WATCH_WRITE_MS - 1000);
-    await dana.who.mutation(api.cafeGames.watch, { gameId });
+    await dana.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     expect((await watchers(t)).map((row) => row.at)).toEqual([firstAt, firstAt]);
     later(CAFE_WATCH_TOUCH_MS - CAFE_WATCH_WRITE_MS - 1000);
-    await dana.who.mutation(api.cafeGames.watch, { gameId });
+    await dana.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     expect((await watchers(t)).find((row) => row.email === "dana@sow.org.au")?.at).toBe(Date.now());
     later(CAFE_WATCH_TTL_MS - CAFE_WATCH_TOUCH_MS + 4000);
     await t.mutation(internal.world.sweep, {});
@@ -579,16 +595,16 @@ describe("spectating", () => {
   test("a finished game stops being watchable, except for the result its spectators already had open", async () => {
     const { t, anna, cara, gameId } = await startGame();
     const dana = await inCafe(t, "dana@sow.org.au");
-    await cara.who.mutation(api.cafeGames.watch, { gameId });
+    await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" });
     await anna.who.mutation(api.cafeGames.giveUp, { gameId });
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).toMatchObject({ result: { winner: "b", why: "gaveUp" } });
     later(CAFE_WATCH_TOUCH_MS);
-    expect(await cara.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: true });
-    expect(await dana.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game's over." });
+    expect(await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: true });
+    expect(await dana.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game's over." });
     expect(await dana.who.query(api.cafeGames.watching, { gameId })).toBeNull();
-    await cara.who.mutation(api.cafeGames.unwatch, { gameId });
+    await cara.who.mutation(api.cafeGames.unwatch, { gameId, visit: "tab-1" });
     expect(await cara.who.query(api.cafeGames.watching, { gameId })).toBeNull();
-    expect(await cara.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game's over." });
+    expect(await cara.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game's over." });
     await dana.who.mutation(api.world.leave, {});
     const eve = await inCafe(t, "eve@sow.org.au");
     await t.run((ctx) => ctx.db.insert("cafeWatchers", { gameId, email: "eve@sow.org.au", at: Date.now() }));
@@ -596,6 +612,6 @@ describe("spectating", () => {
     await t.mutation(internal.cafeGames.clear, { gameId });
     expect(await watchers(t)).toEqual([]);
     expect(await eve.who.query(api.cafeGames.watching, { gameId })).toBeNull();
-    expect(await eve.who.mutation(api.cafeGames.watch, { gameId })).toEqual({ ok: false, reason: "That game's over." });
+    expect(await eve.who.mutation(api.cafeGames.watch, { gameId, visit: "tab-1" })).toEqual({ ok: false, reason: "That game's over." });
   });
 });

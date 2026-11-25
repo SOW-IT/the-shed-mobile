@@ -65,11 +65,15 @@ const watchersOf = (ctx: Ctx, gameId: Id<"cafeGames">) =>
     .withIndex("by_gameId_and_email", (q) => q.eq("gameId", gameId))
     .take(WATCHERS_SCAN);
 
-const myWatch = (ctx: Ctx, gameId: Id<"cafeGames">, email: string) =>
+const VISITS_SCAN = 10;
+
+const myWatches = (ctx: Ctx, gameId: Id<"cafeGames">, email: string) =>
   ctx.db
     .query("cafeWatchers")
     .withIndex("by_gameId_and_email", (q) => q.eq("gameId", gameId).eq("email", email))
-    .unique();
+    .take(VISITS_SCAN);
+
+const watcherCount = async (ctx: Ctx, gameId: Id<"cafeGames">) => new Set((await watchersOf(ctx, gameId)).map((row) => row.email)).size;
 
 export const dropWatchesOf = async (ctx: MutationCtx, email: string) => {
   const rows = await ctx.db
@@ -537,7 +541,7 @@ export const mine = query({
         away: (side === "a" ? game.awayA : game.awayB) !== undefined,
         board: row.board,
         turnEndsAt: row.turnEndsAt,
-        watchers: (await watchersOf(ctx, game._id)).length,
+        watchers: await watcherCount(ctx, game._id),
       },
     };
   },
@@ -569,33 +573,36 @@ const canWatch = async (ctx: Ctx, game: Game, email: string, member: Doc<"worldM
   member !== null && member.roomId === game.roomId && sideOf(game, email) === null && !(await blockedEither(ctx, email, game.a)) && !(await blockedEither(ctx, email, game.b));
 
 export const watch = mutation({
-  args: { gameId: v.id("cafeGames") },
+  args: { gameId: v.id("cafeGames"), visit: v.string() },
   returns: v.union(okReply, refusedReply),
-  handler: async (ctx, { gameId }) => {
+  handler: async (ctx, { gameId, visit }) => {
     const email = await requireEmail(ctx);
     const now = Date.now();
     const game = await ctx.db.get("cafeGames", gameId);
     if (!game) return refuse("That game's over.");
     if (sideOf(game, email)) return refuse("That's your game.");
     if (!(await canWatch(ctx, game, email, await memberByEmail(ctx, email)))) return refuse("That game isn't here.");
-    const row = await myWatch(ctx, gameId, email);
+    const mine = await myWatches(ctx, gameId, email);
+    const row = mine.find((watch) => watch.visit === visit);
     if (row) {
       if (now - row.at >= CAFE_WATCH_WRITE_MS) await ctx.db.patch("cafeWatchers", row._id, { at: now });
       return done;
     }
-    if (game.endedAt !== undefined) return refuse("That game's over.");
-    await ctx.db.insert("cafeWatchers", { gameId, email, at: now });
+    if (game.endedAt !== undefined && mine.length === 0) return refuse("That game's over.");
+    if (mine.length >= VISITS_SCAN) return refuse("You're watching from too many places.");
+    await ctx.db.insert("cafeWatchers", { gameId, email, visit, at: now });
     return done;
   },
 });
 
 export const unwatch = mutation({
-  args: { gameId: v.id("cafeGames") },
+  args: { gameId: v.id("cafeGames"), visit: v.string() },
   returns: v.null(),
-  handler: async (ctx, { gameId }) => {
+  handler: async (ctx, { gameId, visit }) => {
     const email = await requireEmail(ctx);
-    const row = await myWatch(ctx, gameId, email);
-    if (row) await ctx.db.delete("cafeWatchers", row._id);
+    for (const row of await myWatches(ctx, gameId, email)) {
+      if (row.visit === visit || row.visit === undefined) await ctx.db.delete("cafeWatchers", row._id);
+    }
     return null;
   },
 });
@@ -620,7 +627,7 @@ export const watching = query({
     const email = await optionalEmail(ctx);
     const game = await ctx.db.get("cafeGames", gameId);
     if (!email || !game || !(await canWatch(ctx, game, email, await memberByEmail(ctx, email)))) return null;
-    if (game.endedAt !== undefined && !(await myWatch(ctx, gameId, email))) return null;
+    if (game.endedAt !== undefined && (await myWatches(ctx, gameId, email)).length === 0) return null;
     const row = await boardOf(ctx, gameId);
     if (!row) return null;
     return {

@@ -68,7 +68,15 @@ export type QueuedScore = {
   score: number;
   durationMs: number;
   playedAt: number;
+  account?: string;
 };
+
+type Submitted = Omit<QueuedScore, "account">;
+
+const sameOwner = (a: QueuedScore, b: QueuedScore) => (a.account ?? null) === (b.account ?? null);
+
+export const submittableFor = (queue: readonly QueuedScore[], account: string): Submitted[] =>
+  queue.filter((queued) => queued.account === undefined || queued.account === account).map(({ account: _owner, ...run }) => run);
 
 /** Why a score can't go on the leaderboard, or null when it can. */
 export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
@@ -104,8 +112,8 @@ export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, 
   // has become unpublishable can't hold its place.
   const live = queue.filter((queued) => scoreProblem(queued, now) === null);
   if (scoreProblem(entry, now) !== null) return live;
-  if (live.some((queued) => queued.game === entry.game && queued.score >= entry.score)) return live;
-  return [...live.filter((queued) => queued.game !== entry.game), entry];
+  if (live.some((queued) => queued.game === entry.game && sameOwner(queued, entry) && queued.score >= entry.score)) return live;
+  return [...live.filter((queued) => queued.game !== entry.game || !sameOwner(queued, entry)), entry];
 };
 
 /**
@@ -124,7 +132,8 @@ const isQueuedScore = (value: unknown): value is QueuedScore => {
     isGameId(entry.game) &&
     typeof entry.score === "number" &&
     typeof entry.durationMs === "number" &&
-    typeof entry.playedAt === "number"
+    typeof entry.playedAt === "number" &&
+    (entry.account === undefined || typeof entry.account === "string")
   );
 };
 
@@ -249,5 +258,5 @@ export const bestsToSync = (
     const run = runs[game];
     const onServer = server.find((row) => row.game === game)?.score ?? 0;
     if (!run || run.score <= onServer || tried.has(run.runId) || !stillCounts(run, now)) return [];
-    return queue.some((queued) => queued.game === game && queued.score >= run.score) ? [] : [run];
+    return queue.some((queued) => queued.game === game && sameOwner(queued, run) && queued.score >= run.score) ? [] : [run];
   });

@@ -537,7 +537,7 @@ const WatchersCount = ({ count }: { count: number }) => {
   const c = useCafeTheme();
   const words = watchersWords(count);
   return (
-    <View style={styles.watchers} accessible accessibilityLabel={words} testID="cafe-watchers">
+    <View style={styles.watchers} accessible accessibilityLabel={words} accessibilityLiveRegion="polite" testID="cafe-watchers">
       <Ionicons name="eye-outline" size={14} color={c.faint} />
       <Text style={[styles.watchersText, { color: c.faint }]}>{words}</Text>
     </View>
@@ -715,7 +715,7 @@ const CafeSheet = ({
               <View style={styles.turnStrip}>
                 <View style={styles.turnRow}>
                   <View style={[styles.turnDot, { backgroundColor: turnColour }]} />
-                  <Text style={[styles.turnText, { color: turnColour }]} numberOfLines={1} testID="cafe-turn">
+                  <Text style={[styles.turnText, { color: turnColour }]} numberOfLines={1} accessibilityLiveRegion="polite" testID="cafe-turn">
                     {turn}
                   </Text>
                   <Text style={[styles.seconds, { color: c.secs }]} accessibilityLabel={`${seconds} seconds left`} testID="cafe-seconds">{`${seconds}s`}</Text>
@@ -738,7 +738,7 @@ const CafeSheet = ({
             <CafeBoardView kind={kind} board={game.board} side={mine} canMove={myTurn && !busy} onMove={onMove} size={boardSize} calm={calm} winner={winner} names={watching ? names : undefined} />
             {result ? (
               <EndCard calm={calm} win={result.won}>
-                <View style={styles.result} testID="cafe-result">
+                <View style={styles.result} accessibilityLiveRegion="polite" testID="cafe-result">
                   <View style={styles.resultRow}>
                     {result.won ? <Text style={[styles.star, { color: c.win, textShadowColor: c.crest }]}>★</Text> : null}
                     <Text style={[styles.resultTitle, { color: c.text }]} numberOfLines={1}>

@@ -501,6 +501,7 @@ export default defineSchema({
   cafeWatchers: defineTable({
     gameId: v.id("cafeGames"),
     email: v.string(),
+    visit: v.optional(v.string()),
     at: v.number(),
   })
     .index("by_gameId_and_email", ["gameId", "email"])

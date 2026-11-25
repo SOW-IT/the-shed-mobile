@@ -63,7 +63,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const overAt = useRef(0);
   const practice = useRef(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
-  if (phase === "playing" && best > bestAtStart) setBestAtStart(best);
+  if (best > bestAtStart && (phase === "playing" || (phase === "over" && run !== null && best > run.score))) setBestAtStart(best);
   // An update waiting to install restarts the app when it comes back from
   // the background; never in the middle of a run.
   useRestartHold(phase === "playing");
