@@ -246,8 +246,45 @@ describe("momentum", () => {
     expect(launched!.vy).toBeGreaterThan(0);
     // Higher than the hilltop it flew off.
     expect(highest).toBeGreaterThan(400);
-    // But no higher than its climb lets it get against the bird's weight.
     expect(highest - launched!.y).toBeLessThanOrEqual(launched!.vy ** 2 / (2 * GLIDER.lightGravity));
+  });
+
+  const diveAndRelease: Pilot = (state) =>
+    groundAt(state.hills, state.x).slope < 0 && (state.grounded || state.vy < 0);
+  const OVER = 300;
+  const crestSpeeds = (pilot: Pilot, seed: number, count: number) => {
+    let state = newGlider(seed, 2);
+    const crests = state.hills.filter((_, i) => i % 2 === 0).slice(1, count + 1);
+    const speeds: number[] = [];
+    while (!state.over && speeds.length < crests.length) {
+      const before = state;
+      state = stepGlider(hold(state, pilot(state)), FRAME);
+      if (before.x < crests[speeds.length].x && state.x >= crests[speeds.length].x) {
+        speeds.push(Math.hypot(state.vx, state.vy));
+      }
+    }
+    return speeds;
+  };
+  const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
+
+  test("diving down each slope and letting go at the bottom carries the bird over world 1's first two hills", () => {
+    for (const seed of SEEDS) {
+      const [first, second] = crestSpeeds(diveAndRelease, seed, 2);
+      expect(first).toBeGreaterThan(OVER);
+      expect(second).toBeGreaterThan(OVER);
+    }
+  });
+
+  test("the same diving carries it over at least four of world 1's first five hills", () => {
+    for (const seed of SEEDS) {
+      expect(crestSpeeds(diveAndRelease, seed, 5).filter((speed) => speed > OVER).length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  test("without diving, the bird only waddles over the hills", () => {
+    for (const seed of SEEDS) {
+      for (const speed of crestSpeeds(never, seed, 5)) expect(speed).toBeLessThan(OVER);
+    }
   });
 
   test("never stalls, and never goes past top speed", () => {
@@ -419,7 +456,6 @@ describe("the camera", () => {
             const target = cameraTarget(state);
             expect(inView(target, aspect, ground)).toBe(true);
             expect(inView(target, aspect, y)).toBe(true);
-            // The camera still close in on the ground, a frame before the bird is this high.
             const next = stepGlider({ ...state, camera: { x: 0, y: ground - VIEW.margin, zoom: 1 } }, FRAME);
             expect(inView(next.camera, aspect, groundAt(hills, next.x).y)).toBe(true);
             expect(inView(next.camera, aspect, next.y)).toBe(true);

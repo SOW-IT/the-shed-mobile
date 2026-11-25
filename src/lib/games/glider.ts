@@ -7,13 +7,9 @@
 import { random } from "./random";
 
 export const GLIDER = {
-  /**
-   * Gravity while light (let go) and heavy (held), in world units a second
-   * squared. Light gravity sets how high the bird flies: at the same speed,
-   * twice the gravity is half the height.
-   */
-  lightGravity: 675,
-  heavyGravity: 1900,
+  /** Gravity while light (let go) and heavy (held), in world units a second squared. */
+  lightGravity: 500,
+  heavyGravity: 1850,
   /** Slowing on the ground and in the air, times the speed squared. */
   groundDrag: 0.00012,
   airDrag: 0.00006,
@@ -64,10 +60,8 @@ export const VIEW = {
   lead: 0.3,
   /** Room kept above the bird and below the lowest ground in view. */
   margin: 60,
-  /** The ground under the bird is never closer than this to the bottom. */
   footing: 20,
-  /** The farthest out it zooms: far enough for the highest flight there can be (highestFlight). */
-  minZoom: 0.22,
+  minZoom: 0.19,
   /** How quickly the camera catches up, each second. */
   rate: 5,
 } as const;
@@ -300,11 +294,6 @@ export const viewSize = (aspect: number, zoom: number) => {
   return { width: height * aspect, height };
 };
 
-/**
- * The highest the bird can ever fly: off the highest hilltop at top speed,
- * up the steepest slope, light all the way. Drag and holding only bring it
- * down sooner.
- */
 export const highestFlight = () => {
   const climb = GLIDER.maxSpeed * Math.sin(Math.atan(GLIDER.maxSlope));
   return GLIDER.ceiling + (climb * climb) / (2 * GLIDER.lightGravity);
@@ -312,13 +301,10 @@ export const highestFlight = () => {
 
 type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect">;
 
-/** The top of what has to show above the bird. */
 const roomAbove = (state: Framed) => state.y + GLIDER.radius * 2 + VIEW.margin;
 
-/** The bottom of what has to show under the bird: the ground right below it. */
 const footing = (state: Framed) => groundAt(state.hills, state.x).y - VIEW.footing;
 
-/** The closest zoom that still shows the bird and the ground under it, however high it is. */
 const fitZoom = (state: Framed) =>
   Math.max(VIEW.minZoom, Math.min(1, viewSize(state.aspect, 1).height / (roomAbove(state) - footing(state))));
 
@@ -339,15 +325,12 @@ const ease = (from: number, to: number, dt: number) => from + (to - from) * (1 -
 /**
  * Moves the camera toward its target. Up, down and the zoom ease in; sideways
  * it keeps the bird exactly where it should be, so the bird never drifts.
- * However fast the bird climbs, the camera zooms out at least as fast as it
- * must to keep the ground under it in view, so the hills never go off the
- * bottom.
  */
 const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
   const target = cameraTarget(state);
   const zoom = Math.min(ease(camera.zoom, target.zoom, dt), fitZoom(state));
   const view = viewSize(state.aspect, zoom);
-  // The bird inside the view, and the ground under it above the bottom.
+  // However fast the bird climbs or drops, it stays inside the view.
   const lowest = roomAbove(state) - view.height;
   const highest = footing(state);
   const y = Math.max(lowest, Math.min(highest, ease(camera.y, target.y, dt)));
@@ -601,13 +584,11 @@ const previewDone: Record<GliderPreview, (state: GliderState, before: GliderStat
   night: (state) => state.over,
 };
 
-/** How hard a long dive throws the bird off a hilltop, for the highest flight a practised player gets. */
 const BIG_THROW = { vx: 800, vy: 900 } as const;
 
 /**
  * A still moment of a run played by `autoHold`, for screenshots: diving
- * into a valley, taking off, the top of a big flight off the first hilltop,
- * just past a world's finish, or nightfall.
+ * into a valley, taking off, just past a world's finish, or nightfall.
  */
 export const previewGlider = (kind: GliderPreview, aspect = 2): GliderState => {
   const start = newGlider(1, aspect);
