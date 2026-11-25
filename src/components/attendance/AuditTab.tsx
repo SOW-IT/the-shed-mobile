@@ -25,6 +25,7 @@ import { FilterBar } from "@/components/attendance/FilterBar";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
@@ -106,6 +107,7 @@ export function AuditTab({
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
   const listRef = useRef<ScrollViewInstance>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const keyboardInset = useKeyboardInset(listRef);
   const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,
@@ -167,7 +169,7 @@ export function AuditTab({
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: t.background }}
+      style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         { paddingTop: topBarInset, paddingBottom: PAGER_PAGE_BOTTOM_INSET },

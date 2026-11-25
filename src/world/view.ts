@@ -24,6 +24,10 @@ export const pickView = ({
   return screenReader ? "list" : "garden";
 };
 
+const SKEW_FROM_ANDROID_API = 29;
+
+export const canDrawOn = (os: string, version: string | number) => os !== "android" || Number(version) >= SKEW_FROM_ANDROID_API;
+
 export const clock = (at: number) =>
   new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
