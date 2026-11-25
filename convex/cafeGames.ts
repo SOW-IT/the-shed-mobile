@@ -140,6 +140,12 @@ export const cafeSat = async (ctx: MutationCtx, member: Doc<"worldMembers">, sea
   }
 };
 
+export const endLiveGameOf = async (ctx: MutationCtx, email: string, now: number) => {
+  const game = await liveGameOf(ctx, email);
+  const side = game && sideOf(game, email);
+  if (game && side) await endGame(ctx, game, otherSide(side), "left", now);
+};
+
 export const cafeMoved = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms"> | null, now: number) => {
   const game = await liveGameOf(ctx, email);
   if (!game) return;
@@ -162,11 +168,29 @@ const bumpRecord = async (ctx: MutationCtx, email: string, kind: string, change:
   else await ctx.db.insert("cafeRecords", { email, kind, wins: 0, losses: 0, draws: 0, [change]: 1 });
 };
 
+const versusOf = (ctx: Ctx, a: string, b: string) => {
+  const [first, second] = a < b ? [a, b] : [b, a];
+  return ctx.db
+    .query("cafeVersus")
+    .withIndex("by_a_and_b", (q) => q.eq("a", first).eq("b", second))
+    .unique();
+};
+
+const bumpVersus = async (ctx: MutationCtx, game: Game, winner: Winner) => {
+  const winnerEmail = winner === "a" ? game.a : winner === "b" ? game.b : null;
+  const row = await versusOf(ctx, game.a, game.b);
+  const [a, b] = game.a < game.b ? [game.a, game.b] : [game.b, game.a];
+  const change = winnerEmail === null ? "draws" : winnerEmail === a ? "aWins" : "bWins";
+  if (row) await ctx.db.patch("cafeVersus", row._id, { [change]: row[change] + 1 });
+  else await ctx.db.insert("cafeVersus", { a, b, aWins: 0, bWins: 0, draws: 0, [change]: 1 });
+};
+
 const endGame = async (ctx: MutationCtx, game: Game, winner: Winner, why: Why, now: number) => {
   await ctx.db.patch("cafeGames", game._id, { endedAt: now, result: { winner, why }, awayA: undefined, awayB: undefined });
   if (why !== "abandoned") {
     await bumpRecord(ctx, game.a, game.kind, winner === "draw" ? "draws" : winner === "a" ? "wins" : "losses");
     await bumpRecord(ctx, game.b, game.kind, winner === "draw" ? "draws" : winner === "b" ? "wins" : "losses");
+    await bumpVersus(ctx, game, winner);
   }
   await ctx.scheduler.runAt(now + CAFE_KEEP_MS, internal.cafeGames.clear, { gameId: game._id });
 };
@@ -315,6 +339,22 @@ export const rematch = mutation({
   },
 });
 
+export const close = mutation({
+  args: { gameId: v.id("cafeGames") },
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx, { gameId }) => {
+    const email = await requireEmail(ctx);
+    const game = await ctx.db.get("cafeGames", gameId);
+    if (!game) return done;
+    const side = sideOf(game, email);
+    if (!side) return refuse("That isn't your game.");
+    if (game.endedAt === undefined) return refuse("Finish your game first.");
+    const field = side === "a" ? "closedA" : "closedB";
+    if (game[field] !== true) await ctx.db.patch("cafeGames", game._id, { [field]: true });
+    return done;
+  },
+});
+
 export const timeout = internalMutation({
   args: { gameId: v.id("cafeGames"), moves: v.number() },
   returns: v.null(),
@@ -443,7 +483,9 @@ export const mine = query({
       });
     }
     const games = (await gamesOf(ctx, email)).sort((p, q) => Number(p.endedAt !== undefined) - Number(q.endedAt !== undefined) || q.startedAt - p.startedAt);
-    const game = games.find((row) => row.next === undefined) ?? null;
+    const latest = games.find((row) => row.next === undefined) ?? null;
+    const closed = latest !== null && latest.endedAt !== undefined && latest[sideOf(latest, email) === "a" ? "closedA" : "closedB"] === true;
+    const game = closed ? null : latest;
     const row = game && (await boardOf(ctx, game._id));
     if (!game || !row) return { challenges, game: null };
     const side = sideOf(game, email)!;
@@ -485,6 +527,20 @@ export const playing = query({
       found.push({ a, b, kind: game.kind });
     }
     return found;
+  },
+});
+
+export const versus = query({
+  args: { memberId: v.id("worldMembers") },
+  returns: v.union(v.null(), v.object({ mine: v.number(), theirs: v.number(), draws: v.number() })),
+  handler: async (ctx, { memberId }) => {
+    const email = await optionalEmail(ctx);
+    const member = await ctx.db.get("worldMembers", memberId);
+    if (!email || !member || member.email === email || (await blockedEither(ctx, email, member.email))) return null;
+    const row = await versusOf(ctx, email, member.email);
+    if (!row) return null;
+    const mineFirst = row.a === email;
+    return { mine: mineFirst ? row.aWins : row.bWins, theirs: mineFirst ? row.bWins : row.aWins, draws: row.draws };
   },
 });
 

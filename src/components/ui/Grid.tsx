@@ -35,7 +35,7 @@ const SHADOW_BLEED_X = spacing.md;
 const SHADOW_BLEED_Y = spacing.sm;
 const EDGE_SHADE_HEIGHT = spacing.lg;
 
-const gradientStyle = (gradient: string): ViewStyle =>
+export const gradientStyle = (gradient: string): ViewStyle =>
   (Platform.OS === "web"
     ? { backgroundImage: gradient }
     : { experimental_backgroundImage: gradient }) as ViewStyle;

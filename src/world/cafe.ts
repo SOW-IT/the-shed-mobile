@@ -71,7 +71,22 @@ export const resultWords = (result: GameResult, side: Side, opponentName: string
   return { title, detail, won: result.winner !== "draw" && won };
 };
 
-export const sheetSwipe = (ended: boolean): "close" | "confirmGiveUp" => (ended ? "close" : "confirmGiveUp");
+export const LOW_TIME_MS = 10_000;
+
+export const lowTimeDelay = (endsAt: number, now: number) => Math.max(0, endsAt - now - LOW_TIME_MS);
+
+export const lowTimeLevel = (endsAt: number, now: number) => Math.min(1, Math.max(0, 1 - (endsAt - now) / LOW_TIME_MS));
+
+export type TurnMark = { mine: boolean; endsAt: number };
+
+export const turnStarts = (before: TurnMark | null, now: TurnMark) =>
+  now.mine && (before === null || !before.mine || before.endsAt !== now.endsAt);
+
+export const turnEdge = (game: { result?: unknown; board: { turn: Side } }, side: Side): "mine" | "theirs" | "none" =>
+  game.result !== undefined ? "none" : game.board.turn === side ? "mine" : "theirs";
+
+export const freshSay = (say: { text: string; at: number } | undefined, now: number, bubbleMs: number) =>
+  say !== undefined && now - say.at < bubbleMs ? say.text : null;
 
 export const turnWords = (turn: Side, side: Side, opponentName: string) => (turn === side ? "Your turn" : `${opponentName}'s turn`);
 

@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "convex/react";
 import { MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
+import { type ScrollViewInstance, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { FilterBar } from "@/components/attendance/FilterBar";
@@ -10,7 +10,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { useKeyboardInset } from "@/hooks/useKeyboardInset";
+import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import {
   ROLE_FIELD_KEY,
   orderedSelectOptions,
@@ -115,7 +115,7 @@ export function MembersTab({
   if (metadata === undefined) return <LoadingState />;
 
   return (
-    <Animated.ScrollView
+    <KeyboardScrollView
       ref={listRef}
       onScrollEndDrag={onListScrollEnd}
       onMomentumScrollEnd={onListScrollEnd}
@@ -123,7 +123,7 @@ export function MembersTab({
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
       keyboardShouldPersistTaps="handled"
-      style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
+      style={[{ backgroundColor: t.background }, keyboardInset]}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         { paddingTop: topBarInset, paddingBottom: footerClearancePadding },
@@ -246,7 +246,7 @@ export function MembersTab({
           ) : null}
         </View>
       )}
-    </Animated.ScrollView>
+    </KeyboardScrollView>
   );
 }
 

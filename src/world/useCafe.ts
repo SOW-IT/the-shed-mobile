@@ -28,6 +28,10 @@ export const useCafe = ({ status, place, roomId }: { status: string; place: stri
   const respondM = useMutation(api.cafeGames.respond);
   const giveUpM = useMutation(api.cafeGames.giveUp);
   const rematchM = useMutation(api.cafeGames.rematch);
+  const closeM = useMutation(api.cafeGames.close).withOptimisticUpdate((store, { gameId }) => {
+    const current = store.getQuery(api.cafeGames.mine, {});
+    if (current?.game?.id === gameId && current.game.result) store.setQuery(api.cafeGames.mine, {}, { ...current, game: null });
+  });
   const moveM = useMutation(api.cafeGames.move).withOptimisticUpdate((store, { gameId, move }) => {
     const current = store.getQuery(api.cafeGames.mine, {});
     const game = current?.game;
@@ -46,6 +50,7 @@ export const useCafe = ({ status, place, roomId }: { status: string; place: stri
     move: useCallback((gameId: Id<"cafeGames">, move: number) => attempt(() => moveM({ gameId, move })), [moveM]),
     giveUp: useCallback((gameId: Id<"cafeGames">) => attempt(() => giveUpM({ gameId })), [giveUpM]),
     rematch: useCallback((gameId: Id<"cafeGames">) => attempt(() => rematchM({ gameId })), [rematchM]),
+    close: useCallback((gameId: Id<"cafeGames">) => attempt(() => closeM({ gameId })), [closeM]),
   };
 };
 
