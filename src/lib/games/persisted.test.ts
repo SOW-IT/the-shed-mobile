@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Write = { value: string; finish: (saved: boolean) => void };
 const writes: Write[] = [];
+let nextRead: Promise<string | null> = Promise.resolve(null);
 
 vi.mock("../deviceStorage", () => ({
-  readStored: async () => null,
+  readStored: () => nextRead,
   tryWriteStored: (_key: string, value: string) =>
     new Promise<boolean>((finish) => {
       writes.push({ value, finish });
@@ -18,6 +19,22 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 describe("persisted", () => {
   beforeEach(() => {
     writes.length = 0;
+    nextRead = Promise.resolve(null);
+  });
+
+  it("waits for the saved best to load before a run can change it", async () => {
+    let finishRead: (saved: string | null) => void = () => {};
+    nextRead = new Promise((resolve) => {
+      finishRead = resolve;
+    });
+    const best = persisted<number>("test.loading", Number, 0, String);
+    const run = best.update((current) => Math.max(current, 100));
+    await settle();
+    expect(writes).toEqual([]);
+    finishRead("200");
+    await run;
+    expect(best.get()).toBe(200);
+    expect(writes).toEqual([]);
   });
 
   it("writes one at a time, so a slow earlier write can't hide a newer one that failed", async () => {

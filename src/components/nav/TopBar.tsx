@@ -48,14 +48,15 @@ export const TopBar = ({
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [leftWidth, setLeftWidth] = useState(0);
   const [rightWidth, setRightWidth] = useState(0);
-  const titlePad = titleInsets(EDGE_CONTROLS_WIDTH, leftWidth, rightWidth);
+  const [barWidth, setBarWidth] = useState(0);
+  const titlePad = titleInsets(EDGE_CONTROLS_WIDTH, leftWidth, rightWidth, barWidth);
   const badge =
     useReimbursementsBadge() +
     useStaffWaitingBadge(api.designRequests.waitingOnMe) +
     useStaffWaitingBadge(api.eventRequests.waitingOnMe) +
     useMusicRequestsBadge();
   return (
-    <View style={styles.topBar}>
+    <View style={styles.topBar} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
       <View style={[styles.center, { paddingLeft: titlePad.left, paddingRight: titlePad.right }]} pointerEvents="box-none">
         {title}
         <View style={styles.chipRow} pointerEvents="box-none">

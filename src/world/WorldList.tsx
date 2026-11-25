@@ -273,7 +273,7 @@ export const WorldList = ({
           ))}
         </View>
         {note ? (
-          <Text style={[typography.caption, { color: t.danger }]} aria-live="polite">
+          <Text style={[typography.caption, { color: t.danger }]} aria-live={Platform.OS === "web" ? "off" : "polite"}>
             {note}
           </Text>
         ) : null}
