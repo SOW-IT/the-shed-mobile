@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     left: 14,
     borderRadius: 24,
     // The web blurs the World behind the glass; a phone can't, so the panel
-    // is near solid there and the World's labels don't show through its text.
+    // is solid there and the World's labels don't show through its text.
     backgroundColor: Platform.OS === "web" ? glass.panel : glass.panelSolid,
     borderWidth: 1.5,
     borderColor: glass.edge,

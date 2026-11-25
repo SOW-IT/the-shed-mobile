@@ -30,7 +30,7 @@ All notable changes to **The SHED** mobile app. This project follows
   back to the World. The leaderboard opens from the panel's trophy, and the
   panel is still there when you come back. Your coins show in the panel on
   a narrow phone, where it covers the World's coin chip. On a phone the
-  panel is near solid, so the World's labels don't show through its text,
+  panel is solid, so the World's labels don't show through its text,
   and the chat log steps aside while it's open (lines still show over
   people's heads).
 - **The Games list shows your coins and looks like the World.** Your coin

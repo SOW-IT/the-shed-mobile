@@ -23,8 +23,8 @@ export const worldColours = {
   /** The menus and panels: dark glass over the garden. */
   glass: {
     panel: "rgba(12, 30, 28, 0.84)",
-    /** A panel on a phone, where nothing blurs what's behind it: near solid, so labels under it don't show through. */
-    panelSolid: "rgba(12, 30, 28, 0.97)",
+    /** A panel on a phone, where nothing blurs what's behind it: solid, so labels under it don't show through. */
+    panelSolid: "#0C1E1C",
     edge: "rgba(255, 255, 255, 0.16)",
     row: "rgba(255, 255, 255, 0.07)",
     rowPressed: "rgba(255, 255, 255, 0.16)",
