@@ -153,7 +153,9 @@ const RootStack = () => {
             <Stack.Screen name="world" />
             <Stack.Screen name="world-calendar" />
             <Stack.Screen name="world-praise" />
+            <Stack.Screen name="world-devotionals" />
             <Stack.Screen name="devotionals/[date]" />
+            <Stack.Screen name="devotionals/groups/[id]" />
             <Stack.Screen name="games/index" />
             {/* No swipe back from a game: a sideways swipe is a move in the game
                 (Sky Shooter steers that way). The back button at the top left is

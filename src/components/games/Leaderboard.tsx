@@ -4,7 +4,7 @@ import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
 import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, styles as shared, TabBar } from "@/components/ui";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
-import { withRanks } from "@/lib/games/leaderboardRanks";
+import { leaderboardDate, leaderboardName, withRanks } from "@/lib/games/leaderboardRanks";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -14,7 +14,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
-import { shortName } from "@shared/names";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -52,24 +51,34 @@ const Board = ({ game }: { game: GameId }) => {
         <EmptyState icon="trophy-outline" title="No scores yet" />
       ) : (
         <Card style={styles.list}>
-          {ranked.map((row, index) => (
-            <View
-              key={row.id}
-              style={[
-                styles.row,
-                index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },
-              ]}
-              testID="leaderboard-row"
-            >
-              <View style={[styles.rank, { backgroundColor: row.rank <= 3 ? t.accentSoft : t.ghost }]}>
-                <Text style={[typography.label, { color: row.rank <= 3 ? t.accent : t.muted }]}>{row.rank}</Text>
+          {ranked.map((row, index) => {
+            const date = leaderboardDate(row.playedAt);
+            return (
+              <View
+                key={row.id}
+                style={[
+                  styles.row,
+                  index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.separator },
+                ]}
+                testID="leaderboard-row"
+              >
+                <View style={[styles.rank, { backgroundColor: row.rank <= 3 ? t.accentSoft : t.ghost }]}>
+                  <Text style={[typography.label, { color: row.rank <= 3 ? t.accent : t.muted }]}>{row.rank}</Text>
+                </View>
+                <View style={styles.who}>
+                  <Text style={[typography.body, { color: t.text }, row.isMe && styles.me]} numberOfLines={1}>
+                    {leaderboardName(row)}
+                  </Text>
+                  {date ? (
+                    <Text style={[typography.caption, { color: t.muted }]} testID="leaderboard-date">
+                      {date}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={[typography.headline, { color: t.text }]}>{row.score.toLocaleString()}</Text>
               </View>
-              <Text style={[typography.body, styles.name, { color: t.text }, row.isMe && styles.me]} numberOfLines={1}>
-                {row.isMe ? `${shortName(row.name)} (you)` : shortName(row.name)}
-              </Text>
-              <Text style={[typography.headline, { color: t.text }]}>{row.score.toLocaleString()}</Text>
-            </View>
-          ))}
+            );
+          })}
         </Card>
       )}
       <LoadMoreFooter
@@ -200,7 +209,7 @@ const styles = StyleSheet.create({
   list: { paddingVertical: spacing.xs, gap: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md },
   rank: { width: 30, height: 30, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
-  name: { flex: 1 },
+  who: { flex: 1, gap: 1 },
   me: { fontWeight: "700" },
   end: { textAlign: "center", paddingVertical: spacing.sm },
   device: { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

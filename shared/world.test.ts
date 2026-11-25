@@ -373,7 +373,10 @@ describe("mutual actions", () => {
 
   test("plays from the answer for MUTUAL_MS, only when the ask and answer match", () => {
     const live = (r: typeof reply | undefined, now: number, a = ask) => liveMutual({ id: "a", ask: a }, { id: "b", reply: r }, now);
+    expect(MUTUAL_MS).toBe(1750);
     expect(live(reply, 3000)).toEqual({ kind: "highFive", progress: 0 });
+    expect(live(reply, 3000 + 1749)).not.toBeNull();
+    expect(live(reply, 3000 + 1750)).toBeNull();
     expect(live(reply, 3000 + MUTUAL_MS / 2)!.progress).toBeCloseTo(0.5);
     expect(live(reply, 3000 + MUTUAL_MS)).toBeNull();
     expect(live(reply, 2999)).toBeNull();

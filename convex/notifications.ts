@@ -175,6 +175,27 @@ export const markReadForAnnouncement = mutation({
   },
 });
 
+export const markReadForDevotionalGroup = mutation({
+  args: { groupId: v.id("devotionalGroups") },
+  handler: async (ctx, args) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_and_devotionalGroup_and_read", (q) =>
+        q
+          .eq("userEmail", email)
+          .eq("devotionalGroupId", args.groupId)
+          .eq("read", false)
+      )
+      .take(50);
+    for (const notification of unread) {
+      await ctx.db.patch("notifications", notification._id, { read: true });
+    }
+    return null;
+  },
+});
+
 const MARKED_IDS_RETURNED = 500;
 
 export const markAllRead = mutation({

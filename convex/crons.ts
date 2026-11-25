@@ -39,4 +39,6 @@ crons.cron("recount attendance members", "15 17 * * *", internal.memberCount.rec
 // it if a scheduled run was ever lost.
 crons.cron("shed world sweep backstop", "23 18 * * *", internal.world.sweep, {});
 
+crons.cron("devotional group reminders", "1 9,10 * * *", internal.devotionalGroups.sendDailyReminders, {});
+
 export default crons;
