@@ -135,6 +135,7 @@ const lookahead = (plans: readonly (readonly boolean[])[], step: number, every: 
 const reading = () => lookahead(PAIRS, 15, 4);
 const careful = () => lookahead(TRIPLES, 15, 3);
 const farSighted = () => lookahead(PAIRS, 30, 4);
+const steady = () => lookahead(PAIRS, 45, 4);
 const good = (seed: number) => lookahead(PAIRS, 15, 5, 0.08, 10, seed);
 const withMistakes = (pilot: Pilot, seed: number): Pilot => {
   const rng = { seed: seed * 104729 };
@@ -156,7 +157,10 @@ const finishWorld = (world: number, seed: number, pilot: Pilot) => {
 };
 
 const perfectRun = (world: number, seed: number) =>
-  finishWorld(world, seed, reading()) ?? finishWorld(world, seed, careful()) ?? finishWorld(world, seed, farSighted());
+  finishWorld(world, seed, reading()) ??
+  finishWorld(world, seed, careful()) ??
+  finishWorld(world, seed, farSighted()) ??
+  finishWorld(world, seed, steady());
 
 /** One valley between two hilltops, for the physics tests. */
 const VALLEY: HillPoint[] = [
