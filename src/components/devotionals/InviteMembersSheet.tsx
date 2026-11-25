@@ -1,0 +1,114 @@
+import {
+  Avatar,
+  Btn,
+  Chip,
+  ErrorBanner,
+  Muted,
+  SearchField,
+  Sheet,
+  errorMessage,
+} from "@/components/ui";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { spacing, typography, useAppTheme } from "@/theme";
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
+
+const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => {
+  const t = useAppTheme();
+  const [search, setSearch] = useState("");
+  const debounced = useDebouncedValue(search, 180);
+  const [inviting, setInviting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const people = useQuery(api.devotionalGroups.searchInvitableUsers, {
+    groupId,
+    search: debounced,
+  });
+  const sendInvite = useMutation(api.devotionalGroups.invite);
+
+  const handleInvite = async (email: string) => {
+    setError(null);
+    setInviting(email);
+    try {
+      await sendInvite({ groupId, email });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setInviting(null);
+    }
+  };
+
+  return (
+    <View style={styles.wrap}>
+      <SearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search people"
+        loading={people === undefined}
+      />
+      <ErrorBanner message={error} />
+      {people && people.length === 0 ? <Muted>No people found.</Muted> : null}
+      <View style={styles.list}>
+        {(people ?? []).map((person) => (
+          <View
+            key={person.email}
+            style={[styles.personRow, { borderBottomColor: t.separator }]}
+          >
+            <Avatar photo={person.photo} name={person.name} size={36} />
+            <View style={styles.personInfo}>
+              <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={1}>
+                {person.name}
+              </Text>
+              <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+                {person.email}
+              </Text>
+            </View>
+            {person.status === "member" ? (
+              <Chip>Member</Chip>
+            ) : person.status === "invited" ? (
+              <Chip>Invited</Chip>
+            ) : (
+              <Btn
+                title="Invite"
+                variant="tonal"
+                loading={inviting === person.email}
+                disabled={inviting !== null}
+                onPress={() => void handleInvite(person.email)}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+export const InviteMembersSheet = ({
+  visible,
+  groupId,
+  onClose,
+}: {
+  visible: boolean;
+  groupId: Id<"devotionalGroups">;
+  onClose: () => void;
+}) => (
+  <Sheet visible={visible} title="Invite Members" onClose={onClose}>
+    {visible ? <InviteMembersBody groupId={groupId} /> : null}
+  </Sheet>
+);
+
+const styles = StyleSheet.create({
+  wrap: { gap: spacing.md },
+  list: { gap: 0 },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  personInfo: { flex: 1, minWidth: 0, gap: 1 },
+});

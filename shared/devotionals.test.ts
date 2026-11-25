@@ -56,7 +56,7 @@ describe("devotional date rules", () => {
 });
 
 describe("devotional validation and merging", () => {
-  test("validates passage, notes and prayer points", () => {
+  test("validates passage, notes and prayer", () => {
     expect(
       validateDevotionalInput({ passage: "ps 23", notes: "Good shepherd", prayerPoints: "Peace" })
     ).toEqual({

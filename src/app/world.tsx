@@ -2,7 +2,6 @@ import { SignInPrompt } from "@/components/SignInPrompt";
 import { LoadingState, Screen } from "@/components/ui";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { backOr } from "@/lib/goBack";
-import { todayDevotionalDate } from "@shared/devotionals";
 import { useConvexAuth } from "convex/react";
 import { useFocusEffect, useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
@@ -83,7 +82,7 @@ export default function World() {
         }}
         onDevotional={() => {
           setAwayKind("devotional");
-          router.push(`/devotionals/${todayDevotionalDate()}`);
+          router.push("/world-devotionals");
         }}
       />
     </Suspense>

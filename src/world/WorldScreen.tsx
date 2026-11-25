@@ -43,7 +43,7 @@ import { pickView } from "./view";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
 import { SettingsPanel } from "./SettingsPanel";
-import { useWorldSetting } from "./settings";
+import { useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
 import { DuelCard } from "./DuelCard";
 import { WorldList } from "./WorldList";
@@ -56,7 +56,6 @@ import { InviteCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { shortName } from "@shared/names";
 
 const useScreenReader = () => {
   const [on, setOn] = useState(false);
@@ -317,6 +316,7 @@ export const WorldScreen = ({
   // the ask just runs out.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const worldName = useWorldName();
   const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
 
@@ -355,7 +355,7 @@ export const WorldScreen = ({
   };
   const selected = world.people.find((p) => p.memberId === person) ?? null;
   // How the selected person is named in the action hints: first name and last initial.
-  const selectedName = selected ? shortName(selected.name) : "";
+  const selectedName = selected ? worldName(selected.name) : "";
   if (person !== null && !selected && world.status === "in") setPerson(null);
   const tapped =
     world.people.find((p) => p.memberId === sheet?.memberId) ??
@@ -367,7 +367,7 @@ export const WorldScreen = ({
   };
   const nameOf = (memberId: string) => {
     const full = world.people.find((p) => p.memberId === memberId)?.name;
-    return full ? shortName(full) : "them";
+    return full ? worldName(full) : "them";
   };
 
   const myDuel = world.memberId ? duelFor(world.duels, world.memberId, now) : null;
@@ -388,13 +388,13 @@ export const WorldScreen = ({
     if (other) void world.ask(other.memberId, kind).then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
   };
 
-  const live = useRef({ world, askFor });
+  const live = useRef({ world, askFor, worldName });
   useEffect(() => {
-    live.current = { world, askFor };
+    live.current = { world, askFor, worldName };
   });
   const aimedAt = useRef<string | null>(null);
   const stepToward = (to: string, since: number, kind: AskKind): boolean => {
-    const { world: latest, askFor: ask } = live.current;
+    const { world: latest, askFor: ask, worldName: nameOf } = live.current;
     const at = latest.serverNow();
     const mine = latest.people.find((p) => p.isMe);
     const theirs = latest.people.find((p) => p.memberId === to);
@@ -416,7 +416,7 @@ export const WorldScreen = ({
       return false;
     }
     if (step.kind === "giveUp" || Date.now() - since > APPROACH_MS) {
-      setNote(`Couldn't get close to ${theirs.name.split(" ")[0]}.`);
+      setNote(`Couldn't get close to ${nameOf(theirs.name)}.`);
       return false;
     }
     if (step.kind === "walk") {
@@ -516,7 +516,7 @@ export const WorldScreen = ({
   };
   const goHome = () => go("home");
   const invitePerson = (memberId: Id<"worldMembers">, name: string) =>
-    void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${name.split(" ")[0]} home.`));
+    void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${worldName(name)} home.`));
 
   const said = (e: unknown, otherwise: string) => (e instanceof ConvexError ? String(e.data) : otherwise);
   const decorate = (change: () => Promise<{ ok: boolean; retryInMs?: number }>) =>
@@ -571,7 +571,7 @@ export const WorldScreen = ({
     const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, inviteEnds - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
   }, [inviteEnds]);
-  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${world.home.ownerName.split(" ")[0]}'s home`) : "Home") : PLACE_TITLES[world.place];
+  const placeTitle = world.place === "home" ? (world.home ? (world.home.mine ? "Your home" : `${worldName(world.home.ownerName)}'s home`) : "Home") : PLACE_TITLES[world.place];
   const goRef = useRef(go);
   useEffect(() => {
     goRef.current = go;
@@ -677,7 +677,7 @@ export const WorldScreen = ({
     if (gap <= BESIDE) return;
     const k = (gap - BESIDE) / gap;
     latest.walkTo(from.x + (there.x - from.x) * k, from.z + (there.z - from.z) * k);
-    setNote(`Walking over to ${theirs.name.split(" ")[0]}…`);
+    setNote(`Walking over to ${worldName(theirs.name)}…`);
   };
   const walkOverRef = useRef(walkOver);
   useEffect(() => {

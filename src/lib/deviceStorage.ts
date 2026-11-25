@@ -40,11 +40,13 @@ export const storedValue = <T>({
   initial,
   restore,
   serialize,
+  save = writeStored,
 }: {
   key: string;
   initial: T;
   restore: (saved: string, current: T) => T | null;
   serialize: (value: T) => string;
+  save?: (key: string, value: string) => Promise<unknown>;
 }) => {
   let value = initial;
   let loadState: "idle" | "loading" | "done" = "idle";
@@ -67,7 +69,7 @@ export const storedValue = <T>({
 
   const set = (next: T) => {
     if (loadState !== "done") changedBeforeLoad = true;
-    void writeStored(key, serialize(next));
+    void save(key, serialize(next));
     if (Object.is(value, next)) return;
     value = next;
     notify();

@@ -8,7 +8,7 @@ import { useWorldSetting } from "./settings";
 import { useChatLog } from "./useChatLog";
 import { PENDING } from "./useWorld";
 import { saidLabel } from "./view";
-import { shortName } from "@shared/names";
+import { styledName } from "@shared/names";
 
 const LINE_HEIGHT = 19;
 const SHOWN_LINES = 5;
@@ -48,7 +48,7 @@ export const ChatLog = ({
 }) => {
   const log = useChatLog(roomId, HUD_CHAT_LIMIT);
   const [times] = useWorldSetting("chatTimes");
-  const [names] = useWorldSetting("chatNames");
+  const [names] = useWorldSetting("names");
   const format = { times: times === "on", names };
   const [now, setNow] = useState(serverNow);
   const nextExpiry = (log ?? []).reduce<number | null>((soonest, line) => {
@@ -106,7 +106,7 @@ export const ChatLog = ({
       {lines.map((line) => {
         const parts = chatLineParts(line, { ...format, pending: line.id.startsWith(PENDING) });
         return line.kind ? (
-          <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line)} testID="world-chat-system">
+          <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line, names)} testID="world-chat-system">
             <ChatLineHead parts={parts} />
             {`${parts.name} ${parts.text}`}
           </Text>
@@ -115,8 +115,8 @@ export const ChatLog = ({
             key={line.id}
             style={styles.line}
             onLayout={measure(line.id)}
-            accessibilityLabel={saidLabel(line)}
-            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${shortName(line.name)}`}
+            accessibilityLabel={saidLabel(line, names)}
+            accessibilityHint={line.isMe ? undefined : `Mute, block or report ${styledName(line.name, names)}`}
             onPress={line.isMe ? undefined : () => onLine(line.memberId, line.name)}
             suppressHighlighting
             testID="world-chat-line"

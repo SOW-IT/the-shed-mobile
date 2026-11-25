@@ -9,6 +9,10 @@ import {
 } from "./announcementData";
 import { calendarAuditActionValidator, entryChangeValidator, entryFields } from "./calendarData";
 import {
+  devotionalMemberStatusValidator,
+  devotionalSharingLevelValidator,
+} from "./devotionalGroupData";
+import {
   designAnswersValidator,
   designStatusValidator,
 } from "./designRequestData";
@@ -62,6 +66,7 @@ export default defineSchema({
     churchId: v.optional(v.id("churches")),
     avatarId: v.optional(v.id("_storage")),
     reminderEmails: v.optional(v.boolean()),
+    devotionalReminders: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("by_churchId", ["churchId"]),
@@ -405,6 +410,45 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_email_and_date", ["email", "date"]),
 
+  devotionalGroups: defineTable({
+    name: v.string(),
+    startDate: v.string(),
+    endDate: v.string(),
+    sharingLevel: devotionalSharingLevelValidator,
+    ownerEmail: v.string(),
+    memberCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_ownerEmail", ["ownerEmail"])
+    .index("by_endDate", ["endDate"]),
+
+  devotionalGroupMembers: defineTable({
+    groupId: v.id("devotionalGroups"),
+    email: v.string(),
+    status: devotionalMemberStatusValidator,
+    invitedBy: v.optional(v.string()),
+    invitedAt: v.number(),
+    joinedAt: v.optional(v.number()),
+    joinedOn: v.optional(v.string()),
+    groupEndDate: v.optional(v.string()),
+  })
+    .index("by_groupId_and_email", ["groupId", "email"])
+    .index("by_groupId_and_status", ["groupId", "status"])
+    .index("by_email_and_status_and_groupEndDate", ["email", "status", "groupEndDate"]),
+
+  devotionalSharingSettings: defineTable({
+    email: v.string(),
+    level: devotionalSharingLevelValidator,
+    updatedAt: v.number(),
+  }).index("by_email", ["email"]),
+
+  devotionalReminderLogs: defineTable({
+    email: v.string(),
+    date: v.string(),
+    sentAt: v.number(),
+  }).index("by_email_and_date", ["email", "date"]),
+
   gameScores: defineTable({
     email: v.string(),
     game: gameIdValidator,
@@ -612,6 +656,7 @@ export default defineSchema({
     eventRequestId: v.optional(v.id("eventRequests")),
     announcementId: v.optional(v.id("announcements")),
     grievanceId: v.optional(v.id("grievances")),
+    devotionalGroupId: v.optional(v.id("devotionalGroups")),
     read: v.boolean(),
   })
     // eslint-disable-next-line @convex-dev/no-duplicate-indexes -- the feed paginates newest first, which no longer index can give
@@ -638,8 +683,14 @@ export default defineSchema({
       "grievanceId",
       "read",
     ])
+    .index("by_user_and_devotionalGroup_and_read", [
+      "userEmail",
+      "devotionalGroupId",
+      "read",
+    ])
     .index("by_announcement_and_read", ["announcementId", "read"])
-    .index("by_request", ["requestId"]),
+    .index("by_request", ["requestId"])
+    .index("by_devotionalGroup", ["devotionalGroupId"]),
 
   announcements: defineTable({
     senderEmail: v.string(),
