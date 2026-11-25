@@ -25,6 +25,7 @@ import { subgroupLabel } from "@shared/rollcall";
 import { universityColour } from "@shared/flow";
 import { togglePicked } from "@shared/churches";
 import { ChromeScreen } from "@/components/ChromeScreen";
+import { useBottomLift } from "@/components/nav/tabBarShown";
 import { useWideLayout } from "@/components/nav/layout";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { type AttendanceDraft, CreateEventSheet } from "@/components/attendance/CreateEventSheet";
@@ -212,6 +213,7 @@ const EventRow = ({ event, onPress }: { event: CalendarEvent; onPress?: () => vo
 export function CalendarView({ onBack }: { onBack?: () => void } = {}) {
   const t = useAppTheme();
   const router = useRouter();
+  const bottomLift = useBottomLift();
   const me = useQuery(api.directory.me);
   const staff = !!me?.profile;
   const [now, setNow] = useState(() => Date.now());
@@ -398,7 +400,7 @@ export function CalendarView({ onBack }: { onBack?: () => void } = {}) {
   );
   // Today on the left, Month/Week in the middle and add on the right, over the bottom of the screen.
   const floating = (
-    <View style={styles.bottomBarWrap} pointerEvents="box-none">
+    <View style={[styles.bottomBarWrap, { bottom: spacing.md + bottomLift }]} pointerEvents="box-none">
       <View style={styles.bottomBar} pointerEvents="box-none">
         <View style={styles.side} pointerEvents="box-none">
           <Pressable
@@ -580,7 +582,7 @@ export function CalendarView({ onBack }: { onBack?: () => void } = {}) {
     <>
       <ChromeScreen floating={floating} title={title} onBack={onBack}>
         <ReadableColumn>
-          <View style={{ gap: spacing.md, paddingBottom: 72 }}>
+          <View style={{ gap: spacing.md, paddingBottom: 72 + bottomLift }}>
             {wide ? title : null}
             <SwipePeriod
               key={view}

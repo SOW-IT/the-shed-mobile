@@ -47,6 +47,16 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
   target and holds after a big flight.
+## [2.13.13] - 2026-11-25
+
+### Fixed
+- **Bottom buttons sit higher on pages opened from the World.** The
+  Calendar from the notice board, the Praise List from the piano and other
+  pages with no tab bar under them had their bottom buttons down by the
+  iPhone's home bar. They now sit the same gap above it as they do above
+  the tab bar elsewhere, and lists still scroll their last row clear of
+  them. Forms opened from a page (a new event or design request, editing
+  Home) get the same lift.
 
 ## [2.13.12] - 2026-11-25
 

@@ -1,4 +1,5 @@
 import { useWideLayout } from "@/components/nav/layout";
+import { TabBarShownContext } from "@/components/nav/tabBarShown";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { useBadgeSync } from "@/hooks/useBadgeSync";
 import { useGrievancesBadge } from "@/hooks/useGrievancesBadge";
@@ -9,6 +10,7 @@ import { BOTTOM_TAB_HEIGHT, radius, useAppTheme, fixedColours } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
+import type { ReactElement } from "react";
 import {
   AccessibilityState,
   Animated,
@@ -84,6 +86,10 @@ const inactivePressableState = {
   hovered: false,
   focused: false,
 };
+
+const ShowsTabBar = ({ children }: { children: ReactElement }) => (
+  <TabBarShownContext.Provider value>{children}</TabBarShownContext.Provider>
+);
 
 const sideMenuOnly = { tabBarItemStyle: { display: "none" as const } };
 
@@ -171,6 +177,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       backBehavior="history"
+      screenLayout={ShowsTabBar}
       tabBar={
         wide ? () => <View style={{ height: insets.bottom }} /> : undefined
       }
