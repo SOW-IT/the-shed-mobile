@@ -24,7 +24,7 @@ export const pickView = ({
   return screenReader ? "list" : "garden";
 };
 
-export const SKEW_FROM_ANDROID_API = 29;
+const SKEW_FROM_ANDROID_API = 29;
 
 export const canDrawOn = (os: string, version: string | number) => os !== "android" || Number(version) >= SKEW_FROM_ANDROID_API;
 

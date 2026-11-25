@@ -33,6 +33,7 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type HighlightTarget, type InteractivePropId } from "./Garden";
 import { hud } from "./palette";
+import { popShadow } from "./popShadow";
 import type { HudAction } from "./PersonHud";
 import { PersonSheet } from "./Sheets";
 import { PeoplePanel } from "./People";
@@ -1168,7 +1169,7 @@ const UNDER_CHAT_SLACK = 10;
 const SHOP_CHAT_GAP = 14;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
-const pop = { shadowColor: hud.forest, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 0 };
+const pop = popShadow();
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: hud.cream },

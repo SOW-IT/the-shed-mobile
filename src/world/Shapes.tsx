@@ -19,7 +19,7 @@ export const quadTransform = (q: readonly { x: number; y: number }[]) => {
 
 const HIDDEN = [{ scale: 0 }];
 
-export const FlatQuad = ({ pts, fill, radius = 0 }: { pts: readonly { x: number; y: number }[]; fill: string; radius?: number }) => (
+const FlatQuad = ({ pts, fill, radius = 0 }: { pts: readonly { x: number; y: number }[]; fill: string; radius?: number }) => (
   <>
     {flatPieces(pts, radius).map((piece) => {
       if (piece.kind === "dot") {

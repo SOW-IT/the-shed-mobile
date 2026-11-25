@@ -3,6 +3,7 @@ import { memo, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
+import { popShadow } from "./popShadow";
 import { Ellipse, flatQuad, quadTransform } from "./Shapes";
 import { bandOverHead, capShape, earCup, HAT_PITCH, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
@@ -1597,10 +1598,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 8,
-    shadowColor: hud.forest,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    ...popShadow(),
     marginBottom: 2,
   },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 11 },

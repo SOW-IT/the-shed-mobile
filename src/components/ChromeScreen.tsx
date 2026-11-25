@@ -9,6 +9,7 @@ import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { TopBar } from "@/components/nav/TopBar";
 import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 
 export const ChromeScreen = ({
   children,
@@ -29,6 +30,7 @@ export const ChromeScreen = ({
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardInset();
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
   const wide = useWideLayout();
   return (
@@ -38,7 +40,7 @@ export const ChromeScreen = ({
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={[styles.body, { backgroundColor: t.background }]}
+        style={[styles.body, { backgroundColor: t.background, marginBottom: keyboardInset }]}
         contentContainerStyle={[
           styles.scroll,
           {

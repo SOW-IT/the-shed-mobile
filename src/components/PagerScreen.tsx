@@ -10,6 +10,7 @@ import {
   useTopBarCollapse,
 } from "@/components/useTopBarCollapse";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
+import { useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
@@ -119,6 +120,7 @@ export const PagerScreen = ({
   onBack?: () => void;
 }) => {
   const t = useAppTheme();
+  const keyboardInset = useKeyboardInset();
   const wide = useWideLayout();
   const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
@@ -342,7 +344,7 @@ export const PagerScreen = ({
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: t.background }}
+        style={{ backgroundColor: t.background, marginBottom: keyboardInset }}
         contentContainerStyle={[
           styles.page,
           { paddingTop: spacing.md + topBarInset },

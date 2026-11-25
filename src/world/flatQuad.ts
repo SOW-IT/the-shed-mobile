@@ -11,7 +11,7 @@ export type FlatTransform = [
   { scaleY: number },
 ];
 
-export type FlatPiece =
+type FlatPiece =
   | { kind: "rect"; key: string; transform: FlatTransform }
   | { kind: "triangle"; key: string; transform: FlatTransform }
   | { kind: "dot"; key: string; x: number; y: number; r: number };
