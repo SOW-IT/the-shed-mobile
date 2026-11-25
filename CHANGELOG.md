@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.12.55] - 2026-11-25
+
+### Fixed
+- **Delete group works on iPhone.** Its confirmation used to open behind the group settings sheet, so nothing happened. It now shows on top, and deleting removes the group, its members and invites, and the invite and reminder notifications for it. Everyone's own devotionals stay. You go back to Groups, and the group drops off every member's list straight away; a member looking at it is taken back to Groups too.
+
+### Changed
+- **History is now Yours.**
+- **Past groups.** Groups that have ended move to a **Past groups** list under your current and upcoming ones, 10 at a time with **Show more**.
+- **Swipe between Yours and Groups.** Tapping the tabs still works. The tabs now run edge to edge like the other tabbed screens.
+- **Devotionals and Today in the top bar.** The title sits in the top bar, and **Today** sits next to the bell.
+- **Green ticks on Yours.** A day you chose a passage for turns green with a tick, like a day everyone finished in a group.
+- **The Chapel opens Devotionals.** Sitting down or tapping the pulpit, then **Open**, takes you to Yours and Groups instead of straight into today. Back takes you to the World, and the open book shows over your character until then.
+
 ## [2.12.54] - 2026-11-25
 
 ### Added
