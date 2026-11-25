@@ -811,6 +811,7 @@ export const WorldScreen = ({
         bottom={Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + 12}
         safe={{ top: insets.top, bottom: insets.bottom }}
         onNote={setNote}
+        onReturn={() => go("cafe")}
       />
       <ShopPanel
         open={shopOpen}
