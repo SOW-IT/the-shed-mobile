@@ -9,8 +9,8 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.13.40] - 2026-11-27
 
 ### Fixed
-- **The web sweep no longer fails the signed-in leader's World now and
-  then.** About one sweep in ten failed with "still changing after 15s" on
+- **The web sweep should fail the signed-in leader's World much less
+  often.** About one sweep in ten failed with "still changing after 15s" on
   the leader's `/world`, on main and on PRs alike. The app was fine. Signed
   out, the World shows a sign-in prompt and never loads its own screen, so
   the first signed-in visit is when the dev server builds it, which takes
@@ -18,7 +18,11 @@ All notable changes to **The SHED** mobile app. This project follows
   screen's 15 seconds, but it had one two-minute allowance for the whole
   run, and the signed-out pass had used it up. The build then counted as
   the World changing. Each pass (signed out, then each role) now gets its
-  own allowance. Nothing in the app changed.
+  own allowance. Nothing in the app changed. This makes the failure less
+  likely rather than impossible: on CI the leader pass spends an estimated
+  65 seconds of its two minutes on page loads before it reaches the World,
+  and 13 more building it, so a much slower run could still run out. One CI sweep has passed with
+  the change; that isn't enough runs to show the failure is gone.
 
 ## [2.13.39] - 2026-11-27
 
