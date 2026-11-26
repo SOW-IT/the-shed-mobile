@@ -6,6 +6,42 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.41] - 2026-11-27
+
+### Added
+- **Hong Kong mahjong at two tables in the online World's Café.** Sit at
+  an empty table and you host it. Its lobby is the arcade's panel: four
+  seats (East, South, West, North), Add bot and Remove for the host, the
+  rules (3 faan to win and a 10 faan cap by default, flowers on or off,
+  how many coins a point is worth), and Start game once every seat has a
+  person or a bot. The host passes to the next person seated if they get
+  up before the start.
+- **A full game of Hong Kong (Cantonese) rules, played full screen.** The
+  dice pick the dealer and where the wall breaks, the tiles are dealt and
+  sorted, and play passes round the table. You can win (食糊 or 自摸),
+  kong (concealed, exposed, or onto your pong, which someone can rob),
+  pong, or chow from the player on your left. A claim opens a bar above
+  your hand for 5 seconds, with Pass, and a Chow button for each way to
+  chow. Everyone else at the table shows as their own World character
+  (bots as a bot), with their discards, melds, flowers, wind and score.
+  After the hand a breakdown lists the winning hand, each faan and the
+  coins that moved, and "Play another round" deals again once everyone
+  has asked.
+- **Points are SOW coins.** The discarder pays a win off their tile in
+  full; a self-drawn win is paid half each by the other three. The server
+  works it out and moves the coins as the hand ends, and nobody pays more
+  than they have. Bots play for the bank: what you lose to a bot leaves
+  the game, and what you win from one comes from the bank, up to 200 coins
+  a day.
+- **Chat, emotes, watching and joining mid-hand.** The World's chat bar
+  and emotes stay on top of the table, and each player's line and emote
+  show by their seat, as they do over their heads in the World. Anyone in
+  the Café can tap the table, or someone at it, to watch without seeing
+  anyone's tiles. Bots aren't drawn in the World, so their seats look
+  free; sitting in one during a hand asks whether to take it over, hand,
+  melds, score and all. If you get up or drop out mid-hand, a bot plays
+  your seat until you sit back down.
+
 ## [2.13.40] - 2026-11-27
 
 ### Fixed
