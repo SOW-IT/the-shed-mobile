@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.23] - 2026-11-26
+
+### Changed
+- **Scissors, paper, rock, in that order.** The duel's pick buttons now run
+  Scissors, Paper, Rock, the same order as the chant, and the game is called
+  "Scissors paper rock" on the person card, the ask and what VoiceOver reads.
+- **Accepting a scissors paper rock ask is a ✊ button.** The yes button on
+  the ask card was too narrow for "Rock paper scissors!" and wrapped onto
+  three lines. It now shows the game's ✊, and VoiceOver still reads "Accept
+  scissors paper rock with" and their name. High five keeps its words.
+
 ## [2.13.22] - 2026-11-26
 
 ### Added

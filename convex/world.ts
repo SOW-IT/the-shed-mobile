@@ -1151,7 +1151,7 @@ export const duelPick = mutation({
   args: { duelId: v.id("worldDuels"), round: v.number(), pick: v.string() },
   returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), reason: v.string() })),
   handler: async (ctx, { duelId, round, pick }) => {
-    if (!isDuelPick(pick)) throw new ConvexError("Pick rock, paper or scissors.");
+    if (!isDuelPick(pick)) throw new ConvexError("Pick scissors, paper or rock.");
     const { member } = await requireMe(ctx);
     const duel = await ctx.db.get("worldDuels", duelId);
     const now = Date.now();

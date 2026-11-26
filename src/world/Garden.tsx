@@ -1031,11 +1031,13 @@ export const Garden = ({
                 <Pressable
                   onPress={() => onAccept(p.memberId, askAt)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${info.label} with ${worldName(p.name)}`}
+                  accessibilityLabel={`Accept ${info.label.toLowerCase()} with ${worldName(p.name)}`}
                   testID="world-ask-accept"
                   style={({ pressed }) => [styles.askYes, pressed && { opacity: 0.75 }]}
                 >
-                  <Text style={styles.askYesText}>{info.label}!</Text>
+                  <Text style={info.accept === info.icon ? styles.askYesIcon : styles.askYesText} numberOfLines={1}>
+                    {info.accept}
+                  </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => onDecline(p.memberId, askAt)}
@@ -1322,6 +1324,7 @@ const styles = StyleSheet.create({
   askRow: { flexDirection: "row", gap: 8 },
   askYes: { flex: 1, backgroundColor: hud.accent, borderRadius: 999, paddingVertical: 8, alignItems: "center", borderWidth: 2, borderColor: hud.forest },
   askYesText: { color: hud.onAccent, fontWeight: "700", fontSize: 14 },
+  askYesIcon: { fontSize: 18, lineHeight: 20 },
   askNo: { flex: 1, backgroundColor: hud.primarySoft, borderRadius: 999, paddingVertical: 8, alignItems: "center", borderWidth: 2, borderColor: "transparent" },
   askNoText: { color: hud.forest, fontWeight: "600", fontSize: 14 },
   askTrack: { height: 4, borderRadius: 2, backgroundColor: hud.primarySoft, overflow: "hidden" },
