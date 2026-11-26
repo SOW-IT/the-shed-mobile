@@ -776,6 +776,7 @@ const AvatarView = ({
       ball(node.tie ? "braidTie" : `braid${node.index}`, node.at.x, node.at.y, node.scale * s, node.tie ? fav(people.scarf) : hair);
     }
   };
+  if (pack && !pack.over) drawBackpack("packBehind");
   if (scarf && !scarf.tailInFront) drawScarfTail("scarfTailBehind");
   if (braid && !braid.front) drawBraid();
   const arm = (e: number) => {
@@ -808,7 +809,6 @@ const AvatarView = ({
     parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
   }
   arms("back");
-  if (pack && !pack.over) drawBackpack("packBehind");
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
