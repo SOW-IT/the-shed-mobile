@@ -5,6 +5,7 @@ import {
   DEFAULT_POKE_MESSAGE,
   MAX_POKE_MESSAGE_LENGTH,
   pokeCooldownLabel,
+  pokeMessageLength,
 } from "@shared/devotionalGroups";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -29,7 +30,8 @@ const PokeGroupBody = ({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const charCount = Array.from(message).length;
+  const charCount = pokeMessageLength(message);
+  const overLimit = charCount > MAX_POKE_MESSAGE_LENGTH;
 
   const handleSend = async () => {
     const checked = cleanPokeMessage(message);
@@ -70,7 +72,6 @@ const PokeGroupBody = ({
         placeholder={DEFAULT_POKE_MESSAGE}
         autoCapitalize="sentences"
         multiline
-        maxLength={MAX_POKE_MESSAGE_LENGTH}
         testID="poke-message-input"
       />
 
@@ -78,7 +79,10 @@ const PokeGroupBody = ({
         <Text style={[typography.caption, styles.hintText, { color: t.muted }]}>
           Leave blank to send the default nudge.
         </Text>
-        <Text style={[typography.caption, { color: t.faint }]}>
+        <Text
+          style={[typography.caption, { color: overLimit ? t.danger : t.faint }]}
+          testID="poke-message-count"
+        >
           {charCount}/{MAX_POKE_MESSAGE_LENGTH}
         </Text>
       </View>
@@ -90,7 +94,7 @@ const PokeGroupBody = ({
           title="Send poke"
           icon="notifications-outline"
           loading={sending}
-          disabled={unfinishedCount <= 0}
+          disabled={unfinishedCount <= 0 || overLimit}
           onPress={() => void handleSend()}
         />
       </View>

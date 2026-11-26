@@ -286,9 +286,8 @@ export const DevotionalGroupScreen = ({
   const todayTotal = group.todayTotal ?? group.memberCount;
   const todayRatio = todayTotal > 0 ? Math.min(1, todayDone / todayTotal) : 0;
   const todayAllDone = todayInRange && todayTotal > 0 && todayDone >= todayTotal;
-  const unfinishedToday = Math.max(0, todayTotal - todayDone);
   const pokeWaitMs = Math.max(0, pokeAgainAt - now);
-  const canSeePoke = todayInRange && group.meDoneToday && unfinishedToday > 0;
+  const canSeePoke = todayInRange && group.meDoneToday && group.pokeableCount > 0;
 
   const handleEdit = async (values: GroupFormValues) => {
     await updateGroup({ groupId, ...values });
@@ -296,7 +295,7 @@ export const DevotionalGroupScreen = ({
   };
 
   const handlePoke = async (message?: string) => {
-    const result = await pokeGroup({ groupId, message });
+    const result = await pokeGroup({ groupId, today, message });
     if (result.ok) {
       setToast({
         text: `Poked ${result.pokedCount} ${result.pokedCount === 1 ? "member" : "members"}`,
@@ -666,7 +665,7 @@ export const DevotionalGroupScreen = ({
       <PokeGroupSheet
         visible={pokeOpen}
         groupName={group.name}
-        unfinishedCount={unfinishedToday}
+        unfinishedCount={group.pokeableCount}
         onSubmit={handlePoke}
         onClose={() => setPokeOpen(false)}
       />

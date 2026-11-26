@@ -14,6 +14,7 @@ import {
   monthOverlapsRange,
   monthWithinRange,
   pokeCooldownLabel,
+  pokeMessageLength,
   sydneyDateTime,
   validateGroupInput,
 } from "./devotionalGroups";
@@ -202,5 +203,11 @@ describe("devotional group poke helpers", () => {
     expect(pokeCooldownLabel(60_000)).toBe("1 min");
     expect(pokeCooldownLabel(60_001)).toBe("2 min");
     expect(pokeCooldownLabel(60 * 60_000)).toBe("60 min");
+  });
+
+  test("pokeMessageLength counts code points of the normalized message", () => {
+    expect(pokeMessageLength("")).toBe(0);
+    expect(pokeMessageLength("  hi \n\n there  ")).toBe(8);
+    expect(pokeMessageLength("🙏🙏")).toBe(2);
   });
 });

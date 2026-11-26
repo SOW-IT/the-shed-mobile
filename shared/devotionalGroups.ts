@@ -95,11 +95,15 @@ export const firstNameOf = (name: string | null | undefined): string => {
   return first || "Someone";
 };
 
+const normalizePokeMessage = (raw: string): string => raw.replace(/\s+/g, " ").trim();
+
+export const pokeMessageLength = (raw: string): number => Array.from(normalizePokeMessage(raw)).length;
+
 export const cleanPokeMessage = (
   raw: string | undefined
 ): { ok: true; message: string | null } | { ok: false; error: string } => {
   if (raw === undefined) return { ok: true, message: null };
-  const cleaned = raw.replace(/\s+/g, " ").trim();
+  const cleaned = normalizePokeMessage(raw);
   if (!cleaned) return { ok: true, message: null };
   if (Array.from(cleaned).length > MAX_POKE_MESSAGE_LENGTH) {
     return { ok: false, error: `Message can be at most ${MAX_POKE_MESSAGE_LENGTH} characters.` };
