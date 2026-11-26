@@ -5,7 +5,7 @@ import { internalMutation, mutation, query, type MutationCtx } from "./_generate
 import { CAFE_PLACE } from "../shared/cafeGames";
 import { coinDay } from "../shared/coins";
 import { bankLeftToday, settle } from "../shared/mahjong/coins";
-import { actors, begin, deadlineOf, newHand, nextDealer, timeOut, type Hand, type Result } from "../shared/mahjong/game";
+import { actors, begin, deadlineOf, newHand, nextDealer, timeOut, TURN_MS, type Hand, type Result } from "../shared/mahjong/game";
 import { applyMove, playBots, type Move } from "../shared/mahjong/play";
 import { viewHand } from "../shared/mahjong/view";
 import {
@@ -122,7 +122,11 @@ const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, no
   if (!table || !row || row.state.stage.kind === "over") return;
   const allAwayAt = everyoneAway(table.seats) ? (table.allAwayAt ?? now) : undefined;
   if (allAwayAt !== table.allAwayAt) await ctx.db.patch("mahjongTables", table._id, { allAwayAt });
-  await saveHand(ctx, { ...table, allAwayAt }, row, row.state, now);
+  // Back in your seat on your own turn: a fresh clock, so the tile isn't thrown for you the moment you sit.
+  const stage = row.state.stage;
+  const back = stage.kind === "turn" && !botControlled(table.seats)[stage.seat] && stage.deadline < now + TURN_MS / 2;
+  const hand = back ? { ...row.state, stage: { ...stage, deadline: now + TURN_MS } } : row.state;
+  await saveHand(ctx, { ...table, allAwayAt }, row, hand, now);
 };
 
 // ── The hand ────────────────────────────────────────────────────────────

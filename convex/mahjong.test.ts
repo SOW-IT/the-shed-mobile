@@ -540,6 +540,18 @@ describe("walking away and coming back", () => {
     expect(await ledger(t, ANNA)).toEqual([]);
   });
 
+  test("sitting back down on your own turn gives you a fresh clock", async () => {
+    const { t, anna, ben } = await twoAndTwoBots();
+    await rigTurn(t, 1, "123p 456p 789p 23s 45s RG");
+    later(REFILL);
+    await ben.who.mutation(api.world.move, { toX: 0, toZ: 3 });
+    vi.setSystemTime(Date.now() + TURN_MS - 1000);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
+    const stage = (await handRow(t)).state.stage;
+    expect(stage).toMatchObject({ kind: "turn", seat: 1, deadline: Date.now() + TURN_MS });
+    void anna;
+  });
+
   test("someone coming back stops the wait", async () => {
     const { t, anna, ben } = await twoAndTwoBots();
     later(REFILL);
