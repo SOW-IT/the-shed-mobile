@@ -30,6 +30,21 @@ export const planClock = ({
 
 export const frameDue = (last: number, at: number, frameMs: number) => frameMs <= 0 || at - last >= frameMs - 4;
 
+/**
+ * Whether the stage's clock should jump to `serverNow()` during this render:
+ * on pausing or resuming, or when live inputs change while unpaused so waking
+ * from a `still` clock never evaluates a new walk against a stale timestamp.
+ */
+export const shouldRefreshClock = ({
+  wasPaused,
+  paused,
+  inputsChanged,
+}: {
+  wasPaused: boolean;
+  paused: boolean;
+  inputsChanged: boolean;
+}): boolean => paused !== wasPaused || (!paused && inputsChanged);
+
 export const useFrameTicks = (plan: ClockPlan, serverNow: () => number, setNow: (now: number) => void) => {
   const frameMs = plan.kind === "frames" ? plan.frameMs : -1;
   const wakeAt = plan.kind === "wake" ? plan.at : -1;

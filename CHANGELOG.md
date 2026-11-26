@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.28] - 2026-11-27
+## [2.13.32] - 2026-11-27
 
 ### Fixed
 - **The People list, its In the app list and the arcade agree on who's
@@ -17,6 +17,64 @@ All notable changes to **The SHED** mobile app. This project follows
   itself, so they show the same game, follow a switch straight away, and
   show nothing once the player leaves. People in another place show their
   game under Elsewhere too.
+
+## [2.13.30] - 2026-11-27
+
+### Changed
+- **Scissors, paper, rock, in that order.** The duel's pick buttons now run
+  Scissors, Paper, Rock, the same order as the chant, and the game is called
+  "Scissors paper rock" on the person card, the ask and what VoiceOver reads.
+- **Accepting a scissors paper rock ask is a ✊ button.** The yes button on
+  the ask card was too narrow for "Rock paper scissors!". It now shows the
+  game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
+  their name. High five keeps its words.
+
+## [2.13.28] - 2026-11-26
+
+### Fixed
+- **Returning to the World after backgrounding no longer rubber-bands or empties the room.** Replies that sat queued while offline or paused no longer skew the World clock ahead, the first frame after resuming draws at the current time instead of snapping from where everyone stood before, and coming back after a long background recovers cleanly in a single rejoin without flashing everyone away or dropping an immediate tap.
+
+## [2.13.27] - 2026-11-26
+
+### Added
+- **Hold a finger on a Café board to see where your move will go.** In
+  all four Café games your move now lands where you let go, not where you
+  first touch. While your finger is down, the board shows exactly what
+  you'd place and follows you as you drag: in Dots and Boxes the stick
+  nearest your finger, see-through in your colour; in Five in a Row the
+  whole row and column through the point, with a see-through stone on it;
+  in Four in a Row the column, with a see-through piece where it would
+  land; in Tic-tac-toe the square, with a faint mark. Let go off the board
+  or on a taken spot and nothing is placed. A quick tap still plays
+  straight away. On the web, the same preview follows the mouse and a
+  click plays. This works in the World's Café and in two players on one
+  phone.
+- **Winning a Café game cheers, losing one cries.** When a Café game ends,
+  the winner's character cheers and the loser's cries over their head,
+  for everyone in the World to see, the same as scissors paper rock. A
+  draw does neither.
+- **Ask to visit someone's home when they're home.** In the World's People
+  panel, anyone currently at their home has an enter-door button next to
+  the invite button. Tapping it sends them a prompt to let you in, which
+  invites you straight to their home.
+
+### Changed
+- **It's much more obvious when it's your turn in a Café game.** The game
+  card turns your colour, with a glow around it, for as long as it's your
+  turn, and "Your turn" is written in a stronger shade of your colour. The
+  screen behind the card fills with your colour too, and flashes three
+  times, brighter than before, when your turn starts. With reduce motion
+  or battery saver on, the colours stay and the flashing doesn't.
+- **If you ask for a rematch and the other player closes the game or
+  leaves, your game closes too**, with a note saying they left, instead
+  of waiting forever. If they leave before you ask, the Rematch button
+  goes and the card says they left. This comes from the server, so it
+  works even when their app was closed.
+
+### Fixed
+- **Feet on sideways seats now sit off to the side instead of dangling
+  down over the armrest**, such as on the Library armchairs and side
+  benches.
 
 ## [2.13.26] - 2026-11-26
 

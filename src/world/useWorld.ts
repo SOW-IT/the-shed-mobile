@@ -34,13 +34,14 @@ import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { fillLoading, useDormant } from "./dormant";
-import { blendIn, headFor, type LocalWalk } from "./blend";
+import { blendIn, headFor, rebaseLocalWalk, type LocalWalk } from "./blend";
+import { nextClockOffset, type ClockOffset } from "./clockSync";
 import { restingGait, type Gait } from "./gait";
-import { subscribeForeground } from "./useForeground";
+import { canRecover, keepWalkOnRejoin, shouldAdoptServerWalk } from "./resumeRecovery";
+import { isAppActive, subscribeForeground } from "./useForeground";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type MemberId = Id<"worldMembers">;
@@ -244,13 +245,22 @@ export const useWorld = (
   const acceptM = useMutation(api.world.accept).withOptimisticUpdate(showAccept);
   const saveLookM = useMutation(api.world.saveLook).withOptimisticUpdate(showLook);
   // Server time minus this phone's, smoothed over replies.
-  const offset = useRef<number | null>(null);
+  const offset = useRef<ClockOffset | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+  const enabledRef = useRef(enabled);
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+  const joining = useRef(false);
   const dormant = useDormant();
-  const visitKey = session ? `${session.roomId}:${session.memberId}` : "";
+  const roomKey = session?.roomId ?? "";
   const arrivalRef = useRef(arrival);
-  const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
+  const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), roomKey).value;
   const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
   const obstaclesRef = useRef(obstacles);
   useEffect(() => {
@@ -269,6 +279,7 @@ export const useWorld = (
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
   const myWalkRef = useRef<LocalWalk | null>(null);
+  const myServerWalkRef = useRef<Walk | null>(null);
   useEffect(() => {
     myWalkRef.current = myWalk;
   }, [myWalk]);
@@ -292,7 +303,7 @@ export const useWorld = (
   // The finger's latest spot, for the send that ends a throttle window.
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
-  const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
+  const serverNow = useCallback(() => Date.now() + (offset.current?.offset ?? 0), []);
   const [pingReading, setPingReading] = useState<PingReading | null>(null);
   const pingVisit = useRef<{ key: string } | null>(null);
   const pingSamples = useRef<number[]>([]);
@@ -302,9 +313,17 @@ export const useWorld = (
   const publishing = useRef(false);
   const heard = useCallback((serverTime: number, sentAt: number) => {
     const received = Date.now();
-    const sample = serverTime - (sentAt + received) / 2;
-    offset.current = offset.current === null ? sample : offset.current * 0.8 + sample * 0.2;
-    serverOffset = offset.current;
+    const before = offset.current?.offset ?? 0;
+    const next = nextClockOffset(offset.current, serverTime, sentAt, received);
+    if (next !== null) {
+      offset.current = next;
+      serverOffset = next.offset;
+      const rebased = rebaseLocalWalk(myWalkRef.current, myServerWalkRef.current, next.offset - before);
+      if (rebased) {
+        myWalkRef.current = rebased;
+        setMyWalk(rebased);
+      }
+    }
     lastAction.current = received;
   }, []);
 
@@ -312,9 +331,12 @@ export const useWorld = (
     (globalThis as { __shedWorld?: WorldStats }).__shedWorld = stats.current;
   }, []);
 
+  const flushRef = useRef<() => void>(() => undefined);
+
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    joining.current = true;
     const sentAt = Date.now();
     const counts = stats.current;
     counts.join++;
@@ -324,18 +346,24 @@ export const useWorld = (
     joinM({ ...asked, backyard: true })
       .then((joined) => {
         if (cancelled) return;
+        joining.current = false;
         heard(joined.serverNow, sentAt);
         publishedPing.current = { bars: null, at: null };
-        setSession({ roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) });
+        const nextSession: Session = { roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) };
+        sessionRef.current = nextSession;
+        setSession(nextSession);
         setError(null);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
+        joining.current = false;
         arrivalRef.current ??= asked;
         setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
       });
     return () => {
       cancelled = true;
+      joining.current = false;
+      sessionRef.current = null;
       setSession(null);
       // Nothing queued in this visit goes out in the next.
       // eslint-disable-next-line react-hooks/exhaustive-deps -- a counter of visits, not a rendered node; bumping it at cleanup is the point
@@ -356,7 +384,56 @@ export const useWorld = (
     };
   }, [enabled, rejoin, joinM, leaveM, heard]);
 
-  const again = useCallback(() => setRejoin((n) => n + 1), []);
+  const recover = useCallback(
+    (forMemberId?: MemberId) => {
+      if (
+        !canRecover({
+          enabled: enabledRef.current,
+          joining: joining.current,
+          currentMemberId: sessionRef.current?.memberId ?? null,
+          forMemberId,
+        })
+      ) {
+        return;
+      }
+      joining.current = true;
+      const sentIn = visit.current;
+      const sentAt = Date.now();
+      const lastMemberId = sessionRef.current?.memberId ?? forMemberId;
+      stats.current.join++;
+      lastAction.current = sentAt;
+      joinM({ backyard: true, ...(lastMemberId ? { rejoin: lastMemberId } : {}) })
+        .then((joined) => {
+          if (sentIn !== visit.current) return;
+          joining.current = false;
+          heard(joined.serverNow, sentAt);
+          publishedPing.current = { bars: null, at: null };
+          const nextSession: Session = { roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) };
+          if (!keepWalkOnRejoin(sessionRef.current, nextSession)) {
+            pending.current = null;
+            predicting.current = false;
+            holding.current = false;
+            if (holdFrame.current !== null) clearTimeout(holdFrame.current);
+            holdFrame.current = null;
+            if (timer.current) clearTimeout(timer.current);
+            timer.current = null;
+            setMyWalk(null);
+            setTarget(null);
+            setMySeat(null);
+          }
+          sessionRef.current = nextSession;
+          setSession(nextSession);
+          setError(null);
+          if (pending.current && !inFlight.current) flushRef.current();
+        })
+        .catch((e: unknown) => {
+          if (sentIn !== visit.current) return;
+          joining.current = false;
+          setError(e instanceof ConvexError ? String(e.data) : "Couldn't open the garden.");
+        });
+    },
+    [joinM, heard]
+  );
 
   const toldAway = useRef(false);
   useEffect(() => {
@@ -395,11 +472,15 @@ export const useWorld = (
     return taken;
   }, []);
 
-  const roster = useHeldValue(useQuery(api.world.roster, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
+  const rawRoster = useQuery(api.world.roster, session && !dormant ? { roomId: session.roomId } : "skip");
+  const holdRoom = dormant || rawRoster === null;
+  const roster = useHeldValue(rawRoster === null ? undefined : rawRoster, roomKey).value;
   // Swept while away (a long background, a lost signal): come back in.
   useEffect(() => {
-    if (session && roster === null && !travelling.current) again();
-  }, [session, roster, again]);
+    if (session && rawRoster === null && !travelling.current) {
+      recover(session.memberId);
+    }
+  }, [session, rawRoster, recover]);
 
   const members = roster?.members ?? NO_MEMBERS;
 
@@ -415,27 +496,34 @@ export const useWorld = (
       ),
     [memberKey]
   );
-  const states = useHeldStates(useQueries(dormant ? NO_REQUESTS : requests), dormant, visitKey);
+  const states = useHeldStates(useQueries(dormant ? NO_REQUESTS : requests), holdRoom, roomKey);
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
-  const myServerWalkRef = useRef(myServerWalk);
   useEffect(() => {
     myServerWalkRef.current = myServerWalk;
   }, [myServerWalk]);
   useEffect(() => {
     // Adopt the server's walk when it's newer than ours (another device, or the first load).
-    // While a tap is unanswered, only a walk well after ours (another device)
-    // replaces the prediction; otherwise any newer walk from the server does.
-    const gap = predicting.current ? 1000 : 0;
-    if (myServerWalk && (!myWalk || myServerWalk.startedAt > myWalk.startedAt + gap)) {
+    // While a tap is unanswered or waiting on a rejoin, don't let the rejoin's spawn walk
+    // overwrite the prediction.
+    if (
+      myServerWalk &&
+      shouldAdoptServerWalk({
+        serverWalk: myServerWalk,
+        localWalk: myWalk,
+        predicting: predicting.current,
+        joining: joining.current,
+        hasPending: pending.current !== null,
+        inFlight: inFlight.current,
+      })
+    ) {
       const now = serverNow();
       setMyWalk((walk) => blendIn(walk, myServerWalk, now));
       setMySeat((myServerWalk as { seat?: string }).seat ?? null);
     }
   }, [myServerWalk, myWalk, serverNow]);
 
-  const flushRef = useRef<() => void>(() => undefined);
   const later = useCallback((ms: number) => {
     // Only the latest flush may run, so a newer tap can still cancel it.
     if (timer.current) clearTimeout(timer.current);
@@ -448,14 +536,15 @@ export const useWorld = (
       pending.current = null;
       return;
     }
+    if (joining.current) return;
     const to = pending.current;
     if (!to || inFlight.current) return;
     pending.current = null;
-    const place = session?.place;
-    const serverWalk = myServerWalkRef.current;
+    const place = sessionRef.current?.place;
+    const fromWalk = myServerWalkRef.current ?? myWalkRef.current;
     const path =
-      place && serverWalk
-        ? findPath(place, posAt(serverWalk, serverNow()), to, obstaclesRef.current, { allowGoalInside: to.seat !== undefined })
+      place && fromWalk
+        ? findPath(place, posAt(fromWalk, serverNow()), to, obstaclesRef.current, { allowGoalInside: to.seat !== undefined })
         : [];
     if (!path) {
       predicting.current = false;
@@ -488,14 +577,19 @@ export const useWorld = (
         }
       })
       .catch((e: unknown) => {
-        if (!pending.current) predicting.current = false;
-        if (leftGarden(e)) again();
+        if (sentIn !== visit.current) return;
+        if (leftGarden(e)) {
+          pending.current ??= to;
+          recover(sessionRef.current?.memberId);
+        } else if (!pending.current) {
+          predicting.current = false;
+        }
       })
       .finally(() => {
         inFlight.current = false;
-        if (sentIn === visit.current && pending.current && !timer.current) later(COALESCE_MS);
+        if (sentIn === visit.current && pending.current && !timer.current && !joining.current) later(COALESCE_MS);
       });
-  }, [session, moveM, sitM, heard, again, later, serverNow, stillReading]);
+  }, [moveM, sitM, heard, recover, later, serverNow, stillReading]);
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
@@ -654,11 +748,11 @@ export const useWorld = (
         if (!reply.ok) typingM({ on: false }).catch(() => undefined);
         return reply.ok ? null : `Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`;
       } catch (e) {
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [sayM, typingM, heard, again]
+    [sayM, typingM, heard, recover]
   );
 
   const act = useCallback(
@@ -672,11 +766,11 @@ export const useWorld = (
         heard(reply.serverNow, sentAt);
         return reply.ok ? null : turnedAwayText(reply);
       } catch (e) {
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [actM, heard, again, spendAct]
+    [actM, heard, recover, spendAct]
   );
 
   /** Asks someone for a mutual action. Says why not, or null when it's asked. */
@@ -691,11 +785,11 @@ export const useWorld = (
         if (reply.ok) return null;
         return turnedAwayText(reply);
       } catch (e) {
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [askM, heard, again, spendAct]
+    [askM, heard, recover, spendAct]
   );
 
   const accept = useCallback(
@@ -709,11 +803,11 @@ export const useWorld = (
         if (reply.ok) return null;
         return turnedAwayText(reply);
       } catch (e) {
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [acceptM, heard, again, spendAct]
+    [acceptM, heard, recover, spendAct]
   );
 
   const travel = useCallback(
@@ -741,17 +835,19 @@ export const useWorld = (
         setMyWalk({ ...arrived, gait: restingGait(arrived) });
         setTarget(null);
         setMySeat(null);
-        setSession({ roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) });
+        const nextSession: Session = { roomId: reply.roomId, memberId: session.memberId, instance: reply.instance, place: placeFrom(reply.place) };
+        sessionRef.current = nextSession;
+        setSession(nextSession);
         return null;
       } catch (e) {
         if (sentIn !== visit.current) return null;
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(session.memberId);
         return e instanceof ConvexError ? String(e.data) : "Couldn't get there.";
       } finally {
         travelling.current = false;
       }
     },
-    [session, travelM, heard, again, spendAct]
+    [session, travelM, heard, recover, spendAct]
   );
 
   const typing = useCallback(
@@ -770,7 +866,8 @@ export const useWorld = (
     [session, typingM]
   );
 
-  const duels = useHeldValue(useQuery(api.world.duels, session && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
+  const rawDuels = useQuery(api.world.duels, session && !dormant ? { roomId: session.roomId } : "skip");
+  const duels = useHeldValue(rawRoster === null ? undefined : rawDuels, roomKey).value;
   const duelPickM = useMutation(api.world.duelPick).withOptimisticUpdate((store, { duelId, round, pick }) => {
     const me = meIn(store);
     const rows = me && store.getQuery(api.world.duels, { roomId: me.roomId });
@@ -790,7 +887,8 @@ export const useWorld = (
     [duelPickM]
   );
 
-  const ball = useHeldValue(useQuery(api.world.ball, session?.place === BALL_PLACE && !dormant ? { roomId: session.roomId } : "skip"), visitKey).value;
+  const rawBall = useQuery(api.world.ball, session?.place === BALL_PLACE && !dormant ? { roomId: session.roomId } : "skip");
+  const ball = useHeldValue(rawRoster === null ? undefined : rawBall, roomKey).value;
   const kickM = useMutation(api.world.kickBall).withOptimisticUpdate(showKick);
   const kick = useCallback(
     (dirX: number, dirZ: number) => {
@@ -800,13 +898,13 @@ export const useWorld = (
       kickM({ dirX, dirZ })
         .then((reply) => heard(reply.serverNow, sentAt))
         .catch((e: unknown) => {
-          if (leftGarden(e)) again();
+          if (leftGarden(e)) recover(sessionRef.current?.memberId);
         });
     },
-    [kickM, heard, again]
+    [kickM, heard, recover]
   );
 
-  const placeCounts = useHeldValue(useQuery(api.world.places, session && !dormant ? {} : "skip"), visitKey).value;
+  const placeCounts = useHeldValue(useQuery(api.world.places, session && !dormant ? {} : "skip"), roomKey).value;
   const inviteM = useMutation(api.world.invite);
   const invite = useCallback(
     async (memberId: MemberId): Promise<string | null> => {
@@ -815,11 +913,41 @@ export const useWorld = (
         if (reply.ok) return null;
         return turnedAwayText(reply);
       } catch (e) {
-        if (leftGarden(e)) again();
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
         return e instanceof ConvexError ? String(e.data) : "That didn't send.";
       }
     },
-    [inviteM, again]
+    [inviteM, recover]
+  );
+
+  const knockM = useMutation(api.world.knock);
+  const knock = useCallback(
+    async (memberId: MemberId): Promise<string | null> => {
+      try {
+        const reply = await knockM({ memberId });
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [knockM, recover]
+  );
+
+  const answerKnockM = useMutation(api.world.answerKnock);
+  const answerKnock = useCallback(
+    async (knockId: Id<"worldKnocks">, allow: boolean): Promise<string | null> => {
+      try {
+        const reply = await answerKnockM({ knockId, allow });
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [answerKnockM, recover]
   );
 
   /** Saves a look from the editor: one write, only when Save is pressed. */
@@ -884,7 +1012,7 @@ export const useWorld = (
     probedAt.current = null;
     let id: ReturnType<typeof setTimeout>;
     const probe = () => {
-      const active = AppState.currentState === "active";
+      const active = isAppActive();
       const due = () => ({ taken: pingSamples.current.length, lastAt: probedAt.current, now: Date.now() });
       if (active && pingProbeDue(due())) probePing();
       id = setTimeout(probe, active ? Math.max(PING_RECHECK_MS, pingProbeWait(due())) : PING_PROBE_MS);
@@ -900,6 +1028,7 @@ export const useWorld = (
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
+    let checking = false;
     let id: ReturnType<typeof setTimeout> | null = null;
     const clear = () => {
       if (id !== null) {
@@ -921,6 +1050,9 @@ export const useWorld = (
       }, wait);
     };
     const checkIn = () => {
+      if (cancelled || checking) return;
+      clear();
+      checking = true;
       const sentAt = Date.now();
       lastAction.current = sentAt;
       stats.current.heartbeat++;
@@ -928,10 +1060,11 @@ export const useWorld = (
         .then((reply) => {
           if (cancelled) return;
           heard(reply.serverNow, sentAt);
-          if (!reply.present) again();
+          if (!reply.present) recover(session.memberId);
         })
         .catch(() => undefined)
         .finally(() => {
+          checking = false;
           if (!cancelled) schedule();
         });
     };
@@ -944,7 +1077,7 @@ export const useWorld = (
       clear();
       stop();
     };
-  }, [session, heartbeatM, heard, again]);
+  }, [session, heartbeatM, heard, recover]);
 
   const pingMs = shownPing(pingReading, session && pingVisitKey(session));
   const myBars = pingMs === null ? null : pingBars(pingMs);
@@ -985,6 +1118,8 @@ export const useWorld = (
     home: session?.place === "home" ? (home ?? null) : null,
     homeLoading: session?.place === "home" && home === undefined,
     invite,
+    knock,
+    answerKnock,
     ping: pingMs,
     travel,
     roomId: session?.roomId ?? null,
