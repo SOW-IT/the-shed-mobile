@@ -84,8 +84,22 @@ export const surfaceSegment = (
   const p1 = bodySurface(v, toTheta, toY, radiusScale);
   if (p0.depth < minDepth && p1.depth < minDepth) return null;
   if (p0.depth >= minDepth && p1.depth >= minDepth) return { a: p0.at, b: p1.at, depth: (p0.depth + p1.depth) / 2 };
-  const t = (minDepth - p0.depth) / (p1.depth - p0.depth);
-  const midTheta = fromTheta + (toTheta - fromTheta) * t;
+  const heading = Math.atan2(v.side, v.facing);
+  const alpha = Math.acos(Math.max(-1, Math.min(1, minDepth)));
+  const span = toTheta - fromTheta;
+  const mid = (fromTheta + toTheta) / 2;
+  let t = (minDepth - p0.depth) / (p1.depth - p0.depth);
+  let bestDist = Infinity;
+  for (const base of [alpha - heading, -alpha - heading]) {
+    const k = Math.round((mid - base) / (Math.PI * 2));
+    const candT = (base + k * Math.PI * 2 - fromTheta) / span;
+    const dist = candT < 0 ? -candT : candT > 1 ? candT - 1 : 0;
+    if (dist < bestDist) {
+      bestDist = dist;
+      t = Math.max(0, Math.min(1, candT));
+    }
+  }
+  const midTheta = fromTheta + span * t;
   const midY = fromY + (toY - fromY) * t;
   const edge = bodySurface(v, midTheta, midY, radiusScale);
   if (p0.depth >= minDepth) return { a: p0.at, b: edge.at, depth: (p0.depth + edge.depth) / 2 };

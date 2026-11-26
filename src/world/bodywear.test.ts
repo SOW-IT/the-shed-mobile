@@ -64,6 +64,15 @@ describe("bodySurface and surfaceStrip", () => {
     expect(backBraceAtBack).not.toBeNull();
     expect(PLAID_ANGLES.filter((a) => surfaceSegment(BACK, a, 0.66, a, 0.2, 0.18) !== null).length).toBeGreaterThan(0);
   });
+
+  test("surfaceSegment clips at the exact requested depth angle", () => {
+    const v = view(0.75);
+    const minDepth = -0.02;
+    const seg = surfaceSegment(v, 0.56, 0.38, 2.05, 0.36, minDepth);
+    expect(seg).not.toBeNull();
+    const p0 = bodySurface(v, 0.56, 0.38, 0.94);
+    expect(seg!.depth).toBeCloseTo((p0.depth + minDepth) / 2, 5);
+  });
 });
 
 describe("surfaceDots", () => {

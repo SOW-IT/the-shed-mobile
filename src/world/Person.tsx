@@ -136,8 +136,8 @@ const OVERALL_BRACES = [
 const BACKPACK_STRAPS = [
   [-0.62, 0.69, -0.56, 0.38],
   [0.62, 0.69, 0.56, 0.38],
-  [-0.56, 0.38, -2.05, 0.36],
-  [0.56, 0.38, 2.05, 0.36],
+  [-0.56, 0.38, -Math.PI, 0.36],
+  [0.56, 0.38, Math.PI, 0.36],
 ] as const;
 
 type Stride = { stridePhase: number; strideAmp: number };
@@ -587,7 +587,7 @@ const AvatarView = ({
     );
   };
   const headbandCrown = () => {
-    const ring = ringOnHead(innerHeadView, { y: 0.48, tilt: 0.22, radius: 1.0 }, 24);
+    const ring = ringOnHead(innerHeadView, { y: 0.48, tilt: 0.22, radius: 1.0 }, 16);
     const width = 0.08 * s;
     const colour = fav(people.hats.headband);
     const segs: ReactNode[] = [];
@@ -811,7 +811,7 @@ const AvatarView = ({
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
   const hem = pants > 0 ? 0.3 : 0.16;
-  const halfWidth = (y: number) => 0.21 + (0.12 * (0.7 - y)) / 0.54;
+  const halfWidth = bodyHalfWidth;
   const panel = (top: number, bottom: number, topHalf: number, bottomHalf: number, grow: number) => [
     { x: at(-topHalf, top).x - grow, y: at(0, top).y - grow },
     { x: at(topHalf, top).x + grow, y: at(0, top).y - grow },
@@ -1616,12 +1616,6 @@ const AvatarView = ({
       </View>
     </View>
   );
-  if (hood === "over") {
-    const drape = at(-side * 0.03, chin + 0.04);
-    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
-    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
-    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
-  }
   const drapeCover = curtain ? backDrapeCover(facing) : 0;
   if (curtain && drapeCover > 0) {
     const inLeft = curtain.left + ink;
@@ -1649,6 +1643,12 @@ const AvatarView = ({
         ]}
       />
     );
+  }
+  if (hood === "over") {
+    const drape = at(-side * 0.03, chin + 0.04);
+    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
+    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
+    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
   }
   if (wavyEnds) {
     for (const w of wavyEnds) if (w.front) ball(`waveFront${w.index}`, w.at.x, w.at.y, 0.1 * s, hair);
