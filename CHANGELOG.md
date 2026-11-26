@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.22] - 2026-11-26
+
 ### Added
 - **Hold a finger on a Café board to see where your move will go.** In
   all four Café games your move now lands where you let go, not where you
