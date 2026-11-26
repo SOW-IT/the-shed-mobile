@@ -37,7 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { fillLoading, useDormant } from "./dormant";
-import { blendIn, headFor, type LocalWalk } from "./blend";
+import { blendIn, headFor, rebaseLocalWalk, type LocalWalk } from "./blend";
 import { nextClockOffset, type ClockOffset } from "./clockSync";
 import { restingGait, type Gait } from "./gait";
 import { canRecover, keepWalkOnRejoin, shouldAdoptServerWalk } from "./resumeRecovery";
@@ -280,6 +280,7 @@ export const useWorld = (
   // Your own walk, ahead of the server so a tap moves you at once.
   const [myWalk, setMyWalk] = useState<LocalWalk | null>(null);
   const myWalkRef = useRef<LocalWalk | null>(null);
+  const myServerWalkRef = useRef<Walk | null>(null);
   useEffect(() => {
     myWalkRef.current = myWalk;
   }, [myWalk]);
@@ -313,10 +314,16 @@ export const useWorld = (
   const publishing = useRef(false);
   const heard = useCallback((serverTime: number, sentAt: number) => {
     const received = Date.now();
+    const before = offset.current?.offset ?? 0;
     const next = nextClockOffset(offset.current, serverTime, sentAt, received);
     if (next !== null) {
       offset.current = next;
       serverOffset = next.offset;
+      const rebased = rebaseLocalWalk(myWalkRef.current, myServerWalkRef.current, next.offset - before);
+      if (rebased) {
+        myWalkRef.current = rebased;
+        setMyWalk(rebased);
+      }
     }
     lastAction.current = received;
   }, []);
@@ -402,10 +409,8 @@ export const useWorld = (
           joining.current = false;
           heard(joined.serverNow, sentAt);
           publishedPing.current = { bars: null, at: null };
-          const nextPlace = placeFrom(joined.place);
-          const prevPlace = sessionRef.current?.place ?? null;
-          const nextSession: Session = { roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: nextPlace };
-          if (!keepWalkOnRejoin(prevPlace, nextPlace)) {
+          const nextSession: Session = { roomId: joined.roomId, memberId: joined.memberId, instance: joined.instance, place: placeFrom(joined.place) };
+          if (!keepWalkOnRejoin(sessionRef.current, nextSession)) {
             pending.current = null;
             predicting.current = false;
             holding.current = false;
@@ -496,7 +501,6 @@ export const useWorld = (
 
   const myRow = session ? states[session.memberId] : undefined;
   const myServerWalk = myRow && !(myRow instanceof Error) ? (myRow as Walk) : null;
-  const myServerWalkRef = useRef(myServerWalk);
   useEffect(() => {
     myServerWalkRef.current = myServerWalk;
   }, [myServerWalk]);

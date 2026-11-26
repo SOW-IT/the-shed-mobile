@@ -1,4 +1,4 @@
-import type { Place, Walk } from "@shared/world";
+import { isPrivatePlace, type Place, type Walk } from "../../shared/world";
 
 /**
  * Whether a swept-session recovery join should start. Deduplicates overlapping
@@ -27,8 +27,10 @@ export const canRecover = ({
  * if the server placed the user back in a different place (e.g. swept from
  * someone else's home back to the Garden).
  */
-export const keepWalkOnRejoin = (prevPlace: Place | null, nextPlace: Place): boolean =>
-  prevPlace !== null && prevPlace === nextPlace;
+type Whereabouts = { roomId: string; place: Place };
+
+export const keepWalkOnRejoin = (prev: Whereabouts | null, next: Whereabouts): boolean =>
+  prev !== null && prev.place === next.place && (!isPrivatePlace(next.place) || prev.roomId === next.roomId);
 
 /**
  * Whether the client should adopt the server's walk over its local prediction.

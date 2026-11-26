@@ -29,9 +29,16 @@ describe("canRecover", () => {
 
 describe("keepWalkOnRejoin", () => {
   test("keeps the local walk when rejoining the same place, resets across places", () => {
-    expect(keepWalkOnRejoin("garden", "garden")).toBe(true);
-    expect(keepWalkOnRejoin("home", "garden")).toBe(false);
-    expect(keepWalkOnRejoin(null, "garden")).toBe(false);
+    expect(keepWalkOnRejoin({ roomId: "r1", place: "garden" }, { roomId: "r1", place: "garden" })).toBe(true);
+    expect(keepWalkOnRejoin({ roomId: "r1", place: "home" }, { roomId: "r2", place: "garden" })).toBe(false);
+    expect(keepWalkOnRejoin(null, { roomId: "r1", place: "garden" })).toBe(false);
+  });
+
+  test("a public place keeps the walk in a new room, a home or backyard only in the same room", () => {
+    expect(keepWalkOnRejoin({ roomId: "r1", place: "garden" }, { roomId: "r2", place: "garden" })).toBe(true);
+    expect(keepWalkOnRejoin({ roomId: "h1", place: "home" }, { roomId: "h2", place: "home" })).toBe(false);
+    expect(keepWalkOnRejoin({ roomId: "h1", place: "home" }, { roomId: "h1", place: "home" })).toBe(true);
+    expect(keepWalkOnRejoin({ roomId: "b1", place: "backyard" }, { roomId: "b2", place: "backyard" })).toBe(false);
   });
 });
 
