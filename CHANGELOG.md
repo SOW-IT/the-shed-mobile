@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.25] - 2026-11-26
+## [2.13.27] - 2026-11-26
 
 ### Added
 - **Hold a finger on a Café board to see where your move will go.** In
@@ -47,6 +47,16 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Feet on sideways seats now sit off to the side instead of dangling
   down over the armrest**, such as on the Library armchairs and side
   benches.
+
+## [2.13.25] - 2026-11-26
+
+### Changed
+- **Devotionals save as you go.** The Save button is gone. What you type is
+  kept on your phone half a second after you stop typing, and saved to your
+  account when you go back, or when you switch away from the app. If you are
+  offline it stays on your phone and is saved the next time you open that
+  day. Typing no longer makes the header flicker or calls the server on
+  every keystroke.
 
 ## [2.13.24] - 2026-11-26
 
