@@ -8,6 +8,9 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.13.24] - 2026-11-26
 
+### Changed
+- **Mouths talk for as long as the line takes to say, not the whole bubble.** In the World a "hi" is a quick flap, an everyday line moves the mouth for about half the time its bubble is up, and only a long line talks until the bubble goes. The mouth always finishes closed.
+
 ### Fixed
 - **Outfits now wrap around the body cleanly from every angle.** Overalls keep their front bib and crossed back braces in place as you turn; collared shirts show a full neckband, shifting collar points and front buttons; open jackets and flannels shift their inner tee and lapels to the facing side while keeping full plaid across the back; jumpers show neckline ribbing from every heading; polka dots and tie-dye prints wrap all the way around the torso with edge foreshortening and hide the tank scoop from behind.
 - **Hats now match from the front, both sides, behind and seated on a Chapel pew.** Caps keep their top button visible when facing away; beanies wrap with a 3D cuff rim and tilted pompom; flower crowns form a full ring around the head; berets flip their tilt and stalk cleanly across turns; bows move around the crown and tuck behind on the far side; headbands curve flush around the head from every angle; royal crowns show five depth-sorted tines with a front jewel that hides from behind.
