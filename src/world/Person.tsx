@@ -134,10 +134,12 @@ const OVERALL_BRACES = [
 ] as const;
 
 const BACKPACK_STRAPS = [
-  [-0.62, 0.69, -0.56, 0.38],
-  [0.62, 0.69, 0.56, 0.38],
-  [-0.56, 0.38, -Math.PI, 0.36],
-  [0.56, 0.38, Math.PI, 0.36],
+  [-0.6, 0.69, -0.66, 0.5],
+  [0.6, 0.69, 0.66, 0.5],
+  [-0.66, 0.5, -1.35, 0.42],
+  [0.66, 0.5, 1.35, 0.42],
+  [-1.35, 0.42, -Math.PI, 0.38],
+  [1.35, 0.42, Math.PI, 0.38],
 ] as const;
 
 type Stride = { stridePhase: number; strideAmp: number };
@@ -774,7 +776,6 @@ const AvatarView = ({
       ball(node.tie ? "braidTie" : `braid${node.index}`, node.at.x, node.at.y, node.scale * s, node.tie ? fav(people.scarf) : hair);
     }
   };
-  if (pack && !pack.over) drawBackpack("packBehind");
   if (scarf && !scarf.tailInFront) drawScarfTail("scarfTailBehind");
   if (braid && !braid.front) drawBraid();
   const arm = (e: number) => {
@@ -807,6 +808,7 @@ const AvatarView = ({
     parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
   }
   arms("back");
+  if (pack && !pack.over) drawBackpack("packBehind");
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
@@ -1020,8 +1022,9 @@ const AvatarView = ({
   }
   if (accessory === 5) {
     const neck = necklacePose(bodyView, chin);
+    const pearlEdge = shade(people.pearl, -0.28);
     for (const p of neck.pearls) {
-      parts.push(<Ellipse key={`pearl${p.index}`} cx={p.at.x} cy={p.at.y} rx={0.024 * s} ry={0.024 * s} fill={people.pearl} ink={ink * 0.4} inkColour={garden.ink} />);
+      parts.push(<Ellipse key={`pearl${p.index}`} cx={p.at.x} cy={p.at.y} rx={0.024 * s} ry={0.024 * s} fill={people.pearl} ink={ink * 0.3} inkColour={pearlEdge} />);
     }
     if (neck.pendant) ball("pendant", neck.pendant.x, neck.pendant.y, 0.04 * s, fav(garden.blooms[0]));
   }

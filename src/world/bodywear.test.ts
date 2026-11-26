@@ -107,13 +107,21 @@ describe("backpackPose", () => {
     expect(l.left).toBeCloseTo(100 + bodyHalfWidth(0.46) * 50, 1);
   });
 
-  test("scales width and height with body build", () => {
+  test("scales width and height with body build and avoids 45-degree bulge", () => {
     const narrow = backpackPose(view(Math.PI, 0.85, 0.8));
     const broad = backpackPose(view(Math.PI, 1.15, 1.2));
     expect(broad.width).toBeGreaterThan(narrow.width);
     expect(broad.height).toBeGreaterThan(narrow.height);
     expect(narrow.left + narrow.width / 2).toBeCloseTo(100);
     expect(broad.left + broad.width / 2).toBeCloseTo(100);
+    const back = backpackPose(BACK);
+    const side = backpackPose(RIGHT);
+    const diag = backpackPose(view((Math.PI * 3) / 4));
+    expect(diag.width).toBeLessThan(back.width);
+    expect(diag.width).toBeGreaterThan(side.width);
+    expect(diag.pocket).not.toBeNull();
+    expect(diag.pocket!.left).toBeGreaterThanOrEqual(diag.left);
+    expect(diag.pocket!.left + diag.pocket!.width).toBeLessThanOrEqual(diag.left + diag.width);
   });
 });
 
@@ -146,17 +154,20 @@ describe("bowTiePose", () => {
 });
 
 describe("necklacePose", () => {
-  test("wraps pearls around front, side, and back while hiding the pendant from behind", () => {
+  test("wraps a tight pearl strand around the neck while hiding the pendant from behind", () => {
     const f = necklacePose(FRONT, 0.51);
     const r = necklacePose(RIGHT, 0.51);
     const b = necklacePose(BACK, 0.51);
-    expect(f.pearls.length).toBeGreaterThanOrEqual(5);
-    expect(r.pearls.length).toBeGreaterThanOrEqual(5);
-    expect(b.pearls.length).toBeGreaterThanOrEqual(5);
+    expect(f.pearls.length).toBeGreaterThanOrEqual(9);
+    expect(r.pearls.length).toBeGreaterThanOrEqual(9);
+    expect(b.pearls.length).toBeGreaterThanOrEqual(9);
+    const frontXs = f.pearls.map((p) => p.at.x);
+    expect(Math.max(...frontXs) - Math.min(...frontXs)).toBeLessThan(bodyHalfWidth(0.51) * 2 * 50 * 0.75);
     expect(f.pendant).not.toBeNull();
     expect(f.pendant!.x).toBeCloseTo(100);
     expect(r.pendant).not.toBeNull();
-    expect(r.pendant!.x).toBeGreaterThan(110);
+    expect(r.pendant!.x).toBeGreaterThan(105);
+    expect(r.pendant!.x).toBeLessThan(100 + bodyHalfWidth(0.4) * 50);
     expect(b.pendant).toBeNull();
   });
 });

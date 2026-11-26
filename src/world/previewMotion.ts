@@ -23,8 +23,16 @@ export type PreviewSpin = {
   touched: boolean;
 };
 
-export type PreviewShot = "full" | "head" | "face";
-const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, head: 1, face: 2 };
+export type PreviewShot = "full" | "head" | "face" | "eyes" | "brows" | "nose" | "mouth";
+const SHOT_CLOSENESS: Record<PreviewShot, number> = {
+  full: 0,
+  head: 1,
+  face: 2,
+  eyes: 3,
+  brows: 3,
+  nose: 3,
+  mouth: 3,
+};
 
 export const previewRecenters = (from: PreviewShot, to: PreviewShot) => SHOT_CLOSENESS[to] > SHOT_CLOSENESS[from];
 

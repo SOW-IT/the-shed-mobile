@@ -177,17 +177,17 @@ export const PLAID_ANGLES = [-2.5, -1.57, -0.64, 0.64, 1.57, 2.5] as const;
 
 export const backpackPose = (v: BodyView) => {
   const backR = bodyHalfWidth(0.46);
-  const packW = 0.5;
+  const packW = 0.48;
   const packD = 0.22;
   const centerBack = backR + packD / 2;
   const topY = bodyAt(v, 0, 0.68).y;
   const botY = bodyAt(v, 0, 0.24).y;
   const height = botY - topY;
   const cx = bodyAt(v, -v.side * centerBack, 0.46).x;
-  const width = (packW * Math.abs(v.facing) + packD * Math.abs(v.side)) * v.width * v.s;
+  const width = Math.hypot(packW * v.facing, packD * v.side) * v.width * v.s;
   const over = v.facing < 0;
   const pocketW = 0.34 * Math.abs(v.facing) * v.width * v.s;
-  const pocketCx = bodyAt(v, -v.side * (backR + packD * 0.92), 0.4).x;
+  const pocketCx = bodyAt(v, -v.side * (backR + packD * 0.8), 0.4).x;
   return {
     left: cx - width / 2,
     top: topY,
@@ -242,19 +242,27 @@ export const bowTiePose = (v: BodyView, chin: number) => {
 };
 
 export const necklacePose = (v: BodyView, chin: number) => {
-  const count = 12;
+  const count = 20;
+  const neckRadius = 0.165;
   const pearls: { index: number; at: Point; depth: number }[] = [];
   for (let index = 0; index < count; index++) {
     const theta = (index / count) * Math.PI * 2;
-    const y = chin - 0.02 - 0.055 * (0.5 + 0.5 * Math.cos(theta));
-    const p = bodySurface(v, theta, y, 1.02);
-    if (p.depth >= -0.05) pearls.push({ index, at: p.at, depth: p.depth });
+    const sinT = Math.sin(theta);
+    const cosT = Math.cos(theta);
+    const front = Math.max(0, cosT);
+    const back = Math.max(0, -cosT);
+    const y = chin - 0.02 - 0.05 * front * front - 0.01 * back * back;
+    const camX = sinT * v.facing + cosT * v.side;
+    const camZ = -sinT * v.side + cosT * v.facing;
+    if (camZ >= -0.05) {
+      pearls.push({ index, at: bodyAt(v, camX * neckRadius, y), depth: camZ });
+    }
   }
   pearls.sort((a, b) => a.depth - b.depth);
-  const pendant = bodySurface(v, 0, chin - 0.11, 1.05);
+  const pendantDepth = v.facing;
   return {
     pearls,
-    pendant: pendant.depth >= -0.05 ? pendant.at : null,
-    pendantDepth: pendant.depth,
+    pendant: pendantDepth >= -0.05 ? bodyAt(v, v.side * (neckRadius + 0.01), chin - 0.11) : null,
+    pendantDepth,
   };
 };
