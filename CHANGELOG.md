@@ -48,6 +48,16 @@ All notable changes to **The SHED** mobile app. This project follows
   down over the armrest**, such as on the Library armchairs and side
   benches.
 
+## [2.13.26] - 2026-11-26
+
+### Added
+- **Poke your devotional group.** Once you have finished today's devotional,
+  tap **Poke group** on an active group to send a push and in-app notification
+  to everyone in the group who hasn't done today's devotional yet. You can add
+  an optional custom message (up to 160 characters) or leave it blank to send
+  a default nudge. Tapping the notification opens today's devotional, and a
+  group can be poked at most once an hour.
+
 ## [2.13.25] - 2026-11-26
 
 ### Changed

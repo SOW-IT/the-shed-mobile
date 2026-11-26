@@ -582,6 +582,7 @@ export default defineSchema({
     sharingLevel: devotionalSharingLevelValidator,
     ownerEmail: v.string(),
     memberCount: v.number(),
+    lastPokedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

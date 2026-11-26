@@ -5,6 +5,9 @@ export const DEVOTIONAL_SHARING_LEVELS = ["count", "passage", "everything"] as c
 export type DevotionalSharingLevel = (typeof DEVOTIONAL_SHARING_LEVELS)[number];
 
 export const MAX_GROUP_NAME_LENGTH = 80;
+export const GROUP_POKE_COOLDOWN_MS = 60 * 60 * 1000;
+export const MAX_POKE_MESSAGE_LENGTH = 160;
+export const DEFAULT_POKE_MESSAGE = "Don't forget today's devotional!";
 
 const SHARING_LEVEL_RANK: Record<DevotionalSharingLevel, number> = {
   count: 0,
@@ -90,6 +93,27 @@ export const validateGroupInput = (input: {
 export const firstNameOf = (name: string | null | undefined): string => {
   const first = (name ?? "").trim().split(/\s+/).filter(Boolean)[0];
   return first || "Someone";
+};
+
+const normalizePokeMessage = (raw: string): string => raw.replace(/\s+/g, " ").trim();
+
+export const pokeMessageLength = (raw: string): number => Array.from(normalizePokeMessage(raw)).length;
+
+export const cleanPokeMessage = (
+  raw: string | undefined
+): { ok: true; message: string | null } | { ok: false; error: string } => {
+  if (raw === undefined) return { ok: true, message: null };
+  const cleaned = normalizePokeMessage(raw);
+  if (!cleaned) return { ok: true, message: null };
+  if (Array.from(cleaned).length > MAX_POKE_MESSAGE_LENGTH) {
+    return { ok: false, error: `Message can be at most ${MAX_POKE_MESSAGE_LENGTH} characters.` };
+  }
+  return { ok: true, message: cleaned };
+};
+
+export const pokeCooldownLabel = (remainingMs: number): string => {
+  const minutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+  return `${minutes} min`;
 };
 
 let sydneyParts: Intl.DateTimeFormat | null = null;
