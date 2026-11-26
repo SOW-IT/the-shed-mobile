@@ -553,6 +553,15 @@ describe("places", () => {
     expect(await anna.mutation(api.world.sit, { seat: blanket.id })).toMatchObject({ ok: false, retryInMs: expect.any(Number) });
   });
 
+  test("someone in another place shows the game they're in", async () => {
+    const { anna, ben } = await two();
+    await ben.mutation(api.world.travel, { to: "chapel" });
+    const [before] = await anna.query(api.world.elsewhere, {});
+    expect(before.people[0]).not.toHaveProperty("playing");
+    await ben.mutation(api.gamePlayers.playing, { game: "glider" });
+    expect(await anna.query(api.world.elsewhere, {})).toMatchObject([{ place: "chapel", people: [{ playing: "glider" }] }]);
+  });
+
   test("the people list can show who is in the other places", async () => {
     const { t, anna, ben } = await two();
     const cara = asUser(t, CARA);
@@ -949,27 +958,37 @@ describe("at the arcade", () => {
     expect(await anna.mutation(api.world.ask, { to: b.memberId, kind: "highFive" })).toMatchObject({ ok: true });
   });
 
-  test("the game you're playing is set once on going and cleared on coming back", async () => {
-    const { t, anna, ben, b } = await pair();
-    expect(await ben.mutation(api.world.away, { at: "arcade", game: "flappy" })).toMatchObject({ ok: true });
-    expect(await anna.query(api.world.state, { memberId: b.memberId })).toMatchObject({ away: "arcade", playing: "flappy" });
-    const tokens = (await stateRow(t, b.memberId))!.actBucket.tokens;
-    await ben.mutation(api.world.away, { at: "arcade", game: "flappy" });
-    expect((await stateRow(t, b.memberId))!.actBucket.tokens).toBe(tokens);
-    await ben.mutation(api.world.away, { at: null });
+  test("the game on your row is the one you're in, as the arcade sees it, and follows you from game to game", async () => {
+    const { anna, ben, b } = await pair();
+    await ben.mutation(api.world.away, { at: "arcade" });
     expect(await anna.query(api.world.state, { memberId: b.memberId })).not.toHaveProperty("playing");
-    expect((await stateRow(t, b.memberId))!.playing).toBeUndefined();
+    await ben.mutation(api.gamePlayers.playing, { game: "shooter" });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).toMatchObject({ away: "arcade", playing: "shooter" });
+    // The leaderboard's Play swaps one game for another without the World
+    // coming back, so the World is never told: the row still follows.
+    await ben.mutation(api.gamePlayers.left, { game: "shooter" });
+    await ben.mutation(api.gamePlayers.playing, { game: "flappy" });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).toMatchObject({ playing: "flappy" });
+    expect(await anna.query(api.gamePlayers.nowPlaying, {})).toMatchObject([{ game: "flappy", count: 1 }]);
+    await ben.mutation(api.gamePlayers.left, { game: "flappy" });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).not.toHaveProperty("playing");
   });
 
-  test("an older app's arcade trip has no game, and a game the server doesn't know isn't shown", async () => {
-    const { t, ben, b } = await pair();
-    await ben.mutation(api.world.away, { at: "arcade" });
+  test("the game an older app names on going is ignored, and one an older server kept is cleared", async () => {
+    const { t, anna, ben, b } = await pair();
+    expect(await ben.mutation(api.world.away, { at: "arcade", game: "flappy" })).toMatchObject({ ok: true });
     expect((await stateRow(t, b.memberId))!.playing).toBeUndefined();
-    await ben.mutation(api.world.away, { at: "arcade", game: "chess" });
-    expect((await stateRow(t, b.memberId))!.playing).toBeUndefined();
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).not.toHaveProperty("playing");
+    const tokens = (await stateRow(t, b.memberId))!.actBucket.tokens;
     await ben.mutation(api.world.away, { at: "arcade", game: "runner" });
-    expect((await stateRow(t, b.memberId))!.playing).toBe("runner");
-    await ben.mutation(api.world.move, { toX: 2, toZ: 0 });
+    expect((await stateRow(t, b.memberId))!.actBucket.tokens).toBe(tokens);
+
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", b.memberId)).unique())!;
+      await ctx.db.patch("worldState", row._id, { playing: "shooter" });
+    });
+    expect(await anna.query(api.world.state, { memberId: b.memberId })).not.toHaveProperty("playing");
+    await ben.mutation(api.world.away, { at: null });
     expect((await stateRow(t, b.memberId))!.playing).toBeUndefined();
   });
 
