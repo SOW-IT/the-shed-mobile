@@ -63,7 +63,7 @@ const fingerprint = (text: string) => {
   return hash.toString(16);
 };
 
-type Spawn = { kind: PatternKind; front: number; back: number; speed: number; time: number; fromChain: boolean; chained: boolean };
+type Spawn = { kind: PatternKind; front: number; back: number; speed: number; time: number; fromChain: boolean; chained: boolean; queued: number };
 
 const spawnsFrom = (start: RunnerState, seconds: number, step: (s: RunnerState) => RunnerState = ignoringHits) => {
   let state = start;
@@ -83,6 +83,7 @@ const spawnsFrom = (start: RunnerState, seconds: number, step: (s: RunnerState) 
         time: state.time,
         fromChain,
         chained: fromChain || state.chain.length > 0,
+        queued: state.chain.length,
       });
     }
   }
@@ -323,7 +324,7 @@ describe("Mystic Man past 20,000 (v2)", () => {
     return spare.reduce((sum, value) => sum + value, 0) / spare.length;
   };
 
-  test("every stretch from 20,000 to 100,000 is faster, leaves less room for a mistake, and chains longer and tighter than the one before", () => {
+  test("every stretch from 20,000 to 100,000 is faster, leaves less room for a mistake, and chains longer and tighter than the one before, and spawns more often with shorter gaps than 20,000 does", () => {
     const runs = MARKS.map(sample);
     const speeds = MARKS.map((score) => runnerSpeed(timeAtScore(score)));
     const rate = runs.map(perSecond);
@@ -338,14 +339,17 @@ describe("Mystic Man past 20,000 (v2)", () => {
       const at = `${MARKS[i - 1]} to ${MARKS[i]}`;
       expect(speeds[i], at).toBeGreaterThan(speeds[i - 1]);
       expect(spare[i], at).toBeLessThan(spare[i - 1]);
-      expect(rate[i], at).toBeGreaterThan(rate[0]);
-      expect(gaps[i], at).toBeLessThan(gaps[0]);
       expect(shares[i], at).toBeGreaterThanOrEqual(shares[i - 1]);
       expect(reactions[i], at).toBeLessThan(reactions[i - 1]);
       expect(floors[i], at).toBeLessThan(floors[i - 1]);
       expect(chains[i], at).toBeGreaterThan(chains[i - 1] + 4);
       expect(comboChance(times[i]), at).toBeGreaterThan(comboChance(times[i - 1]));
     }
+    MARKS.slice(1).forEach((score, k) => {
+      const against = `${score} against ${MARKS[0]}`;
+      expect(rate[k + 1], against).toBeGreaterThan(rate[0]);
+      expect(gaps[k + 1], against).toBeLessThan(gaps[0]);
+    });
     expect(spare[1]).toBeLessThan(spare[0] * 0.7);
     expect(spare[2]).toBeLessThan(spare[1] * 0.7);
     expect(meanCombo(runs[2])).toBeGreaterThan(meanCombo(runs[0]));
@@ -533,19 +537,10 @@ describe("Mystic Man's combos", () => {
     let combos = 0;
     for (let seed = 1; seed <= 12; seed++) {
       const { spawns } = spawnsFrom(runnerAt(PHONE_BOARD, seed, score), 20);
-      let length = 0;
-      let startedAt = 0;
-      for (const spawn of [...spawns, null]) {
-        if (spawn && spawn.fromChain) {
-          length++;
-          continue;
-        }
-        if (length > 1) {
-          combos++;
-          expect(length).toBeLessThanOrEqual(longestCombo(startedAt));
-        }
-        length = spawn && spawn.chained ? 1 : 0;
-        startedAt = spawn?.time ?? 0;
+      for (const spawn of spawns) {
+        if (!spawn.chained || spawn.fromChain) continue;
+        combos++;
+        expect(1 + spawn.queued).toBeLessThanOrEqual(longestCombo(spawn.time));
       }
     }
     expect(combos).toBeGreaterThan(10);
