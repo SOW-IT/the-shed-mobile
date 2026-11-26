@@ -6,16 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.23] - 2026-11-26
+## [2.13.24] - 2026-11-26
 
 ### Changed
 - **Scissors, paper, rock, in that order.** The duel's pick buttons now run
   Scissors, Paper, Rock, the same order as the chant, and the game is called
   "Scissors paper rock" on the person card, the ask and what VoiceOver reads.
 - **Accepting a scissors paper rock ask is a ✊ button.** The yes button on
-  the ask card was too narrow for "Rock paper scissors!" and wrapped onto
-  three lines. It now shows the game's ✊, and VoiceOver still reads "Accept
-  scissors paper rock with" and their name. High five keeps its words.
+  the ask card was too narrow for "Rock paper scissors!". It now shows the
+  game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
+  their name. High five keeps its words.
+
+## [2.13.23] - 2026-11-26
+
+### Added
+- **A Go back button on every game-over card.** When a run ends in Sky
+  Shooter, Mystic Man, Flap or Swoop, the card now has Go back under Play
+  again and Leaderboard. It takes you straight back to the Games list, or to
+  the arcade over the World if that's where you opened the game. Each game
+  colours it its own way: night sky and laser blue in Sky Shooter, purple
+  hills and gold in Mystic Man, a green pipe in Flap, and the bird's teal and
+  cream in Swoop.
 
 ## [2.13.22] - 2026-11-26
 

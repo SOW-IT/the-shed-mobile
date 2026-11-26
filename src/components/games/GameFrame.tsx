@@ -301,6 +301,9 @@ export const GameFrame = ({
         {onLeaderboard ? (
           <Btn title="Leaderboard" icon="trophy-outline" tint={g.buttonGhost} onPress={onLeaderboard} />
         ) : null}
+        <View testID="game-over-back">
+          <Btn title="Go back" icon="arrow-back" tint={g[game].goBack} onPress={onExit} />
+        </View>
       </View>
     </View>
   ) : null;
