@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.32] - 2026-11-27
+## [2.13.33] - 2026-11-27
 
 ### Fixed
 - **The People list, its In the app list and the arcade agree on who's
@@ -17,6 +17,21 @@ All notable changes to **The SHED** mobile app. This project follows
   itself, so they show the same game, follow a switch straight away, and
   show nothing once the player leaves. People in another place show their
   game under Elsewhere too.
+
+## [2.13.31] - 2026-11-27
+
+### Changed
+- **The World's chat reaches your backyard, both ways.** What you say in a
+  backyard now goes to everyone in the World, as in any other place, and
+  shows to them tagged [Backyard] (not whose backyard). You already saw the
+  World's chat there; now you can answer it. Lines said in a backyard used
+  to stay in that backyard, which no one else could hear, even though the
+  chat box says "Talk to everyone in the World". Home is unchanged: what's
+  said at home stays in that home, and so do who came into a backyard and
+  anything said there before this update.
+- **Your backyard lines are still there after you leave and come back.**
+  An empty backyard closes when you leave, so your earlier lines used to
+  vanish with it. They now stay in the chat for the hour, like the rest.
 
 ## [2.13.30] - 2026-11-27
 
