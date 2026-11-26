@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { FAAN, type FaanId } from "../shared/mahjong/faan";
 
 export const mahjongSeatValidator = v.union(
   v.object({ kind: v.literal("empty") }),
@@ -41,7 +42,8 @@ export const mahjongAnswerValidator = v.union(
   v.object({ kind: v.literal("chow"), option: v.number() })
 );
 
-const faanLineValidator = v.object({ id: v.string(), faan: v.number() });
+const FAAN_IDS = Object.keys(FAAN) as FaanId[];
+const faanLineValidator = v.object({ id: v.union(...FAAN_IDS.map((id) => v.literal(id))), faan: v.number() });
 const payValidator = v.object({ from: v.number(), to: v.number(), points: v.number() });
 
 export const mahjongResultValidator = v.union(
@@ -146,3 +148,5 @@ export const mahjongHandViewValidator = v.object({
     })
   ),
 });
+
+export const mahjongSettledValidator = v.object({ deltas: v.array(v.number()), fromBank: v.array(v.number()) });

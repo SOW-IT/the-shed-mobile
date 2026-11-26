@@ -26,7 +26,7 @@ import {
 } from "./eventRequestData";
 import { cafeBoardValidator, cafeResultValidator, cafeSideValidator } from "./cafeGamesData";
 import { gameIdValidator } from "./gameScoreData";
-import { mahjongHandValidator, mahjongPhaseValidator, mahjongSeatValidator, mahjongSettingsValidator } from "./mahjongData";
+import { mahjongHandValidator, mahjongPhaseValidator, mahjongSeatValidator, mahjongSettingsValidator, mahjongSettledValidator } from "./mahjongData";
 import {
   worldAskValidator,
   worldBucketValidator,
@@ -609,6 +609,8 @@ export default defineSchema({
     // Bumped on every change; a scheduled tick for an older beat does nothing.
     beat: v.number(),
     state: mahjongHandValidator,
+    // Once the hand is over: each seat's coins won or lost, and what the bank paid.
+    settled: v.optional(mahjongSettledValidator),
   }).index("by_tableId", ["tableId"]),
 
   devotionals: defineTable({

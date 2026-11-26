@@ -3,7 +3,7 @@ import { mahjongSeatId, mahjongSeatOf, type MahjongTableId } from "@shared/mahjo
 type SeatSummary = { kind: "empty" | "human" | "bot"; name: string; away: boolean; member: string | null };
 export type TableSummary = { id: string; table: string; phase: "lobby" | "playing" | "ended"; seats: readonly SeatSummary[] };
 
-export type MahjongTap<Id extends string = string> = { kind: "sit"; seat: string } | { kind: "watch"; tableId: Id } | { kind: "taken" };
+type MahjongTap<Id extends string = string> = { kind: "sit"; seat: string } | { kind: "watch"; tableId: Id } | { kind: "taken" };
 
 const live = (t: TableSummary) => t.phase !== "lobby";
 

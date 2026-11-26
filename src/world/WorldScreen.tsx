@@ -265,6 +265,7 @@ export const WorldScreen = ({
   const wallet = useCoins();
   const cafe = useCafe(world);
   const mahjong = useMahjong(world);
+  const [mahjongWatch, setMahjongWatch] = useState<Id<"mahjongTables"> | null>(null);
   const inBackyard = world.place === "backyard" && world.status === "in";
   const calm = useBatterySaver();
   const farm = useFarm({ roomId: world.roomId, inBackyard });
@@ -366,7 +367,6 @@ export const WorldScreen = ({
     setHeardRefusal(world.sitRefused.at);
     setNote(world.sitRefused.text);
   }
-  const setMahjongWatch = (_tableId: Id<"mahjongTables">) => setNote("A game's on at that table.");
   const [editing, setEditing] = useState(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
@@ -1846,12 +1846,17 @@ export const WorldScreen = ({
       <MahjongLayer
         mahjong={mahjong}
         people={world.people}
+        muted={muted}
+        serverNow={world.serverNow}
         top={insets.top + TOP_BAR_GAP}
+        safeTop={insets.top}
         bottom={chatTop}
         nameOf={worldName}
+        watch={world.place === "cafe" ? mahjongWatch : null}
         onNote={setNote}
-        onStart={() => void mahjong.start().then((problem) => problem && setNote(problem))}
         onWatch={setMahjongWatch}
+        onStopWatching={() => setMahjongWatch(null)}
+        onSitBack={world.sitOn}
       />
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
         <DuelCard {...duelProps} />

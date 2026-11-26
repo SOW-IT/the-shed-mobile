@@ -16,8 +16,8 @@ import type { MahjongMine, MahjongSeatView } from "./useMahjong";
 const { hud } = worldColours;
 const ROWS = 8;
 
-export const stakeWords = (stake: number) => (stake === 0 ? "For fun, no coins" : stake === 1 ? "1 coin a point" : `${stake} coins a point`);
-export const rulesWords = (s: Settings) => `${s.minFaan} to ${s.maxFaan} faan · Flowers ${s.flowers ? "on" : "off"} · ${stakeWords(s.stake)}`;
+const stakeWords = (stake: number) => (stake === 0 ? "For fun, no coins" : stake === 1 ? "1 coin a point" : `${stake} coins a point`);
+const rulesWords = (s: Settings) => `${s.minFaan} to ${s.maxFaan} faan · Flowers ${s.flowers ? "on" : "off"} · ${stakeWords(s.stake)}`;
 
 const Pill = ({ label, onPress, primary = false, disabled = false, testID, a11y }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID: string; a11y?: string }) => (
   <Pressable

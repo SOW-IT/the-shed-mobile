@@ -1,64 +1,80 @@
 import { worldColours } from "@/worldColours";
 import { fonts } from "@/theme";
+import type { Move } from "@shared/mahjong/play";
+import { mahjongSeatId, type MahjongTableId } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { blurBehind, popStyle, useOverlayClock } from "../Overlays";
 import { glass } from "../palette";
 import { BotFace } from "./Faces";
 import { MahjongLobby } from "./MahjongLobby";
+import { MahjongTable } from "./MahjongTable";
 import { botSeatUnder } from "./tap";
 import type { Mahjong } from "./useMahjong";
-import type { Id } from "../../../convex/_generated/dataModel";
 
 const { hud } = worldColours;
+const TICK_MS = 250;
 
-type Person = { memberId: string; isMe: boolean; seat?: string; look: Look };
+type Person = { memberId: string; isMe: boolean; seat?: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
 
-/** Sitting in a bot's seat during a hand: take over its hand, or just watch. */
-const ReplacePrompt = ({
-  botName,
+const useClock = (serverNow: () => number, on: boolean) => {
+  const [now, setNow] = useState(serverNow);
+  useEffect(() => {
+    if (!on) return;
+    const tick = () => setNow(serverNow());
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, TICK_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, [on, serverNow]);
+  return now;
+};
+
+/** A glass card over the World, like the arcade's panel: a face, a line, and buttons. */
+const Card = ({
   open,
   top,
-  onTake,
-  onWatch,
-  onGetUp,
+  face,
+  title,
+  note,
+  buttons,
+  testID,
 }: {
-  botName: string;
   open: boolean;
   top: number;
-  onTake: () => void;
-  onWatch: () => void;
-  onGetUp: () => void;
+  face: React.ReactNode;
+  title: string;
+  note: string;
+  buttons: { label: string; onPress: () => void; primary?: boolean; testID: string }[];
+  testID: string;
 }) => {
   const overlay = useOverlayClock(open, 2);
   const { width } = useWindowDimensions();
   if (!overlay.mounted) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View
-        style={[styles.card, blurBehind, { top, width: Math.min(380, width - 28) }, popStyle(overlay)]}
-        pointerEvents={open ? "auto" : "none"}
-        testID="mahjong-replace"
-        accessibilityLiveRegion="polite"
-      >
+      <Animated.View style={[styles.card, blurBehind, { top, width: Math.min(380, width - 28) }, popStyle(overlay)]} pointerEvents={open ? "auto" : "none"} testID={testID} accessibilityLiveRegion="polite">
         <View style={styles.cardHead}>
-          <BotFace size={40} />
+          {face}
           <View style={styles.cardText}>
-            <Text style={styles.cardTitle} accessibilityRole="header">{`Take over from ${botName}?`}</Text>
-            <Text style={styles.cardNote}>You&apos;ll play its hand from here: its tiles, melds and score.</Text>
+            <Text style={styles.cardTitle} accessibilityRole="header">
+              {title}
+            </Text>
+            <Text style={styles.cardNote}>{note}</Text>
           </View>
         </View>
         <View style={styles.buttons}>
-          <Pressable onPress={onTake} accessibilityRole="button" testID="mahjong-replace-take" style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}>
-            <Text style={[styles.buttonText, styles.primaryText]}>Take over</Text>
-          </Pressable>
-          <Pressable onPress={onWatch} accessibilityRole="button" testID="mahjong-replace-watch" style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-            <Text style={styles.buttonText}>Watch</Text>
-          </Pressable>
-          <Pressable onPress={onGetUp} accessibilityRole="button" testID="mahjong-replace-no" style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-            <Text style={styles.buttonText}>Get up</Text>
-          </Pressable>
+          {buttons.map((b) => (
+            <Pressable key={b.testID} onPress={b.onPress} accessibilityRole="button" testID={b.testID} style={({ pressed }) => [styles.button, b.primary && styles.primary, pressed && styles.pressed]}>
+              <Text style={[styles.buttonText, b.primary && styles.primaryText]}>{b.label}</Text>
+            </Pressable>
+          ))}
         </View>
       </Animated.View>
     </View>
@@ -67,26 +83,38 @@ const ReplacePrompt = ({
 
 /**
  * Everything mahjong over the World: the lobby while you wait at a table,
- * and the prompt to take over a bot when you sit in its seat mid-hand.
+ * the full-screen table during a hand and its breakdown after, the same
+ * table read-only for anyone watching, the prompt to take over a bot when
+ * you sit in its seat mid-hand, and a way back to your seat if you got up.
  */
 export const MahjongLayer = ({
   mahjong,
   people,
+  muted,
+  serverNow,
   top,
+  safeTop,
   bottom,
   nameOf,
+  watch,
   onNote,
-  onStart,
   onWatch,
+  onStopWatching,
+  onSitBack,
 }: {
   mahjong: Mahjong;
   people: readonly Person[];
+  muted: ReadonlySet<string>;
+  serverNow: () => number;
   top: number;
+  safeTop: number;
   bottom: number;
   nameOf: (name: string) => string;
+  watch: Id<"mahjongTables"> | null;
   onNote: (note: string) => void;
-  onStart: () => void;
   onWatch: (tableId: Id<"mahjongTables">) => void;
+  onStopWatching: () => void;
+  onSitBack: (seatId: string) => void;
 }) => {
   const { mine, tables } = mahjong;
   const me = people.find((p) => p.isMe);
@@ -94,16 +122,36 @@ export const MahjongLayer = ({
   const say = (problem: string | null) => {
     if (problem) onNote(problem);
   };
-  const seatedHere = mine !== null && me?.seat === `${mine.table}-${mine.mySeat}`;
+  const [busy, setBusy] = useState(false);
+  const playM = useMutation(api.mahjong.play);
+  const againM = useMutation(api.mahjong.again);
+  const mySeatId = mine ? mahjongSeatId(mine.table as MahjongTableId, mine.mySeat) : null;
+  const seatedHere = mine !== null && me?.seat === mySeatId;
   const inLobby = mine !== null && mine.phase === "lobby" && seatedHere;
+  const playing = mine !== null && mine.phase !== "lobby" && mine.hand !== null && (seatedHere || mine.phase === "ended");
+  const gotUp = mine !== null && mine.phase === "playing" && !seatedHere && mahjong.inCafe;
+  const watched = useQuery(api.mahjong.watching, watch && !playing ? { tableId: watch } : "skip");
+  const watching = !playing && watch !== null && watched ? watched : null;
+  const goneNoted = useRef<string | null>(null);
+  useEffect(() => {
+    if (watch && watched === null && goneNoted.current !== watch) {
+      goneNoted.current = watch;
+      onStopWatching();
+      onNote("That game's over.");
+    }
+  }, [watch, watched, onStopWatching, onNote]);
+  const now = useClock(serverNow, playing || watching !== null);
   const bot = mine === null ? botSeatUnder(tables, me?.seat) : null;
   const [dismissed, setDismissed] = useState<string | null>(null);
   const botKey = bot ? `${bot.tableId}:${bot.seat}` : null;
-  const lastKey = useRef(botKey);
-  useEffect(() => {
-    if (botKey !== lastKey.current) setDismissed(null);
-    lastKey.current = botKey;
-  }, [botKey]);
+  const move = (m: Move) => {
+    if (busy) return;
+    setBusy(true);
+    void playM({ move: m })
+      .then((reply) => say(reply.ok ? null : reply.reason))
+      .catch(() => onNote("That didn't send."))
+      .finally(() => setBusy(false));
+  };
   return (
     <>
       <MahjongLobby
@@ -116,27 +164,86 @@ export const MahjongLayer = ({
         onAddBot={(seat) => void mahjong.addBot(seat).then(say)}
         onRemoveBot={(seat) => void mahjong.removeBot(seat).then(say)}
         onSettings={(settings) => void mahjong.setSettings(settings).then(say)}
-        onStart={onStart}
+        onStart={() => void mahjong.start().then(say)}
         onLeave={() => void mahjong.leave().then(say)}
       />
-      <ReplacePrompt
-        botName={bot?.name ?? "the bot"}
+      <Card
         open={bot !== null && dismissed !== botKey}
         top={top}
-        onTake={() => {
-          if (bot) void mahjong.replaceBot(bot.tableId, bot.seat).then(say);
-        }}
-        onWatch={() => {
-          if (!bot) return;
-          setDismissed(botKey);
-          onWatch(bot.tableId);
-          void mahjong.leave().then(say);
-        }}
-        onGetUp={() => {
-          setDismissed(botKey);
-          void mahjong.leave().then(say);
-        }}
+        face={<BotFace size={40} />}
+        title={`Take over from ${bot?.name ?? "the bot"}?`}
+        note="You'll play its hand from here: its tiles, melds and score."
+        testID="mahjong-replace"
+        buttons={[
+          { label: "Take over", primary: true, testID: "mahjong-replace-take", onPress: () => bot && void mahjong.replaceBot(bot.tableId, bot.seat).then(say) },
+          {
+            label: "Watch",
+            testID: "mahjong-replace-watch",
+            onPress: () => {
+              if (!bot) return;
+              setDismissed(botKey);
+              onWatch(bot.tableId);
+              void mahjong.leave().then(say);
+            },
+          },
+          {
+            label: "Get up",
+            testID: "mahjong-replace-no",
+            onPress: () => {
+              setDismissed(botKey);
+              void mahjong.leave().then(say);
+            },
+          },
+        ]}
       />
+      <Card
+        open={gotUp && !playing}
+        top={top}
+        face={<BotFace size={40} />}
+        title="A bot is playing your seat"
+        note="Sit back down to carry on with your hand."
+        testID="mahjong-sit-back"
+        buttons={[{ label: "Sit back down", primary: true, testID: "mahjong-sit-back-go", onPress: () => mySeatId && onSitBack(mySeatId) }]}
+      />
+      {playing && mine?.hand ? (
+        <MahjongTable
+          table={mine.table}
+          seats={mine.seats}
+          hand={mine.hand}
+          settled={mine.settled}
+          handNo={mine.handNo}
+          mySeat={mine.mySeat}
+          people={people}
+          muted={muted}
+          now={now}
+          nameOf={nameOf}
+          top={safeTop + 6}
+          bottom={bottom}
+          busy={busy}
+          onMove={move}
+          onAgain={() => void againM({}).then((r) => say(r.ok ? null : r.reason))}
+          onLeave={() => void mahjong.leave().then(say)}
+        />
+      ) : watching?.hand ? (
+        <MahjongTable
+          table={watching.table}
+          seats={watching.seats}
+          hand={watching.hand}
+          settled={watching.settled}
+          handNo={watching.handNo}
+          mySeat={null}
+          people={people}
+          muted={muted}
+          now={now}
+          nameOf={nameOf}
+          top={safeTop + 6}
+          bottom={bottom}
+          busy={false}
+          onMove={() => undefined}
+          onAgain={() => undefined}
+          onLeave={onStopWatching}
+        />
+      ) : null}
     </>
   );
 };

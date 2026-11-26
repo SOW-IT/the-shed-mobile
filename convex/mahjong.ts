@@ -1,9 +1,18 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { CAFE_PLACE } from "../shared/cafeGames";
+import { coinDay } from "../shared/coins";
+import { bankLeftToday, settle } from "../shared/mahjong/coins";
+import { actors, begin, deadlineOf, newHand, nextDealer, timeOut, type Hand, type Result } from "../shared/mahjong/game";
+import { applyMove, playBots, type Move } from "../shared/mahjong/play";
+import { viewHand } from "../shared/mahjong/view";
 import {
+  allReady,
+  botControlled,
   botName,
+  everyoneAway,
   DEFAULT_SETTINGS,
   validSettings,
   EMPTY_SEAT,
@@ -18,14 +27,20 @@ import {
   type MahjongTableId,
   type TableSeat,
 } from "../shared/mahjong/table";
-import { clampTarget, seatIn } from "../shared/world";
-import { mahjongPhaseValidator, mahjongSettingsValidator } from "./mahjongData";
+import { clampTarget, DUEL_WINNER_EMOTE, seatIn } from "../shared/world";
+import { ensureWallet } from "./coins";
+import { mahjongHandViewValidator, mahjongMoveValidator, mahjongPhaseValidator, mahjongSettingsValidator, mahjongSettledValidator } from "./mahjongData";
 import { Ctx, optionalEmail, requireEmail } from "./model";
 import { memberByEmail, placeOf, requireMe } from "./world";
 
 type Table = Doc<"mahjongTables">;
 
 const LEAVE_STEP = 0.75;
+
+const okReply = v.object({ ok: v.literal(true) });
+const refusedReply = v.object({ ok: v.literal(false), reason: v.string() });
+const refuse = (reason: string) => ({ ok: false as const, reason });
+const done = { ok: true as const };
 
 const tableIn = (ctx: Ctx, roomId: Id<"worldRooms">, table: MahjongTableId) =>
   ctx.db
@@ -85,8 +100,7 @@ const freeSeat = async (ctx: MutationCtx, table: Table, seat: number) => {
   const left = table.seats[seat];
   const seats = table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s));
   if (left.kind === "human") await dropPlayer(ctx, left.email);
-  // A hand that's over goes back to the lobby when someone's seat empties.
-  await saveSeats(ctx, table, seats, table.phase === "ended" ? { phase: "lobby" } : {});
+  await saveSeats(ctx, table, seats);
 };
 
 /** Someone walked away from their seat: before or after a hand it frees; during one a bot plays it. */
@@ -101,7 +115,212 @@ const leaveSeat = async (ctx: MutationCtx, table: Table, seat: number, now: numb
 };
 
 /** Who plays a seat changed mid-hand (a bot took over, or a person came back): the hand picks it up. */
-const controlChanged = async (_ctx: MutationCtx, _tableId: Id<"mahjongTables">, _now: number) => {};
+const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, now: number) => {
+  const table = await ctx.db.get("mahjongTables", tableId);
+  const row = table && table.phase === "playing" ? await handRowOf(ctx, tableId) : null;
+  if (!table || !row || row.state.stage.kind === "over") return;
+  const allAwayAt = everyoneAway(table.seats) ? (table.allAwayAt ?? now) : undefined;
+  if (allAwayAt !== table.allAwayAt) await ctx.db.patch("mahjongTables", table._id, { allAwayAt });
+  await saveHand(ctx, { ...table, allAwayAt }, row, row.state, now);
+};
+
+// ── The hand ────────────────────────────────────────────────────────────
+
+/** How long a bot takes to act, so people can follow the table. */
+export const BOT_MS = 900;
+/** How long a hand waits when everyone at the table has walked away, before it's given up (no coins move). */
+export const ABANDON_MS = 2 * 60_000;
+const TICK_SLACK_MS = 250;
+
+type HandRow = Doc<"mahjongHands">;
+
+const handRowOf = (ctx: Ctx, tableId: Id<"mahjongTables">) =>
+  ctx.db
+    .query("mahjongHands")
+    .withIndex("by_tableId", (q) => q.eq("tableId", tableId))
+    .first();
+
+/** When the hand next needs the server: a bot's move, the clock running out, or giving up on an empty table. */
+const nextTickAt = (table: Table, hand: Hand, now: number) => {
+  if (everyoneAway(table.seats)) return (table.allAwayAt ?? now) + ABANDON_MS;
+  if (hand.stage.kind === "intro") return hand.stage.until;
+  const bots = botControlled(table.seats);
+  if (actors(hand).some((seat) => bots[seat])) return now + BOT_MS;
+  return deadlineOf(hand) ?? now;
+};
+
+/** Saves a hand that moved on: settles it when it's over, otherwise schedules what comes next. */
+const saveHand = async (ctx: MutationCtx, table: Table, row: HandRow, hand: Hand, now: number) => {
+  const beat = row.beat + 1;
+  if (hand.stage.kind === "over") {
+    await ctx.db.patch("mahjongHands", row._id, { state: hand, beat });
+    return await finishHand(ctx, table, { ...row, state: hand, beat }, hand.stage.result, now);
+  }
+  await ctx.db.patch("mahjongHands", row._id, { state: hand, beat });
+  await ctx.scheduler.runAt(nextTickAt(table, hand, now), internal.mahjong.tick, { tableId: table._id, beat });
+};
+
+const startHand = async (ctx: MutationCtx, table: Table, now: number) => {
+  for (const old of await ctx.db
+    .query("mahjongHands")
+    .withIndex("by_tableId", (q) => q.eq("tableId", table._id))
+    .take(4))
+    await ctx.db.delete("mahjongHands", old._id);
+  const first = table.handNo === 0 || table.dealer === undefined;
+  const hand = newHand({ settings: table.settings, dealer: first ? null : table.dealer!, roundWind: first ? 0 : table.roundWind, random: Math.random, now });
+  const handNo = table.handNo + 1;
+  const seats = table.seats.map((s) => (s.kind === "human" ? { ...s, ready: undefined } : s));
+  await ctx.db.patch("mahjongTables", table._id, {
+    phase: "playing",
+    handNo,
+    seats,
+    dealer: hand.dealer,
+    roundWind: hand.roundWind,
+    allAwayAt: undefined,
+    ...(first ? { firstDealer: hand.dealer, net: [0, 0, 0, 0] } : {}),
+  });
+  const id = await ctx.db.insert("mahjongHands", { tableId: table._id, handNo, beat: 0, state: hand });
+  await ctx.scheduler.runAt(nextTickAt({ ...table, seats }, hand, now), internal.mahjong.tick, { tableId: table._id, beat: 0 });
+  return id;
+};
+
+const cheer = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms">, now: number) => {
+  const member = await memberByEmail(ctx, email);
+  const state =
+    member?.roomId === roomId
+      ? await ctx.db
+          .query("worldState")
+          .withIndex("by_memberId", (q) => q.eq("memberId", member._id))
+          .unique()
+      : null;
+  if (state) await ctx.db.patch("worldState", state._id, { act: { emote: DUEL_WINNER_EMOTE, at: now } });
+};
+
+/**
+ * The hand is over: coins move (one transaction, worked out here, never
+ * sent by a phone), the dealer moves on or stays, and seats kept for
+ * people who never came back are freed.
+ */
+const finishHand = async (ctx: MutationCtx, table: Table, row: HandRow, result: Result, now: number) => {
+  const day = coinDay(now);
+  const humans = table.seats.map((s) => (s.kind === "human" ? s : null));
+  const wallets = [];
+  for (const h of humans) wallets.push(h ? await ensureWallet(ctx, h.email, now) : null);
+  const settled =
+    result.kind === "win"
+      ? settle(
+          result.pays,
+          table.settings.stake,
+          wallets.map((w) => ({ human: w !== null, balance: w?.balance ?? 0, bankLeft: w ? bankLeftToday(w.mahjongBankDay, w.mahjongBankToday, day) : 0 }))
+        )
+      : { deltas: [0, 0, 0, 0], fromBank: [0, 0, 0, 0] };
+  for (const [seat, wallet] of wallets.entries()) {
+    const delta = settled.deltas[seat];
+    if (!wallet || delta === 0) continue;
+    const bank = settled.fromBank[seat];
+    const bankToday = (wallet.mahjongBankDay === day ? (wallet.mahjongBankToday ?? 0) : 0) + bank;
+    await ctx.db.patch("worldWallets", wallet._id, { balance: wallet.balance + delta, ...(bank > 0 ? { mahjongBankDay: day, mahjongBankToday: bankToday } : {}) });
+    await ctx.db.insert("coinLedger", { email: wallet.email, delta, kind: "mahjong", runId: `mahjong:${row._id}`, game: "mahjong", at: now });
+  }
+  await ctx.db.patch("mahjongHands", row._id, { settled });
+  const next = nextDealer(table.dealer ?? row.state.dealer, result, table.firstDealer ?? row.state.dealer, table.roundWind);
+  const net = table.net.map((n, i) => n + settled.deltas[i]);
+  const gone = table.seats.flatMap((s, i) => (s.kind === "human" && s.away !== undefined ? [i] : []));
+  for (const i of gone) {
+    const s = table.seats[i];
+    if (s.kind === "human") await dropPlayer(ctx, s.email);
+  }
+  const seats = table.seats.map((s, i) => (gone.includes(i) ? EMPTY_SEAT : s.kind === "human" ? { ...s, ready: undefined } : s));
+  await saveSeats(ctx, table, seats, { phase: "ended", dealer: next.dealer, roundWind: next.roundWind, net, allAwayAt: undefined });
+  if (result.kind === "win") {
+    const winner = table.seats[result.winner];
+    if (winner.kind === "human") await cheer(ctx, winner.email, table.roomId, now);
+  }
+};
+
+export const tick = internalMutation({
+  args: { tableId: v.id("mahjongTables"), beat: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { tableId, beat }) => {
+    const table = await ctx.db.get("mahjongTables", tableId);
+    const row = table ? await handRowOf(ctx, tableId) : null;
+    if (!table || !row || row.beat !== beat || table.phase !== "playing" || row.state.stage.kind === "over") return null;
+    const now = Date.now();
+    let hand = row.state;
+    if (everyoneAway(table.seats)) {
+      if (now < (table.allAwayAt ?? now) + ABANDON_MS - TICK_SLACK_MS) return null;
+      // Nobody came back: the hand is given up and the table cleared.
+      await ctx.db.delete("mahjongHands", row._id);
+      for (const s of table.seats) if (s.kind === "human") await dropPlayer(ctx, s.email);
+      await deleteTable(ctx, table);
+      return null;
+    }
+    if (hand.stage.kind === "intro") {
+      const started = begin(hand, now);
+      if (started.ok) hand = started.hand;
+    } else {
+      const bots = botControlled(table.seats);
+      const played = actors(hand).some((seat) => bots[seat]) ? playBots(hand, bots, now) : hand;
+      if (played !== hand) hand = played;
+      else {
+        const deadline = deadlineOf(hand) ?? now;
+        if (now < deadline - TICK_SLACK_MS) {
+          await ctx.scheduler.runAt(deadline, internal.mahjong.tick, { tableId, beat });
+          return null;
+        }
+        const timed = timeOut(hand, now);
+        if (timed.ok) hand = timed.hand;
+      }
+    }
+    await saveHand(ctx, table, row, hand, now);
+    return null;
+  },
+});
+
+/** A move at the table from the person in that seat: a discard, a win, a kong, or an answer to a claim. */
+export const play = mutation({
+  args: { move: mahjongMoveValidator },
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx, { move }) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    const held = await heldSeatOf(ctx, email);
+    if (!held || held.table.phase !== "playing") return refuse("There's no hand being played.");
+    const seat = held.table.seats[held.seat];
+    if (seat.kind === "human" && seat.away !== undefined) return refuse("Sit back down to play.");
+    const row = await handRowOf(ctx, held.table._id);
+    if (!row) return refuse("There's no hand being played.");
+    const step = applyMove(row.state, held.seat, move as Move, now);
+    if (!step.ok) return refuse(step.reason);
+    await saveHand(ctx, held.table, row, step.hand, now);
+    return done;
+  },
+});
+
+/**
+ * After a hand: "Play another round". It starts once every person at the
+ * table has asked (bots always want to). With a seat empty, the table goes
+ * back to the lobby to fill it.
+ */
+export const again = mutation({
+  args: {},
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    const held = await heldSeatOf(ctx, email);
+    if (!held || held.table.phase !== "ended") return refuse("That round's gone.");
+    const { table } = held;
+    if (!tableFull(table.seats)) {
+      await ctx.db.patch("mahjongTables", table._id, { phase: "lobby" });
+      return done;
+    }
+    const seats = table.seats.map((s, i) => (i === held.seat && s.kind === "human" ? { ...s, ready: true } : s));
+    if (allReady(seats)) await startHand(ctx, { ...table, seats }, now);
+    else await ctx.db.patch("mahjongTables", table._id, { seats });
+    return done;
+  },
+});
 
 /**
  * Called by `world.sit` before the sit is written: takes a seat at a
@@ -172,10 +391,6 @@ export const heldRoomOf = async (ctx: Ctx, email: string) => {
   return held && held.table.phase !== "lobby" ? held.table.roomId : null;
 };
 
-const okReply = v.object({ ok: v.literal(true) });
-const refusedReply = v.object({ ok: v.literal(false), reason: v.string() });
-const refuse = (reason: string) => ({ ok: false as const, reason });
-const done = { ok: true as const };
 
 /** The caller's table when they host it and it's waiting to start. */
 const hostedLobby = async (ctx: MutationCtx, email: string): Promise<{ table: Table; problem?: undefined } | { table?: undefined; problem: string }> => {
@@ -235,7 +450,7 @@ export const start = mutation({
     const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
     if (!table) return refuse(problem);
     if (!tableFull(table.seats)) return refuse("Fill every seat first.");
-    await ctx.db.patch("mahjongTables", table._id, { phase: "playing", handNo: table.handNo + 1 });
+    await startHand(ctx, table, Date.now());
     return done;
   },
 });
@@ -344,15 +559,43 @@ export const tableView = async (ctx: Ctx, table: Table, email: string) => ({
   full: tableFull(table.seats),
 });
 
-/** The caller's table, when they hold a seat at one. */
+const handFields = {
+  hand: v.union(v.null(), mahjongHandViewValidator),
+  settled: v.union(v.null(), mahjongSettledValidator),
+};
+
+/** A hand as one seat sees it (or a watcher, with seat null): never the wall, and only that seat's own tiles. */
+const handFor = async (ctx: Ctx, table: Table, seat: number | null) => {
+  const row = table.phase === "lobby" ? null : await handRowOf(ctx, table._id);
+  return { hand: row ? viewHand(row.state, seat) : null, settled: row?.settled ?? null };
+};
+
+/** The caller's table, when they hold a seat at one, with their view of the hand. */
 export const mine = query({
   args: {},
-  returns: v.union(v.null(), v.object({ ...tableViewFields, mySeat: v.number(), isHost: v.boolean() })),
+  returns: v.union(v.null(), v.object({ ...tableViewFields, mySeat: v.number(), isHost: v.boolean(), ...handFields })),
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     const held = email ? await heldSeatOf(ctx, email) : null;
     if (!email || !held) return null;
-    return { ...(await tableView(ctx, held.table, email)), mySeat: held.seat, isHost: held.table.host === email };
+    return { ...(await tableView(ctx, held.table, email)), mySeat: held.seat, isHost: held.table.host === email, ...(await handFor(ctx, held.table, held.seat)) };
+  },
+});
+
+/**
+ * A table to watch, for someone in its Café room: all four players, their
+ * melds, flowers and discards, and nobody's concealed tiles. Null once
+ * there's nothing on (or they've left the room).
+ */
+export const watching = query({
+  args: { tableId: v.id("mahjongTables") },
+  returns: v.union(v.null(), v.object({ ...tableViewFields, ...handFields })),
+  handler: async (ctx, { tableId }) => {
+    const email = await optionalEmail(ctx);
+    const me = email ? await memberByEmail(ctx, email) : null;
+    const table = await ctx.db.get("mahjongTables", tableId);
+    if (!email || !me || !table || me.roomId !== table.roomId || placeOf(me) !== CAFE_PLACE || table.phase === "lobby") return null;
+    return { ...(await tableView(ctx, table, email)), ...(await handFor(ctx, table, null)) };
   },
 });
 

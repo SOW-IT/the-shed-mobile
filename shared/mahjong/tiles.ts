@@ -10,7 +10,7 @@
 
 export const KINDS = 34;
 export const SUITED = 27;
-export const FLOWER_BASE = 34;
+const FLOWER_BASE = 34;
 export const TILE_COUNT = 144;
 const NORMAL_TILES = 136;
 
@@ -18,7 +18,7 @@ export const kindOf = (tile: number) => (tile < NORMAL_TILES ? tile >> 2 : FLOWE
 export const isFlowerTile = (tile: number) => tile >= NORMAL_TILES;
 
 export type Suit = 0 | 1 | 2;
-export const SUIT_NAMES = ["Dots", "Bamboo", "Characters"] as const;
+const SUIT_NAMES = ["Dots", "Bamboo", "Characters"] as const;
 const SUIT_CHARS = ["筒", "索", "萬"] as const;
 
 export const isSuited = (kind: number) => kind < SUITED;
@@ -26,11 +26,10 @@ export const isHonour = (kind: number) => kind >= SUITED && kind < KINDS;
 export const isWind = (kind: number) => kind >= 27 && kind <= 30;
 export const isDragon = (kind: number) => kind >= 31 && kind <= 33;
 export const suitOf = (kind: number): Suit => Math.floor(kind / 9) as Suit;
-export const rankOf = (kind: number) => (kind % 9) + 1;
+const rankOf = (kind: number) => (kind % 9) + 1;
 export const isTerminal = (kind: number) => isSuited(kind) && (kind % 9 === 0 || kind % 9 === 8);
 export const isTerminalOrHonour = (kind: number) => isTerminal(kind) || isHonour(kind);
 
-export const WIND_KINDS = [27, 28, 29, 30] as const;
 export const windKind = (wind: number) => 27 + wind;
 export const WIND_NAMES = ["East", "South", "West", "North"] as const;
 export const WIND_CHARS = ["東", "南", "西", "北"] as const;
