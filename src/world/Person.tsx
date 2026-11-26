@@ -1,5 +1,5 @@
 import { bodyScale, FULL_OUTFITS, lookPart, nudge, type EmoteId, type Look, type MutualKind, type Pose } from "@shared/world";
-import { memo, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
@@ -1518,6 +1518,8 @@ export const Avatar = memo(
 const TYPING_DOTS = [0, 1, 2];
 const TAG_WIDTH = 200;
 const TAG_EDGE_PAD = 10;
+const BUBBLE_MAX_WIDTH = 172;
+const TAIL_INSET = 22;
 const WEB_WRAP = Platform.OS === "web" ? ({ overflowWrap: "anywhere", wordBreak: "break-word" } as object) : null;
 
 /** The name, line and emote over someone's head, above all the scenery. */
@@ -1555,10 +1557,14 @@ const TagView = ({
   shout?: boolean;
   calm?: boolean;
 }) => {
+  const [bubbleWidth, setBubbleWidth] = useState(BUBBLE_MAX_WIDTH);
+  const half = bubbleWidth / 2;
   const bubbleShift =
     stageWidth !== undefined && line
-      ? Math.min(Math.max(TAG_EDGE_PAD + TAG_WIDTH / 2, x), Math.max(TAG_EDGE_PAD + TAG_WIDTH / 2, stageWidth - TAG_EDGE_PAD - TAG_WIDTH / 2)) - x
+      ? Math.min(Math.max(TAG_EDGE_PAD + half, x), Math.max(TAG_EDGE_PAD + half, stageWidth - TAG_EDGE_PAD - half)) - x
       : 0;
+  const tailReach = Math.max(0, half - TAIL_INSET);
+  const tailShift = Math.min(Math.max(-bubbleShift, -tailReach), tailReach);
   return (
     <View pointerEvents="none" style={[styles.tag, { left: x - TAG_WIDTH / 2, top: y - 400 }]}>
       {emote ? (
@@ -1566,6 +1572,7 @@ const TagView = ({
       ) : null}
       {line ? (
         <View
+          onLayout={(e) => setBubbleWidth(e.nativeEvent.layout.width)}
           style={[
             styles.bubble,
             calm
@@ -1574,7 +1581,7 @@ const TagView = ({
           ]}
         >
           <Text style={[styles.bubbleText, shout && styles.shoutText, WEB_WRAP]}>{line}</Text>
-          <View style={[styles.tailRow, { transform: [{ translateX: -bubbleShift }] }]}>
+          <View style={[styles.tailRow, { transform: [{ translateX: tailShift }] }]}>
             <View style={styles.tailInk} />
             <View style={styles.tail} />
           </View>
@@ -1616,7 +1623,7 @@ const styles = StyleSheet.create({
   tag: { position: "absolute", width: TAG_WIDTH, height: 400, alignItems: "center", justifyContent: "flex-end", gap: 10 },
   emote: { fontSize: 30, marginBottom: -4 },
   bubble: {
-    maxWidth: 172,
+    maxWidth: BUBBLE_MAX_WIDTH,
     backgroundColor: hud.card,
     borderColor: hud.forest,
     borderWidth: 2.5,

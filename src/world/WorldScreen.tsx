@@ -1124,32 +1124,19 @@ export const WorldScreen = ({
     const l = life(animal, farmNow);
     const kind = animal.kind === "cow" ? "cow" : "chicken";
     const days = ANIMALS[kind].growDays;
-    const badge =
-      l.mood === "gone"
-        ? "Wandered off"
-        : l.ready
-          ? kind === "cow"
-            ? "Milk ready"
-            : "Egg ready"
-          : l.mood === "frail"
-            ? "Frail"
-            : l.mood === "hungry"
-              ? "Hungry"
-              : "Fed";
-    const tone: FarmCardData["tone"] =
-      l.mood === "gone"
-        ? "muted"
-        : l.ready
-          ? "ready"
-          : l.mood === "frail" || l.mood === "hungry"
-            ? "warn"
-            : "good";
+    const readyWord = kind === "cow" ? "Milk ready" : "Egg ready";
+    const needsFeed = l.mood === "frail" || l.mood === "hungry";
+    const badge = l.mood === "gone" ? "Wandered off" : l.mood === "frail" ? "Frail" : l.mood === "hungry" ? "Hungry" : l.ready ? readyWord : "Fed";
+    const tone: FarmCardData["tone"] = l.mood === "gone" ? "muted" : needsFeed ? "warn" : l.ready ? "ready" : "good";
+    const collect = l.ready && yardView.mine ? " · Tap to collect" : "";
     const detail =
       l.mood === "gone"
         ? stageLabel(animal.kind, l.stage)
-        : l.grown
-          ? `${stageLabel(animal.kind, l.stage)}${l.ready && yardView.mine ? " · Tap to collect" : ""}`
-          : `${stageLabel(animal.kind, l.stage)} · Day ${l.day} of ${days}`;
+        : !l.grown
+          ? `${stageLabel(animal.kind, l.stage)} · Day ${l.day} of ${days}`
+          : l.ready && needsFeed
+            ? `${readyWord}${collect}`
+            : `${stageLabel(animal.kind, l.stage)}${collect}`;
     return {
       title: animal.name,
       badge,
