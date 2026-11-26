@@ -183,11 +183,13 @@ Daniel's items 5 to 9 (2026-11-23):
 
 ## Places
 
-There are five places (`PLACES` in `shared/world.ts`), joined by pads
-(`PORTALS`) the way Daniel laid them out: the Garden leads to the Beach (at
-the gate), the Campfire and the Chapel; the Beach to the Campfire; the
-Campfire to the Café; the Café to the Chapel. Every pad has one going back,
-so the five make a loop with the Garden to Campfire path across it.
+There are six places (`PLACES` in `shared/world.ts`), joined by pads
+(`PORTALS`) the way Daniel laid them out in 2.13.22: the Garden leads to the
+Beach (at the gate), the Café (right), the Chapel (front) and the Library
+(left); the Café to the Campfire; the Campfire to the Chapel. The Beach and
+the Library lead only back to the Garden. Every pad has one going back, and
+`world.travel` refuses a trip along no pad (`canTravel`): only the Garden and
+your home are a jump from anywhere, from the World's menu.
 
 - **Same floor everywhere.** Every place uses the Garden's walkable outline
   and camera, so the camera, taps, clamping and the narrow-phone fit are
