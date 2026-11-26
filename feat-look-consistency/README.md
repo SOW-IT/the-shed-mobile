@@ -7,17 +7,17 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 47s |  |
+| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 42s |  |
 | unused code (knip) | ✔ pass | 3s |  |
-| typecheck | ✔ pass | 13s |  |
-| related unit tests | ✔ pass | 2s | 43 passed (43) |
+| typecheck | ✔ pass | 12s |  |
+| related unit tests | ✔ pass | 1s | 44 passed (44) |
 | verify lock | ✔ pass | 0s | free, taken at once |
-| Playwright Chromium | ✔ pass | 1s |  |
+| Playwright Chromium | ✔ pass | 0s |  |
 | before: local backend | ✔ pass | 17s | before functions on :3270 |
-| before: web | ✔ pass | 128s | 20 screens, 0 broken. Checks passed: chapel-pews, arcade-podium. |
-| after: local backend | ✔ pass | 16s | after functions on :3270 |
-| after: web | ✔ pass | 151s | 20 screens, 0 broken. Checks passed: chapel-pews, arcade-podium. |
+| before: web | ✔ pass | 118s | 20 screens, 0 broken. Checks passed: chapel-pews, arcade-podium. |
+| after: local backend | ✔ pass | 18s | after functions on :3270 |
+| after: web | ✔ pass | 124s | 20 screens, 0 broken. Checks passed: chapel-pews, arcade-podium. |
 
 ## Contact Sheets
 
