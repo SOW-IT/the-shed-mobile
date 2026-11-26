@@ -2,8 +2,9 @@
 // The arcade over the World and the leaderboard's podium, driven: the panel
 // opens over the live World and stays while you walk, a game goes full screen
 // and leaving it comes back to the World, and the leaderboard from the panel
-// shows the podium and returns to the panel. Also the Games list's coins and
-// who's playing.
+// shows the podium and returns to the panel. Tapping the arcade walks you
+// there and opens it, and walking away closes it. Also the Games list's coins
+// and who's playing.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -84,6 +85,27 @@ try {
   await page.goBack();
   await id("world-stage").waitFor();
   await expect("back from the leaderboard, the arcade is still open", id("world-arcade").waitFor({ timeout: 10_000 }).then(() => true, () => false));
+
+  // Tapping the arcade walks you to it and opens its games; walking away
+  // from it closes them, and tapping it again opens them again.
+  await id("world-arcade-close").click();
+  await id("world-arcade").waitFor({ state: "hidden" });
+  const tapArcade = async () => {
+    const at = await page.getByRole("button", { name: "Arcade", exact: true }).first().boundingBox();
+    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+    return id("world-arcade").waitFor({ timeout: 20_000 }).then(() => true, () => false);
+  };
+  await expect("tapping the arcade walks you there and opens its games", tapArcade());
+  await page.waitForTimeout(1_000);
+  await page.screenshot({ path: `${OUT}/arcade-in-range.png` });
+  // A few steps to your right and back, clear of the Chapel's pad at the front.
+  const farStage = await id("world-stage").boundingBox();
+  const me = await id("world-me").boundingBox();
+  await page.mouse.click(me.x + me.width / 2 + farStage.width * 0.35, me.y + me.height / 2 - 60);
+  await expect("walking away from the arcade closes its games", id("world-arcade").waitFor({ state: "hidden", timeout: 15_000 }).then(() => true, () => false));
+  await page.waitForTimeout(1_500);
+  await page.screenshot({ path: `${OUT}/arcade-walked-away.png` });
+  await expect("back at the arcade, a tap opens its games again", tapArcade());
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
 } finally {
@@ -93,7 +115,7 @@ try {
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Arcade and podium: coins and who's playing on the Games list; the arcade over the World stays while you walk; a game and back to the World; the leaderboard's podium and back to the arcade."
+    ? "Arcade and podium: coins and who's playing on the Games list; the arcade over the World stays while you walk; a game and back to the World; the leaderboard's podium and back to the arcade; walking away from the arcade closes it."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);
