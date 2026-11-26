@@ -234,7 +234,7 @@ const throttleOf = (ctx: Ctx, email: string) =>
     .withIndex("by_email", (q) => q.eq("email", email))
     .unique();
 
-type ChatLine = { text: string; kind?: "join" | "leave" };
+type ChatLine = { text: string; kind?: "join" | "leave"; toWorld?: boolean };
 
 type Speaker = { memberId: Id<"worldMembers">; roomId: Id<"worldRooms">; place: Place; email: string; name: string };
 
@@ -995,8 +995,9 @@ export const say = mutation({
     const token = spend("say", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, typing: undefined, sayBucket: token.bucket });
-    // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
-    await addChatLine(ctx, speakerOf(member), { text }, now);
+    // Keep the room within CHAT_ROOM_CAP lines as each one arrives. What's
+    // said in a backyard reaches the whole World; at home it stays in.
+    await addChatLine(ctx, speakerOf(member), placeOf(member) === BACKYARD ? { text, toWorld: true } : { text }, now);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
   },
@@ -1445,7 +1446,7 @@ export const chatLog = query({
     let scanned = 0;
     for await (const row of rows) {
       if (lines.length === cap || scanned++ === CHAT_SCAN) break;
-      if (isPrivatePlace(row.place) && row.roomId !== roomId) continue;
+      if (isPrivatePlace(row.place) && row.toWorld !== true && row.roomId !== roomId) continue;
       if (!hidden.has(row.email)) hidden.set(row.email, await isBlocked(row.email));
       if (hidden.get(row.email)) continue;
       lines.push({
