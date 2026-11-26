@@ -91,7 +91,10 @@ try {
   await id("world-arcade-close").click();
   await id("world-arcade").waitFor({ state: "hidden" });
   const tapArcade = async () => {
-    const at = await page.getByRole("button", { name: "Arcade", exact: true }).first().boundingBox();
+    // The World's tap targets are labelled views over the stage, like the Chapel's lectern.
+    const arcade = page.getByLabel("Arcade", { exact: true }).first();
+    await arcade.waitFor({ state: "attached" });
+    const at = await arcade.boundingBox();
     await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
     return id("world-arcade").waitFor({ timeout: 20_000 }).then(() => true, () => false);
   };
