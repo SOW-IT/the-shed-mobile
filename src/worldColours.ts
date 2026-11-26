@@ -18,6 +18,7 @@ export const worldColours = {
     chip: "rgba(29, 74, 65, 0.92)",
     chipRing: "#BCDCCD",
     nameBg: "rgba(255, 254, 248, 0.92)",
+    npcBg: "#F6D365",
     scrim: "rgba(15, 37, 35, 0.35)",
   },
   /** The menus and panels: dark glass over the garden. */

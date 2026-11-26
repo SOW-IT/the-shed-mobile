@@ -163,6 +163,8 @@ const shadow = {
   textShadowRadius: 0.01,
 };
 
+const WEB_WRAP = Platform.OS === "web" ? ({ overflowWrap: "anywhere", wordBreak: "break-word" } as object) : null;
+
 const styles = StyleSheet.create({
   frame: { maxWidth: "100%" },
   log: { flexGrow: 0, backgroundColor: chatLog.backing, borderRadius: 4 },
@@ -170,7 +172,7 @@ const styles = StyleSheet.create({
   fadeTop: { top: 0, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
   fadeBottom: { bottom: 0, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
   content: { paddingTop: 0, paddingBottom: PAD * 2, paddingHorizontal: 6 },
-  line: { fontFamily: blocky, fontSize: 13.5, lineHeight: LINE_HEIGHT, fontWeight: "700", color: chatLog.text, ...shadow },
+  line: { fontFamily: blocky, fontSize: 13.5, lineHeight: LINE_HEIGHT, fontWeight: "700", color: chatLog.text, ...shadow, ...WEB_WRAP },
   time: { color: chatLog.time },
   name: { color: chatLog.name },
   me: { color: chatLog.me },

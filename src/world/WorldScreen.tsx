@@ -25,8 +25,8 @@ import {
 } from "@shared/world";
 import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
-import { CROPS, growth, isCrop, penStand, plantCard, plotPrice, plotStand, type BuildingId, type CropId } from "@shared/farm";
-import { animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
+import { CROPS, cropLabel, growth, isCrop, penStand, plantCard, plotPrice, plotStand, timeLeft, type BuildingId, type CropId } from "@shared/farm";
+import { ANIMALS, animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -40,7 +40,8 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type GardenFarm, type GardenYard, type HighlightTarget, type InteractivePropId } from "./Garden";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
-import { GainChip } from "./Farm";
+import { CropThumb, GainChip, type FarmCardData } from "./Farm";
+import { AnimalThumb } from "./Animals";
 import { useAnimals, useFarm, useMinuteClock } from "./useFarm";
 import { hud } from "./palette";
 import { popShadow } from "./popShadow";
@@ -817,9 +818,47 @@ export const WorldScreen = ({
     const by = wateredBy(plant, g.wateredAt);
     return { plot: plant.plot, crop: plant.crop, stage: g.stage, progress: g.progress, wilted: g.wilted, thirsty: g.thirsty, wet: g.wateredAt !== null, ...(by ? { note: `Watered by ${worldName(by)}` } : {}) };
   });
-  const cardFor = (plot: number) => {
+  const cardFor = (plot: number): FarmCardData | null => {
     const plant = plantOn(plot);
-    return plant ? plantCard(plant, farmNow) : null;
+    if (!plant) return null;
+    const now = Math.max(farmNow, plant.plantedAt);
+    const g = growth(plant, now);
+    const crop: CropId = isCrop(plant.crop) ? plant.crop : "lettuce";
+    const wilts = g.wilts > 0 ? ` · wilted ${g.wilts}×` : "";
+    const badge =
+      g.stage === "ripe"
+        ? "Ready"
+        : g.stage === "dead"
+          ? "Died"
+          : g.wilted
+            ? "Wilted"
+            : g.thirsty
+              ? "Needs water"
+              : "Growing";
+    const tone: FarmCardData["tone"] =
+      g.stage === "ripe"
+        ? "ready"
+        : g.stage === "dead"
+          ? "muted"
+          : g.wilted
+            ? "warn"
+            : g.thirsty
+              ? "water"
+              : "good";
+    const detail =
+      g.stage === "ripe"
+        ? `${farmView?.mine ? "Tap to harvest" : "Ready to harvest"}${wilts}`
+        : g.stage === "dead"
+          ? `${farmView?.mine ? "Tap to clear" : "Needs clearing"}${wilts}`
+          : `${timeLeft((g.readyAt ?? now) - now)}${wilts}`;
+    return {
+      title: cropLabel(plant.crop),
+      badge,
+      tone,
+      detail,
+      progress: g.stage === "dead" ? undefined : g.progress,
+      icon: <CropThumb crop={crop} size={30} />,
+    };
   };
   const needsVisit = (plot: number) => {
     const plant = plantOn(plot);
@@ -922,12 +961,13 @@ export const WorldScreen = ({
       setNote(problem);
     });
   };
+  const plotCardData = plotCard ? cardFor(plotCard.plot) : null;
   const gardenFarm: GardenFarm | null = farmView
     ? {
         plots: farmView.plots,
         mine: farmView.mine,
         plants: gardenPlants,
-        card: plotCard && cardFor(plotCard.plot) ? { plot: plotCard.plot, text: cardFor(plotCard.plot)! } : null,
+        card: plotCard && plotCardData ? { plot: plotCard.plot, data: plotCardData } : null,
         watering,
         flying,
         bagAt: { x: 54, y: insets.top + 30 },
@@ -1066,15 +1106,46 @@ export const WorldScreen = ({
     }
     setYardCard({ at: kind, id: null, extra: null, key: world.serverNow() });
   };
-  const yardCardText = (() => {
+  const yardCardData: FarmCardData | null = (() => {
     if (!yardCard || !yardView) return null;
     if (yardCard.id === null) {
-      const count = shownAnimals.filter((a) => a.kind === animalFor(yardCard.at) && life(a, farmNow).mood !== "gone").length;
-      return `${BUILDINGS[yardCard.at].label} · ${count} of ${BUILDINGS[yardCard.at].capacity}`;
+      const kind = animalFor(yardCard.at);
+      const count = shownAnimals.filter((a) => a.kind === kind && life(a, farmNow).mood !== "gone").length;
+      const cap = BUILDINGS[yardCard.at].capacity;
+      return {
+        title: BUILDINGS[yardCard.at].label,
+        badge: `${count} of ${cap}`,
+        tone: "good",
+        icon: <AnimalThumb kind={kind} stage={2} size={30} />,
+      };
     }
     const animal = animalOn(yardCard.id);
     if (!animal) return null;
-    return [animalCard(animal, farmNow), ...(yardCard.extra ? [yardCard.extra] : [])].join("\n");
+    const l = life(animal, farmNow);
+    const kind = animal.kind === "cow" ? "cow" : "chicken";
+    const days = ANIMALS[kind].growDays;
+    const readyWord = kind === "cow" ? "Milk ready" : "Egg ready";
+    const needsFeed = l.mood === "frail" || l.mood === "hungry";
+    const badge = l.mood === "gone" ? "Wandered off" : l.mood === "frail" ? "Frail" : l.mood === "hungry" ? "Hungry" : l.ready ? readyWord : "Fed";
+    const tone: FarmCardData["tone"] = l.mood === "gone" ? "muted" : needsFeed ? "warn" : l.ready ? "ready" : "good";
+    const collect = l.ready && yardView.mine ? " · Tap to collect" : "";
+    const detail =
+      l.mood === "gone"
+        ? stageLabel(animal.kind, l.stage)
+        : !l.grown
+          ? `${stageLabel(animal.kind, l.stage)} · Day ${l.day} of ${days}`
+          : l.ready && needsFeed
+            ? `${readyWord}${collect}`
+            : `${stageLabel(animal.kind, l.stage)}${collect}`;
+    return {
+      title: animal.name,
+      badge,
+      tone,
+      detail,
+      hint: yardCard.extra ?? undefined,
+      progress: l.mood === "gone" || l.grown ? undefined : l.progress,
+      icon: <AnimalThumb kind={kind} stage={l.stage} mood={l.mood} size={30} />,
+    };
   })();
   const penAnimals = useMemo(
     () =>
@@ -1103,7 +1174,7 @@ export const WorldScreen = ({
         barn: yardView.barn,
         mine: yardView.mine,
         animals: penAnimals,
-        card: yardCard && yardCardText ? { at: yardCard.at, text: yardCardText } : null,
+        card: yardCard && yardCardData ? { at: yardCard.at, data: yardCardData } : null,
         feeding,
         collecting,
         onTapAnimal: tapAnimal,

@@ -21,7 +21,7 @@ export const INTERACT_RADIUS = 2.5;
 export const ASK_MS = 10_000;
 /** How long a mutual action plays once accepted. */
 export const MUTUAL_MS = 1750;
-export const MAX_SAY_LENGTH = 120;
+export const MAX_SAY_LENGTH = 100;
 export const JOINED_WORLD = "joined the World";
 /** How long a chat line is kept, unless someone reports it. */
 export const CHAT_TTL_MS = 60 * 60_000;
@@ -969,8 +969,12 @@ export const cleanPoke = (raw: string): string | null => {
 const UNSEEN = /[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu;
 const SEEN = /[^\p{Cf}\p{M}\s]/u;
 
+const tidyLine = (raw: string) => raw.replace(UNSEEN, " ").replace(/\s+/g, " ").trim();
+
+export const sayTooLong = (raw: string) => Array.from(tidyLine(raw)).length > MAX_SAY_LENGTH;
+
 export const cleanLine = (raw: string): string | null => {
-  const text = raw.replace(UNSEEN, " ").replace(/\s+/g, " ").trim();
+  const text = tidyLine(raw);
   if (!SEEN.test(text)) return null;
   const chars = Array.from(text);
   return chars.length > MAX_SAY_LENGTH ? chars.slice(0, MAX_SAY_LENGTH).join("") : text;
