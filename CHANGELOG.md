@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.35] - 2026-11-27
+## [2.13.39] - 2026-11-27
 
 ### Changed
 - **Running out of time in Dots and Boxes draws a line for you.** When a
@@ -18,6 +18,20 @@ All notable changes to **The SHED** mobile app. This project follows
   same board. Running out of time no longer skips the turn or loses a Dots
   and Boxes game; the game ends when the last line is drawn, as usual. The
   other Café games still pass the turn, and lose on a second miss in a row.
+
+## [2.13.36] - 2026-11-27
+
+### Fixed
+- **The scissors paper rock check in verify works again.** It failed on
+  main (a 60-second timeout) and blocked every PR that touches the World.
+  The app was fine; the check was wrong. The World opens where you last
+  were, and the Chapel check before it leaves the admin in the Chapel, so
+  the staff member arrived in a different place and never showed up. The
+  check then took the connection indicator, whose label keeps changing, for
+  the new arrival and tapped it. Both players now walk to the Garden first,
+  the check finds the staff member by the name the World shows for them,
+  and it also checks that the ✊ button sits level with "Not now" and saves
+  each player's screen if something goes wrong.
 
 ## [2.13.33] - 2026-11-27
 

@@ -5,6 +5,10 @@
 // the picks, for before and after. The World's accessible targets don't take
 // clicks themselves (the stage above them does), so a click lands at a
 // target's middle, as a finger would.
+//
+// The World opens where you last were, and the checks before this one share
+// the backend and accounts (chapel-pews leaves the admin in the Chapel), so
+// both players walk to the Garden first.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -28,6 +32,30 @@ const expect = async (page, what, ok) => {
     await page.screenshot({ path: `${OUT}/failed-${failures.length}.png` });
   }
 };
+// How the World names a seeded account: "sweep.staff@…" is "Sweep Staff",
+// shown as "Sweep S." (accountName and shortName in shared/names.ts).
+const worldNameOf = (email) => {
+  const words = email.split("@")[0].split(/[._]/).map((word) => word[0].toUpperCase() + word.slice(1));
+  return words.length > 1 ? `${words[0]} ${words.at(-1)[0]}.` : words[0];
+};
+const clickMiddle = async (page, locator) => {
+  const box = await locator.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
+const inGarden = (page) =>
+  page.waitForFunction(() => document.querySelector('[data-testid="world-title"]')?.getAttribute("aria-label")?.startsWith("Garden"), null, { timeout: 2000 }).then(
+    () => true,
+    () => false
+  );
+const toGarden = async (page) => {
+  await page.waitForTimeout(1500);
+  if (await inGarden(page)) return;
+  const pad = page.getByRole("button", { name: "Go to The Garden", exact: true });
+  if ((await pad.count()) === 0) throw new Error(`not in the Garden and no way there from "${await page.getByTestId("world-title").getAttribute("aria-label")}"`);
+  await clickMiddle(page, pad.first());
+  await page.waitForFunction(() => document.querySelector('[data-testid="world-title"]')?.getAttribute("aria-label")?.startsWith("Garden"), null, { timeout: 30_000 });
+  await page.getByTestId("world-me").waitFor({ state: "attached" });
+};
 const signedIn = async (email) => {
   const page = await (await browser.newContext({ viewport: { width: 430, height: 900 } })).newPage();
   page.setDefaultTimeout(TIMEOUT_MS);
@@ -36,27 +64,18 @@ const signedIn = async (email) => {
   await page.goto(`${BASE}/world`);
   await page.getByTestId("world-title").waitFor();
   await page.getByTestId("world-me").waitFor({ state: "attached" });
+  await toGarden(page);
   return page;
 };
-const labels = (page) =>
-  page.evaluate(() => [...document.querySelectorAll('[role="button"][aria-label]')].map((el) => el.getAttribute("aria-label")));
 
 try {
   const asker = await signedIn(seed.people.admin);
-  await asker.waitForTimeout(1500);
-  const before = new Set(await labels(asker));
   const asked = await signedIn(seed.people.staff);
 
-  // The staff member is the target that turns up once they arrive.
-  await asker.waitForFunction(
-    (known) => [...document.querySelectorAll('[role="button"][aria-label]')].some((el) => !known.includes(el.getAttribute("aria-label"))),
-    [...before],
-    { timeout: 30_000 }
-  );
-  const name = (await labels(asker)).find((label) => !before.has(label));
-  const target = asker.getByRole("button", { name, exact: true }).first();
-  const box = await target.boundingBox();
-  await asker.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The staff member's target, by the name the World shows for them.
+  const target = asker.getByRole("button", { name: worldNameOf(seed.people.staff), exact: true }).first();
+  await target.waitFor({ state: "attached", timeout: 30_000 });
+  await clickMiddle(asker, target);
   await asker.getByTestId("world-hud-rps").click();
 
   // Asked: the card with the accept and Not now buttons.
@@ -71,6 +90,7 @@ try {
   const yes = await accept.boundingBox();
   const no = await asked.getByTestId("world-ask-decline").first().boundingBox();
   await expect(asked, "the accept button is no taller than Not now", yes.height <= no.height + 4);
+  await expect(asked, "the accept button lines up with Not now", Math.abs(yes.y - no.y) <= 2 && Math.abs(yes.height - no.height) <= 2);
   await accept.click();
 
   // Both get the picks, scissors to rock from left to right.
@@ -82,8 +102,12 @@ try {
   }
   await asked.getByTestId("world-duel").screenshot({ path: `${OUT}/rps-picks-card.png` });
   await asked.screenshot({ path: `${OUT}/rps-picks.png` });
+  await asker.screenshot({ path: `${OUT}/rps-picks-asker.png` });
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
+  // What each player saw when it stopped.
+  for (const [i, context] of browser.contexts().entries())
+    for (const page of context.pages()) await page.screenshot({ path: `${OUT}/rps-failed-player-${i + 1}.png` }).catch(() => {});
 } finally {
   await browser.close();
 }
