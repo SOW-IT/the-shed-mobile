@@ -24,6 +24,7 @@ import {
   isDateInRange,
   monthOverlapsRange,
   monthWithinRange,
+  pokeCooldownLabel,
   SHARING_LEVEL_LABELS,
 } from "@shared/devotionalGroups";
 import { isFutureDevotionalDate, todayDevotionalDate } from "@shared/devotionals";
@@ -36,6 +37,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { GroupFormSheet, type GroupFormValues } from "./GroupFormSheet";
 import { GroupSettingsSheet } from "./GroupSettingsSheet";
 import { InviteMembersSheet } from "./InviteMembersSheet";
+import { PokeGroupSheet } from "./PokeGroupSheet";
 
 const WEEKDAYS = [
   { key: "mon", label: "M" },
@@ -95,6 +97,8 @@ export const DevotionalGroupScreen = ({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [pokeOpen, setPokeOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [responding, setResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -104,6 +108,7 @@ export const DevotionalGroupScreen = ({
   const removeMember = useMutation(api.devotionalGroups.removeMember);
   const removeGroup = useMutation(api.devotionalGroups.removeGroup);
   const leaveGroup = useMutation(api.devotionalGroups.leave);
+  const pokeGroup = useMutation(api.devotionalGroups.poke);
   const markRead = useMutation(api.notifications.markReadForDevotionalGroup);
 
   const seenGroup = useRef(false);
@@ -125,6 +130,21 @@ export const DevotionalGroupScreen = ({
   }, [isAuthenticated, groupKind, groupId, markRead]);
 
   const isMember = group?.kind === "member";
+  const pokeAgainAt = isMember ? group.pokeAgainAt : 0;
+  useEffect(() => {
+    if (!pokeAgainAt) return;
+    const refresh = () => setNow(Date.now());
+    const soon = setTimeout(refresh, 0);
+    const remaining = pokeAgainAt - Date.now();
+    if (remaining <= 0) return () => clearTimeout(soon);
+    const tick = setInterval(refresh, 60_000);
+    const whenAllowed = setTimeout(refresh, remaining + 250);
+    return () => {
+      clearTimeout(soon);
+      clearInterval(tick);
+      clearTimeout(whenAllowed);
+    };
+  }, [pokeAgainAt]);
   const defaultPeriod = isMember
     ? initialGroupMonth(today, group.startDate, group.endDate)
     : (() => {
@@ -266,10 +286,22 @@ export const DevotionalGroupScreen = ({
   const todayTotal = group.todayTotal ?? group.memberCount;
   const todayRatio = todayTotal > 0 ? Math.min(1, todayDone / todayTotal) : 0;
   const todayAllDone = todayInRange && todayTotal > 0 && todayDone >= todayTotal;
+  const pokeWaitMs = Math.max(0, pokeAgainAt - now);
+  const canSeePoke = todayInRange && group.meDoneToday && group.pokeableCount > 0;
 
   const handleEdit = async (values: GroupFormValues) => {
     await updateGroup({ groupId, ...values });
     setToast({ text: "Group updated" });
+  };
+
+  const handlePoke = async (message?: string) => {
+    const result = await pokeGroup({ groupId, today: todayDevotionalDate(), message });
+    if (result.ok) {
+      setToast({
+        text: `Poked ${result.pokedCount} ${result.pokedCount === 1 ? "member" : "members"}`,
+      });
+    }
+    return result;
   };
 
   return (
@@ -357,6 +389,15 @@ export const DevotionalGroupScreen = ({
               />
             )
           ) : null}
+          {canSeePoke ? (
+            <Btn
+              title="Poke group"
+              variant="tonal"
+              icon="notifications-outline"
+              disabled={pokeWaitMs > 0}
+              onPress={() => setPokeOpen(true)}
+            />
+          ) : null}
           {group.isOwner ? (
             <Btn
               title="Invite Members"
@@ -366,6 +407,9 @@ export const DevotionalGroupScreen = ({
             />
           ) : null}
         </View>
+        {canSeePoke && pokeWaitMs > 0 ? (
+          <Muted>Group poked recently · try again in {pokeCooldownLabel(pokeWaitMs)}</Muted>
+        ) : null}
       </Card>
 
       <Card style={styles.calendarCard}>
@@ -616,6 +660,14 @@ export const DevotionalGroupScreen = ({
         }}
         onSubmit={handleEdit}
         onClose={() => setEditOpen(false)}
+      />
+
+      <PokeGroupSheet
+        visible={pokeOpen}
+        groupName={group.name}
+        unfinishedCount={group.pokeableCount}
+        onSubmit={handlePoke}
+        onClose={() => setPokeOpen(false)}
       />
     </Screen>
   );

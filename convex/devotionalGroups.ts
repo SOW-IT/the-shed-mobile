@@ -2,8 +2,11 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { parseDayKey, shiftDay } from "../shared/calendar";
 import {
+  cleanPokeMessage,
+  DEFAULT_POKE_MESSAGE,
   effectiveSharingLevel,
   firstNameOf,
+  GROUP_POKE_COOLDOWN_MS,
   highestSharingLevel,
   isDateInRange,
   isDevotionalDone,
@@ -11,7 +14,7 @@ import {
   validateGroupInput,
   type DevotionalSharingLevel,
 } from "../shared/devotionalGroups";
-import { monthBounds, validateDevotionalMonth } from "../shared/devotionals";
+import { monthBounds, validateDevotionalMonth, validateTodayDevotionalDate } from "../shared/devotionals";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
@@ -39,6 +42,9 @@ const personName = async (ctx: Ctx, email: string, user?: Doc<"users"> | null): 
   const row = user === undefined ? await userByEmail(ctx, email) : user;
   return row?.name?.trim() || email.split("@")[0];
 };
+
+const wantsDevotionalNudges = async (ctx: Ctx, email: string) =>
+  (await userByEmail(ctx, email))?.devotionalReminders !== false;
 
 const personSummary = async (ctx: Ctx, email: string) => {
   const user = await userByEmail(ctx, email);
@@ -375,8 +381,10 @@ export const getGroup = query({
     let todayDone: number | null = null;
     let todayTotal: number | null = null;
     let meDoneToday = false;
+    let pokeableCount = 0;
     if (today && isDateInRange(today, group.startDate, group.endDate)) {
       const sharingToday = new Set(membersOnDay(group, memberRows, today).map((row) => row.email));
+      const unfinishedOthers: string[] = [];
       const doneFlags = await Promise.all(
         memberRows.map(async (row) => {
           const entry = await ctx.db
@@ -385,11 +393,18 @@ export const getGroup = query({
             .unique();
           const done = isDevotionalDone(entry);
           if (row.email === email) meDoneToday = done;
+          else if (!done && sharingToday.has(row.email)) unfinishedOthers.push(row.email);
           return done && sharingToday.has(row.email);
         })
       );
       todayDone = doneFlags.filter(Boolean).length;
       todayTotal = sharingToday.size;
+      if (meDoneToday) {
+        const nudgeable = await Promise.all(
+          unfinishedOthers.map((other) => wantsDevotionalNudges(ctx, other))
+        );
+        pokeableCount = nudgeable.filter(Boolean).length;
+      }
     }
 
     return {
@@ -408,6 +423,8 @@ export const getGroup = query({
       todayDone,
       todayTotal,
       meDoneToday,
+      pokeAgainAt: group.lastPokedAt === undefined ? 0 : group.lastPokedAt + GROUP_POKE_COOLDOWN_MS,
+      pokeableCount,
       members,
       pendingInvites,
     };
@@ -848,6 +865,100 @@ export const setPersonalSharingLevel = mutation({
       });
     }
     return null;
+  },
+});
+
+export const poke = mutation({
+  args: {
+    groupId: v.id("devotionalGroups"),
+    today: v.string(),
+    message: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({ ok: v.literal(true), pokedCount: v.number() }),
+    v.object({ ok: v.literal(false), retryInMs: v.number() })
+  ),
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const group = await ctx.db.get("devotionalGroups", args.groupId);
+    if (!group) throw new ConvexError("Group not found.");
+    const membership = await membershipOf(ctx, group._id, email);
+    if (!membership || membership.status !== "member") {
+      throw new ConvexError("You aren't in this group.");
+    }
+
+    const now = Date.now();
+    const todayCheck = validateTodayDevotionalDate(args.today, now);
+    if (!todayCheck.ok) throw new ConvexError(todayCheck.error);
+    const today = todayCheck.date;
+    if (!isDateInRange(today, group.startDate, group.endDate)) {
+      throw new ConvexError("This group isn't active today.");
+    }
+
+    const myEntry = await ctx.db
+      .query("devotionals")
+      .withIndex("by_email_and_date", (q) => q.eq("email", email).eq("date", today))
+      .unique();
+    if (!isDevotionalDone(myEntry)) {
+      throw new ConvexError("Finish today's devotional before poking the group.");
+    }
+
+    const checkedMessage = cleanPokeMessage(args.message);
+    if (!checkedMessage.ok) {
+      throw new ConvexError(checkedMessage.error);
+    }
+
+    if (group.lastPokedAt !== undefined) {
+      const waited = now - group.lastPokedAt;
+      if (waited < GROUP_POKE_COOLDOWN_MS) {
+        return { ok: false as const, retryInMs: GROUP_POKE_COOLDOWN_MS - waited };
+      }
+    }
+
+    const activeMembers = membersOnDay(group, await membersOf(ctx, group._id), today);
+    const others = activeMembers.filter((member) => member.email !== email);
+    const statuses = await Promise.all(
+      others.map(async (member) => {
+        const entry = await ctx.db
+          .query("devotionals")
+          .withIndex("by_email_and_date", (q) => q.eq("email", member.email).eq("date", today))
+          .unique();
+        return { email: member.email, done: isDevotionalDone(entry) };
+      })
+    );
+    const unfinished = statuses.filter((s) => !s.done).map((s) => s.email);
+    if (unfinished.length === 0) {
+      throw new ConvexError("Everyone has already done today's devotional.");
+    }
+    const nudgeable = await Promise.all(unfinished.map((other) => wantsDevotionalNudges(ctx, other)));
+    const recipients = unfinished.filter((_, index) => nudgeable[index]);
+    if (recipients.length === 0) {
+      throw new ConvexError("Everyone who hasn't finished has turned off devotional reminders.");
+    }
+
+    await ctx.db.patch("devotionalGroups", group._id, { lastPokedAt: now });
+
+    const senderFirst = firstNameOf(await personName(ctx, email));
+    const title = `${senderFirst} poked ${group.name}`;
+    const body = checkedMessage.message ?? DEFAULT_POKE_MESSAGE;
+    const url = `/devotionals/${today}`;
+    for (const recipient of recipients) {
+      await ctx.db.insert("notifications", {
+        userEmail: recipient,
+        title,
+        body,
+        url,
+        devotionalGroupId: group._id,
+        read: false,
+      });
+    }
+    await ctx.scheduler.runAfter(0, internal.push.sendMany, {
+      to: recipients,
+      title,
+      body,
+      url,
+    });
+    return { ok: true as const, pokedCount: recipients.length };
   },
 });
 
