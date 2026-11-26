@@ -64,7 +64,7 @@ import { CoinsPanel, useCoins } from "./Coins";
 import { CoinCounter } from "@/components/games/CoinCounter";
 import type { GamesTarget } from "@/components/games/GamesMenu";
 import { ArcadePanel } from "./ArcadePanel";
-import { arcadeStep } from "./arcadeReach";
+import { arcadeStep, AWAY_FROM_ARCADE } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
 import { InviteCard, KnockCard } from "./InviteCard";
@@ -565,12 +565,12 @@ export const WorldScreen = ({
 
   // Walking away from the arcade closes its games as you set off: a new walk
   // checks straight away, and a walk is a line in time, not a stream of
-  // updates, so it also checks as you go. Whether you've stood by the arcade
-  // lasts while its games are open, through a trip to the leaderboard, and
-  // starts again when they close.
-  const arcadeNear = useRef(false);
+  // updates, so it also checks as you go. Whether you've stood by the arcade,
+  // and on which walk, lasts while its games are open, through a trip to the
+  // leaderboard, and starts again when they close.
+  const arcadeReach = useRef(AWAY_FROM_ARCADE);
   useEffect(() => {
-    if (!arcadeOpen) arcadeNear.current = false;
+    if (!arcadeOpen) arcadeReach.current = AWAY_FROM_ARCADE;
   }, [arcadeOpen]);
   const watchArcade = arcadeOpen && !away && world.status === "in" && world.place === "garden";
   const myWalk = world.people.find((p) => p.isMe)?.walk;
@@ -580,8 +580,8 @@ export const WorldScreen = ({
     const check = () => {
       const { world: latest } = live.current;
       const walk = latest.people.find((p) => p.isMe)?.walk;
-      const step = arcadeStep(arcadeNear.current, walk ? posAt(walk, latest.serverNow()) : null, walk ? { x: walk.toX, z: walk.toZ } : null, OBJECT_SPOTS.arcade);
-      arcadeNear.current = step.near;
+      const step = arcadeStep(arcadeReach.current, walk ? posAt(walk, latest.serverNow()) : null, walk ? { x: walk.toX, z: walk.toZ } : null, OBJECT_SPOTS.arcade);
+      arcadeReach.current = step.reach;
       if (step.leave) setArcadeOpen(false);
     };
     check();

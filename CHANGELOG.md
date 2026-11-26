@@ -15,8 +15,9 @@ All notable changes to **The SHED** mobile app. This project follows
   every 150ms. It now closes the moment your walk heads out of reach, from
   the tap itself. A step that ends within reach, to one side of the
   arcade, still keeps it open, and a list opened from a link elsewhere
-  still stays until you've been to the arcade and left. Verify's arcade
-  check now times the close from the tap.
+  still stays until you've been to the arcade and left. A walk already
+  under way that passes the arcade closes it once you're out of reach, as
+  before. Verify's arcade check now times the close from the tap.
 
 ## [2.13.40] - 2026-11-27
 

@@ -114,21 +114,28 @@ try {
   // Timed in the page, from the tap to the frame the games start closing
   // (they stop taking taps, then animate out like the close button): they
   // close as you set off, not once you're out of reach (about 0.7s of walking).
-  await page.evaluate(() => {
+  // The watch starts on the tap, with the games still taking taps.
+  const takingTaps = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="world-arcade"]');
     window.__arcadeClose = {};
-    addEventListener("pointerdown", () => (window.__arcadeClose.tap ??= performance.now()), { capture: true, once: true });
-    const watch = () => {
-      const panel = document.querySelector('[data-testid="world-arcade"]');
-      if (panel === null || getComputedStyle(panel).pointerEvents === "none") window.__arcadeClose.gone = performance.now();
-      else requestAnimationFrame(watch);
-    };
-    requestAnimationFrame(watch);
+    if (panel === null || getComputedStyle(panel).pointerEvents === "none") return false;
+    addEventListener("pointerdown", () => {
+      window.__arcadeClose.tap = performance.now();
+      const watch = () => {
+        const shown = document.querySelector('[data-testid="world-arcade"]');
+        if (shown === null || getComputedStyle(shown).pointerEvents === "none") window.__arcadeClose.gone = performance.now();
+        else requestAnimationFrame(watch);
+      };
+      watch();
+    }, { capture: true, once: true });
+    return true;
   });
+  await expect("by the arcade, its games are open before the tap away", takingTaps);
   await page.mouse.click(me.x + me.width / 2 + farStage.width * 0.35, me.y + me.height / 2 - 60);
   await expect("walking away from the arcade closes its games", id("world-arcade").waitFor({ state: "hidden", timeout: 15_000 }).then(() => true, () => false));
   const closedIn = await page.evaluate(() => window.__arcadeClose.gone - window.__arcadeClose.tap);
   console.log(`  the arcade's games started closing ${Math.round(closedIn)}ms after the tap away`);
-  await expect(`walking away closes the games as you set off (took ${Math.round(closedIn)}ms)`, closedIn < 300);
+  await expect(`walking away closes the games as you set off (took ${Math.round(closedIn)}ms)`, Number.isFinite(closedIn) && closedIn >= 0 && closedIn < 300);
   await page.waitForTimeout(1_500);
   await page.screenshot({ path: `${OUT}/arcade-walked-away.png` });
   await expect("back at the arcade, a tap opens its games again", tapArcade());
