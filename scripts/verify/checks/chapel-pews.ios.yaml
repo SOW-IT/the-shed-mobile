@@ -1,6 +1,6 @@
 appId: au.org.sow.theshed
 ---
-# In the Chapel: a pew sits you without asking about Devotionals, the
+# In the Chapel: a pew sits you facing the front and asks about Devotionals, the
 # lectern stands you behind it facing the room, and a second tap there asks.
 #
 # The World's accessible targets don't take touches themselves: tapping one
@@ -28,19 +28,21 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: "${OUT}/check-chapel-arrived"
-# A pew: seated, and nothing asks about Devotionals.
+# A pew: seated, and Devotionals asks.
 - tapOn:
     point: "25%, 61%"
 - extendedWaitUntil:
     visible:
-      id: world-me
-      text: "You, sitting"
+      id: world-devotional-dialog
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "${OUT}/check-chapel-pew-seated"
-- assertNotVisible:
-    id: world-devotional-dialog
+- tapOn:
+    id: world-devotional-cancel
+- assertVisible:
+    id: world-me
+    text: "You, sitting"
 # The lectern: behind it, facing the room, and nothing asks yet.
 - tapOn: "Lectern.*"
 - extendedWaitUntil:

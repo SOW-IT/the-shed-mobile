@@ -5,13 +5,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { timeAgo } from "@shared/datetime";
 import { playingLabel } from "@shared/games";
 import { IN_APP_TICK_MS, inAppTick } from "@shared/appPresence";
-import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, PLACE_TITLES, type Look, type Place } from "@shared/world";
+import { isPlace, MAX_POKE_LENGTH, OFFLINE_ALL_MAX, OFFLINE_FIRST, whereIs, type Look, type Place } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { blurBehind, Bust, connectionLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
+import { blurBehind, Bust, connectionLabel, elsewhereLabel, GlassPill, itemStyle, placeLabel, popStyle, scrimStyle, SignalBars, useOverlayClock } from "./Overlays";
 import { glass, signal } from "./palette";
 import { useWorldName } from "./settings";
 import { problem } from "./Sheets";
@@ -334,7 +334,6 @@ export const PeoplePanel = ({
   online,
   onPerson,
   onWalkOver,
-  onFollow,
   onInvite,
   onClose,
   pokeListOpen = false,
@@ -348,7 +347,6 @@ export const PeoplePanel = ({
   online: number;
   onPerson: (memberId: string) => void;
   onWalkOver: (memberId: string) => void;
-  onFollow: (to: Place, memberId: string) => void;
   onInvite: (memberId: Id<"worldMembers">, name: string) => void;
   onClose: () => void;
   pokeListOpen?: boolean;
@@ -430,27 +428,17 @@ export const PeoplePanel = ({
           {others.map((row) => (
             <Animated.View key={row.key} style={itemStyle(overlay, next())} testID={row.at ? `world-elsewhere-${row.at}` : undefined}>
               {"more" in row ? (
-                <Text style={styles.note}>{`and ${row.more} more in ${row.at ? PLACE_TITLES[row.at] : "other places"}`}</Text>
+                <Text style={styles.note}>{`and ${row.more} more ${row.at ? whereIs(row.at) : "in other places"}`}</Text>
               ) : (
                 <PersonRow
                   look={row.look}
                   name={worldName(row.name)}
-                  where={row.at ? placeLabel(row.at) : "Somewhere else"}
+                  where={row.at ? elsewhereLabel(row.at) : "Somewhere else"}
                   ping={row.ping}
-                  label={row.at ? `${worldName(row.name)}, in ${PLACE_TITLES[row.at]}` : worldName(row.name)}
-                  onPress={row.at ? () => onFollow(row.at!, row.memberId) : undefined}
+                  label={row.at ? `${worldName(row.name)}, ${whereIs(row.at)}` : worldName(row.name)}
                   action={
                     row.at ? (
-                      <>
                       <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${worldName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
-                      <GlassPill
-                        icon="navigate"
-                        tone="accent"
-                        onPress={() => onFollow(row.at!, row.memberId)}
-                        accessibilityLabel={`Go to ${worldName(row.name)} in ${PLACE_TITLES[row.at]}`}
-                        testID={`world-follow-${row.memberId}`}
-                      />
-                      </>
                     ) : null
                   }
                 />

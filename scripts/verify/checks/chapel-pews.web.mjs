@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// In the Chapel: a pew sits you without asking about Devotionals, the
+// In the Chapel: a pew sits you facing the front and asks about Devotionals, the
 // lectern stands you behind it facing the room, and a second tap there asks.
 // The World's accessible targets don't take clicks themselves (the stage
 // above them does), so a click lands at a target's middle, as a finger
@@ -57,15 +57,15 @@ try {
   await page.waitForTimeout(1500);
   await shot("arrived");
 
-  // A pew: seated, and nothing asks about Devotionals.
+  // A pew: seated, and Devotionals asks.
   await tapPew();
   if (!(await waitForMe("You, sitting"))) failures.push(`pew: not seated (${await me().getAttribute("aria-label")})`);
-  await page.waitForTimeout(1500);
+  const pewAsked = await dialog().waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  await page.waitForTimeout(600);
   await shot("pew-seated");
-  if (await dialog().isVisible()) {
-    failures.push("pew: Devotionals asked");
-    await page.getByTestId("world-devotional-cancel").click();
-  }
+  if (!pewAsked) failures.push("pew: Devotionals didn't ask");
+  else await page.getByTestId("world-devotional-cancel").click();
+  await dialog().waitFor({ state: "hidden" }).catch(() => {});
 
   // The lectern: behind it, facing the room, and nothing asks yet.
   await clickMiddle(page.getByLabel(/^Lectern/));
@@ -92,5 +92,5 @@ try {
 }
 
 for (const failure of failures) console.log(`✘ ${failure}`);
-console.log(failures.length === 0 ? "Chapel: a pew seats you without asking, the lectern stands you facing the room, and a second tap opens Devotionals." : `${failures.length} step(s) failed.`);
+console.log(failures.length === 0 ? "Chapel: a pew seats you and asks about Devotionals, the lectern stands you facing the room, and a second tap there asks too." : `${failures.length} step(s) failed.`);
 process.exit(failures.length === 0 ? 0 : 1);

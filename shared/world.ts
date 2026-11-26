@@ -212,6 +212,7 @@ const WATER: Record<Place, readonly Water[]> = {
   campfire: [],
   cafe: [],
   beach: [{ kind: "sea", beyondZ: -7.4 }],
+  library: [],
   home: [],
   backyard: [],
 };
@@ -356,7 +357,7 @@ export const OBSTACLES = [
 ] as const;
 export type Obstacle = { id: string; x: number; z: number; rx: number; rz: number };
 
-export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach"] as const;
+export const PLACES = ["garden", "chapel", "campfire", "cafe", "beach", "library"] as const;
 export type PublicPlace = (typeof PLACES)[number];
 export const HOME = "home";
 export const BACKYARD = "backyard";
@@ -371,12 +372,19 @@ export const PLACE_TITLES: Record<Place, string> = {
   campfire: "The Campfire",
   cafe: "The Café",
   beach: "The Beach",
+  library: "The Library",
   home: "Home",
   backyard: "Backyard",
 };
 
 /** A place's name on its own, as the World's title shows it: "Garden", "Café". */
 export const placeName = (place: Place) => PLACE_TITLES[place].replace(/^The /, "");
+
+export const listedPlace = (place: Place): Place => (isPrivatePlace(place) ? HOME : place);
+
+export const elsewhereTitle = (place: Place) => (isPrivatePlace(place) ? "At home" : PLACE_TITLES[place]);
+
+export const whereIs = (place: Place) => (isPrivatePlace(place) ? "at home" : `in ${PLACE_TITLES[place]}`);
 
 export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
   garden: OBSTACLES,
@@ -412,6 +420,22 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "net-right", x: 1.7, z: 3.0, rx: 0.2, rz: 0.2 },
     { id: "palm", x: -3.0, z: 5.4, rx: 0.35, rz: 0.35 },
   ],
+  library: [
+    { id: "shelf-back-left", x: -2.5, z: -11, rx: 1.6, rz: 0.42 },
+    { id: "shelf-back-right", x: 2.5, z: -11, rx: 1.6, rz: 0.42 },
+    { id: "globe", x: 0, z: -10.3, rx: 0.35, rz: 0.35 },
+    { id: "shelf-left", x: -3.55, z: -6.2, rx: 0.45, rz: 1.6 },
+    { id: "shelf-right", x: 3.55, z: -6.2, rx: 0.45, rz: 1.6 },
+    { id: "table", x: 0, z: -5.4, rx: 1.5, rz: 0.6 },
+    { id: "chair-left", x: -0.75, z: -6.3, rx: 0.32, rz: 0.28 },
+    { id: "chair-right", x: 0.75, z: -6.3, rx: 0.32, rz: 0.28 },
+    { id: "armchair-a", x: -2.7, z: -1.7, rx: 0.55, rz: 0.5 },
+    { id: "armchair-b", x: -2.7, z: 1.1, rx: 0.55, rz: 0.5 },
+    { id: "armchair-c", x: 2.7, z: -1.7, rx: 0.55, rz: 0.5 },
+    { id: "armchair-d", x: 2.7, z: 1.1, rx: 0.55, rz: 0.5 },
+    { id: "lamp-left", x: -3.4, z: -0.3, rx: 0.25, rz: 0.25 },
+    { id: "lamp-right", x: 3.4, z: -0.3, rx: 0.25, rz: 0.25 },
+  ],
   home: [],
   backyard: [...PLOT_OBSTACLES, ...PEN_OBSTACLES],
 };
@@ -429,32 +453,35 @@ const FACING_LEFT = -Math.PI / 2;
 export const PORTALS: Record<Place, readonly Portal[]> = {
   garden: [
     { to: "beach", x: 0, z: -10 },
-    { to: "campfire", x: 3.2, z: -0.4 },
+    { to: "cafe", x: 3.2, z: -0.4 },
     { to: "chapel", x: 2, z: 7 },
+    { to: "library", x: -3.2, z: -0.4 },
   ],
-  beach: [
-    { to: "garden", x: 0, z: 7 },
-    { to: "campfire", x: 3.2, z: 1.2 },
-  ],
+  beach: [{ to: "garden", x: 0, z: 7 }],
   campfire: [
-    { to: "garden", x: -3.2, z: 3 },
-    { to: "beach", x: 0, z: -10 },
+    { to: "chapel", x: -3.2, z: 3 },
     { to: "cafe", x: 1.8, z: 7 },
   ],
   chapel: [
     { to: "garden", x: 0, z: 7 },
-    { to: "cafe", x: 3.2, z: 3.4 },
+    { to: "campfire", x: 3.2, z: 3.4 },
   ],
   cafe: [
-    { to: "chapel", x: 0.4, z: 7 },
+    { to: "garden", x: 0.4, z: 7 },
     { to: "campfire", x: 3.2, z: -2 },
   ],
+  library: [{ to: "garden", x: 0, z: 7 }],
   home: [
     { to: "garden", x: 0, z: 7 },
     { to: "backyard", x: 0, z: -10 },
   ],
   backyard: [{ to: "home", x: 0, z: 7 }],
 };
+
+const leadsTo = (from: Place, to: Place) => PORTALS[from].some((pad) => pad.to === to);
+
+export const canTravel = (from: Place, to: Place, homeExit: Place): boolean =>
+  from === to || to === WORLD_PLACE || to === HOME || leadsTo(from, to) || (from === HOME && to === homeExit);
 
 type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
@@ -467,20 +494,14 @@ export const towardCamera = (heading: number, x: number, turn = SEAT_TURN) => {
   return sign * (Math.abs(h) - turn);
 };
 
-const faceTheCamera = (seats: Seat[], turn = SEAT_TURN): readonly Seat[] =>
-  seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x, turn) }));
-
-/**
- * A pew faces straight away from the camera, so 30 degrees still shows only
- * the back of your head. Pews turn you 120 degrees, to 60 degrees off the
- * camera, the same as a café stool ends up, so your face shows.
- */
-export const PEW_TURN = (2 * Math.PI) / 3;
+const faceTheCamera = (seats: Seat[]): readonly Seat[] => seats.map((seat) => ({ ...seat, heading: towardCamera(seat.heading, seat.x) }));
 
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
 const STOOL_HEIGHT = 0.32;
 const COUCH_HEIGHT = 0.34;
+const CHAIR_HEIGHT = 0.34;
+const ARMCHAIR_HEIGHT = 0.3;
 const ON_THE_GROUND = 0;
 
 const along = (id: string, spots: [number, number][], heading: number, height: number): Seat[] =>
@@ -494,18 +515,20 @@ const stools = (table: string): Seat[] => {
   ];
 };
 
+const armchair = (id: string, heading: number): Seat => {
+  const at = PLACE_OBSTACLES.library.find((o) => o.id === id)!;
+  return { id, x: at.x, z: at.z, heading, height: ARMCHAIR_HEIGHT };
+};
+
 export const SEATS: Record<Place, readonly Seat[]> = {
   garden: faceTheCamera([
     { id: "blanket-0", x: 2.5, z: 2.4, heading: 0.4, height: ON_THE_GROUND },
     { id: "blanket-1", x: 3.25, z: 2.9, heading: -0.5, height: ON_THE_GROUND },
     { id: "blanket-2", x: 2.55, z: 3.45, heading: 0.2, height: ON_THE_GROUND },
   ]),
-  chapel: faceTheCamera(
-    PLACE_OBSTACLES.chapel
-      .filter((o) => o.id.startsWith("pew"))
-      .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
-    PEW_TURN
-  ),
+  chapel: PLACE_OBSTACLES.chapel
+    .filter((o) => o.id.startsWith("pew"))
+    .flatMap((pew) => along(pew.id, [[pew.x - 0.8, pew.z - 0.05], [pew.x, pew.z - 0.05], [pew.x + 0.8, pew.z - 0.05]], FACING_AWAY, PEW_HEIGHT)),
   campfire: faceTheCamera([
     ...along("log-back", [[-0.5, -4.3], [0.5, -4.3]], FACING_CAMERA, LOG_HEIGHT),
     ...along("log-left", [[-2.6, -2.1], [-2.6, -1.1]], FACING_RIGHT, LOG_HEIGHT),
@@ -513,12 +536,22 @@ export const SEATS: Record<Place, readonly Seat[]> = {
   ]),
   cafe: faceTheCamera([...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)]),
   beach: faceTheCamera(along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND)),
+  library: faceTheCamera([
+    ...["chair-left", "chair-right"].map((id) => {
+      const chair = PLACE_OBSTACLES.library.find((o) => o.id === id)!;
+      return { id, x: chair.x, z: chair.z, heading: FACING_CAMERA, height: CHAIR_HEIGHT };
+    }),
+    ...["armchair-a", "armchair-b"].map((id) => armchair(id, FACING_RIGHT)),
+    ...["armchair-c", "armchair-d"].map((id) => armchair(id, FACING_LEFT)),
+  ]),
   home: [],
   backyard: [],
 };
 
 export const seatIn = (place: Place, id: string | undefined): Seat | null =>
   SEATS[place].find((seat) => seat.id === id) ?? null;
+
+export const asksDevotional = (place: Place, seatId: string) => place === "chapel" && seatId.startsWith("pew-");
 
 type Stand = { id: string; x: number; z: number; heading: number; /** Says where you are, for VoiceOver. */ label: string };
 
@@ -534,6 +567,7 @@ export const STANDS: Record<Place, readonly Stand[]> = {
   campfire: [],
   cafe: [],
   beach: [],
+  library: [],
   home: [],
   backyard: [],
 };

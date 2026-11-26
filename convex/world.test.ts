@@ -21,6 +21,7 @@ import {
   fullBucket,
   PLACES,
   PORTALS,
+  type Place,
   portalAt,
   portalReached,
   ELSEWHERE_NAMES,
@@ -289,6 +290,36 @@ const stateRow = (t: T, memberId: Id<"worldMembers">) =>
       .unique()
   );
 
+const placeNow = (t: T, memberId: Id<"worldMembers">) => t.run(async (ctx) => (await ctx.db.get("worldMembers", memberId))?.place ?? "garden");
+
+const route = (from: Place, to: Place): Place[] => {
+  const cameFrom = new Map<Place, Place>([[from, from]]);
+  const queue: Place[] = [from];
+  while (queue.length > 0) {
+    const at = queue.shift()!;
+    for (const pad of PORTALS[at]) {
+      if (cameFrom.has(pad.to)) continue;
+      cameFrom.set(pad.to, at);
+      queue.push(pad.to);
+    }
+  }
+  const hops: Place[] = [];
+  for (let at = to; at !== from; at = cameFrom.get(at)!) hops.unshift(at);
+  return hops;
+};
+
+const walkTo = async (t: T, who: ReturnType<typeof asUser>, memberId: Id<"worldMembers">, to: Place) => {
+  let reply = null;
+  for (const hop of route((await placeNow(t, memberId)) as Place, to)) {
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", memberId)).unique())!;
+      await ctx.db.patch("worldState", row._id, { actBucket: fullBucket("act", Date.now()) });
+    });
+    reply = await who.mutation(api.world.travel, { to: hop });
+  }
+  return reply;
+};
+
 describe("places", () => {
   const two = async () => {
     const t = newConvex();
@@ -303,7 +334,7 @@ describe("places", () => {
     const { anna, a } = await two();
     expect(a.place).toBe("garden");
     expect(await anna.query(api.world.roster, { roomId: a.roomId })).toMatchObject({ place: "garden" });
-    expect(await anna.query(api.world.places, {})).toEqual({ garden: 2, chapel: 0, campfire: 0, cafe: 0, beach: 0 });
+    expect(await anna.query(api.world.places, {})).toEqual({ garden: 2, chapel: 0, campfire: 0, cafe: 0, beach: 0, library: 0 });
   });
 
   test("travelling moves you to a room of that place, on the way back", async () => {
@@ -338,8 +369,7 @@ describe("places", () => {
       });
     for (const from of PLACES) {
       for (const pad of PORTALS[from]) {
-        await fresh(a.memberId);
-        await anna.mutation(api.world.travel, { to: from });
+        await walkTo(t, anna, a.memberId, from);
         await fresh(a.memberId);
         const moved = await anna.mutation(api.world.travel, { to: pad.to });
         if (!moved.ok) throw new Error("travel refused");
@@ -352,8 +382,7 @@ describe("places", () => {
       }
     }
     // Ben in the same room sees her pose as she arrived.
-    await fresh(a.memberId);
-    await anna.mutation(api.world.travel, { to: "cafe" });
+    await walkTo(t, anna, a.memberId, "campfire");
     await fresh(a.memberId);
     await ben.mutation(api.world.travel, { to: "chapel" });
     const there = await anna.mutation(api.world.travel, { to: "chapel" });
@@ -559,36 +588,31 @@ describe("places", () => {
     expect(found[0]!.people.map((p) => p.memberId)).not.toContain(caraId);
   });
 
-  test("following someone lands in their room, even in the same place or with space elsewhere", async () => {
-    const { t, anna, ben, a, b } = await two();
-    const second = await t.run(async (ctx) => {
-      const roomId = await ctx.db.insert("worldRooms", { place: "garden", instance: 2, memberCount: 1 });
-      await ctx.db.patch("worldMembers", b.memberId, { roomId });
-      await ctx.db.patch("worldRooms", a.roomId, { memberCount: 1 });
-      return roomId;
-    });
-    const same = await anna.mutation(api.world.travel, { to: "garden", toMember: b.memberId });
-    expect(same).toMatchObject({ ok: true, roomId: second, place: "garden", instance: 2 });
-    later(5000);
-    await ben.mutation(api.world.travel, { to: "beach" });
-    const beachRooms = await t.run(async (ctx) => {
-      const ben2 = (await ctx.db.get("worldMembers", b.memberId))!;
-      const other = await ctx.db.insert("worldRooms", { place: "beach", instance: 2, memberCount: 1 });
-      const old = (await ctx.db.get("worldRooms", ben2.roomId))!;
-      await ctx.db.patch("worldMembers", b.memberId, { roomId: other });
-      if (old.memberCount <= 1) await ctx.db.patch("worldRooms", old._id, { memberCount: 0 });
-      return { other, old: old._id };
-    });
-    later(5000);
-    const beach = await anna.mutation(api.world.travel, { to: "beach", toMember: b.memberId });
-    expect(beach).toMatchObject({ ok: true, roomId: beachRooms.other, place: "beach" });
-    expect(await anna.query(api.world.roster, { roomId: beachRooms.other })).toMatchObject({ members: expect.arrayContaining([expect.objectContaining({ memberId: b.memberId })]) });
+  test("nobody follows someone to their room: travel takes no one to follow", async () => {
+    const { anna, b } = await two();
+    const follow = { to: "garden", toMember: b.memberId };
+    await expect(anna.mutation(api.world.travel, follow)).rejects.toThrow(/toMember/);
   });
 
+  test("the server refuses a trip between places with no pad between them", async () => {
+    const { t, anna, a } = await two();
+    await expect(anna.mutation(api.world.travel, { to: "campfire" })).rejects.toThrow(/no way to The Campfire/);
+    await walkTo(t, anna, a.memberId, "beach");
+    await expect(anna.mutation(api.world.travel, { to: "campfire" })).rejects.toThrow(/no way to The Campfire/);
+    await expect(anna.mutation(api.world.travel, { to: "library" })).rejects.toThrow(/no way to The Library/);
+    expect(await placeNow(t, a.memberId)).toBe("beach");
+    await walkTo(t, anna, a.memberId, "library");
+    await expect(anna.mutation(api.world.travel, { to: "cafe" })).rejects.toThrow(/no way to The Café/);
+    await expect(anna.mutation(api.world.travel, { to: "backyard" })).rejects.toThrow(/no way to Backyard/);
+    await walkTo(t, anna, a.memberId, "campfire");
+    expect(await anna.mutation(api.world.travel, { to: "garden" })).toMatchObject({ ok: true, place: "garden" });
+    await walkTo(t, anna, a.memberId, "chapel");
+    expect(await anna.mutation(api.world.travel, { to: "home" })).toMatchObject({ ok: true, place: "home" });
+  });
   test("another tab joins you where you are, and leaving from anywhere tidies up", async () => {
-    const { t, anna } = await two();
-    const moved = await anna.mutation(api.world.travel, { to: "campfire" });
-    if (!moved.ok) throw new Error("travel refused");
+    const { t, anna, a } = await two();
+    const moved = await walkTo(t, anna, a.memberId, "campfire");
+    if (!moved?.ok) throw new Error("travel refused");
     expect(await anna.mutation(api.world.join, {})).toMatchObject({ place: "campfire", roomId: moved.roomId });
     await anna.mutation(api.world.leave, {});
     await anna.mutation(api.world.leave, {});
@@ -1689,9 +1713,9 @@ describe("coming back", () => {
   test("you come back to the place and spot you left from", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    await anna.mutation(api.world.join, {});
-    const moved = await anna.mutation(api.world.travel, { to: "campfire" });
-    if (!moved.ok) throw new Error("travel refused");
+    const joined = await anna.mutation(api.world.join, {});
+    const moved = await walkTo(t, anna, joined.memberId, "campfire");
+    if (!moved?.ok) throw new Error("travel refused");
     const spot = clampTarget(1.1, 2.3, "campfire");
     const memberId = (await rows(t)).members[0]._id;
     await standAt(t, memberId, spot.x, spot.z);

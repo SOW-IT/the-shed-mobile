@@ -56,7 +56,7 @@ import { penPoint, phaseFor, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { myPoseLabel } from "./myPose";
-import { mouthAt } from "./talk";
+import { bubbleAge, mouthAt, nextFlapAt } from "./talk";
 import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_GAP_MS, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
 
 type GardenPerson = {
@@ -165,6 +165,7 @@ export const Garden = ({
   onTapArcade,
   onTapNoticeBoard,
   homeExit,
+  cardTop = 0,
   onTapNotices,
   onTapPiano,
   onTapLectern,
@@ -219,6 +220,7 @@ export const Garden = ({
   home?: HomeLook | null;
   /** Where a home's door leads: the place you came from. */
   homeExit?: Place;
+  cardTop?: number;
   onTapNpc?: () => void;
   onTapFarmer?: () => void;
   decor?: {
@@ -381,11 +383,18 @@ export const Garden = ({
       !declined.has(`${p.memberId}:${p.ask.at}`) &&
       !accepted(me >= 0 ? people[me] : undefined, p.memberId, p.ask.at)
   );
-  const bubbleFades = people.map((p) => (p.muted || !p.say ? 0 : saver ? (bubbleFade(now - p.say.at) > 0 ? 1 : 0) : bubbleFade(now - p.say.at)));
+  const bubbles = people.map((p) => (p.muted ? null : bubbleAge(p.say, now)));
+  const bubbleFades = bubbles.map((age) => (age === null ? 0 : saver ? 1 : bubbleFade(age)));
   const typingSince = people.map((p) =>
     !p.muted && p.typing !== undefined && now - p.typing < TYPING_MS && (!p.say || p.say.at < p.typing) ? p.typing : undefined
   );
-  const talking = people.map((p) => (p.muted ? undefined : mouthAt(p.say, now)));
+  const headings = people.map((p, i) => {
+    const pose = poses[i];
+    if (!pose) return 0;
+    const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
+    return facingOverride[i] ?? atArcade ?? sitting[i]?.heading ?? pose.heading;
+  });
+  const talking = bubbles.map((age, i) => mouthAt(age, headings[i]));
   const rolled = place === BALL_PLACE ? ballAt(ball ?? restingBall(), now) : null;
   const meTouching = rolled !== null && placed !== null && placed.walking && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) < KICK_TOUCH;
   const kickRef = useRef(onKick);
@@ -412,7 +421,6 @@ export const Garden = ({
     doing.some((d) => d !== null) ||
     asks.length > 0 ||
     (!saver && typingSince.some((at) => at !== undefined)) ||
-    talking.some((open) => open !== undefined) ||
     rolled?.rolling === true ||
     duelLooks.some((look) => look !== null) ||
     (!saver && highlighted !== null) ||
@@ -433,7 +441,10 @@ export const Garden = ({
         p.typing === undefined ? undefined : p.typing + TYPING_MS,
         p.ask && p.ask.at + ASK_MS,
         p.reply && p.reply.at,
-      ]).concat(ball ? [ball.at] : []),
+      ]).concat(ball ? [ball.at] : [], people.map((p, i) => {
+        const age = bubbles[i];
+        return p.say && age !== null && talking[i] !== undefined ? nextFlapAt(p.say.at, age) : undefined;
+      })),
     }),
     serverNow,
     setNow
@@ -667,7 +678,7 @@ export const Garden = ({
     if (farm.card) {
       const spot = PLOTS[farm.card.plot];
       const top = cam.project([spot.x, 1.1, spot.z]);
-      farmLabels.push(<PlotCard key="card" x={top.x} y={top.y} card={farm.card.data} stageWidth={cam.width} />);
+      farmLabels.push(<PlotCard key="card" x={top.x} y={top.y} card={farm.card.data} stageWidth={cam.width} minTop={cardTop} />);
     }
     if (farm.flying) {
       const spot = PLOTS[farm.flying.plot];
@@ -696,7 +707,7 @@ export const Garden = ({
     }
     if (yard.card) {
       const top = pens[yard.card.at].top;
-      farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} card={yard.card.data} stageWidth={cam.width} />);
+      farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} card={yard.card.data} stageWidth={cam.width} minTop={cardTop} />);
     }
     if (yard.collecting) {
       const { id, good } = yard.collecting;
@@ -776,9 +787,8 @@ export const Garden = ({
     const figure = figureFor(cam, pose);
     const seat = sitting[i];
     const seatRise = sitRise(seat?.height, p.look);
-    const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
     const swimming = swimmers[i];
-    const turned = { ...pose, heading: facingOverride[i] ?? atArcade ?? seat?.heading ?? pose.heading };
+    const turned = { ...pose, heading: headings[i] };
     const striding = pose.strideAmp > 0;
     const stride = { stridePhase: striding ? pose.stridePhase : 0, strideAmp: pose.strideAmp };
     const touch = touches.find((c) => c.i === i || c.j === i);

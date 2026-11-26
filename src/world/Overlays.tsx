@@ -1,6 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { PLACE_TITLES, type Look, type Place } from "@shared/world";
+import { elsewhereTitle, PLACE_TITLES, type Look, type Place } from "@shared/world";
 import { memo, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { glass, hud, signal, signalColour } from "./palette";
@@ -19,11 +19,14 @@ const PLACE_ICONS: Record<Place, string> = {
   campfire: "🔥",
   cafe: "☕",
   beach: "🏖️",
+  library: "📚",
   home: "🏠",
   backyard: "🌱",
 };
 
 export const placeLabel = (place: Place) => `${PLACE_ICONS[place]} ${PLACE_TITLES[place]}`;
+
+export const elsewhereLabel = (place: Place) => `${PLACE_ICONS[place]} ${elsewhereTitle(place)}`;
 
 const EVERY_ITEM = STAGGERED + 1;
 

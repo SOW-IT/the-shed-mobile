@@ -1,4 +1,5 @@
 import { growthLook, isCrop, type CropId, type Stage } from "@shared/farm";
+import { cardTopFor } from "./cards";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { cancelAnimation, Easing, runOnJS, type SharedValue, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
@@ -534,18 +535,20 @@ export const PlotCard = ({
   y,
   card,
   stageWidth,
+  minTop = 0,
 }: {
   x: number;
   y: number;
   card: FarmCardData;
   stageWidth: number;
+  minTop?: number;
 }) => {
   const palette = farm.cardTones[card.tone];
   const left = Math.min(Math.max(8, x - CARD_WIDTH / 2), Math.max(8, stageWidth - CARD_WIDTH - 8));
   const tailShift = Math.min(Math.max(20, x - left), CARD_WIDTH - 20) - CARD_WIDTH / 2;
   const pct = card.progress === undefined ? null : `${Math.round(Math.min(1, Math.max(0, card.progress)) * 100)}%`;
   return (
-    <View pointerEvents="none" style={[styles.cardWrap, { left, top: y - 78 }]} testID="world-plant-card">
+    <View pointerEvents="none" style={[styles.cardWrap, { left, top: cardTopFor(y, minTop) }]} testID="world-plant-card">
       <View style={styles.card}>
         <View style={[styles.cardAccent, { backgroundColor: palette.accent }]} />
         <View style={styles.cardBody}>

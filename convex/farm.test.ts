@@ -104,10 +104,13 @@ describe("the backyard", () => {
     expect((await farmRow(t, ANNA))?.seeds).toEqual({ lettuce: 4 });
   });
 
-  test("going straight to your backyard from a public place works too", async () => {
+  test("nobody jumps straight to a backyard from a public place: it's through the home", async () => {
     const t = newConvex();
     await asUser(t, ANNA).mutation(api.world.join, { backyard: true });
-    expect(await go(t, ANNA, "backyard")).toMatchObject({ ok: true, place: "backyard" });
+    await expect(asUser(t, ANNA).mutation(api.world.travel, { to: "backyard" })).rejects.toThrow(/no way to Backyard/);
+    expect((await memberOf(t, ANNA)).room?.place).toBe("garden");
+    await go(t, ANNA, "home");
+    expect(await go(t, ANNA, "backyard", { door: true })).toMatchObject({ ok: true, place: "backyard" });
     expect((await memberOf(t, ANNA)).room?.owner).toBe(ANNA);
   });
 
@@ -135,6 +138,7 @@ describe("the backyard", () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
     await asUser(t, BEN).mutation(api.world.join, { backyard: true });
+    await go(t, BEN, "home");
     const forged = await t.run((ctx) => ctx.db.insert("worldInvites", { owner: ANNA, ownerName: "Anna", guest: CARA, at: Date.now(), expiresAt: Date.now() + DAY_MS }));
     await expect(asUser(t, BEN).mutation(api.world.travel, { to: "backyard", invite: forged })).rejects.toThrow(/isn't yours/);
     const invite = await t.run((ctx) => ctx.db.insert("worldInvites", { owner: ANNA, ownerName: "Anna", guest: BEN, at: Date.now(), expiresAt: Date.now() - 1 }));
@@ -173,6 +177,7 @@ describe("the backyard", () => {
     const { room } = await memberOf(t, ANNA);
     await t.run((ctx) => ctx.db.patch("worldRooms", room!._id, { memberCount: 8 }));
     await asUser(t, BEN).mutation(api.world.join, { backyard: true });
+    await go(t, BEN, "home");
     const invite = await t.run((ctx) => ctx.db.insert("worldInvites", { owner: ANNA, ownerName: "Anna", guest: BEN, at: Date.now(), expiresAt: Date.now() + DAY_MS }));
     await expect(asUser(t, BEN).mutation(api.world.travel, { to: "backyard", invite })).rejects.toThrow(/backyard is full/);
   });

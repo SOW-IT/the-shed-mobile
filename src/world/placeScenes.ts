@@ -346,6 +346,155 @@ const buildBeach = (cam: Camera): Scene => {
   return { sky: c.sky, ground, backdrop, props };
 };
 
+const bookRow = (p: Builder, along: (u: number, y: number) => Vec3, from: number, to: number, bottom: number, seed: number) => {
+  const c = places.library;
+  let u = from;
+  let i = seed;
+  while (u < to - 0.05) {
+    const width = 0.07 + ((i * 7) % 5) * 0.018;
+    const height = 0.32 + ((i * 3) % 4) * 0.045;
+    const end = Math.min(u + width, to);
+    p.face([along(u, bottom + height), along(end, bottom + height), along(end, bottom), along(u, bottom)], c.books[i % c.books.length]);
+    u = end + 0.012;
+    i++;
+  }
+};
+
+const SHELF_ROWS = [0.18, 0.78, 1.38, 1.98];
+
+const backShelf = (p: Builder, x: number, z: number, w: number, d: number, seed: number) => {
+  const c = places.library;
+  p.box(x, 1.3, z, w, 2.6, d, c.shelf);
+  const front = z + d / 2 + 0.005;
+  SHELF_ROWS.forEach((bottom, row) => {
+    panel(p, x, bottom + 0.27, front, w - 0.2, 0.54, c.shelfDark);
+    bookRow(p, (u, y) => [u, y, front + 0.005], x - w / 2 + 0.12, x + w / 2 - 0.12, bottom, seed + row * 5);
+  });
+};
+
+const sideShelf = (p: Builder, x: number, z: number, length: number, depth: number, seed: number) => {
+  const c = places.library;
+  p.box(x, 1.1, z, depth, 2.2, length, c.shelf);
+  const inner = x < 0 ? x + depth / 2 + 0.005 : x - depth / 2 - 0.005;
+  const step = x < 0 ? 0.005 : -0.005;
+  SHELF_ROWS.slice(0, 3).forEach((bottom, row) => {
+    p.face(
+      [
+        [inner, bottom + 0.54, z - length / 2 + 0.1],
+        [inner, bottom + 0.54, z + length / 2 - 0.1],
+        [inner, bottom, z + length / 2 - 0.1],
+        [inner, bottom, z - length / 2 + 0.1],
+      ],
+      c.shelfDark
+    );
+    bookRow(p, (u, y) => [inner + step, y, u], z - length / 2 + 0.12, z + length / 2 - 0.12, bottom, seed + row * 3);
+  });
+};
+
+const floorLamp = (p: Builder, x: number, z: number) => {
+  const c = places.library;
+  p.cylinder(x, z, 0, 0.05, 0.2, 0.2, c.brass);
+  p.cylinder(x, z, 0.05, 1.4, 0.035, 0.035, c.brass);
+  p.cylinder(x, z, 1.3, 1.68, 0.3, 0.17, c.lampShade);
+};
+
+const buildLibrary = (cam: Camera): Scene => {
+  const c = places.library;
+  const g = new Builder(cam, "g");
+  floorWithPlanks(g, c.floor, c.plank);
+  g.groundQuad([[-0.85, 2.8], [0.85, 2.8], [0.85, 9], [-0.85, 9]], c.runnerEdge);
+  g.groundQuad([[-0.7, 2.95], [0.7, 2.95], [0.7, 9], [-0.7, 9]], c.runner);
+  g.groundDisc(0, -0.3, 2.0, 1.6, c.rug);
+  g.groundDisc(0, -0.3, 1.65, 1.3, c.rugInner);
+  g.groundDisc(0, -0.3, 1.3, 1.0, c.rug);
+  g.groundDisc(0, -0.3, 0.5, 0.38, c.rugCentre);
+  for (const id of ["lamp-left", "lamp-right"]) {
+    const lamp = obstacle("library", id);
+    g.groundDisc(lamp.x, lamp.z, 1.3, 1.1, c.glow);
+  }
+  const table = obstacle("library", "table");
+  g.groundDisc(table.x, table.z, 2.0, 1.0, c.glow);
+  drawPads(g, "library");
+  const ground = g.take();
+
+  const b = new Builder(cam, "b");
+  roomWalls(b, cam, c.wall, (z) => {
+    panel(b, 0, 0.5, z + 0.005, 11.4, 1.0, shade(c.wall, -0.12));
+    panel(b, 0, 3.1, z + 0.01, 2.2, 2.4, garden.ink);
+    panel(b, 0, 3.1, z + 0.02, 2.0, 2.2, c.window);
+    panel(b, 0, 3.1, z + 0.03, 0.08, 2.2, c.wall);
+    panel(b, 0, 3.1, z + 0.03, 2.0, 0.08, c.wall);
+    b.ball([0, 4.55, z + 0.06], 0.32, c.clock, { ink: 0.035 });
+    b.line([0, 4.55, z + 0.1], [0, 4.75, z + 0.1], 2, garden.ink);
+    b.line([0, 4.55, z + 0.1], [0.14, 4.55, z + 0.1], 2, garden.ink);
+  });
+  const backdrop = b.take();
+
+  const { props, add } = propsFor(cam);
+  const shelves: [string, number][] = [
+    ["shelf-back-left", 1],
+    ["shelf-back-right", 4],
+  ];
+  for (const [id, seed] of shelves) {
+    const shelf = obstacle("library", id);
+    add(id, shelf.x, shelf.z, (p) => backShelf(p, shelf.x, shelf.z - 0.15, shelf.rx * 2 - 0.3, 0.6, seed));
+  }
+  for (const [id, seed] of [["shelf-left", 2], ["shelf-right", 6]] as const) {
+    const shelf = obstacle("library", id);
+    add(id, shelf.x, shelf.z, (p) => sideShelf(p, shelf.x - Math.sign(shelf.x) * 0.15, shelf.z, shelf.rz * 2, 0.6, seed));
+  }
+  const globe = obstacle("library", "globe");
+  add("globe", globe.x, globe.z, (p) => {
+    p.cylinder(globe.x, globe.z, 0, 0.06, 0.24, 0.24, c.table);
+    p.cylinder(globe.x, globe.z, 0.06, 0.75, 0.04, 0.04, c.brass);
+    p.ball([globe.x, 1.0, globe.z], 0.3, c.globe, { ink: 0.03 });
+    p.ball([globe.x - 0.08, 1.08, globe.z + 0.2], 0.12, c.globeLand, { ink: 0, squashY: 0.7 });
+    p.ball([globe.x + 0.12, 0.92, globe.z + 0.22], 0.08, c.globeLand, { ink: 0, squashY: 0.8 });
+  });
+  for (const id of ["chair-left", "chair-right"]) {
+    const chair = obstacle("library", id);
+    add(id, chair.x, chair.z - 0.3, (p) => {
+      for (const [dx, dz] of [[-0.22, -0.2], [0.22, -0.2], [-0.22, 0.2], [0.22, 0.2]]) p.box(chair.x + dx, 0.15, chair.z + dz, 0.06, 0.3, 0.06, c.chair, 0.02);
+      p.box(chair.x, 0.33, chair.z, 0.56, 0.06, 0.5, c.chair);
+      p.box(chair.x, 0.68, chair.z - 0.25, 0.56, 0.64, 0.07, c.chair);
+    });
+  }
+  add("table", table.x, table.z, (p) => {
+    for (const dx of [-1.2, 1.2]) for (const dz of [-0.4, 0.4]) p.box(table.x + dx, 0.36, table.z + dz, 0.1, 0.72, 0.1, c.table, 0.02);
+    p.box(table.x, 0.76, table.z, 2.8, 0.08, 1.05, c.tableTop);
+    for (const side of [-1, 1]) {
+      const x = table.x + side * 0.75;
+      p.face(
+        [
+          [x - 0.28, 0.81, table.z - 0.05],
+          [x + 0.28, 0.81, table.z - 0.05],
+          [x + 0.28, 0.81, table.z + 0.3],
+          [x - 0.28, 0.81, table.z + 0.3],
+        ],
+        c.paper
+      );
+      p.line([x, 0.815, table.z - 0.05], [x, 0.815, table.z + 0.3], 1.5, c.shelfDark);
+    }
+    p.cylinder(table.x, table.z - 0.2, 0.8, 0.85, 0.12, 0.12, c.brass);
+    p.line([table.x, 0.85, table.z - 0.2], [table.x, 1.12, table.z - 0.2], 3, c.brass);
+    p.ball([table.x, 1.14, table.z - 0.2], 0.22, c.deskLamp, { ink: 0.03, squashY: 0.55 });
+  });
+  for (const id of ["armchair-a", "armchair-b", "armchair-c", "armchair-d"]) {
+    const chair = obstacle("library", id);
+    const facing = chair.x < 0 ? 1 : -1;
+    add(id, chair.x, chair.z - 0.5, (p) => {
+      p.box(chair.x, 0.17, chair.z, 0.9, 0.34, 0.9, c.armchair);
+      p.box(chair.x - facing * 0.38, 0.55, chair.z, 0.2, 0.8, 0.95, c.armchairLight);
+      for (const side of [-1, 1]) p.box(chair.x + facing * 0.05, 0.42, chair.z + side * 0.4, 0.75, 0.2, 0.16, c.armchairLight);
+    });
+  }
+  for (const id of ["lamp-left", "lamp-right"]) {
+    const lamp = obstacle("library", id);
+    add(id, lamp.x, lamp.z, (p) => floorLamp(p, lamp.x, lamp.z));
+  }
+  return { sky: c.sky, ground, backdrop, props };
+};
+
 const UNDERFOOT = 1e6;
 
 const buildHome = (cam: Camera, inside: HomeLook): Scene => {
@@ -572,6 +721,7 @@ const BUILDERS: Record<Place, (cam: Camera, inside: HomeLook, yard: Yard) => Sce
   campfire: buildCampfire,
   cafe: buildCafe,
   beach: buildBeach,
+  library: buildLibrary,
   home: buildHome,
   backyard: (cam, _inside, yard) => buildBackyard(cam, yard),
 };

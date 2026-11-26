@@ -17,6 +17,8 @@ import {
   POKE_EVERY_MS,
   POKED_GAP_MS,
   arrivalSpot,
+  canTravel,
+  listedPlace,
   clearSpot,
   coversPadLabel,
   ELSEWHERE_NAMES,
@@ -723,7 +725,7 @@ export const sit = mutation({
 const done = v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway);
 
 export const travel = mutation({
-  args: { to: v.string(), toMember: v.optional(v.id("worldMembers")), invite: v.optional(v.string()), door: v.optional(v.boolean()) },
+  args: { to: v.string(), invite: v.optional(v.string()), door: v.optional(v.boolean()) },
   returns: v.union(
     v.object({
       ok: v.literal(true),
@@ -736,17 +738,14 @@ export const travel = mutation({
     turnedAway
   ),
   handler: async (ctx, args) => {
-    const { to, toMember } = args;
+    const { to } = args;
     if (!isPlace(to)) throw new ConvexError("That isn't somewhere you can go.");
     const { email, member, state } = await requireMe(ctx);
     const now = Date.now();
     const from = placeOf(member);
+    const homeExit = from === HOME ? await homeBackTo(ctx, email) : WORLD_PLACE;
+    if (!canTravel(from, to, homeExit)) throw new ConvexError(`There's no way to ${PLACE_TITLES[to]} from here.`);
     const here = (await ctx.db.get("worldRooms", member.roomId))!;
-    const target = toMember ? await ctx.db.get("worldMembers", toMember) : null;
-    const theirRoom =
-      target && target.roomId !== member.roomId && placeOf(target) === to && !(await blockedEither(ctx, email, target.email))
-        ? await ctx.db.get("worldRooms", target.roomId)
-        : null;
     let owner: string | undefined;
     if (isPrivatePlace(to)) {
       const inviteId = args.invite === undefined ? null : ctx.db.normalizeId("worldInvites", args.invite);
@@ -758,9 +757,7 @@ export const travel = mutation({
       const allowed = owner === email || (throughDoor ? !(await blockedEither(ctx, owner, email)) : await mayEnterHome(ctx, owner, email, now));
       if (!allowed) throw new ConvexError("That invite has run out. Ask them for another.");
     }
-    const cap = isPrivatePlace(to) ? HOME_CAP : ROOM_CAP;
-    const joinable = theirRoom && theirRoom.owner === owner && theirRoom.memberCount < cap ? theirRoom : null;
-    if (from === to && here.owner === owner && !joinable) {
+    if (from === to && here.owner === owner) {
       const { fromX, fromZ, toX, toZ, startedAt, path, heading } = state;
       return {
         ok: true as const,
@@ -779,7 +776,7 @@ export const travel = mutation({
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    const room = joinable ?? (await roomFor(ctx, to, owner));
+    const room = await roomFor(ctx, to, owner);
     if (!room) throw new ConvexError(`Their ${to === BACKYARD ? "backyard" : "home"} is full. Try again in a bit.`);
     await switchRoom(ctx, member, here, room, to);
     if (isPrivatePlace(to) && !isPrivatePlace(from)) await rememberHomeFrom(ctx, email, member.name, from, now);
@@ -835,33 +832,32 @@ export const elsewhere = query({
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
     const isBlocked = await loadBlockFilter(ctx, email);
-    const found = [];
-    for (const place of PLACES) {
+    const found = new Map<Place, { place: Place; count: number; names: string[]; people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] }>();
+    for (const place of [...PLACES, HOME, BACKYARD] as const) {
+      const listed = listedPlace(place);
+      const spot = found.get(listed) ?? { place: listed, count: 0, names: [], people: [] };
       const rooms = await ctx.db
         .query("worldRooms")
         .withIndex("by_place_and_instance", (q) => q.eq("place", place))
         .take(ROOM_SCAN);
-      const names: string[] = [];
-      const people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] = [];
-      let count = 0;
       for (const room of rooms) {
         if (room._id === me?.roomId) continue;
         const members = await ctx.db
           .query("worldMembers")
           .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
-          .take(ROOM_CAP);
+          .take(isPrivatePlace(place) ? HOME_CAP : ROOM_CAP);
         for (const member of members) {
-          if (member.email === email || (await isBlocked(member.email))) continue;
-          count++;
-          if (names.length < ELSEWHERE_NAMES) {
-            names.push(member.name);
-            people.push({ memberId: member._id, name: member.name, look: withHeight(member.look, member.email), ping: (await pingOf(ctx, member._id))?.bars });
+          if (member.email === email || (isPrivatePlace(place) && member.email !== room.owner) || (await isBlocked(member.email))) continue;
+          spot.count++;
+          if (spot.names.length < ELSEWHERE_NAMES) {
+            spot.names.push(member.name);
+            spot.people.push({ memberId: member._id, name: member.name, look: withHeight(member.look, member.email), ping: (await pingOf(ctx, member._id))?.bars });
           }
         }
       }
-      if (count > 0) found.push({ place, count, names, people });
+      if (spot.count > 0) found.set(listed, spot);
     }
-    return found;
+    return [...found.values()];
   },
 });
 
