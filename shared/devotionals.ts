@@ -33,10 +33,27 @@ export const EMPTY_DEVOTIONAL: DevotionalContent = {
 export const todayDevotionalDate = (now = Date.now()): string => dateInputFromMs(now);
 
 const EARLIEST_OFFSET_MS = 14 * 60 * 60 * 1000;
+const LATEST_OFFSET_MS = 12 * 60 * 60 * 1000;
 
-export const latestDevotionalDate = (now: number): string => {
-  const d = new Date(now + EARLIEST_OFFSET_MS);
+const utcDayKey = (ms: number): string => {
+  const d = new Date(ms);
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+};
+
+export const latestDevotionalDate = (now: number): string => utcDayKey(now + EARLIEST_OFFSET_MS);
+
+export const earliestTodayDevotionalDate = (now: number): string => utcDayKey(now - LATEST_OFFSET_MS);
+
+export const validateTodayDevotionalDate = (
+  date: unknown,
+  now: number
+): { ok: true; date: string } | { ok: false; error: string } => {
+  const parsed = parseDayKey(date);
+  if (!parsed) return { ok: false, error: "Invalid date." };
+  if (parsed < earliestTodayDevotionalDate(now) || parsed > latestDevotionalDate(now)) {
+    return { ok: false, error: "That isn't today's date. Check your device's clock." };
+  }
+  return { ok: true, date: parsed };
 };
 
 export const isFutureDevotionalDate = (date: string, today: string): boolean => date > today;
