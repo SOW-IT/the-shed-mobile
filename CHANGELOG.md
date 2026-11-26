@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.41] - 2026-11-27
+
+### Fixed
+- **The web sweep builds the World's screen before it starts timing
+  screens.** Every failed CI sweep in the last 200 runs (5 on main,
+  including the one after #579 merged, and 6 on PRs) was the
+  leader's `/world` "still changing after 15s". Only a signed-in visit
+  loads the World's screen, so the dev server first built it (13 s on CI)
+  inside the leader's 15 s. #586 made that less likely. The sweep now
+  signs in and opens the World once before the first pass, with no clock
+  running, so the leader's visit gets it already built. With the bundle
+  allowance forced to zero on a cold dev server, main's sweep still fails
+  there and this one passes. Nothing in the app changed.
+- **Swoop's "a perfect run finishes every world" test no longer times
+  out on CI.** All 30 worlds ran as one test, which took 172–230 s on CI
+  against a 240 s limit and failed twice. It's now one test per world,
+  each with a 60 s limit, checking the same three seeds.
+
 ## [2.13.40] - 2026-11-27
 
 ### Fixed

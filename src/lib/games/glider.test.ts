@@ -595,15 +595,15 @@ describe("wide hills first, odd shapes later", () => {
     expect(Math.max(...early, ...late)).toBeLessThanOrEqual(5);
   }, 60_000);
 
-  test("a perfect run finishes every world from 1 to 30 in time", () => {
-    for (let world = 1; world <= 30; world++) {
-      for (const seed of [1, 2, 3]) {
-        const used = perfectRun(world, seed);
-        expect(used, `world ${world}, seed ${seed}`).not.toBeNull();
-        expect(used!).toBeLessThan(1);
-      }
+  // One test per world: as one test, all 30 took 172-230 s on CI against a
+  // 240 s limit, and timed out now and then.
+  test.each(Array.from({ length: 30 }, (_, i) => i + 1))("a perfect run finishes world %i in time", (world) => {
+    for (const seed of [1, 2, 3]) {
+      const used = perfectRun(world, seed);
+      expect(used, `world ${world}, seed ${seed}`).not.toBeNull();
+      expect(used!).toBeLessThan(1);
     }
-  }, 240_000);
+  }, 60_000);
 
   test("in the middle worlds a good run, with the odd late move, uses most of the day, and a run with a few real mistakes mostly runs out of daylight", () => {
     const seeds = [1, 2, 3, 4, 5, 6];

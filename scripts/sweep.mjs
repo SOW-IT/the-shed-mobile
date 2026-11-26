@@ -125,16 +125,39 @@ await page
   .catch(() => {});
 await waitUntilSettled();
 
+const signIn = async (email, timeout) => {
+  await openPage(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
+    waitUntil: "domcontentloaded",
+    timeout,
+  });
+  await waitUntilSettled();
+  return hasSession();
+};
+
+// The World's screen is its own chunk, and only a signed-in visit asks for
+// it, so Metro first built it (13 s on CI) inside leader's /world and the
+// screen's 15 s clock. Whether that fit depended on how much bundle allowance
+// was left: about one CI sweep in ten failed there. Build it now, with no
+// clock running. The sign-in page's first server render can be slow on a
+// cold server too, so this gets the warm-up's time, and a failure here only
+// leaves the World as it was.
+const WORLD_CHUNK = /\/WorldScreen\.bundle$/;
+const warmEmail = roles.find(([, email]) => email)?.[1];
+if (warmEmail && (await signIn(warmEmail, WARM_UP_TIMEOUT_MS).catch(() => false))) {
+  const built = page
+    .waitForResponse((response) => WORLD_CHUNK.test(new URL(response.url()).pathname), { timeout: BUNDLE_WAIT_MS * 2 })
+    .then(() => true, () => false);
+  await openPage(`${BASE}/world`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
+  if (await built) await waitUntilSettled();
+  else console.log("World warm-up: never saw WorldScreen.bundle; leader's /world may count its build");
+}
+
 for (const [role, email] of roles) {
   bundleBudgetMs = BUNDLE_BUDGET_MS;
   await openPage(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
   await settle(2500);
   if (email) {
-    await openPage(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
-      waitUntil: "domcontentloaded",
-    });
-    await waitUntilSettled();
-    if (!(await hasSession())) {
+    if (!(await signIn(email))) {
       results.push({ role, route: "(sign-in)", bad: true, errors: ["e2e sign-in did not take"], consoleErrors: [], text: "" });
       continue;
     }
