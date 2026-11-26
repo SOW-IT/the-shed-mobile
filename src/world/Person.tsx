@@ -634,8 +634,12 @@ const AvatarView = ({
   const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const outfit = lookPart(look, "outfit");
   const hood = outfit === 5 ? hoodLayer(facing) : null;
-  const hoodFill = shade(shirt, -0.1);
+  const hoodFill = shade(shirt, -0.18);
   if (hood === "behind") ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, hoodFill);
+  if (hood && Math.abs(side) > 0.35) {
+    const nape = at(-Math.sign(side) * 0.27, chin + 0.02);
+    parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
+  }
   arms("back");
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
@@ -692,16 +696,6 @@ const AvatarView = ({
     for (const y of [0.58, 0.44, 0.3]) {
       parts.push(capsule(at(-halfWidth(y) + 0.04, y), at(halfWidth(y) - 0.04, y), 0.055 * s, shade(shirt, -0.3), `stripe${y}`));
     }
-  }
-  if (hood === "behind") {
-    if (pants > 0) piece("pocket", shade(shirt, -0.14), 0.52, 0.36, 0.13, 0.16, 10);
-    else piece("pocket", shade(shirt, -0.14), 0.38, 0.2, 0.15, 0.19, 10);
-    for (const e of [-1, 1]) parts.push(capsule(at(0.06 * e, 0.68), at(0.07 * e, 0.52), 0.03 * s, people.drawstring, `string${e}`));
-  }
-  if (hood === "over") {
-    const middle = at(0, chin);
-    parts.push(<Ellipse key="hood" cx={middle.x - side * 0.04 * s} cy={middle.y} rx={0.25 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
-    parts.push(capsule(at(0, chin + 0.04), at(0, chin - 0.13), 0.025 * s, shade(shirt, -0.28), "hoodSeam"));
   }
   if (outfit === 6 && facing >= 0) {
     // Collared: a white collar and two buttons.
@@ -763,6 +757,17 @@ const AvatarView = ({
     const colour = people.pants[lookPart(look, "pantsColour")] ?? people.pants[0];
     piece("skirtBottom", colour, 0.36, 0.12, halfWidth(0.36) + 0.01, 0.44, 14);
     parts.push(capsule(at(-halfWidth(0.35), 0.35), at(halfWidth(0.35), 0.35), 0.03 * s, shade(colour, -0.22), "waist"));
+  }
+  if (hood) {
+    const hemTop = Math.max(chin, 0.36);
+    if (pants > 0) piece("hoodieHem", shirt, hemTop, 0.27, halfWidth(hemTop), halfWidth(0.27) + 0.02, 10);
+    if (hood === "behind") {
+      const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
+      piece("pocket", shade(shirt, -0.14), pocketBottom + 0.09, pocketBottom, halfWidth(pocketBottom + 0.09) - 0.05, halfWidth(pocketBottom) - 0.04, 8);
+      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s + ink * 2, garden.ink, "hoodRimInk"));
+      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s, hoodFill, "hoodRim"));
+      for (const e of [-1, 1]) parts.push(capsule(at(0.05 * e, chin - 0.01), at(0.06 * e, chin - 0.13), 0.03 * s, people.drawstring, `string${e}`));
+    }
   }
   if (accessory === 2 && facing >= 0) {
     for (const e of [-1, 1]) parts.push(capsule(at(0.13 * e, 0.69), at(0.15 * e, 0.38), 0.05 * s, people.backpackStrap, `strap${e}`));
@@ -1364,6 +1369,12 @@ const AvatarView = ({
       </View>
     </View>
   );
+  if (hood === "over") {
+    const drape = at(-side * 0.03, chin + 0.04);
+    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
+    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
+    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
+  }
   // Hair and hats on top of the head.
   if (look.hair === 10 && afroOver) afro();
   if (look.hair === 7 && facing < -0.2) ponytail();
