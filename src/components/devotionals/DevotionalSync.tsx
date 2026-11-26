@@ -1,5 +1,11 @@
 import { useOffline } from "@/hooks/useOffline";
-import { markDevotionalConflict, markDevotionalSynced, useDirtyDevotionals } from "@/lib/devotionalStorage";
+import {
+  markDevotionalConflict,
+  markDevotionalSynced,
+  useDirtyDevotionals,
+  useHeldDevotionalSyncs,
+} from "@/lib/devotionalStorage";
+import { devotionalSyncHoldKey } from "@shared/devotionalAutosave";
 import { todayDevotionalDate, validateDevotionalDate, validateDevotionalInput } from "@shared/devotionals";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
@@ -14,6 +20,7 @@ export const DevotionalSync = () => {
   const me = useQuery(api.directory.me, isAuthenticated ? {} : "skip");
   const email = me?.email ?? null;
   const dirty = useDirtyDevotionals(email);
+  const held = useHeldDevotionalSyncs();
   const save = useMutation(api.devotionals.save);
   const syncing = useRef(false);
   const refused = useRef(new Map<string, number>());
@@ -26,6 +33,7 @@ export const DevotionalSync = () => {
     const candidate = dirty.find(
       (draft) =>
         !draft.conflict &&
+        !held.has(devotionalSyncHoldKey(email, draft.date)) &&
         refused.current.get(draft.date) !== draft.updatedAt &&
         validateDevotionalDate(draft.date, today).ok &&
         validateDevotionalInput({
@@ -58,7 +66,7 @@ export const DevotionalSync = () => {
           }
         }
       );
-  }, [isAuthenticated, offline, email, dirty, save, retry]);
+  }, [isAuthenticated, offline, email, dirty, held, save, retry]);
 
   useEffect(
     () => () => {

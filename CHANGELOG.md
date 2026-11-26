@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.25] - 2026-11-26
+## [2.13.28] - 2026-11-27
 
 ### Changed
 - **Walking away from the arcade closes its games.** With the arcade's games
@@ -15,6 +15,26 @@ All notable changes to **The SHED** mobile app. This project follows
   once you've left. Walk back and tap the arcade to open it again. Opened
   from a link somewhere else in the Garden, the list stays until you've been
   to the arcade and walked off.
+
+## [2.13.26] - 2026-11-26
+
+### Added
+- **Poke your devotional group.** Once you have finished today's devotional,
+  tap **Poke group** on an active group to send a push and in-app notification
+  to everyone in the group who hasn't done today's devotional yet. You can add
+  an optional custom message (up to 160 characters) or leave it blank to send
+  a default nudge. Tapping the notification opens today's devotional, and a
+  group can be poked at most once an hour.
+
+## [2.13.25] - 2026-11-26
+
+### Changed
+- **Devotionals save as you go.** The Save button is gone. What you type is
+  kept on your phone half a second after you stop typing, and saved to your
+  account when you go back, or when you switch away from the app. If you are
+  offline it stays on your phone and is saved the next time you open that
+  day. Typing no longer makes the header flicker or calls the server on
+  every keystroke.
 
 ## [2.13.24] - 2026-11-26
 

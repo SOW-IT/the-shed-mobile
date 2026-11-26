@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  earliestTodayDevotionalDate,
   EMPTY_DEVOTIONAL,
   hasDevotionalContent,
   isFutureDevotionalDate,
@@ -15,6 +16,7 @@ import {
   validateDevotionalDate,
   validateDevotionalInput,
   validateDevotionalMonth,
+  validateTodayDevotionalDate,
 } from "./devotionals";
 
 describe("devotional date rules", () => {
@@ -41,6 +43,18 @@ describe("devotional date rules", () => {
     expect(latestDevotionalDate(Date.UTC(2026, 10, 24, 13, 5))).toBe("2026-11-25");
     expect(latestDevotionalDate(Date.UTC(2026, 10, 24, 9, 59))).toBe("2026-11-24");
     expect(latestDevotionalDate(Date.UTC(2026, 10, 24, 10, 0))).toBe("2026-11-25");
+  });
+
+  test("today's date must be today somewhere on Earth", () => {
+    const now = Date.UTC(2026, 10, 25, 2, 0);
+    expect(earliestTodayDevotionalDate(now)).toBe("2026-11-24");
+    expect(earliestTodayDevotionalDate(Date.UTC(2026, 10, 25, 12, 0))).toBe("2026-11-25");
+    expect(validateTodayDevotionalDate("2026-11-24", now)).toEqual({ ok: true, date: "2026-11-24" });
+    expect(validateTodayDevotionalDate("2026-11-25", now)).toEqual({ ok: true, date: "2026-11-25" });
+    expect(validateTodayDevotionalDate("2026-11-23", now).ok).toBe(false);
+    expect(validateTodayDevotionalDate("2026-11-26", now).ok).toBe(false);
+    expect(validateTodayDevotionalDate("2026-02-30", now)).toEqual({ ok: false, error: "Invalid date." });
+    expect(validateTodayDevotionalDate(undefined, now).ok).toBe(false);
   });
 
   test("computes month bounds", () => {

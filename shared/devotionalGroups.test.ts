@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  cleanPokeMessage,
   completionTier,
   effectiveSharingLevel,
   firstNameOf,
@@ -9,8 +10,11 @@ import {
   isDateInRange,
   isDevotionalDone,
   MAX_GROUP_NAME_LENGTH,
+  MAX_POKE_MESSAGE_LENGTH,
   monthOverlapsRange,
   monthWithinRange,
+  pokeCooldownLabel,
+  pokeMessageLength,
   sydneyDateTime,
   validateGroupInput,
 } from "./devotionalGroups";
@@ -170,4 +174,40 @@ test("a browsed month stays only while it overlaps the group's dates", () => {
   expect(monthOverlapsRange(2027, 1, "2026-11-20", "2027-01-05")).toBe(true);
   expect(monthOverlapsRange(2026, 10, "2026-11-20", "2027-01-05")).toBe(false);
   expect(monthOverlapsRange(2027, 2, "2026-11-20", "2027-01-05")).toBe(false);
+});
+
+describe("devotional group poke helpers", () => {
+  test("cleanPokeMessage trims, collapses whitespace, allows blank, and enforces max length", () => {
+    expect(cleanPokeMessage(undefined)).toEqual({ ok: true, message: null });
+    expect(cleanPokeMessage("   \n\t  ")).toEqual({ ok: true, message: null });
+    expect(cleanPokeMessage("  Time   for\n  devos!  ")).toEqual({
+      ok: true,
+      message: "Time for devos!",
+    });
+    expect(cleanPokeMessage("a".repeat(MAX_POKE_MESSAGE_LENGTH))).toEqual({
+      ok: true,
+      message: "a".repeat(MAX_POKE_MESSAGE_LENGTH),
+    });
+    expect(cleanPokeMessage("a".repeat(MAX_POKE_MESSAGE_LENGTH + 1))).toEqual({
+      ok: false,
+      error: `Message can be at most ${MAX_POKE_MESSAGE_LENGTH} characters.`,
+    });
+    // Unicode surrogate pairs count as single code points.
+    expect(cleanPokeMessage("🙏".repeat(MAX_POKE_MESSAGE_LENGTH)).ok).toBe(true);
+    expect(cleanPokeMessage("🙏".repeat(MAX_POKE_MESSAGE_LENGTH + 1)).ok).toBe(false);
+  });
+
+  test("pokeCooldownLabel rounds up to at least 1 min", () => {
+    expect(pokeCooldownLabel(0)).toBe("1 min");
+    expect(pokeCooldownLabel(500)).toBe("1 min");
+    expect(pokeCooldownLabel(60_000)).toBe("1 min");
+    expect(pokeCooldownLabel(60_001)).toBe("2 min");
+    expect(pokeCooldownLabel(60 * 60_000)).toBe("60 min");
+  });
+
+  test("pokeMessageLength counts code points of the normalized message", () => {
+    expect(pokeMessageLength("")).toBe(0);
+    expect(pokeMessageLength("  hi \n\n there  ")).toBe(8);
+    expect(pokeMessageLength("🙏🙏")).toBe(2);
+  });
 });
