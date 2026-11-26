@@ -1,5 +1,5 @@
 import { sydneyYmd } from "./flow";
-import { SCORES_RESET_AT, type GameId } from "./games";
+import { SCORES_RESET_AT, type GameId, type GameVersion } from "./games";
 
 export const START_COINS = 100;
 
@@ -7,6 +7,10 @@ export const START_COINS = 100;
 export const PLACE_COINS = [50, 25, 10] as const;
 
 /** What a place on a leaderboard is worth: nothing below 3rd. */
+export const PAYOUT_MIN_ENTRIES = 10;
+
+export const payoutMinEntries = (version: GameVersion): number => (version === 1 ? 0 : PAYOUT_MIN_ENTRIES);
+
 export const coinsForPlace = (place: number): number => PLACE_COINS[place - 1] ?? 0;
 
 /**
@@ -14,7 +18,8 @@ export const coinsForPlace = (place: number): number => PLACE_COINS[place - 1] ?
  * kept until its scores are wiped, so the reset time names the board: after
  * a wipe the places can be won, and paid, again.
  */
-export const boardOf = (game: GameId): string => `${game}:${SCORES_RESET_AT[game] ?? 0}`;
+export const boardOf = (game: GameId, version: GameVersion = 1): string =>
+  `${game}:${version === 1 ? "" : `v${version}:`}${SCORES_RESET_AT[game] ?? 0}`;
 
 /**
  * What a run that leaves you at `place` pays, given what this board has

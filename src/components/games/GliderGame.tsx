@@ -5,6 +5,8 @@ import type { Size } from "@/lib/games/fit";
 import {
   colourAt,
   blend,
+  farHillTiles,
+  parallaxAnchor,
   parallaxShift,
   GLIDER,
   groundAt,
@@ -18,6 +20,9 @@ import {
   type GliderState,
   type HillPoint,
   type Popup,
+  birdPixels,
+  earthFloor,
+  unitPixels,
 } from "@/lib/games/glider";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
@@ -41,9 +46,10 @@ const STRIP = 12;
 const CHUNK_STRIPS = 32;
 const CHUNK = STRIP * CHUNK_STRIPS;
 /** How far below the bottom of the world the ground is filled. */
-const DEEP = 1400;
 const GRASS = 6;
 /** The bird's own drawing, before it's scaled to the board. */
+const LAST_PRACTICE_WORLD = 200;
+
 const BIRD = 40;
 
 const STARS = [
@@ -58,6 +64,21 @@ const STARS = [
 ];
 
 /** Each strip's two ends: x, and the ground's height there. */
+const chunkPoints = (hills: readonly HillPoint[], index: number): HillPoint[] => {
+  const from = index * CHUNK;
+  const to = from + CHUNK;
+  const first = Math.max(0, hills.findIndex((point) => point.x > from) - 1);
+  const after = hills.findIndex((point) => point.x >= to);
+  return hills.slice(first, after < 0 ? hills.length : after + 1);
+};
+
+const samePoints = (a: readonly HillPoint[], b: readonly HillPoint[]) =>
+  a === b || (a.length === b.length && a.every((point, i) => point.x === b[i].x && point.y === b[i].y));
+
+type ChunkProps = { hills: HillPoint[]; index: number; floor: number };
+
+const sameChunk = (a: ChunkProps, b: ChunkProps) => a.index === b.index && a.floor === b.floor && samePoints(a.hills, b.hills);
+
 const strips = (hills: HillPoint[], index: number) =>
   Array.from({ length: CHUNK_STRIPS }, (_, i) => {
     const x0 = index * CHUNK + i * STRIP;
@@ -70,14 +91,14 @@ const strips = (hills: HillPoint[], index: number) =>
  * stepped. The ground never changes, so a chunk draws once and the camera
  * moves over it.
  */
-const EarthChunk = memo(function EarthChunk({ hills, index }: { hills: HillPoint[]; index: number }) {
+const EarthChunk = memo(function EarthChunk({ hills, index, floor }: ChunkProps) {
   const parts = strips(hills, index);
   return (
     <>
       {parts.map(({ i, x0, y0, y1 }) => (
         <View
           key={`c${i}`}
-          style={[styles.column, { left: x0, top: -Math.min(y0, y1), width: STRIP + 0.75, height: Math.min(y0, y1) + DEEP }]}
+          style={[styles.column, { left: x0, top: -Math.min(y0, y1), width: STRIP + 0.75, height: Math.min(y0, y1) - floor }]}
         />
       ))}
       {parts.map(({ i, x0, y0, y1 }) => (
@@ -97,10 +118,10 @@ const EarthChunk = memo(function EarthChunk({ hills, index }: { hills: HillPoint
       ))}
     </>
   );
-});
+}, sameChunk);
 
 /** The grass along one chunk's top, drawn over all the earth so no strip covers its neighbour's. */
-const GrassChunk = memo(function GrassChunk({ hills, index }: { hills: HillPoint[]; index: number }) {
+const GrassChunk = memo(function GrassChunk({ hills, index }: ChunkProps) {
   return (
     <>
       {strips(hills, index).map(({ i, x0, y0, y1 }) => (
@@ -119,7 +140,7 @@ const GrassChunk = memo(function GrassChunk({ hills, index }: { hills: HillPoint
       ))}
     </>
   );
-});
+}, sameChunk);
 
 const FinishFlag = ({ x, y, world }: { x: number; y: number; world: number }) => (
   <View style={[styles.flag, { left: x - 3, top: -y - 96 }]} pointerEvents="none">
@@ -200,7 +221,7 @@ const PopupText = ({ popup, time, x, y }: { popup: Popup; time: number; x: numbe
 const WorldBadge = ({ world }: { world: number }) => (
   <View style={styles.worldPill}>
     <Text style={styles.worldText} numberOfLines={1} testID="glider-world">
-      World {world}
+      Day {world}
     </Text>
   </View>
 );
@@ -211,7 +232,7 @@ const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
     <View
       style={[styles.track, { backgroundColor: dark ? c.trackNight : c.track }]}
       pointerEvents="none"
-      aria-label={`World ${state.world}, ${Math.round(done * 100)}% through`}
+      aria-label={`Day ${state.world}, ${Math.round(done * 100)}% through`}
       testID="glider-world-progress"
     >
       <View style={[styles.trackFill, { width: `${done * 100}%`, backgroundColor: c.trackFill }]} />
@@ -222,14 +243,11 @@ const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
 
 /** Round hills far off, sliding past slower than the ground. */
 const FarHills = ({ shift, width, colour, size, top }: { shift: number; width: number; colour: string; size: number; top: number }) => {
-  const gap = size * 1.3;
-  const count = Math.ceil(width / gap) + 2;
-  const offset = -(((shift % gap) + gap) % gap);
   return (
     <>
-      {Array.from({ length: count }, (_, i) => (
+      {farHillTiles(shift, width, size * 1.3).map(({ tile, left, stagger }) => (
         <View
-          key={i}
+          key={tile}
           style={[
             styles.farHill,
             {
@@ -237,8 +255,8 @@ const FarHills = ({ shift, width, colour, size, top }: { shift: number; width: n
               width: size * 2,
               height: size * 2,
               borderRadius: size,
-              left: offset + (i - 1) * gap - size * 0.5,
-              top: top + (i % 3) * size * 0.14,
+              left: left - size * 0.5,
+              top: top + stagger * size * 0.14,
             },
           ]}
         />
@@ -253,8 +271,9 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const sky = colourAt(c.sky, progress);
   const { camera } = state;
   const view = viewSize(width / height, camera.zoom);
-  const px = height / view.height;
+  const px = unitPixels({ width, height }, camera.zoom);
   const steadyPx = height / viewSize(width / height, 1).height;
+  const anchor = parallaxAnchor(state);
   const top = camera.y + view.height;
   const first = Math.floor((camera.x - reach.left / px) / CHUNK) - 1;
   const last = Math.floor((camera.x + view.width + reach.right / px) / CHUNK);
@@ -262,9 +281,9 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   for (let i = Math.max(-1, first); i <= last; i++) chunks.push(i);
   const screenX = (x: number) => (x - camera.x) * px;
   const screenY = (y: number) => (top - y) * px;
-  const birdScale = (px * Math.sqrt(camera.zoom) * GLIDER.radius * 2.4) / BIRD;
-  const angle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
-  const tilt = Math.max(-1.1, Math.min(1.1, angle));
+  const birdScale = birdPixels(px) / BIRD;
+  const floor = earthFloor(state.hills);
+  const tilt = state.tilt;
   const birdX = screenX(state.x);
   const birdY = screenY(state.y);
   const sunSize = Math.max(34, height * 0.11);
@@ -295,14 +314,14 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
       />
       <View style={[styles.reach, { left: -reach.left, width: width + reach.left + reach.right, height }]} pointerEvents="none">
         <FarHills
-          shift={parallaxShift(camera.x, "far") * steadyPx - reach.left}
+          shift={parallaxShift(anchor, "far") * steadyPx - reach.left}
           width={width + reach.left + reach.right}
           colour={blend(c.farHill, c.night, dusk * 0.6)}
           size={height * 0.42}
           top={height * 0.42}
         />
         <FarHills
-          shift={parallaxShift(camera.x, "near") * steadyPx - reach.left}
+          shift={parallaxShift(anchor, "near") * steadyPx - reach.left}
           width={width + reach.left + reach.right}
           colour={blend(c.nearHill, c.night, dusk * 0.6)}
           size={height * 0.32}
@@ -317,10 +336,10 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         pointerEvents="none"
       >
         {chunks.map((index) => (
-          <EarthChunk key={index} hills={state.hills} index={index} />
+          <EarthChunk key={index} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
         ))}
         {chunks.map((index) => (
-          <GrassChunk key={`g${index}`} hills={state.hills} index={index} />
+          <GrassChunk key={`g${index}`} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
         ))}
       </View>
       <View style={[styles.flagClip, { width, height }]} pointerEvents="none">
@@ -368,6 +387,7 @@ export const GliderGame = ({
   active = true,
   guard,
   scene,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
@@ -375,17 +395,19 @@ export const GliderGame = ({
   guard?: LeaveGuard;
   /** Test builds: a still moment of a run, for screenshots. */
   scene?: GliderPreview;
+  startScore?: number;
 }) => {
   const session = useGameSession<GliderState>("glider");
+  const startWorld = startScore === undefined ? undefined : Math.min(startScore, LAST_PRACTICE_WORLD);
   const look = useGameLook("glider");
   const { run, setRun, phase } = session;
   const { turned, insets } = useSideways();
   const [board, setBoard] = useState<Size | null>(null);
   const { width, height } = board ?? PHONE_BOARD;
   const aspect = width / height;
-  const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect)), [scene, aspect]);
+  const preview = useMemo(() => (scene ? previewGlider(scene, aspect) : newGlider(1, aspect, startWorld ?? 1)), [scene, aspect, startWorld]);
   const inputOn = active && !session.paused;
-  const latest = useLatest({ session, aspect });
+  const latest = useLatest({ session, aspect, startWorld });
 
   useGameLoop(phase === "playing" && inputOn, (dt) => setRun((state) => state && advance(state, dt, stepGlider)));
   // Input switched off (the leave dialog, another screen in front): a
@@ -395,9 +417,9 @@ export const GliderGame = ({
   }, [inputOn, setRun]);
 
   const press = (down: boolean) => {
-    const { session: current, aspect: ratio } = latest.current;
+    const { session: current, aspect: ratio, startWorld: from } = latest.current;
     if (current.phase === "ready") {
-      if (down) current.begin(hold(newGlider(newSeed(), ratio), true));
+      if (down) current.begin(hold(newGlider(newSeed(), ratio, from ?? 1), true), !!from);
       return;
     }
     current.setRun((state) => state && hold(state, down));
@@ -455,7 +477,7 @@ export const GliderGame = ({
       titleExtra={<WorldBadge world={shown.world} />}
       underBar={<WorldBar state={shown} dark={dark} />}
       hideStartCard={!!scene}
-      overDetail={run?.ended === "night" ? `Night fell in World ${run.world}.` : null}
+      overDetail={run?.ended === "night" ? `Night fell on day ${run.world}.` : null}
       onExit={onExit}
       guard={guard}
       onLeaderboard={onLeaderboard}

@@ -17,6 +17,8 @@ import {
   SCORES_RESET_AT,
   scoreProblem,
   shownBests,
+  VERSION_LABELS,
+  versionOf,
   stringifyBests,
   submittableFor,
   withBest,
@@ -30,6 +32,7 @@ const NOW = 1_800_000_000_000;
 const entry = (overrides: Partial<QueuedScore> = {}): QueuedScore => ({
   runId: "run-abcdefgh",
   game: "runner",
+  version: 2,
   score: 120,
   durationMs: 30_000,
   playedAt: NOW - 1000,
@@ -51,21 +54,56 @@ describe("scoreProblem", () => {
   test.each<[string, Partial<QueuedScore>, RegExp]>([
     ["a missing run id", { runId: "x" }, /no usable id/],
     ["an unknown game", { game: "snake" as QueuedScore["game"] }, /isn't one of the games/],
+    ["an unknown version", { version: 3 as QueuedScore["version"] }, /isn't a version/],
     ["a zero score", { score: 0 }, /whole number/],
     ["a fractional score", { score: 1.5 }, /whole number/],
     ["a zero-length run", { durationMs: 0 }, /length/],
     ["an endless run", { durationMs: MAX_RUN_MS + 1 }, /length/],
     ["a NaN length", { durationMs: Number.NaN }, /length/],
-    ["a score over the cap", { score: SCORE_LIMITS.runner.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
+    ["a score over the cap", { score: SCORE_LIMITS[2].runner.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
     ["too many points for the time", { score: 50_000, durationMs: 10_000 }, /too high/],
-    ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS.glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
-    ["a Swoop score too fast for its run", { game: "glider", score: 20_000, durationMs: 10_000 }, /too high/],
+    ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS[2].glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
+    ["a Swoop score too fast for its run", { game: "glider", score: 25_000, durationMs: 10_000 }, /too high/],
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],
     ["a run from before its game was reset", { playedAt: SCORES_RESET_AT.runner! - 1 }, /reset/],
   ])("turns away %s", (_label, overrides, problem) => {
     expect(scoreProblem(entry(overrides), NOW)).toMatch(problem);
+  });
+});
+
+describe("versions", () => {
+  test("a run with no version was played on version 1, and is still taken on v1's limits", () => {
+    expect([versionOf(undefined), versionOf(1), versionOf(2)]).toEqual([1, 1, 2]);
+    expect(scoreProblem(entry({ version: undefined }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ version: 1 }), NOW)).toBeNull();
+    const overV1 = { game: "glider" as const, score: SCORE_LIMITS[1].glider.max + 1, durationMs: MAX_RUN_MS };
+    expect(scoreProblem(entry({ ...overV1, version: undefined }), NOW)).toMatch(/over the game's limit/);
+    expect(scoreProblem(entry({ ...overV1, version: 2 }), NOW)).toBeNull();
+  });
+
+  test("v2 checks runs against its own limits", () => {
+    expect(scoreProblem(entry({ game: "glider", score: SCORE_LIMITS[1].glider.max + 1, durationMs: MAX_RUN_MS }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ score: 241 * 60, durationMs: 60_000 }), NOW)).toBeNull();
+    expect(SCORE_LIMITS[2].runner.perSecond).toBeGreaterThan(SCORE_LIMITS[1].runner.perSecond);
+  });
+
+  test("the old boards are named v1 (legacy)", () => {
+    expect(VERSION_LABELS).toEqual({ 1: "v1 (legacy)", 2: "v2" });
+  });
+
+  test("a saved queue keeps a run's version and drops one with a version that isn't", () => {
+    const v2 = entry({ runId: "run-v2-run1" });
+    const old = { ...entry({ runId: "run-old-run1" }), version: undefined };
+    expect(parseQueue(JSON.stringify([v2, old, { ...v2, runId: "run-v9-run1", version: 9 }]))).toEqual([v2, JSON.parse(JSON.stringify(old))]);
+  });
+
+  test("the queue keeps the best run of each game on each version", () => {
+    const old = { ...entry({ runId: "run-old-run1", score: 900 }), version: undefined };
+    const fresh = entry({ runId: "run-new-run1", score: 100 });
+    const better = entry({ runId: "run-new-run2", score: 200 });
+    expect(enqueueScore(enqueueScore([old], fresh, NOW), better, NOW)).toEqual([old, better]);
   });
 });
 
@@ -212,6 +250,7 @@ describe("bests across devices", () => {
     expect(bestsToSync(runs, [{ game: "runner", score: 900 }], [], NOW)).toEqual([]);
     expect(bestsToSync(runs, [], [best], NOW)).toEqual([]);
     expect(bestsToSync(runs, [], [], NOW, new Set(["run-best-1"]))).toEqual([]);
+    expect(bestsToSync(runs, [], [{ ...best, runId: "run-old-1", version: undefined, score: 950 }], NOW)).toEqual([best]);
     expect(shownBests(bestsFromRuns(runs), [{ game: "runner", score: 300 }])).toEqual({ ...NO_BESTS, runner: 900 });
   });
 

@@ -111,7 +111,7 @@ async function deleteByEmail(
     await deleteBatch(
       await ctx.db
         .query("gameScores")
-        .withIndex("by_email_and_game", (q) => q.eq("email", email))
+        .withIndex("by_email_and_game_and_version", (q) => q.eq("email", email))
         .take(WIPE_BATCH),
       (row) => ctx.db.delete("gameScores", row._id)
     ),

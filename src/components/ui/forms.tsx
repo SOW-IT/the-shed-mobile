@@ -526,6 +526,7 @@ export const MultiSelect = ({
 export type Segment = {
   key: string;
   label: string;
+  accessibilityLabel?: string;
   badge?: number;
   messageBadge?: number;
 };
@@ -586,6 +587,11 @@ export const Segmented = ({
             key={segment.key}
             style={styles.segment}
             onPress={() => onChange(segment.key)}
+            accessibilityLabel={segment.accessibilityLabel}
+            accessibilityRole={segment.accessibilityLabel ? "button" : undefined}
+            accessibilityState={segment.accessibilityLabel ? { selected } : undefined}
+            {...(segment.accessibilityLabel ? { "aria-pressed": selected } : null)}
+            testID={segment.accessibilityLabel ? `segment-${segment.key}` : undefined}
           >
             <Text
               numberOfLines={1}

@@ -48,7 +48,7 @@ export const payStandingTop3 = internalMutation({
       // Best first; equal scores share the place of the first of them.
       for await (const row of ctx.db
         .query("gameScores")
-        .withIndex("by_game_and_score", (q) => q.eq("game", game))
+        .withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", undefined))
         .order("desc")) {
         if (row.score !== placeScore) {
           place = seen + 1;

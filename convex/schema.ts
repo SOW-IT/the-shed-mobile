@@ -611,9 +611,11 @@ export default defineSchema({
     durationMs: v.number(),
     playedAt: v.number(),
     updatedAt: v.number(),
+    version: v.optional(v.number()),
   })
-    .index("by_email_and_game", ["email", "game"])
-    .index("by_game_and_score", ["game", "score"]),
+    .index("by_game_and_score", ["game", "score"])
+    .index("by_email_and_game_and_version", ["email", "game", "version"])
+    .index("by_game_and_version_and_score", ["game", "version", "score"]),
 
   // Who's in a game right now, one row per person. Written when they go in,
   // switch game or leave, so the Games list's query only reruns then.
