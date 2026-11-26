@@ -380,6 +380,18 @@ export default defineSchema({
     .index("by_guest_and_at", ["guest", "at"])
     .index("by_expiresAt", ["expiresAt"]),
 
+  worldKnocks: defineTable({
+    owner: v.string(),
+    guest: v.string(),
+    guestName: v.string(),
+    at: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_owner_and_guest", ["owner", "guest"])
+    .index("by_owner_and_at", ["owner", "at"])
+    .index("by_guest", ["guest"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   worldHomes: defineTable({
     owner: v.string(),
     wallpaper: v.string(),
