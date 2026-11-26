@@ -293,6 +293,7 @@ export const WorldScreen = ({
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
   const knocks = useQuery(api.world.knocks, world.status === "in" ? {} : "skip");
   const [dismissedKnocks, setDismissedKnocks] = useState<ReadonlySet<string>>(new Set());
+  const [knockTries, setKnockTries] = useState(0);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopKeeper, setShopKeeper] = useState<Keeper>("sijin");
   const [coinsOpen, setCoinsOpen] = useState(false);
@@ -1580,18 +1581,27 @@ export const WorldScreen = ({
 
   const knockCard = knock ? (
     <KnockCard
-      key={`${knock.id}:${knock.at}`}
+      key={`${knock.id}:${knock.at}:${knockTries}`}
       name={knock.guestName}
       look={knock.look}
-      onAllow={() => {
+      onAnswer={(allow) => {
         const shown = `${knock.id}:${knock.at}`;
-        setDismissedKnocks((set) => new Set(set).add(shown));
-        void world.answerKnock(knock.id, true).then((problem) => setNote(problem ?? `Invited ${worldName(knock.guestName)} home.`));
+        const guestName = knock.guestName;
+        void world.answerKnock(knock.id, allow).then((problem) => {
+          if (problem) {
+            setDismissedKnocks((set) => {
+              const next = new Set(set);
+              next.delete(shown);
+              return next;
+            });
+            setKnockTries((n) => n + 1);
+            setNote(problem);
+          } else if (allow) setNote(`Invited ${worldName(guestName)} home.`);
+        });
       }}
-      onLater={() => {
+      onGone={() => {
         const shown = `${knock.id}:${knock.at}`;
         setDismissedKnocks((set) => new Set(set).add(shown));
-        void world.answerKnock(knock.id, false);
       }}
     />
   ) : null;

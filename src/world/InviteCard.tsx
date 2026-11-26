@@ -16,6 +16,7 @@ const HomeCard = ({
   yesTestID,
   laterTestID,
   testID,
+  onPick,
   onYes,
   onLater,
 }: {
@@ -27,12 +28,20 @@ const HomeCard = ({
   yesTestID: string;
   laterTestID: string;
   testID: string;
+  onPick?: (yes: boolean) => void;
   onYes: () => void;
   onLater: () => void;
 }) => {
   const [answer, setAnswer] = useState<"yes" | "later" | null>(null);
   const { mounted, shown: pop, calm } = usePresence(answer === null);
+  const picked = useRef(false);
   const fired = useRef(false);
+  const choose = (next: "yes" | "later") => {
+    if (picked.current) return;
+    picked.current = true;
+    setAnswer(next);
+    onPick?.(next === "yes");
+  };
   useEffect(() => {
     if (mounted || answer === null || fired.current) return;
     fired.current = true;
@@ -55,10 +64,10 @@ const HomeCard = ({
         </Text>
       </View>
       <View style={styles.row}>
-        <Pressable onPress={() => setAnswer("yes")} accessibilityRole="button" accessibilityLabel={yesHint} testID={yesTestID} style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
+        <Pressable onPress={() => choose("yes")} accessibilityRole="button" accessibilityLabel={yesHint} testID={yesTestID} style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
           <Text style={styles.goText}>{yesLabel}</Text>
         </Pressable>
-        <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID={laterTestID} style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
+        <Pressable onPress={() => choose("later")} accessibilityRole="button" accessibilityLabel="Not now" testID={laterTestID} style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
           <Text style={styles.laterText}>Not now</Text>
         </Pressable>
       </View>
@@ -85,7 +94,7 @@ export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: 
   );
 };
 
-export const KnockCard = ({ name, look, onAllow, onLater }: { name: string; look: Look; onAllow: () => void; onLater: () => void }) => {
+export const KnockCard = ({ name, look, onAnswer, onGone }: { name: string; look: Look; onAnswer: (allow: boolean) => void; onGone: () => void }) => {
   const worldName = useWorldName();
   const display = worldName(name);
   return (
@@ -98,8 +107,9 @@ export const KnockCard = ({ name, look, onAllow, onLater }: { name: string; look
       yesTestID="world-knock-allow"
       laterTestID="world-knock-later"
       testID="world-knock"
-      onYes={onAllow}
-      onLater={onLater}
+      onPick={onAnswer}
+      onYes={onGone}
+      onLater={onGone}
     />
   );
 };

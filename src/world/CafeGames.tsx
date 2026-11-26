@@ -934,12 +934,7 @@ export const CafeLayer = ({
           busy={busy}
           onMove={(index) => move(game.id, index)}
           onGiveUp={() => void games.giveUp(game.id).then(say)}
-          onRematch={() =>
-            void games.rematch(game.id).then((problem) => {
-              say(problem);
-              if (problem) setClosedGame(game.id);
-            })
-          }
+          onRematch={() => void games.rematch(game.id).then(say)}
           onClose={() => setClosedGame(game.id)}
           onSeen={seen}
           onTop={onSheetTop}

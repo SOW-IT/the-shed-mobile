@@ -1684,6 +1684,7 @@ export const invites = query({
 });
 
 const INVITES_SHOWN = 5;
+const KNOCKS_SCAN = 50;
 
 export const knock = mutation({
   args: { memberId: v.id("worldMembers") },
@@ -1723,10 +1724,11 @@ export const knocks = query({
       .query("worldKnocks")
       .withIndex("by_owner_and_at", (q) => q.eq("owner", email))
       .order("desc")
-      .take(INVITES_SHOWN);
+      .take(KNOCKS_SCAN);
     const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, email) : null;
     const out = [];
     for (const row of rows) {
+      if (out.length >= INVITES_SHOWN) break;
       if (row.expiresAt <= now) continue;
       if (isBlocked !== null && (await isBlocked(row.guest))) continue;
       const look = withHeight((await savedLook(ctx, row.guest))?.look ?? lookFor(row.guest), row.guest);

@@ -591,6 +591,25 @@ describe("asking to visit someone's home", () => {
     expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toEqual([]);
   });
 
+  test("newer requests from blocked guests don't push out an older request", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, BEN).mutation(api.world.knock, { memberId: annaId });
+    for (let i = 0; i < 6; i++) {
+      const guest = asUser(t, `guest${i}@sow.org.au`);
+      later(1000);
+      await guest.mutation(api.world.join, {});
+      await guest.mutation(api.world.knock, { memberId: annaId });
+      await guest.mutation(api.world.block, { memberId: annaId });
+    }
+    const knocks = await anna.query(api.world.knocks, {});
+    expect(knocks).toHaveLength(1);
+    expect(knocks[0].at).toBeLessThan(Date.now() - 5000);
+  });
+
   test("letting in someone who already left reports they left and clears the request", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
