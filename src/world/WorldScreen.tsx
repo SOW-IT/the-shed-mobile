@@ -563,26 +563,31 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
 
-  // Walking away from the arcade closes its games. A walk is a line in time,
-  // not a stream of updates, so it checks as you go. Whether you've stood by
-  // the arcade lasts while its games are open, through a trip to the
-  // leaderboard, and starts again when they close.
+  // Walking away from the arcade closes its games as you set off: a new walk
+  // checks straight away, and a walk is a line in time, not a stream of
+  // updates, so it also checks as you go. Whether you've stood by the arcade
+  // lasts while its games are open, through a trip to the leaderboard, and
+  // starts again when they close.
   const arcadeNear = useRef(false);
   useEffect(() => {
     if (!arcadeOpen) arcadeNear.current = false;
   }, [arcadeOpen]);
   const watchArcade = arcadeOpen && !away && world.status === "in" && world.place === "garden";
+  const myWalk = world.people.find((p) => p.isMe)?.walk;
+  const [headedX, headedZ] = [myWalk?.toX, myWalk?.toZ];
   useEffect(() => {
     if (!watchArcade) return;
-    const id = setInterval(() => {
+    const check = () => {
       const { world: latest } = live.current;
-      const mine = latest.people.find((p) => p.isMe);
-      const step = arcadeStep(arcadeNear.current, mine?.walk ? posAt(mine.walk, latest.serverNow()) : null, OBJECT_SPOTS.arcade);
+      const walk = latest.people.find((p) => p.isMe)?.walk;
+      const step = arcadeStep(arcadeNear.current, walk ? posAt(walk, latest.serverNow()) : null, walk ? { x: walk.toX, z: walk.toZ } : null, OBJECT_SPOTS.arcade);
       arcadeNear.current = step.near;
       if (step.leave) setArcadeOpen(false);
-    }, 150);
+    };
+    check();
+    const id = setInterval(check, 150);
     return () => clearInterval(id);
-  }, [watchArcade]);
+  }, [watchArcade, headedX, headedZ]);
 
   useEffect(() => {
     if (seatTrip === null) return;
