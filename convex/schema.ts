@@ -286,6 +286,9 @@ export default defineSchema({
     text: v.string(),
     at: v.number(),
     kind: v.optional(v.union(v.literal("join"), v.literal("leave"))),
+    // Said in a backyard to the whole World. Other lines from a home or a
+    // backyard stay in that room, as did backyard lines said before this.
+    toWorld: v.optional(v.boolean()),
   })
     .index("by_roomId_and_at", ["roomId", "at"])
     .index("by_roomId_and_email_and_at", ["roomId", "email", "at"])
