@@ -1,0 +1,141 @@
+appId: au.org.sow.theshed
+---
+# The World's chat in the backyard: the chat box is there, what you say shows
+# in the log, and out in the Garden the line is still there, tagged
+# [Backyard]. Then back into the backyard, and the chat is there again.
+#
+# A chat line's label is what it says and where it was said ("You said …,
+# in Backyard") (view.ts saidLabel). The web check (two people) runs first
+# on this backend and account, so you may already be in the backyard.
+- openLink: "theshedmobile://world"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: world-title
+        text: ".*backyard.*"
+    commands:
+      - tapOn:
+          id: world-title
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # Home from the menu, unless you're home already (no such entry then).
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-home
+          commands:
+            - tapOn:
+                id: world-menu-home
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-close
+          commands:
+            - tapOn:
+                id: world-menu-close
+      - extendedWaitUntil:
+          visible: "Go to Backyard"
+          timeout: 30000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn: "Go to Backyard"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: ".*backyard.*"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: world-chat-input
+- takeScreenshot: "${OUT}/check-backyard-chat-arrived"
+# Talking in the backyard.
+- tapOn:
+    id: world-chat-input
+- inputText: "Hello from the backyard on iOS"
+- tapOn:
+    id: world-send
+- extendedWaitUntil:
+    visible: "You said Hello from the backyard on iOS"
+    timeout: 15000
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-backyard-chat-said"
+# Out to the Garden: the line is still there, tagged [Backyard].
+- tapOn:
+    id: world-title
+- tapOn:
+    id: world-menu-garden
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: ".*Garden.*"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "You said Hello from the backyard on iOS, in Backyard"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-backyard-chat-garden"
+# And back in: the chat box and the line are there again.
+- runFlow:
+    commands:
+      - tapOn:
+          id: world-title
+      - waitForAnimationToEnd:
+          timeout: 2000
+      # Home from the menu, unless you're home already (no such entry then).
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-home
+          commands:
+            - tapOn:
+                id: world-menu-home
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-close
+          commands:
+            - tapOn:
+                id: world-menu-close
+      - extendedWaitUntil:
+          visible: "Go to Backyard"
+          timeout: 30000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn: "Go to Backyard"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: ".*backyard.*"
+    timeout: 30000
+- assertVisible:
+    id: world-chat-input
+- extendedWaitUntil:
+    visible: "You said Hello from the backyard on iOS, in Backyard"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-backyard-chat-back"
+# Back to the Garden, where the checks after this one expect to start.
+- tapOn:
+    id: world-title
+- tapOn:
+    id: world-menu-garden
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: ".*Garden.*"
+    timeout: 30000
