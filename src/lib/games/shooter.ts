@@ -139,12 +139,12 @@ const growth = (time: number, score = 0) => Math.log1p(shooterWave(time, score) 
 /** Seconds between enemies: about one a second at first, faster with time and score. */
 export const spawnInterval = (time: number, score = 0) => {
   const t = difficultyTime(time, score);
-  return Math.max(0.55, 1.35 - t * 0.011) - (0.55 - SHOOTER.spawnFloor) * tightening(time, score);
+  return Math.max(0.38, 1.05 - t * 0.011) - (0.38 - SHOOTER.spawnFloor) * tightening(time, score);
 };
 
 export const fireInterval = (time: number, score = 0) => {
   const t = difficultyTime(time, score);
-  return Math.max(1.25, 2.7 - t * 0.02) - (1.25 - SHOOTER.fireFloor) * tightening(time, score);
+  return Math.max(1.3, 2.8 - t * 0.02) - (1.3 - SHOOTER.fireFloor) * tightening(time, score);
 };
 export const bulletSpeed = (time: number, score = 0) => {
   const t = difficultyTime(time, score);
@@ -152,7 +152,7 @@ export const bulletSpeed = (time: number, score = 0) => {
 };
 export const enemySpeedUp = (time: number, score = 0) => {
   const t = difficultyTime(time, score);
-  return Math.min(45, t * 0.65) + SHOOTER.enemyGrowth * growth(time, score);
+  return Math.min(75, t * 1.1) + SHOOTER.enemyGrowth * growth(time, score);
 };
 export const bigShare = (time: number, score = 0) =>
   SHOOTER.firstBigShare + (SHOOTER.mostBigShare - SHOOTER.firstBigShare) * tightening(time, score);
@@ -191,7 +191,7 @@ const spawnEnemy = (state: ShooterState): Enemy => {
   const big = !giant && t > 25 && random(state) < bigShare(state.time, state.score);
   const fast = !giant && !big && random(state) < fastShare(state.score);
   const kind: Enemy["kind"] = giant ? "giant" : big ? "big" : fast ? "fast" : "small";
-  const baseSpeed = between(state, 42, 74) + enemySpeedUp(state.time, state.score);
+  const baseSpeed = between(state, 65, 110) + enemySpeedUp(state.time, state.score);
   const speed = giant ? baseSpeed * SHOOTER_V2.giantSpeedShare : fast ? baseSpeed * SHOOTER_V2.fastSpeedShare : baseSpeed;
   const edge = random(state);
   const m = SHOOTER.margin;

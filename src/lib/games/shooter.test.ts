@@ -149,10 +149,10 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
     expect(run(1)).not.toBe(run(2));
     for (let time = 0; time < 75; time += 0.5) {
       expect(shooterWave(time)).toBe(0);
-      expect(spawnInterval(time)).toBe(Math.max(0.55, 1.35 - time * 0.011));
-      expect(fireInterval(time)).toBe(Math.max(1.25, 2.7 - time * 0.02));
+      expect(spawnInterval(time)).toBe(Math.max(0.38, 1.05 - time * 0.011));
+      expect(fireInterval(time)).toBe(Math.max(1.3, 2.8 - time * 0.02));
       expect(bulletSpeed(time)).toBe(Math.min(180, 100 + time * 1.1));
-      expect(enemySpeedUp(time)).toBe(Math.min(45, time * 0.65));
+      expect(enemySpeedUp(time)).toBe(Math.min(75, time * 1.1));
       expect(bigShare(time)).toBe(0.2);
     }
   });
