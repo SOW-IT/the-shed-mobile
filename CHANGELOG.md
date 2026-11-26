@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.41] - 2026-11-27
+
+### Fixed
+- **The hoodie is one hoodie from every side, and it turns with the body.**
+  The hood was three separate shapes that took turns: a head-sized ball
+  behind the head when facing the camera, a second lump at a fixed spot
+  side-on, and a smaller drape over the back when facing away. They were
+  different sizes in different places, so at some angles two or three
+  showed at once and the hood jumped as someone turned. The hood's edge,
+  the drawstrings and the pocket were drawn flat at the front whichever way
+  the person faced. Now the hood is one pouch on the upper back that
+  slides round as the body turns (like the backpack), and the edge round
+  the neck, the drawstrings and the pocket sit on the body like the
+  collared shirt's and the jacket's pieces: they turn with it, and hide
+  from behind. It leans, bobs and stretches with the body, not the head.
+
 ## [2.13.40] - 2026-11-27
 
 ### Fixed
