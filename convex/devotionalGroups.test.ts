@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { completionTier } from "../shared/devotionalGroups";
+import {
+  completionTier,
+  DEFAULT_POKE_MESSAGE,
+  GROUP_POKE_COOLDOWN_MS,
+  MAX_POKE_MESSAGE_LENGTH,
+} from "../shared/devotionalGroups";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { asUser, newConvex } from "../test/convexFixture";
@@ -1309,5 +1314,193 @@ describe("past groups", () => {
       paginationOpts: { numItems: 10, cursor: null },
     });
     expect(past.page.map((g) => g.id)).toEqual([ended]);
+  });
+});
+
+describe("devotional group poke", () => {
+  test("requires auth, membership, active date range, finished sender, and valid message", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    const dan = asUser(t, DAN);
+
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "Morning Crew",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "passage",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+
+    // Unauthenticated
+    await expect(t.mutation(api.devotionalGroups.poke, { groupId })).rejects.toThrow(/signed in/);
+    // Non-member & pending invitee
+    await expect(dan.mutation(api.devotionalGroups.poke, { groupId })).rejects.toThrow(/aren't in this group/);
+    await expect(cara.mutation(api.devotionalGroups.poke, { groupId })).rejects.toThrow(/aren't in this group/);
+
+    // Future / ended group
+    const { groupId: futureGroup } = await anna.mutation(api.devotionalGroups.create, {
+      name: "December Crew",
+      startDate: "2026-12-01",
+      endDate: "2026-12-31",
+      sharingLevel: "count",
+    });
+    await expect(anna.mutation(api.devotionalGroups.poke, { groupId: futureGroup })).rejects.toThrow(
+      /isn't active today/
+    );
+
+    // Sender hasn't done today's devotional yet
+    await expect(anna.mutation(api.devotionalGroups.poke, { groupId })).rejects.toThrow(
+      /Finish today's devotional/
+    );
+
+    // Finish today's devotional for Anna
+    await anna.mutation(api.devotionals.save, {
+      date: "2026-11-25",
+      passage: "Psalm 23",
+      notes: "",
+      prayerPoints: "",
+      base: null,
+    });
+
+    // Message too long
+    await expect(
+      anna.mutation(api.devotionalGroups.poke, {
+        groupId,
+        message: "x".repeat(MAX_POKE_MESSAGE_LENGTH + 1),
+      })
+    ).rejects.toThrow(/at most/);
+
+    // Everyone already done does NOT consume cooldown
+    await ben.mutation(api.devotionals.save, {
+      date: "2026-11-25",
+      passage: "John 3:16",
+      notes: "",
+      prayerPoints: "",
+      base: null,
+    });
+    await expect(anna.mutation(api.devotionalGroups.poke, { groupId })).rejects.toThrow(
+      /Everyone has already done/
+    );
+    const groupAfterAllDone = await anna.query(api.devotionalGroups.getGroup, {
+      groupId,
+      today: "2026-11-25",
+    });
+    expect(groupAfterAllDone?.kind === "member" && groupAfterAllDone.pokeAgainAt).toBe(0);
+
+    // Missing group
+    await anna.mutation(api.devotionalGroups.removeGroup, { groupId: futureGroup });
+    await expect(anna.mutation(api.devotionalGroups.poke, { groupId: futureGroup })).rejects.toThrow(
+      /Group not found/
+    );
+  });
+
+  test("pokes only unfinished accepted members with custom or default message and enforces 1-hour group cooldown", async () => {
+    const t = newConvex();
+    await seedUsers(t);
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+
+    const { groupId } = await anna.mutation(api.devotionalGroups.create, {
+      name: "Romans Study",
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+      sharingLevel: "passage",
+    });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: BEN });
+    await ben.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: CARA });
+    await cara.mutation(api.devotionalGroups.respondInvite, { groupId, accept: true });
+    // Dan is only invited (not yet accepted) and must not be poked
+    await anna.mutation(api.devotionalGroups.invite, { groupId, email: DAN });
+
+    // Clear invite notifications so we only inspect poke notifications
+    await t.run(async (ctx) => {
+      const existing = await ctx.db.query("notifications").collect();
+      for (const n of existing) await ctx.db.delete("notifications", n._id);
+    });
+
+    // Anna and Ben finish today; Cara has not
+    await anna.mutation(api.devotionals.save, {
+      date: "2026-11-25",
+      passage: "Romans 8:1-11",
+      notes: "",
+      prayerPoints: "",
+      base: null,
+    });
+    await ben.mutation(api.devotionals.save, {
+      date: "2026-11-25",
+      passage: "Romans 8:12-17",
+      notes: "",
+      prayerPoints: "",
+      base: null,
+    });
+
+    // Non-owner finished member (Ben) can poke with a custom message
+    const pokeAt = NOW + 10_000;
+    vi.setSystemTime(pokeAt);
+    const first = await ben.mutation(api.devotionalGroups.poke, {
+      groupId,
+      message: "  Let's finish  Romans 8!\n",
+    });
+    expect(first).toEqual({ ok: true, pokedCount: 1 });
+
+    // Only Cara gets the poke notification (not Anna who is done, not Ben who sent it, not Dan who is only invited)
+    const notes = await t.run((ctx) => ctx.db.query("notifications").collect());
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({
+      userEmail: CARA,
+      title: "Ben poked Romans Study",
+      body: "Let's finish Romans 8!",
+      url: "/devotionals/2026-11-25",
+      devotionalGroupId: groupId,
+      read: false,
+    });
+
+    // Verify push.sendMany was scheduled with the exact recipient and payload
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const pushJob = scheduled.find((j) => j.name === "push:sendMany");
+    expect(pushJob).toBeTruthy();
+    expect(pushJob!.args).toEqual([
+      {
+        to: [CARA],
+        title: "Ben poked Romans Study",
+        body: "Let's finish Romans 8!",
+        url: "/devotionals/2026-11-25",
+      },
+    ]);
+
+    // getGroup reports pokeAgainAt = pokeAt + 1 hour
+    const groupState = await anna.query(api.devotionalGroups.getGroup, {
+      groupId,
+      today: "2026-11-25",
+    });
+    expect(groupState?.kind === "member" && groupState.pokeAgainAt).toBe(pokeAt + GROUP_POKE_COOLDOWN_MS);
+
+    // Cooldown is per group: Anna (a different finished member) is blocked for the remaining hour
+    vi.setSystemTime(pokeAt + 20 * 60_000);
+    const blocked = await anna.mutation(api.devotionalGroups.poke, { groupId, message: "Second try" });
+    expect(blocked).toEqual({ ok: false, retryInMs: 40 * 60_000 });
+
+    // After 1 hour, Anna can poke with blank message (uses DEFAULT_POKE_MESSAGE)
+    vi.setSystemTime(pokeAt + GROUP_POKE_COOLDOWN_MS);
+    const second = await anna.mutation(api.devotionalGroups.poke, { groupId, message: "   " });
+    expect(second).toEqual({ ok: true, pokedCount: 1 });
+
+    const caraNotes = await t.run((ctx) =>
+      ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", CARA)).collect()
+    );
+    expect(caraNotes).toHaveLength(2);
+    expect(caraNotes[1]).toMatchObject({
+      title: "Anna poked Romans Study",
+      body: DEFAULT_POKE_MESSAGE,
+      url: "/devotionals/2026-11-25",
+      devotionalGroupId: groupId,
+    });
   });
 });
