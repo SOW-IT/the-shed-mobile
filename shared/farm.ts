@@ -7,12 +7,18 @@ const SYDNEY_AEST_OFFSET_MS = 10 * HOUR_MS;
 const SYDNEY_AEDT_OFFSET_MS = 11 * HOUR_MS;
 
 /** Exact UTC ms of 00:00:00 in Australia/Sydney on a YYYY-MM-DD calendar date. */
+const midnights = new Map<string, number>();
+
 export const sydneyMidnight = (date: string): number => {
+  const known = midnights.get(date);
+  if (known !== undefined) return known;
   const [y, m, d] = date.split("-").map(Number);
   const utc = Date.UTC(y, m - 1, d);
   const aedt = utc - SYDNEY_AEDT_OFFSET_MS;
   const check = sydneyDateTime(aedt);
-  return check.date === date && check.hour === 0 ? aedt : utc - SYDNEY_AEST_OFFSET_MS;
+  const midnight = check.date === date && check.hour === 0 ? aedt : utc - SYDNEY_AEST_OFFSET_MS;
+  midnights.set(date, midnight);
+  return midnight;
 };
 
 const dayDiff = (a: string, b: string): number => {

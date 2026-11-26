@@ -92,8 +92,10 @@ export const firstNameOf = (name: string | null | undefined): string => {
   return first || "Someone";
 };
 
+let sydneyParts: Intl.DateTimeFormat | null = null;
+
 export const sydneyDateTime = (ms: number): { date: string; hour: number; minute: number } => {
-  const parts = new Intl.DateTimeFormat("en-AU", {
+  sydneyParts ??= new Intl.DateTimeFormat("en-AU", {
     timeZone: SYDNEY_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
@@ -101,7 +103,8 @@ export const sydneyDateTime = (ms: number): { date: string; hour: number; minute
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(ms);
+  });
+  const parts = sydneyParts.formatToParts(ms);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "";
   return {

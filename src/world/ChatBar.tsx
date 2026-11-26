@@ -100,7 +100,7 @@ export const ChatBar = ({
     }
   };
 
-  const remaining = MAX_SAY_LENGTH - Array.from(draft).length;
+  const remaining = MAX_SAY_LENGTH - draft.length;
   const showCount = remaining <= 20;
 
   return (

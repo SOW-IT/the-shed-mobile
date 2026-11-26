@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { CropId } from "./farm";
+import { shiftDay } from "./calendar";
+import { sydneyDateTime } from "./devotionalGroups";
 import {
   bagStacks,
   CROP_IDS,
@@ -142,6 +144,36 @@ describe("watering windows", () => {
     expect(sydneyMidnight("2026-10-05") - sydneyMidnight("2026-10-04")).toBe(23 * HOUR);
     expect(sydneyMidnight("2026-04-06") - sydneyMidnight("2026-04-05")).toBe(25 * HOUR);
     expect(farmWindowIndex(mid26 - 2 * MINUTE, mid27)).toBe(1);
+  });
+});
+
+describe("Sydney midnights across daylight saving", () => {
+  test("every midnight from 2025 to 2029 is 00:00 on its own date, so days run 23, 24 or 25 hours", () => {
+    const wrong: string[] = [];
+    const lengths = new Set<number>();
+    for (let date = "2025-01-01"; date < "2030-01-01"; date = shiftDay(date, 1)) {
+      const at = sydneyMidnight(date);
+      const there = sydneyDateTime(at);
+      if (there.date !== date || there.hour !== 0 || there.minute !== 0 || sydneyDateTime(at - 1).date === date) wrong.push(date);
+      lengths.add((sydneyMidnight(shiftDay(date, 1)) - at) / HOUR);
+    }
+    expect(wrong).toEqual([]);
+    expect([...lengths].sort()).toEqual([23, 24, 25]);
+  });
+
+  test("windows touch end to end and index back to themselves when planted around a clock change", () => {
+    const gaps: string[] = [];
+    for (const date of ["2026-10-03", "2026-10-04", "2026-10-05", "2027-04-03", "2027-04-04", "2027-04-05"]) {
+      for (const offset of [-HOUR, -MINUTE, 0, MINUTE, 2 * HOUR, 2.5 * HOUR, 3 * HOUR, 22 * HOUR + 59 * MINUTE]) {
+        const origin = sydneyMidnight(date) + offset;
+        for (let k = 0; k < 6; k++) {
+          const { start, end } = farmWindow(origin, k);
+          if (end !== farmWindow(origin, k + 1).start) gaps.push(`${date} ${offset} window ${k} gap`);
+          if (farmWindowIndex(origin, start) !== k || farmWindowIndex(origin, end - 1) !== k) gaps.push(`${date} ${offset} window ${k} index`);
+        }
+      }
+    }
+    expect(gaps).toEqual([]);
   });
 });
 
