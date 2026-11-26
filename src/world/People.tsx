@@ -335,6 +335,7 @@ export const PeoplePanel = ({
   onPerson,
   onWalkOver,
   onInvite,
+  onAskToVisit,
   onClose,
   pokeListOpen = false,
   playing,
@@ -348,6 +349,7 @@ export const PeoplePanel = ({
   onPerson: (memberId: string) => void;
   onWalkOver: (memberId: string) => void;
   onInvite: (memberId: Id<"worldMembers">, name: string) => void;
+  onAskToVisit: (memberId: Id<"worldMembers">, name: string) => void;
   onClose: () => void;
   pokeListOpen?: boolean;
   playing?: ReadonlyMap<string, string>;
@@ -438,7 +440,18 @@ export const PeoplePanel = ({
                   label={row.at ? `${worldName(row.name)}, ${whereIs(row.at)}` : worldName(row.name)}
                   action={
                     row.at ? (
-                      <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${worldName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
+                      <>
+                        <GlassPill icon="mail" onPress={() => onInvite(row.memberId, row.name)} accessibilityLabel={`Invite ${worldName(row.name)} to your home`} testID={`world-invite-${row.memberId}`} />
+                        {row.at === "home" ? (
+                          <GlassPill
+                            icon={{ material: "exit-run" }}
+                            tone="accent"
+                            onPress={() => onAskToVisit(row.memberId, row.name)}
+                            accessibilityLabel={`Ask to visit ${worldName(row.name)}'s home`}
+                            testID={`world-knock-${row.memberId}`}
+                          />
+                        ) : null}
+                      </>
                     ) : null
                   }
                 />
