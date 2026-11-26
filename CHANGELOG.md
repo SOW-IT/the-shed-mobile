@@ -39,9 +39,10 @@ All notable changes to **The SHED** mobile app. This project follows
   plane upgrades to double shot at 3,000, double + diagonal cone at 6,000,
   triple + diagonal cone at 10,000, and all-around 360° fire at 15,000.
   Enemies ramp harder and harder as your score climbs toward 10,000 and
-  beyond—spawning faster, shooting faster, unlocking new bullet patterns
-  earlier, gaining more health, bringing faster golden enemies from 6,000,
-  and spawning giant, slow enemies from 10,000 that shoot 360° rings all
+  beyond—spawning faster, shooting faster, unlocking big-enemy patterns
+  earlier, gaining more health, bringing faster golden enemies from 6,000
+  that fire a 3-shot spread (while basic enemies stay single-shot), and
+  spawning giant, slow enemies from 10,000 that shoot 360° rings all
   around them. From 75 seconds a new wave every 30 seconds keeps pushing
   enemy count, speed and patterns even further.
 - **Swoop** counts days, not worlds. Day 1 lasts 30 seconds and each day

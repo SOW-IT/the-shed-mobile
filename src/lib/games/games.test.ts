@@ -104,8 +104,8 @@ describe("shooter", () => {
 
   test("enemies come in from outside the edges, faster as time goes on", () => {
     expect(spawnInterval(0)).toBeGreaterThan(spawnInterval(60));
-    expect(spawnInterval(70)).toBe(0.45);
-    expect(spawnInterval(1000)).toBeLessThan(0.45);
+    expect(spawnInterval(74)).toBe(0.55);
+    expect(spawnInterval(1000)).toBeLessThan(0.55);
     expect(spawnInterval(1000)).toBeGreaterThan(SHOOTER.spawnFloor);
     let state = newShooter(360, 640, 3);
     const seen: { x: number; y: number }[] = [];

@@ -149,10 +149,10 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
     expect(run(1)).not.toBe(run(2));
     for (let time = 0; time < 75; time += 0.5) {
       expect(shooterWave(time)).toBe(0);
-      expect(spawnInterval(time)).toBe(Math.max(0.45, 1.2 - time * 0.011));
-      expect(fireInterval(time)).toBe(Math.max(1.0, 2.4 - time * 0.02));
-      expect(bulletSpeed(time)).toBe(Math.min(230, 130 + time * 1.4));
-      expect(enemySpeedUp(time)).toBe(Math.min(60, time * 0.9));
+      expect(spawnInterval(time)).toBe(Math.max(0.55, 1.35 - time * 0.011));
+      expect(fireInterval(time)).toBe(Math.max(1.25, 2.7 - time * 0.02));
+      expect(bulletSpeed(time)).toBe(Math.min(180, 100 + time * 1.1));
+      expect(enemySpeedUp(time)).toBe(Math.min(45, time * 0.65));
       expect(bigShare(time)).toBe(0.2);
     }
   });
@@ -181,10 +181,12 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
     expect(patternsAt(240)).toEqual(["double", "ring", "wideFan"]);
     expect(patternsAt(360)).toEqual(["double", "ring", "wideFan", "burst"]);
     const small = { kind: "small" as const };
+    const fast = { kind: "fast" as const };
     const big = (volleys: number) => ({ kind: "big" as const, volleys });
     expect(volleyOf(small, 100)).toEqual({ spread: [0], ring: false });
-    expect(volleyOf(small, PATTERN_FROM.double).spread).toHaveLength(2);
-    expect(volleyOf(small, PATTERN_FROM.burst).spread).toHaveLength(3);
+    expect(volleyOf(small, PATTERN_FROM.double)).toEqual({ spread: [0], ring: false });
+    expect(volleyOf(small, PATTERN_FROM.burst)).toEqual({ spread: [0], ring: false });
+    expect(volleyOf(fast, 0, 6000).spread).toHaveLength(3);
     expect(volleyOf(big(1), 100).spread).toHaveLength(5);
     expect(volleyOf(big(0), PATTERN_FROM.ring).ring).toBe(false);
     expect(volleyOf(big(1), PATTERN_FROM.ring).ring).toBe(true);
