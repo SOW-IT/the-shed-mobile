@@ -197,7 +197,7 @@ export const MenuRow = ({
   <Animated.View style={style}>
     <Pressable
       onPress={onPress}
-      disabled={!onPress}
+      // A row with nothing to press stays enabled, so buttons inside it (Add bot) aren't read as disabled on the web.
       accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={label ?? [title, meta, status, playingLabel].filter(Boolean).join(", ")}
       testID={testID}
