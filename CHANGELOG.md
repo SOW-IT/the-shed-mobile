@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.23] - 2026-11-26
+## [2.13.24] - 2026-11-26
 
 ### Changed
 - **The World's chat reaches your backyard, both ways.** What you say in a
@@ -20,6 +20,17 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Your backyard lines are still there after you leave and come back.**
   An empty backyard closes when you leave, so your earlier lines used to
   vanish with it. They now stay in the chat for the hour, like the rest.
+
+## [2.13.23] - 2026-11-26
+
+### Added
+- **A Go back button on every game-over card.** When a run ends in Sky
+  Shooter, Mystic Man, Flap or Swoop, the card now has Go back under Play
+  again and Leaderboard. It takes you straight back to the Games list, or to
+  the arcade over the World if that's where you opened the game. Each game
+  colours it its own way: night sky and laser blue in Sky Shooter, purple
+  hills and gold in Mystic Man, a green pipe in Flap, and the bird's teal and
+  cream in Swoop.
 
 ## [2.13.22] - 2026-11-26
 
