@@ -732,7 +732,7 @@ export const LOOK_SIZES = {
   hat: 10,
   accessory: 8,
   face: 5,
-  eyes: 8,
+  eyes: 16,
   eyeColour: 6,
   brows: 5,
   nose: 4,
@@ -882,7 +882,7 @@ export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf", "Bow tie", "
 export const OLD_GLASSES = 1;
 export const GLASSES = ["None", "Round", "Square", "Sunglasses", "Big round", "Clear"] as const;
 export const FACES = ["Round", "Oval", "Square", "Heart", "Long"] as const;
-export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow", "Lashes", "Almond"] as const;
+export const EYES = ["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow", "Lashes", "Almond", "Cat", "Puppy", "Starry", "Hearts", "Tiny", "Anime", "Wink", "Sharp"] as const;
 export const BROWS = ["None", "Soft", "Straight", "Arched", "Thick"] as const;
 export const NOSES = ["None", "Dot", "Button", "Pointy"] as const;
 export const MOUTHS = ["None", "Smile", "Grin", "Small", "Flat", "Cat", "Tongue out"] as const;

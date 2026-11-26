@@ -264,6 +264,18 @@ test("every choice list has one name per choice", () => {
   for (const [part, names] of Object.entries(lists)) expect([part, names.length]).toEqual([part, LOOK_SIZES[part as keyof typeof lists]]);
 });
 
+test("eye shapes grow by appending, so a saved shape keeps its meaning", () => {
+  const plain = { skin: 0, hair: 0, hairColour: 0, shirt: 0 };
+  expect(EYES.slice(0, 8)).toEqual(["Dots", "Round", "Sleepy", "Sparkly", "Wide", "Narrow", "Lashes", "Almond"]);
+  expect(EYES.slice(8)).toEqual(["Cat", "Puppy", "Starry", "Hearts", "Tiny", "Anime", "Wink", "Sharp"]);
+  for (let eyes = 0; eyes < EYES.length; eyes++) {
+    expect(isValidLook({ ...plain, v: LOOK_VERSION, eyes })).toBe(true);
+    expect(lookPart({ ...plain, eyes }, "eyes")).toBe(eyes);
+  }
+  expect(isValidLook({ ...plain, eyes: EYES.length })).toBe(false);
+  expect(lookPart({ ...plain, eyes: EYES.length }, "eyes")).toBe(0);
+});
+
 describe("version 3 looks", () => {
   const v2 = { v: 2, skin: 2, hair: 10, hairColour: 4, shirt: 3, face: 3, eyes: 3, eyeColour: 2, brows: 2, nose: 1, mouth: 2, height: 4, build: 0, freckles: 1, blush: 2, beard: 3, accessory: 2 };
   const v3 = {

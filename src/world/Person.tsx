@@ -1232,6 +1232,11 @@ const AvatarView = ({
         {children}
       </View>
     );
+  const happyEye = (
+    <View
+      style={[styles.abs, { left: c - 0.06 * s, top: c - 0.05 * s, width: 0.12 * s, height: 0.12 * s, borderRadius: s, borderTopWidth: 0.03 * s, borderLeftWidth: 0.03 * s, borderRightWidth: 0.03 * s, borderBottomWidth: 0, borderColor: people.eye, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent" }]}
+    />
+  );
   for (const e of [-1, 1]) {
     const depth = -0.15 * e * side + 0.39 * facing;
     if (depth < 0.08) continue;
@@ -1259,6 +1264,70 @@ const AvatarView = ({
           <View style={[styles.abs, { left: 0.07 * s, top: 0.015 * s, width: 0.03 * s, height: 0.03 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
         </View>
       );
+    } else if (eye === "dot" && eyeStyle === 8) {
+      // Cat: an almond tipped up at the outer corner, with a slit pupil.
+      const out = e > 0 ? { borderTopLeftRadius: s, borderBottomLeftRadius: s, borderTopRightRadius: 0.015 * s, borderBottomRightRadius: s } : { borderTopRightRadius: s, borderBottomRightRadius: s, borderTopLeftRadius: 0.015 * s, borderBottomLeftRadius: s };
+      shape = (
+        <View style={[styles.abs, { left: c - 0.075 * s, top: c - 0.05 * s, width: 0.15 * s, height: 0.1 * s, backgroundColor: iris, alignItems: "center", justifyContent: "center", transform: [{ rotate: `${-0.3 * e}rad` }] }, out]}>
+          <View style={{ width: 0.026 * s, height: 0.085 * s, borderRadius: s, backgroundColor: people.eye }} />
+        </View>
+      );
+    } else if (eye === "dot" && eyeStyle === 9) {
+      // Puppy: big and round, under a lid that droops at the outer corner.
+      shape = (
+        <>
+          <View style={[styles.abs, { left: c - 0.06 * s, top: c - 0.065 * s, width: 0.12 * s, height: 0.15 * s, borderRadius: s, backgroundColor: iris }]}>
+            <View style={[styles.abs, { right: 0.014 * s, top: 0.02 * s, width: 0.05 * s, height: 0.05 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
+            <View style={[styles.abs, { left: 0.02 * s, bottom: 0.03 * s, width: 0.022 * s, height: 0.022 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
+          </View>
+          <View style={[styles.abs, { left: c - 0.065 * s + e * 0.012 * s, top: c - 0.085 * s, width: 0.13 * s, height: 0.024 * s, borderRadius: s, backgroundColor: people.eye, transform: [{ rotate: `${0.35 * e}rad` }] }]} />
+        </>
+      );
+    } else if (eye === "dot" && eyeStyle === 10) {
+      // Starry: a twinkle for a pupil.
+      shape = (
+        <View style={[styles.abs, { left: c - 0.055 * s, top: c - 0.07 * s, width: 0.11 * s, height: 0.14 * s, borderRadius: s, backgroundColor: iris, alignItems: "center", justifyContent: "center" }]}>
+          {[0, 45].map((turn) => (
+            <View key={`star${turn}`} style={[styles.abs, { width: 0.045 * s, height: 0.045 * s, borderRadius: 0.006 * s, backgroundColor: people.eyeShine, transform: [{ rotate: `${turn}deg` }] }]} />
+          ))}
+        </View>
+      );
+    } else if (eye === "dot" && eyeStyle === 11) {
+      // Hearts: a square on its corner with a round lobe on each upper side.
+      const a = 0.075 * s;
+      const lobe = a * 0.354;
+      shape = (
+        <View style={[styles.abs, { left: c - a / 2, top: c - a / 2 + 0.1 * a, width: a, height: a }]}>
+          <View style={[styles.abs, { left: 0, top: 0, width: a, height: a, backgroundColor: iris, transform: [{ rotate: "45deg" }] }]} />
+          {[-1, 1].map((k) => (
+            <View key={`lobe${k}`} style={[styles.abs, { left: k * lobe, top: -lobe, width: a, height: a, borderRadius: s, backgroundColor: iris }]} />
+          ))}
+          <View style={[styles.abs, { left: -lobe + a * 0.25, top: -lobe + a * 0.2, width: a * 0.3, height: a * 0.3, borderRadius: s, backgroundColor: people.eyeShine }]} />
+        </View>
+      );
+    } else if (eye === "dot" && eyeStyle === 12) {
+      // Tiny: small button dots.
+      shape = <View style={[styles.abs, { left: c - 0.032 * s, top: c - 0.038 * s, width: 0.064 * s, height: 0.076 * s, borderRadius: s, backgroundColor: iris }]} />;
+    } else if (eye === "dot" && eyeStyle === 13) {
+      // Anime: a tall white eye, a big iris with two shines and a heavy top lash.
+      shape = (
+        <View style={[styles.abs, { left: c - 0.075 * s, top: c - 0.1 * s, width: 0.15 * s, height: 0.19 * s, borderRadius: s, backgroundColor: people.eyeShine, borderColor: people.eye, borderWidth: 0.01 * s, borderTopWidth: 0.04 * s, overflow: "hidden" }]}>
+          <View style={[styles.abs, { left: 0.012 * s, top: 0.012 * s, width: 0.106 * s, height: 0.13 * s, borderRadius: s, backgroundColor: iris }]}>
+            <View style={[styles.abs, { left: 0.018 * s, top: 0.016 * s, width: 0.038 * s, height: 0.038 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
+            <View style={[styles.abs, { right: 0.018 * s, bottom: 0.02 * s, width: 0.02 * s, height: 0.02 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
+          </View>
+        </View>
+      );
+    } else if ((eye === "dot" && eyeStyle === 14 && e > 0) || eye === "happy") {
+      // Wink closes one eye in a smiling arc, as happy closes both.
+      shape = happyEye;
+    } else if (eye === "dot" && eyeStyle === 15) {
+      // Sharp: a half moon with a flat top that slopes down to the nose.
+      shape = (
+        <View style={[styles.abs, { left: c - 0.065 * s, top: c - 0.035 * s, width: 0.13 * s, height: 0.085 * s, borderBottomLeftRadius: s, borderBottomRightRadius: s, backgroundColor: iris, transform: [{ rotate: `${-0.28 * e}rad` }] }]}>
+          <View style={[styles.abs, { left: 0.055 * s, top: 0.012 * s, width: 0.026 * s, height: 0.026 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
+        </View>
+      );
     } else if (eye === "dot" || eye === "up") {
       const lookUp = eye === "up" ? -0.035 * s : 0;
       shape = (
@@ -1277,12 +1346,6 @@ const AvatarView = ({
               ))
             : null}
         </>
-      );
-    } else if (eye === "happy") {
-      shape = (
-        <View
-          style={[styles.abs, { left: c - 0.06 * s, top: c - 0.05 * s, width: 0.12 * s, height: 0.12 * s, borderRadius: s, borderTopWidth: 0.03 * s, borderLeftWidth: 0.03 * s, borderRightWidth: 0.03 * s, borderBottomWidth: 0, borderColor: people.eye, borderBottomColor: "transparent", borderLeftColor: "transparent", borderRightColor: "transparent" }]}
-        />
       );
     } else if (eye === "closed") {
       shape = <View style={[styles.abs, { left: c - 0.055 * s, top: c, width: 0.11 * s, height: 0.028 * s, borderRadius: s, backgroundColor: people.eye }]} />;
