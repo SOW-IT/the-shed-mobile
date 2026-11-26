@@ -991,6 +991,7 @@ export const OFFLINE_ALL_MAX = 200;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;
+export const KNOCK_MS = 2 * 60_000;
 export const ARRIVE_NEAR = 1.4;
 
 export const cleanPoke = (raw: string): string | null => {

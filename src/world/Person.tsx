@@ -9,6 +9,7 @@ import { bandOverHead, capShape, earCup, HAT_PITCH, hoodLayer, projectOnHead, ty
 import { FACE_MIN } from "./talk";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
+import { seatedFoot } from "./sitFoot";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -571,12 +572,10 @@ const AvatarView = ({
   }
   const seated = sit !== undefined;
   const feet = () => {
-    for (const e of [-1, 1]) {
+    for (const e of [-1, 1] as const) {
       const p = !seated
         ? { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up }
-        : sit > 0
-          ? { x: foot.x + (0.13 * e + side * 0.3) * s, y: foot.y - Math.max(0.08, sit - 0.12) * up + facing * 0.17 * s }
-          : { x: foot.x + (0.18 * e + side * 0.34) * s, y: foot.y - 0.06 * up + facing * 0.2 * s };
+        : seatedFoot({ foot, s, up, sit, facing, side, e });
       parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.favourites[favourite]} ink={ink * 0.8} inkColour={garden.ink} />);
     }
   };

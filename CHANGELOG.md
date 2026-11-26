@@ -25,6 +25,10 @@ All notable changes to **The SHED** mobile app. This project follows
   the winner's character cheers and the loser's cries over their head,
   for everyone in the World to see, the same as scissors paper rock. A
   draw does neither.
+- **Ask to visit someone's home when they're home.** In the World's People
+  panel, anyone currently at their home has an enter-door button next to
+  the invite button. Tapping it sends them a prompt to let you in, which
+  invites you straight to their home.
 
 ### Changed
 - **It's much more obvious when it's your turn in a Café game.** The game
@@ -38,6 +42,11 @@ All notable changes to **The SHED** mobile app. This project follows
   of waiting forever. If they leave before you ask, the Rematch button
   goes and the card says they left. This comes from the server, so it
   works even when their app was closed.
+
+### Fixed
+- **Feet on sideways seats now sit off to the side instead of dangling
+  down over the armrest**, such as on the Library armchairs and side
+  benches.
 
 ## [2.13.22] - 2026-11-26
 

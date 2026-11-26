@@ -7,41 +7,100 @@ import { hud } from "./palette";
 import { popShadow } from "./popShadow";
 import { useWorldName } from "./settings";
 
-export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
-  const [answer, setAnswer] = useState<"go" | "later" | null>(null);
-  const worldName = useWorldName();
+const HomeCard = ({
+  emoji,
+  text,
+  look,
+  yesLabel,
+  yesHint,
+  yesTestID,
+  laterTestID,
+  testID,
+  onYes,
+  onLater,
+}: {
+  emoji: string;
+  text: string;
+  look: Look;
+  yesLabel: string;
+  yesHint: string;
+  yesTestID: string;
+  laterTestID: string;
+  testID: string;
+  onYes: () => void;
+  onLater: () => void;
+}) => {
+  const [answer, setAnswer] = useState<"yes" | "later" | null>(null);
   const { mounted, shown: pop, calm } = usePresence(answer === null);
   const fired = useRef(false);
   useEffect(() => {
     if (mounted || answer === null || fired.current) return;
     fired.current = true;
-    if (answer === "go") onGo();
+    if (answer === "yes") onYes();
     else onLater();
-  }, [mounted, answer, onGo, onLater]);
+  }, [mounted, answer, onYes, onLater]);
   if (!mounted) return null;
   return (
     <Animated.View
       style={[styles.card, calm ? { opacity: pop } : { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}
       pointerEvents={answer === null ? "auto" : "none"}
-      testID="world-invite"
+      testID={testID}
       accessibilityLiveRegion="polite"
     >
       <View style={styles.top}>
         <Bust look={look} size={40} />
-        <Text style={styles.house}>🏠</Text>
+        <Text style={styles.house}>{emoji}</Text>
         <Text style={styles.text} numberOfLines={2}>
-          {`${worldName(name)} invited you home`}
+          {text}
         </Text>
       </View>
       <View style={styles.row}>
-        <Pressable onPress={() => setAnswer("go")} accessibilityRole="button" accessibilityLabel={`Go to ${worldName(name)}'s home`} testID="world-invite-go" style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
-          <Text style={styles.goText}>Go</Text>
+        <Pressable onPress={() => setAnswer("yes")} accessibilityRole="button" accessibilityLabel={yesHint} testID={yesTestID} style={({ pressed }) => [styles.go, pressed && styles.pressed]}>
+          <Text style={styles.goText}>{yesLabel}</Text>
         </Pressable>
-        <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID="world-invite-later" style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
+        <Pressable onPress={() => setAnswer("later")} accessibilityRole="button" accessibilityLabel="Not now" testID={laterTestID} style={({ pressed }) => [styles.later, pressed && styles.pressed]}>
           <Text style={styles.laterText}>Not now</Text>
         </Pressable>
       </View>
     </Animated.View>
+  );
+};
+
+export const InviteCard = ({ name, look, onGo, onLater }: { name: string; look: Look; onGo: () => void; onLater: () => void }) => {
+  const worldName = useWorldName();
+  const display = worldName(name);
+  return (
+    <HomeCard
+      emoji="🏠"
+      text={`${display} invited you home`}
+      look={look}
+      yesLabel="Go"
+      yesHint={`Go to ${display}'s home`}
+      yesTestID="world-invite-go"
+      laterTestID="world-invite-later"
+      testID="world-invite"
+      onYes={onGo}
+      onLater={onLater}
+    />
+  );
+};
+
+export const KnockCard = ({ name, look, onAllow, onLater }: { name: string; look: Look; onAllow: () => void; onLater: () => void }) => {
+  const worldName = useWorldName();
+  const display = worldName(name);
+  return (
+    <HomeCard
+      emoji="🚪"
+      text={`${display} wants to visit your home`}
+      look={look}
+      yesLabel="Let in"
+      yesHint={`Let ${display} into your home`}
+      yesTestID="world-knock-allow"
+      laterTestID="world-knock-later"
+      testID="world-knock"
+      onYes={onAllow}
+      onLater={onLater}
+    />
   );
 };
 
