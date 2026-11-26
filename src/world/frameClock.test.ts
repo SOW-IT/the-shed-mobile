@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { AMBIENT_FRAME_MS, frameDue, planClock, SAVER_FRAME_MS } from "./frameClock";
+import { AMBIENT_FRAME_MS, frameDue, planClock, SAVER_FRAME_MS, shouldRefreshClock } from "./frameClock";
 
 test("anything moving draws every frame, or every other frame on battery saver", () => {
   expect(planClock({ moving: true, now: 0, deadlines: [], saver: false })).toEqual({ kind: "frames", frameMs: 0 });
@@ -32,4 +32,13 @@ test("only someone treading water: a gentle 15 a second, nothing on battery save
 test("a covered or backgrounded World stops its clock, whatever is moving or due", () => {
   expect(planClock({ moving: true, paused: true, now: 0, deadlines: [], saver: false })).toEqual({ kind: "still" });
   expect(planClock({ moving: false, ambient: true, paused: true, now: 0, deadlines: [500], saver: false })).toEqual({ kind: "still" });
+});
+
+test("the stage clock refreshes on pause, resume, and live input changes, but not while staying paused or on animation ticks", () => {
+  expect(shouldRefreshClock({ wasPaused: true, paused: false, inputsChanged: true })).toBe(true);
+  expect(shouldRefreshClock({ wasPaused: false, paused: true, inputsChanged: true })).toBe(true);
+  expect(shouldRefreshClock({ wasPaused: false, paused: false, inputsChanged: true })).toBe(true);
+  expect(shouldRefreshClock({ wasPaused: false, paused: false, inputsChanged: false })).toBe(false);
+  expect(shouldRefreshClock({ wasPaused: true, paused: true, inputsChanged: true })).toBe(false);
+  expect(shouldRefreshClock({ wasPaused: true, paused: true, inputsChanged: false })).toBe(false);
 });

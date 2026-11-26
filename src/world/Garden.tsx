@@ -43,7 +43,7 @@ import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import type { PlayingTag } from "./cafe";
 import { duelLookFor, type DuelView } from "./duel";
-import { planClock, useFrameTicks } from "./frameClock";
+import { planClock, shouldRefreshClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
@@ -300,7 +300,19 @@ export const Garden = ({
   const saver = useBatterySaver();
   const [tagMode] = useWorldSetting("nameTags");
   const worldName = useWorldName();
-  const [now, setNow] = useState(serverNow);
+  const [clockAt, setClockAt] = useState(serverNow);
+  const [clockInputs, setClockInputs] = useState({ paused, people, ball, duels });
+  const inputsChanged =
+    clockInputs.paused !== paused ||
+    clockInputs.people !== people ||
+    clockInputs.ball !== ball ||
+    clockInputs.duels !== duels;
+  const refreshNow = shouldRefreshClock({ wasPaused: clockInputs.paused, paused, inputsChanged });
+  const now = refreshNow ? serverNow() : clockAt;
+  if (inputsChanged) {
+    setClockInputs({ paused, people, ball, duels });
+    if (refreshNow) setClockAt(now);
+  }
   // Your own walk as it is; others glide toward each new walk from the server.
   // A copy: a high five below steps people in and out of where they're drawn.
   const poses = [...useGlide(people, now)];
@@ -448,7 +460,7 @@ export const Garden = ({
       })),
     }),
     serverNow,
-    setNow
+    setClockAt
   );
   const t = now / 1000;
   const mine = me >= 0 ? poses[me] : null;
