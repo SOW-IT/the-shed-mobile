@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { currentStaffYear } from "./model";
 import { removeFromWorld } from "./world";
 import { START_COINS } from "../shared/coins";
 import { BACK_DOOR, DOOR_CLEAR, FURNITURE, HOME_CAP, HOME_DOOR, footprint, placementProblem } from "../shared/home";
-import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
+import { ARRIVE_APART, BUCKETS, HOME_ARRIVAL, INVITE_MS, KNOCK_MS, NPC, POKE_EVERY_MS, POKE_ARRIVAL_MS, ROOM_CAP, WALK_BOUNDS, distance, posAt } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -508,5 +508,133 @@ describe("decorating", () => {
     await anna.mutation(api.world.invite, { memberId });
     expect(await t.run((ctx) => ctx.db.query("worldInvites").collect())).toMatchObject([{ owner: ANNA, guest: BEN, at: expect.closeTo(Date.now(), -2) }]);
     expect(await anna.mutation(api.world.invite, { memberId: (await memberOf(t, ANNA)).member!._id })).toMatchObject({ ok: false, reason: "That's you." });
+  });
+});
+
+describe("asking to visit someone's home", () => {
+  test("you can ask to visit someone who is home, and letting you in sends an invite", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: false, reason: "They aren't home right now." });
+
+    await goTo(t, ANNA, "home");
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: true });
+    const knocks = await anna.query(api.world.knocks, {});
+    expect(knocks).toHaveLength(1);
+    expect(knocks[0]).toMatchObject({ guestName: expect.any(String), at: expect.closeTo(Date.now(), -2), expiresAt: expect.closeTo(Date.now() + KNOCK_MS, -2) });
+
+    // Only the homeowner can answer the request.
+    expect(await ben.mutation(api.world.answerKnock, { knockId: knocks[0].id, allow: true })).toMatchObject({ ok: false, reason: "That request has gone." });
+
+    expect(await anna.mutation(api.world.answerKnock, { knockId: knocks[0].id, allow: true })).toMatchObject({ ok: true });
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
+    const [card] = await ben.query(api.world.invites, {});
+    expect(card).toMatchObject({ ownerName: expect.any(String) });
+    expect(await ben.mutation(api.world.travel, { to: "home", invite: card.id })).toMatchObject({ ok: true, place: "home" });
+    expect((await memberOf(t, BEN)).room?.owner).toBe(ANNA);
+  });
+
+  test("asking works when they are in their backyard, refreshes on repeat, and refuses when you're already there", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await goTo(t, ANNA, "backyard");
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: true });
+    later(5000);
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: true });
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toHaveLength(1);
+    expect(await ben.mutation(api.world.knock, { memberId: benId })).toMatchObject({ ok: false, reason: "That's you." });
+
+    // Once Ben is in Anna's home (even while Anna is in the backyard), knocking is refused.
+    const [knock] = await anna.query(api.world.knocks, {});
+    await anna.mutation(api.world.answerKnock, { knockId: knock.id, allow: true });
+    const [invite] = await ben.query(api.world.invites, {});
+    await ben.mutation(api.world.travel, { to: "home", invite: invite.id });
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: false, reason: "You're already at their home." });
+  });
+
+  test("declining clears the request without inviting, and expired or blocked requests are rejected and swept", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const cara = asUser(t, CARA);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await cara.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+
+    await ben.mutation(api.world.knock, { memberId: annaId });
+    const [first] = await anna.query(api.world.knocks, {});
+    expect(await anna.mutation(api.world.answerKnock, { knockId: first.id, allow: false })).toMatchObject({ ok: true });
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
+    expect(await ben.query(api.world.invites, {})).toEqual([]);
+
+    // Blocked guests are hidden from knocks and refused.
+    await ben.mutation(api.world.knock, { memberId: annaId });
+    await anna.mutation(api.world.block, { memberId: benId });
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
+    expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: false, reason: "They've left the World." });
+
+    // Expired requests are hidden from knocks, can't be allowed, and get cleaned up by sweep.
+    await cara.mutation(api.world.knock, { memberId: annaId });
+    const [caras] = await anna.query(api.world.knocks, {});
+    later(KNOCK_MS + 1);
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
+    expect(await anna.mutation(api.world.answerKnock, { knockId: caras.id, allow: true })).toMatchObject({ ok: false, reason: "That request has run out." });
+    await t.mutation(internal.world.sweep, {});
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toEqual([]);
+  });
+
+  test("newer requests from blocked guests don't push out an older request", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    await asUser(t, BEN).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await asUser(t, BEN).mutation(api.world.knock, { memberId: annaId });
+    // More than the query's 50-row scan, so only deleting on block keeps Ben's request visible.
+    for (let i = 0; i < 55; i++) {
+      const guest = asUser(t, `guest${i}@sow.org.au`);
+      later(1000);
+      await guest.mutation(api.world.join, {});
+      await guest.mutation(api.world.knock, { memberId: annaId });
+      await guest.mutation(api.world.block, { memberId: annaId });
+    }
+    const knocks = await anna.query(api.world.knocks, {});
+    expect(knocks).toHaveLength(1);
+    expect(knocks[0].at).toBeLessThan(Date.now() - 50_000);
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toHaveLength(1);
+  });
+
+  test("blocking drops pending requests in both directions", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await ben.mutation(api.world.knock, { memberId: annaId });
+    await anna.mutation(api.world.block, { memberId: benId });
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toEqual([]);
+  });
+
+  test("letting in someone who already left reports they left and clears the request", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await ben.mutation(api.world.knock, { memberId: annaId });
+    const [knock] = await anna.query(api.world.knocks, {});
+    await ben.mutation(api.world.leave, {});
+    expect(await anna.mutation(api.world.answerKnock, { knockId: knock.id, allow: true })).toMatchObject({ ok: false, reason: "They've left the World." });
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
   });
 });

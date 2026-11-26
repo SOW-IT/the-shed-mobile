@@ -543,6 +543,8 @@ describe("account.wipe", () => {
       await ctx.db.insert("worldFeeders", { email: GUEST, owner: OTHER });
       await ctx.db.insert("worldInvites", { owner: GUEST, ownerName: "Gina", guest: OTHER, at: 0, expiresAt: 1 });
       await ctx.db.insert("worldInvites", { owner: OTHER, ownerName: "Other", guest: GUEST, at: 0, expiresAt: 1 });
+      await ctx.db.insert("worldKnocks", { owner: GUEST, guest: OTHER, guestName: "Other", at: 0, expiresAt: 1 });
+      await ctx.db.insert("worldKnocks", { owner: OTHER, guest: GUEST, guestName: "Gina", at: 0, expiresAt: 1 });
       await ctx.db.insert("worldPokes", { from: GUEST, to: OTHER, place: "garden", x: 0, z: 0, at: 0 });
       await ctx.db.insert("worldPokes", { from: OTHER, to: GUEST, place: "garden", x: 0, z: 0, at: 0 });
       return userId;
@@ -559,6 +561,7 @@ describe("account.wipe", () => {
       expect(await ctx.db.query("worldAnimals").collect()).toMatchObject([{ owner: OTHER, feedings: [{ at: 1, email: "", name: "" }, { at: 2, email: OTHER, name: "Other" }] }]);
       expect(await ctx.db.query("worldFeeders").collect()).toEqual([]);
       expect(await ctx.db.query("worldInvites").collect()).toEqual([]);
+      expect(await ctx.db.query("worldKnocks").collect()).toEqual([]);
       expect(await ctx.db.query("worldPokes").collect()).toEqual([]);
     });
   });

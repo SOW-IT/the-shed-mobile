@@ -219,6 +219,14 @@ async function deleteByEmail(
       (row) => ctx.db.delete("worldInvites", row._id)
     ),
     await deleteBatch(
+      await ctx.db.query("worldKnocks").withIndex("by_owner_and_guest", (q) => q.eq("owner", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldKnocks", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("worldKnocks").withIndex("by_guest", (q) => q.eq("guest", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("worldKnocks", row._id)
+    ),
+    await deleteBatch(
       await ctx.db.query("worldPokes").withIndex("by_from", (q) => q.eq("from", email)).take(WIPE_BATCH),
       (row) => ctx.db.delete("worldPokes", row._id)
     ),

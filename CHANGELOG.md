@@ -6,10 +6,94 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.23] - 2026-11-26
+## [2.13.28] - 2026-11-26
 
 ### Fixed
 - **Returning to the World after backgrounding no longer rubber-bands or empties the room.** Replies that sat queued while offline or paused no longer skew the World clock ahead, the first frame after resuming draws at the current time instead of snapping from where everyone stood before, and coming back after a long background recovers cleanly in a single rejoin without flashing everyone away or dropping an immediate tap.
+
+## [2.13.27] - 2026-11-26
+
+### Added
+- **Hold a finger on a Café board to see where your move will go.** In
+  all four Café games your move now lands where you let go, not where you
+  first touch. While your finger is down, the board shows exactly what
+  you'd place and follows you as you drag: in Dots and Boxes the stick
+  nearest your finger, see-through in your colour; in Five in a Row the
+  whole row and column through the point, with a see-through stone on it;
+  in Four in a Row the column, with a see-through piece where it would
+  land; in Tic-tac-toe the square, with a faint mark. Let go off the board
+  or on a taken spot and nothing is placed. A quick tap still plays
+  straight away. On the web, the same preview follows the mouse and a
+  click plays. This works in the World's Café and in two players on one
+  phone.
+- **Winning a Café game cheers, losing one cries.** When a Café game ends,
+  the winner's character cheers and the loser's cries over their head,
+  for everyone in the World to see, the same as scissors paper rock. A
+  draw does neither.
+- **Ask to visit someone's home when they're home.** In the World's People
+  panel, anyone currently at their home has an enter-door button next to
+  the invite button. Tapping it sends them a prompt to let you in, which
+  invites you straight to their home.
+
+### Changed
+- **It's much more obvious when it's your turn in a Café game.** The game
+  card turns your colour, with a glow around it, for as long as it's your
+  turn, and "Your turn" is written in a stronger shade of your colour. The
+  screen behind the card fills with your colour too, and flashes three
+  times, brighter than before, when your turn starts. With reduce motion
+  or battery saver on, the colours stay and the flashing doesn't.
+- **If you ask for a rematch and the other player closes the game or
+  leaves, your game closes too**, with a note saying they left, instead
+  of waiting forever. If they leave before you ask, the Rematch button
+  goes and the card says they left. This comes from the server, so it
+  works even when their app was closed.
+
+### Fixed
+- **Feet on sideways seats now sit off to the side instead of dangling
+  down over the armrest**, such as on the Library armchairs and side
+  benches.
+
+## [2.13.26] - 2026-11-26
+
+### Added
+- **Poke your devotional group.** Once you have finished today's devotional,
+  tap **Poke group** on an active group to send a push and in-app notification
+  to everyone in the group who hasn't done today's devotional yet. You can add
+  an optional custom message (up to 160 characters) or leave it blank to send
+  a default nudge. Tapping the notification opens today's devotional, and a
+  group can be poked at most once an hour.
+
+## [2.13.25] - 2026-11-26
+
+### Changed
+- **Devotionals save as you go.** The Save button is gone. What you type is
+  kept on your phone half a second after you stop typing, and saved to your
+  account when you go back, or when you switch away from the app. If you are
+  offline it stays on your phone and is saved the next time you open that
+  day. Typing no longer makes the header flicker or calls the server on
+  every keystroke.
+
+## [2.13.24] - 2026-11-26
+
+### Changed
+- **Mouths talk for as long as the line takes to say, not the whole bubble.** In the World a one-word "hi" talks for a quarter of the time its bubble is up, longer lines talk for longer, and only a long line talks until the bubble goes. The mouth always finishes closed.
+
+### Fixed
+- **Outfits now wrap around the body cleanly from every angle.** Overalls keep their front bib and crossed back braces in place as you turn; collared shirts show a full neckband, shifting collar points and front buttons; open jackets and flannels shift their inner tee and lapels to the facing side while keeping full plaid across the back; jumpers show neckline ribbing from every heading; polka dots and tie-dye prints wrap all the way around the torso with edge foreshortening and hide the tank scoop from behind.
+- **Hats now match from the front, both sides, behind and seated on a Chapel pew.** Caps keep their top button visible when facing away; beanies wrap with a 3D cuff rim and tilted pompom; flower crowns form a full ring around the head; berets flip their tilt and stalk cleanly across turns; bows move around the crown and tuck behind on the far side; headbands curve flush around the head from every angle; royal crowns show five depth-sorted tines with a front jewel that hides from behind.
+- **Accessories and glasses now follow head and body turns.** All five glasses styles foreshorten their lenses side-on, align the bridge between inner rims and add 3D temple arms that hook behind the ears; backpacks narrow side-on, sit flush behind the torso with wrapping straps and show a back pocket from behind; scarves keep a full wrap with a tail that moves behind on turns; bow ties shift to the facing edge and hide from behind; pearl necklaces wrap all the way around the neck with a front pendant; ear flowers stay on the left ear and hide behind the head when turned away.
+- **Hair styles now read consistently from every side and from behind.** Long hair, bobs, mullets and wavy hair flow smoothly down the back of the head without a harsh outline seam, and wavy hair keeps its hem curls tucked along the back edge; ponytails, buns, space buns, pigtails, curls, mohawks, spikes and side braids project in 3D with proper front/back layering; side-swept fringes and parted curtains foreshorten and hide smoothly when facing away.
+
+## [2.13.23] - 2026-11-26
+
+### Added
+- **A Go back button on every game-over card.** When a run ends in Sky
+  Shooter, Mystic Man, Flap or Swoop, the card now has Go back under Play
+  again and Leaderboard. It takes you straight back to the Games list, or to
+  the arcade over the World if that's where you opened the game. Each game
+  colours it its own way: night sky and laser blue in Sky Shooter, purple
+  hills and gold in Mystic Man, a green pipe in Flap, and the bird's teal and
+  cream in Swoop.
 
 ## [2.13.22] - 2026-11-26
 

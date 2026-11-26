@@ -56,7 +56,7 @@ import { penPoint, phaseFor, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
 import { myPoseLabel } from "./myPose";
-import { bubbleAge, mouthAt, nextFlapAt } from "./talk";
+import { bubbleAge, mouthAt, nextFlapAt, talkAge } from "./talk";
 import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_GAP_MS, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
 
 type GardenPerson = {
@@ -406,7 +406,8 @@ export const Garden = ({
     const atArcade = p.away ? Math.atan2(ARCADE.x - pose.x, ARCADE.z - pose.z) : null;
     return facingOverride[i] ?? atArcade ?? sitting[i]?.heading ?? pose.heading;
   });
-  const talking = bubbles.map((age, i) => mouthAt(age, headings[i]));
+  const talkAges = people.map((p) => (p.muted ? null : talkAge(p.say, now)));
+  const talking = talkAges.map((age, i) => mouthAt(age, headings[i]));
   const rolled = place === BALL_PLACE ? ballAt(ball ?? restingBall(), now) : null;
   const meTouching = rolled !== null && placed !== null && placed.walking && Math.hypot(placed.x - rolled.x, placed.z - rolled.z) < KICK_TOUCH;
   const kickRef = useRef(onKick);
@@ -454,7 +455,7 @@ export const Garden = ({
         p.ask && p.ask.at + ASK_MS,
         p.reply && p.reply.at,
       ]).concat(ball ? [ball.at] : [], people.map((p, i) => {
-        const age = bubbles[i];
+        const age = talkAges[i];
         return p.say && age !== null && talking[i] !== undefined ? nextFlapAt(p.say.at, age) : undefined;
       })),
     }),

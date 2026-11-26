@@ -71,6 +71,7 @@ import {
   isPrivatePlace,
   ARRIVE_NEAR,
   INVITE_MS,
+  KNOCK_MS,
   POKE_ARRIVAL_MS,
   type StateBucket,
   JOINED_WORLD,
@@ -1501,6 +1502,15 @@ export const block = mutation({
       if (mine.length >= MAX_BLOCKS) throw new ConvexError(`You've blocked ${MAX_BLOCKS} people. Unblock someone under People here first.`);
       await ctx.db.insert("worldBlocks", { email, blockedEmail: other.email, blockedName: other.name });
     }
+    // Drop pending requests to visit either home, so a blocked guest's row
+    // can't take one of the owner's few request slots until it expires.
+    for (const [owner, guest] of [[email, other.email], [other.email, email]]) {
+      const knock = await ctx.db
+        .query("worldKnocks")
+        .withIndex("by_owner_and_guest", (q) => q.eq("owner", owner).eq("guest", guest))
+        .first();
+      if (knock) await ctx.db.delete("worldKnocks", knock._id);
+    }
     return null;
   },
 });
@@ -1686,6 +1696,90 @@ export const invites = query({
 });
 
 const INVITES_SHOWN = 5;
+const KNOCKS_SCAN = 50;
+
+export const knock = mutation({
+  args: { memberId: v.id("worldMembers") },
+  returns: v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway, refused),
+  handler: async (ctx, { memberId }) => {
+    const me = await requireMe(ctx);
+    const now = Date.now();
+    const other = await ctx.db.get("worldMembers", memberId);
+    if (!other || (await blockedEither(ctx, me.email, other.email))) return { ok: false as const, reason: "They've left the World.", serverNow: now };
+    if (other.email === me.email) return { ok: false as const, reason: "That's you.", serverNow: now };
+    if ((await ownerOf(ctx, other)) !== other.email) return { ok: false as const, reason: "They aren't home right now.", serverNow: now };
+    if ((await ownerOf(ctx, me.member)) === other.email) return { ok: false as const, reason: "You're already at their home.", serverNow: now };
+    const token = spend("act", me.state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", me.state._id, { actBucket: token.bucket });
+    await touchPresence(ctx, me.member._id, now);
+    const found = await ctx.db
+      .query("worldKnocks")
+      .withIndex("by_owner_and_guest", (q) => q.eq("owner", other.email).eq("guest", me.email))
+      .first();
+    const fields = { guestName: me.member.name, at: now, expiresAt: now + KNOCK_MS };
+    if (found) await ctx.db.patch("worldKnocks", found._id, fields);
+    else await ctx.db.insert("worldKnocks", { owner: other.email, guest: me.email, ...fields });
+    return { ok: true as const, serverNow: now };
+  },
+});
+
+export const knocks = query({
+  args: {},
+  returns: v.array(
+    v.object({ id: v.id("worldKnocks"), guestName: v.string(), look: worldLookValidator, at: v.number(), expiresAt: v.number() })
+  ),
+  handler: async (ctx) => {
+    const email = await requireEmail(ctx);
+    const now = Date.now();
+    const rows = await ctx.db
+      .query("worldKnocks")
+      .withIndex("by_owner_and_at", (q) => q.eq("owner", email))
+      .order("desc")
+      .take(KNOCKS_SCAN);
+    const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, email) : null;
+    const out = [];
+    for (const row of rows) {
+      if (out.length >= INVITES_SHOWN) break;
+      if (row.expiresAt <= now) continue;
+      if (isBlocked !== null && (await isBlocked(row.guest))) continue;
+      const look = withHeight((await savedLook(ctx, row.guest))?.look ?? lookFor(row.guest), row.guest);
+      out.push({ id: row._id, guestName: row.guestName, look, at: row.at, expiresAt: row.expiresAt });
+    }
+    return out;
+  },
+});
+
+export const answerKnock = mutation({
+  args: { knockId: v.id("worldKnocks"), allow: v.boolean() },
+  returns: v.union(v.object({ ok: v.literal(true), serverNow: v.number() }), turnedAway, refused),
+  handler: async (ctx, { knockId, allow }) => {
+    const me = await requireMe(ctx);
+    const now = Date.now();
+    const row = await ctx.db.get("worldKnocks", knockId);
+    if (!row || row.owner !== me.email) return { ok: false as const, reason: "That request has gone.", serverNow: now };
+    if (!allow) {
+      await ctx.db.delete("worldKnocks", row._id);
+      return { ok: true as const, serverNow: now };
+    }
+    if (row.expiresAt <= now) {
+      await ctx.db.delete("worldKnocks", row._id);
+      return { ok: false as const, reason: "That request has run out.", serverNow: now };
+    }
+    const guest = await memberByEmail(ctx, row.guest);
+    if (!guest || (await blockedEither(ctx, me.email, row.guest))) {
+      await ctx.db.delete("worldKnocks", row._id);
+      return { ok: false as const, reason: "They've left the World.", serverNow: now };
+    }
+    const token = spend("act", me.state, now);
+    if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await ctx.db.patch("worldState", me.state._id, { actBucket: token.bucket });
+    await touchPresence(ctx, me.member._id, now);
+    await upsertInvite(ctx, me, row.guest, now);
+    await ctx.db.delete("worldKnocks", row._id);
+    return { ok: true as const, serverNow: now };
+  },
+});
 
 /** Pokes someone who has been in the garden before (older apps' list). */
 export const poke = mutation({
@@ -2056,6 +2150,11 @@ export const sweep = internalMutation({
       .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now))
       .take(SWEEP_BATCH);
     for (const row of oldInvites) await ctx.db.delete("worldInvites", row._id);
+    const oldKnocks = await ctx.db
+      .query("worldKnocks")
+      .withIndex("by_expiresAt", (q) => q.lte("expiresAt", now))
+      .take(SWEEP_BATCH);
+    for (const row of oldKnocks) await ctx.db.delete("worldKnocks", row._id);
     await dropStaleWatches(ctx, now);
 
     const meta = await sweeperMeta(ctx);

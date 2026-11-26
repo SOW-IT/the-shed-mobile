@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconName } from "@/components/ui/icon";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { elsewhereTitle, PLACE_TITLES, type Look, type Place } from "@shared/world";
@@ -316,7 +317,7 @@ export const GlassPill = ({
   tone = "plain",
 }: {
   label?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: AppIconName;
   onPress: () => void;
   disabled?: boolean;
   testID?: string;
@@ -333,7 +334,7 @@ export const GlassPill = ({
     testID={testID}
     style={({ pressed }) => [styles.pill, tone === "accent" && styles.pillAccent, disabled && styles.pillDisabled, pressed && styles.rowPressed]}
   >
-    {icon ? <Ionicons name={icon} size={14} color={glass.text} /> : null}
+    {icon ? <AppIcon name={icon} size={14} color={glass.text} /> : null}
     {label ? <Text style={styles.pillText}>{label}</Text> : null}
   </Pressable>
 );

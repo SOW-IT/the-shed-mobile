@@ -921,6 +921,36 @@ export const useWorld = (
     [inviteM, recover]
   );
 
+  const knockM = useMutation(api.world.knock);
+  const knock = useCallback(
+    async (memberId: MemberId): Promise<string | null> => {
+      try {
+        const reply = await knockM({ memberId });
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [knockM, recover]
+  );
+
+  const answerKnockM = useMutation(api.world.answerKnock);
+  const answerKnock = useCallback(
+    async (knockId: Id<"worldKnocks">, allow: boolean): Promise<string | null> => {
+      try {
+        const reply = await answerKnockM({ knockId, allow });
+        if (reply.ok) return null;
+        return turnedAwayText(reply);
+      } catch (e) {
+        if (leftGarden(e)) recover(sessionRef.current?.memberId);
+        return e instanceof ConvexError ? String(e.data) : "That didn't send.";
+      }
+    },
+    [answerKnockM, recover]
+  );
+
   /** Saves a look from the editor: one write, only when Save is pressed. */
   const saveLook = useCallback(
     async (look: Look): Promise<string | null> => {
@@ -1089,6 +1119,8 @@ export const useWorld = (
     home: session?.place === "home" ? (home ?? null) : null,
     homeLoading: session?.place === "home" && home === undefined,
     invite,
+    knock,
+    answerKnock,
     ping: pingMs,
     travel,
     roomId: session?.roomId ?? null,

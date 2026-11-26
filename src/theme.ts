@@ -296,8 +296,8 @@ export const fixedColours = {
         crest: "#8A5E1A",
         last: "#FFFEF8",
         pressed: "rgba(15, 37, 35, 0.06)",
-        a: { fill: "#C9603A", shade: "#9C4323", hi: "#ED9675", mark: "rgba(255, 254, 248, 0.78)", box: "#F6DFD2", turn: "#C9603A" },
-        b: { fill: "#1D4A41", shade: "#12322B", hi: "#4D887C", mark: "rgba(220, 232, 224, 0.86)", box: "#D7E8DF", turn: "#1D4A41" },
+        a: { fill: "#C9603A", shade: "#9C4323", hi: "#ED9675", mark: "rgba(255, 254, 248, 0.78)", box: "#F6DFD2", turn: "#C9603A", tint: "#FCE8DC", onTint: "#9C4323", glow: "#FF6A2B" },
+        b: { fill: "#1D4A41", shade: "#12322B", hi: "#4D887C", mark: "rgba(220, 232, 224, 0.86)", box: "#D7E8DF", turn: "#1D4A41", tint: "#DCEFE6", onTint: "#1D4A41", glow: "#1FB089" },
       },
       dark: {
         sheet: "#142622",
@@ -354,8 +354,8 @@ export const fixedColours = {
         crest: "#8A5E1A",
         last: "#FFFEF8",
         pressed: "rgba(245, 243, 227, 0.06)",
-        a: { fill: "#E0714F", shade: "#B44B2B", hi: "#F7A68A", mark: "rgba(255, 254, 248, 0.78)", box: "rgba(224, 113, 79, 0.28)", turn: "#F09474" },
-        b: { fill: "#8BC9BE", shade: "#5D9E93", hi: "#D2F2EC", mark: "rgba(12, 30, 28, 0.65)", box: "rgba(139, 201, 190, 0.24)", turn: "#8BC9BE" },
+        a: { fill: "#E0714F", shade: "#B44B2B", hi: "#F7A68A", mark: "rgba(255, 254, 248, 0.78)", box: "rgba(224, 113, 79, 0.28)", turn: "#F09474", tint: "#40251A", onTint: "#F7A68A", glow: "#FF8A5C" },
+        b: { fill: "#8BC9BE", shade: "#5D9E93", hi: "#D2F2EC", mark: "rgba(12, 30, 28, 0.65)", box: "rgba(139, 201, 190, 0.24)", turn: "#8BC9BE", tint: "#123F36", onTint: "#A9DED4", glow: "#5FE0C6" },
       },
     },
     text: "#ffffff",
@@ -394,6 +394,8 @@ export const fixedColours = {
       enemyEye: "#2B1B3F",
       bullet: "#FF5C8A",
       bulletCore: "#ffffff",
+      /** The game-over card's Go back button: night sky and laser blue. */
+      goBack: { bg: "#22346B", text: "#9BF6FF", onDark: true },
     },
     runner: {
       sky: "#2B1B3F",
@@ -419,6 +421,8 @@ export const fixedColours = {
       rim: "#FFE2D6",
       face: "#1A0F2E",
       eyes: "#9BF6FF",
+      /** The game-over card's Go back button: the hills and a gold beam. */
+      goBack: { bg: "#3F2A55", text: "#F2B84B", onDark: true },
     },
     flappy: {
       cloud: "#EAF7F6",
@@ -437,6 +441,8 @@ export const fixedColours = {
       beak: "#C9603A",
       eye: "#0F2523",
       eyeWhite: "#ffffff",
+      /** The game-over card's Go back button: a pipe. */
+      goBack: { bg: "#3D7A48", text: "#ffffff", onDark: true },
     },
     glider: {
       /** The sky through the day, from sunrise (0) to nightfall (1). */
@@ -474,6 +480,8 @@ export const fixedColours = {
       rough: "#FFB4A3",
       label: "#ffffff",
       shadow: "rgba(0, 0, 0, 0.4)",
+      /** The game-over card's Go back button: the bird's wing and belly. */
+      goBack: { bg: "#1C655F", text: "#F4EAD2", onDark: true },
     },
   },
 } as const;
