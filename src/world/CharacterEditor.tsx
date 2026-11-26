@@ -8,6 +8,8 @@ import {
   BLUSH,
   bodyScale,
   BROWS,
+  customColour,
+  customRgb,
   EYES,
   EYESHADOW,
   FACES,
@@ -28,6 +30,8 @@ import {
   OUTFITS,
   PANTS,
   randomLook,
+  SLEEVELESS,
+  SLEEVES,
   type Look,
   type LookPart,
   type NudgePart,
@@ -35,7 +39,8 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { garden, hud, lightToDark, people, shade } from "./palette";
+import { ColourPicker } from "./ColourPicker";
+import { garden, hexRgb, hud, isLight, lightToDark, people, rgbHex, shade } from "./palette";
 import { Avatar, figureTop } from "./Person";
 import {
   PREVIEW_AUTO_TURN,
@@ -301,6 +306,7 @@ const Swatches = ({
   order,
   firstIcon,
   firstLabel,
+  custom = false,
 }: {
   colours: readonly string[];
   value: number;
@@ -310,10 +316,22 @@ const Swatches = ({
   /** An icon on the first swatch, when it means something other than its colour. */
   firstIcon?: keyof typeof Ionicons.glyphMap;
   firstLabel?: string;
+  /**
+   * A last swatch for any colour, with a picker under the row while it's
+   * chosen. The value is then a custom colour (see customColour).
+   */
+  custom?: boolean;
 }) => {
   const t = useAppTheme();
   const shown = order ?? colours.map((_, i) => i);
-  return (
+  const id = label.toLowerCase().replace(" ", "-");
+  const rgb = custom ? customRgb(value) : null;
+  const pickCustom = () => {
+    if (rgb !== null) return;
+    // Start the picker from the colour worn now.
+    onPick(customColour(hexRgb(colours[value] ?? colours[0])));
+  };
+  const swatches = (
     <View style={styles.wrap}>
       {shown.map((i, place) => (
         <Pressable
@@ -328,7 +346,26 @@ const Swatches = ({
           {i === 0 && firstIcon ? <Ionicons name={firstIcon} size={16} color={hud.cream} style={styles.swatchIcon} /> : null}
         </Pressable>
       ))}
+      {custom ? (
+        <Pressable
+          onPress={pickCustom}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: rgb !== null }}
+          accessibilityLabel={`${label}: any colour`}
+          testID={`world-editor-${id}-custom`}
+          style={[styles.swatch, styles.customSwatch, { backgroundColor: rgb !== null ? rgbHex(rgb) : hud.cream }, rgb !== null && [styles.swatchOn, { borderColor: t.text }]]}
+        >
+          <Ionicons name="color-palette" size={18} color={rgb !== null && !isLight(rgbHex(rgb)) ? hud.cream : hud.forest} style={styles.swatchIcon} />
+        </Pressable>
+      ) : null}
     </View>
+  );
+  if (rgb === null) return swatches;
+  return (
+    <>
+      {swatches}
+      <ColourPicker rgb={rgb} onPick={(next) => onPick(customColour(next))} label={label} />
+    </>
   );
 };
 
@@ -376,9 +413,11 @@ const mannequin = (draft: Look): Look => ({
   beard: 0,
   outfit: 0,
   pants: lookPart(draft, "pants"),
-  pantsColour: lookPart(draft, "pantsColour"),
+  // Kept as they are, so a custom colour shows on the choices too.
+  pantsColour: draft.pantsColour,
   browColour: lookPart(draft, "browColour"),
-  favourite: lookPart(draft, "favourite"),
+  favourite: draft.favourite,
+  sleeves: lookPart(draft, "sleeves"),
 });
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 };
@@ -601,9 +640,11 @@ export const CharacterEditor = ({
   const blankShirt = draft.shirt;
   const blankEyeColour = lookPart(draft, "eyeColour");
   const blankPants = lookPart(draft, "pants");
-  const blankPantsColour = lookPart(draft, "pantsColour");
+  const blankPantsColour = draft.pantsColour;
   const blankBrowColour = lookPart(draft, "browColour");
-  const blankFavourite = lookPart(draft, "favourite");
+  const blankFavourite = draft.favourite;
+  const blankSleeves = lookPart(draft, "sleeves");
+  const outfit = lookPart(draft, "outfit");
   const blank = useMemo(
     () =>
       mannequin({
@@ -616,9 +657,12 @@ export const CharacterEditor = ({
         pantsColour: blankPantsColour,
         browColour: blankBrowColour,
         favourite: blankFavourite,
+        sleeves: blankSleeves,
       }),
-    [blankSkin, blankHairColour, blankShirt, blankEyeColour, blankPants, blankPantsColour, blankBrowColour, blankFavourite]
+    [blankSkin, blankHairColour, blankShirt, blankEyeColour, blankPants, blankPantsColour, blankBrowColour, blankFavourite, blankSleeves]
   );
+  // The sleeves' choices, on the top you're wearing.
+  const sleevesBlank = useMemo(() => ({ ...blank, outfit }), [blank, outfit]);
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
   const nudges = (group: keyof typeof NUDGE_ROWS) => (
     <>
@@ -652,7 +696,7 @@ export const CharacterEditor = ({
       ))}
     </>
   );
-  const fullOutfit = FULL_OUTFITS.includes(part("outfit"));
+  const fullOutfit = FULL_OUTFITS.includes(outfit);
   // The new look shows at once (an optimistic update) and the editor closes
   // straight away; if the save fails, the garden says so and puts the old
   // look back.
@@ -761,7 +805,7 @@ export const CharacterEditor = ({
             Only how you look: everyone walks, stands and hears the same.
           </Text>
           {section("Favourite colour")}
-          <Swatches colours={people.favourites} value={part("favourite")} onPick={set("favourite")} label="Favourite colour" />
+          <Swatches colours={people.favourites} value={draft.favourite ?? 0} onPick={set("favourite")} label="Favourite colour" custom />
           <Text style={[typography.caption, { color: t.muted }]}>You wear it as your shoes, and on a beret, bow, headband or party hat.</Text>
           {section("Background")}
           <Swatches colours={people.backdrops} value={part("backdrop")} onPick={set("backdrop")} label="Background" />
@@ -771,17 +815,23 @@ export const CharacterEditor = ({
       {tab === "Outfit" ? (
         <>
           {section("Top")}
-          <Choices names={OUTFITS} part="outfit" framing="outfit" value={part("outfit")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-outfit" />
+          <Choices names={OUTFITS} part="outfit" framing="outfit" value={outfit} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-outfit" />
+          {section("Sleeves")}
+          {SLEEVELESS.includes(outfit) ? (
+            <Text style={[typography.caption, { color: t.muted }]}>The tanks, sundress and hoodie have no sleeves choice.</Text>
+          ) : (
+            <Choices names={SLEEVES} part="sleeves" framing="outfit" value={part("sleeves")} blank={sleevesBlank} onPick={pickPart} tile={tile} testID="world-editor-sleeves" />
+          )}
           {section("Colour")}
-          <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" />
+          <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" custom />
           {section("Bottoms")}
           {fullOutfit ? (
-            <Text style={[typography.caption, { color: t.muted }]}>A dress, skirt or overalls comes with its own bottoms.</Text>
+            <Text style={[typography.caption, { color: t.muted }]}>A dress, skirt, overalls, sundress or jumpsuit comes with its own bottoms.</Text>
           ) : (
             <>
               <Choices names={PANTS} part="pants" framing="outfit" value={part("pants")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-pants" />
               {section("Bottoms colour")}
-              <Swatches colours={people.pants} value={part("pantsColour")} onPick={set("pantsColour")} label="Bottoms colour" />
+              <Swatches colours={people.pants} value={draft.pantsColour ?? 0} onPick={set("pantsColour")} label="Bottoms colour" custom />
             </>
           )}
         </>
@@ -891,6 +941,7 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: TILE_GAP },
   swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: hud.primarySoft },
   swatchOn: { borderWidth: 3.5 },
+  customSwatch: { borderStyle: "dashed", borderColor: hud.forest },
   tile: { borderRadius: 16, borderWidth: 2.5, overflow: "hidden", backgroundColor: hud.primarySoft },
   tilePressed: { opacity: 0.75 },
   tileTick: {

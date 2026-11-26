@@ -1,0 +1,74 @@
+appId: au.org.sow.theshed
+---
+# The character editor's outfits: sleeves (short and long), the new tops,
+# and the "any colour" picker under the top's colour row. Nothing is saved,
+# so the look the other checks see doesn't change.
+- openLink: "theshedmobile://world?sheet=character"
+- extendedWaitUntil:
+    visible:
+      id: world-editor
+    timeout: 60000
+- tapOn:
+    id: world-editor-tab-outfit
+# Sleeves on a collared shirt: short, then long.
+- tapOn:
+    id: world-editor-outfit-6
+- scrollUntilVisible:
+    element:
+      id: world-editor-sleeves-2
+    direction: DOWN
+- tapOn:
+    id: world-editor-sleeves-1
+- takeScreenshot: "${OUT}/check-outfits-collared-short"
+- tapOn:
+    id: world-editor-sleeves-2
+- takeScreenshot: "${OUT}/check-outfits-collared-long"
+# The new tops: a tank top (no sleeves choice), a sailor top, a sweater
+# vest, a sundress, a jumpsuit and a Hawaiian shirt.
+- scrollUntilVisible:
+    element:
+      id: world-editor-outfit-12
+    direction: UP
+- tapOn:
+    id: world-editor-outfit-12
+- assertNotVisible:
+    id: world-editor-sleeves-0
+- takeScreenshot: "${OUT}/check-outfits-tank-top"
+- tapOn:
+    id: world-editor-outfit-13
+- takeScreenshot: "${OUT}/check-outfits-sailor-top"
+- tapOn:
+    id: world-editor-outfit-14
+- takeScreenshot: "${OUT}/check-outfits-sweater-vest"
+- scrollUntilVisible:
+    element:
+      id: world-editor-outfit-17
+    direction: DOWN
+- tapOn:
+    id: world-editor-outfit-15
+- takeScreenshot: "${OUT}/check-outfits-sundress"
+- tapOn:
+    id: world-editor-outfit-16
+- takeScreenshot: "${OUT}/check-outfits-jumpsuit"
+- tapOn:
+    id: world-editor-outfit-17
+- takeScreenshot: "${OUT}/check-outfits-hawaiian-shirt"
+# Any colour: the picker opens under the row, and a typed hex colours the top.
+- scrollUntilVisible:
+    element:
+      id: world-editor-shirt-custom
+    direction: DOWN
+- tapOn:
+    id: world-editor-shirt-custom
+- scrollUntilVisible:
+    element:
+      id: world-editor-shirt-hex
+    direction: DOWN
+- tapOn:
+    id: world-editor-shirt-hex
+- eraseText: 10
+- inputText: "#3A9AD9"
+- hideKeyboard
+- takeScreenshot: "${OUT}/check-outfits-colour-picker"
+- tapOn:
+    id: world-editor-close

@@ -1,8 +1,8 @@
-import { bodyScale, FULL_OUTFITS, lookPart, nudge, type EmoteId, type Look, type MutualKind, type Pose } from "@shared/world";
+import { bodyScale, FULL_OUTFITS, lookPart, nudge, OUTFIT, sleevesOf, type EmoteId, type Look, type MutualKind, type Pose } from "@shared/world";
 import { memo, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
-import { garden, hud, isLight, people, shade } from "./palette";
+import { favouriteColour, garden, hud, isLight, pantsColour, people, shade, shirtColour } from "./palette";
 import { popShadow } from "./popShadow";
 import { Ellipse, flatQuad, quadTransform } from "./Shapes";
 import {
@@ -37,7 +37,9 @@ import {
 import {
   backpackPose,
   bodyHalfWidth,
+  bodySurface,
   bowTiePose,
+  HIBISCUS,
   necklacePose,
   PLAID_ANGLES,
   POLKA_DOTS,
@@ -504,10 +506,10 @@ const AvatarView = ({
   });
   const skin = people.skins[look.skin] ?? people.skins[0];
   const hair = people.hairColours[look.hairColour] ?? people.hairColours[0];
-  const shirt = people.shirts[look.shirt] ?? people.shirts[0];
+  const shirt = shirtColour(look);
   // The favourite colour: their shoes, and some hats and extras.
-  const favourite = lookPart(look, "favourite");
-  const fav = (otherwise: string) => (favourite > 0 ? people.favourites[favourite] : otherwise);
+  const favourite = favouriteColour(look);
+  const fav = (otherwise: string) => favourite ?? otherwise;
   const facing = Math.cos(pose.heading);
   const side = Math.sin(pose.heading);
   const ph = t * 9 + seed;
@@ -711,7 +713,7 @@ const AvatarView = ({
       const p = !seated
         ? { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up }
         : seatedFoot({ foot, s, up, sit, facing, side, e });
-      parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.favourites[favourite]} ink={ink * 0.8} inkColour={garden.ink} />);
+      parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={favourite ?? people.favourites[0]} ink={ink * 0.8} inkColour={garden.ink} />);
     }
   };
   const feetInFront = seated && facing >= 0;
@@ -796,9 +798,21 @@ const AvatarView = ({
       const [a, b] = arm(e);
       parts.push(capsule(a, b, 0.14 * s + ink * 2, garden.ink, `armInk${e}${layer}`));
       parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${layer}`));
+      if (sleeves === 0) continue;
+      // A sleeve over the arm from the shoulder, its hem outlined: a short one
+      // to above the elbow, a long one to the wrist with a cuff.
+      const along = (k: number) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+      const end = along(sleeves === 1 ? 0.36 : 0.72);
+      const width = (sleeves === 1 ? 0.2 : 0.165) * s;
+      parts.push(capsule(a, end, width + ink * 2, garden.ink, `sleeveInk${e}${layer}`));
+      parts.push(capsule(a, end, width, sleeveFill, `sleeve${e}${layer}`));
+      if (sleeves === 2) parts.push(capsule(along(0.66), end, width, shade(sleeveFill, -0.16), `cuff${e}${layer}`));
     }
   };
   const outfit = lookPart(look, "outfit");
+  const sleeves = sleevesOf(look);
+  // A sweater vest's sleeves are the shirt's under it.
+  const sleeveFill = outfit === OUTFIT["Sweater vest"] ? people.collar : shirt;
   const hood = outfit === 5 ? hoodLayer(facing) : null;
   const hoodFill = shade(shirt, -0.18);
   if (hood === "behind") ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, hoodFill);
@@ -810,7 +824,10 @@ const AvatarView = ({
   }
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
-  const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
+  // A jumpsuit's are trousers in its own colour.
+  const jumpsuit = outfit === OUTFIT.Jumpsuit;
+  const pants = jumpsuit ? 1 : FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
+  const bottoms = jumpsuit ? shirt : pantsColour(look);
   const hem = pants > 0 ? 0.3 : 0.16;
   const halfWidth = bodyHalfWidth;
   const panel = (top: number, bottom: number, topHalf: number, bottomHalf: number, grow: number) => [
@@ -836,7 +853,27 @@ const AvatarView = ({
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
   };
-  if (outfit === 1) {
+  // Bare shoulders and a scoop neck: the tanks' and the sundress's straps.
+  const tankShoulders = () => {
+    for (const e of [-1, 1]) parts.push(capsule(at(0.215 * e, 0.66), at(0.2 * e, 0.54), 0.09 * s, skin, `shoulder${e}`));
+    const scoopY = Math.min(0.69, chin + 0.02);
+    const scoop = surfaceSegment(bodyView, -0.3, scoopY, 0.3, scoopY, 0.1, 0.94);
+    if (scoop) parts.push(capsule(scoop.a, scoop.b, 0.07 * s, skin, "scoop"));
+  };
+  // A shirt collar's two points, either side of the neck.
+  const collarPoints = (fill: string, key: string) => {
+    for (const e of [-1, 1] as const) {
+      const topSpan: readonly [number, number] = e > 0 ? [0.02, 0.66] : [-0.66, -0.02];
+      const botSpan: readonly [number, number] = e > 0 ? [0.08, 0.44] : [-0.44, -0.08];
+      const cInk = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, ink * 0.8);
+      const cFill = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, 0);
+      if (cInk && cFill) {
+        parts.push(quad(cInk, garden.ink, `${key}Ink${e}`, 2));
+        parts.push(quad(cFill, fill, `${key}${e}`, 2));
+      }
+    }
+  };
+  if (outfit === OUTFIT.Dress || outfit === OUTFIT.Sundress) {
     const dress = (grow: number) => panel(0.7, 0.1, 0.21, 0.46, grow);
     parts.push(quad(dress(ink), garden.ink, "bodyInk", 30));
     parts.push(quad(dress(0), shirt, "body", 30));
@@ -871,16 +908,7 @@ const AvatarView = ({
     const collarR = bodyHalfWidth(collarY);
     parts.push(capsule(at(-collarR + 0.02, collarY), at(collarR - 0.02, collarY), 0.055 * s + ink * 1.4, garden.ink, "collarBandInk"));
     parts.push(capsule(at(-collarR + 0.02, collarY), at(collarR - 0.02, collarY), 0.055 * s, people.collar, "collarBand"));
-    for (const e of [-1, 1] as const) {
-      const topSpan: readonly [number, number] = e > 0 ? [0.02, 0.66] : [-0.66, -0.02];
-      const botSpan: readonly [number, number] = e > 0 ? [0.08, 0.44] : [-0.44, -0.08];
-      const cInk = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, ink * 0.8);
-      const cFill = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, 0);
-      if (cInk && cFill) {
-        parts.push(quad(cInk, garden.ink, `collarInk${e}`, 2));
-        parts.push(quad(cFill, people.collar, `collar${e}`, 2));
-      }
-    }
+    collarPoints(people.collar, "collar");
     const buttons = surfaceDots(
       bodyView,
       [
@@ -953,14 +981,89 @@ const AvatarView = ({
     for (const blob of surfaceDots(bodyView, TIE_DYE_LIGHTS, hem)) {
       parts.push(<Ellipse key={`dyeLight${blob.index}`} cx={blob.at.x} cy={blob.at.y} rx={blob.rx} ry={blob.ry} fill={lightFill} />);
     }
-    for (const e of [-1, 1]) parts.push(capsule(at(0.215 * e, 0.66), at(0.2 * e, 0.54), 0.09 * s, skin, `shoulder${e}`));
-    const scoopY = Math.min(0.69, chin + 0.02);
-    const scoop = surfaceSegment(bodyView, -0.3, scoopY, 0.3, scoopY, 0.1, 0.94);
-    if (scoop) parts.push(capsule(scoop.a, scoop.b, 0.07 * s, skin, "scoop"));
+    tankShoulders();
+  }
+  if (outfit === OUTFIT["Tank top"]) {
+    tankShoulders();
+    piece("tankHem", shade(shirt, -0.14), hem + 0.05, hem, halfWidth(hem + 0.05) + 0.005, halfWidth(hem) + 0.005, 6);
+  }
+  if (outfit === OUTFIT["Sailor top"]) {
+    // A square collar down the back, and in front a V of it to a neckerchief.
+    const collarTop = Math.min(0.71, chin + 0.03);
+    const vBottom = Math.max(hem + 0.1, chin - 0.2);
+    const strip = (key: string, top: number, bottom: number, topSpan: readonly [number, number], botSpan: readonly [number, number]) => {
+      const sInk = surfaceStrip(bodyView, top, bottom, topSpan, botSpan, ink * 0.8);
+      const sFill = surfaceStrip(bodyView, top, bottom, topSpan, botSpan, 0);
+      const sLine = surfaceStrip(bodyView, bottom + 0.035, bottom + 0.015, botSpan, botSpan, 0);
+      if (!sInk || !sFill) return;
+      parts.push(quad(sInk, garden.ink, `${key}Ink`, 2));
+      parts.push(quad(sFill, people.sailor, key, 2));
+      if (sLine) parts.push(quad(sLine, people.sailorStripe, `${key}Stripe`, 1));
+    };
+    strip("sailorBack", collarTop, Math.max(hem + 0.08, chin - 0.22), [Math.PI - 0.9, Math.PI + 0.9], [Math.PI - 0.82, Math.PI + 0.82]);
+    for (const e of [-1, 1] as const) {
+      strip(`sailorFront${e}`, collarTop, vBottom, e > 0 ? [0.08, 0.9] : [-0.9, -0.08], e > 0 ? [0, 0.16] : [-0.16, 0]);
+    }
+    const knot = bodySurface(bodyView, 0, vBottom + 0.02, 1.04);
+    if (knot.depth > 0.1) {
+      for (const e of [-1, 1]) {
+        const tail = bodySurface(bodyView, 0.22 * e, vBottom - 0.07, 1.04);
+        parts.push(capsule(knot.at, tail.at, 0.045 * s, people.neckerchief, `kerchiefTail${e}`));
+      }
+      ball("kerchief", knot.at.x, knot.at.y, 0.045 * s, people.neckerchief);
+    }
+  }
+  if (outfit === OUTFIT["Sweater vest"]) {
+    // A V neck showing the shirt under it, its collar, and a ribbed hem.
+    const vBottom = Math.max(hem + 0.12, chin - 0.22);
+    const vInk = surfaceStrip(bodyView, 0.71, vBottom, [-0.5, 0.5], [-0.04, 0.04], ink * 0.7);
+    const vFill = surfaceStrip(bodyView, 0.71, vBottom, [-0.5, 0.5], [-0.04, 0.04], 0);
+    if (vInk && vFill) {
+      parts.push(quad(vInk, shade(shirt, -0.25), "vestNeckInk", 2));
+      parts.push(quad(vFill, people.collar, "vestNeck", 2));
+    }
+    collarPoints(people.collar, "vestCollar");
+    piece("vestRib", shade(shirt, -0.16), hem + 0.07, hem, halfWidth(hem + 0.07) + 0.005, halfWidth(hem) + 0.005, 6);
+  }
+  if (outfit === OUTFIT.Sundress) {
+    tankShoulders();
+    // A ribbon at the waist, tied in a bow at the side.
+    parts.push(capsule(at(-halfWidth(0.47), 0.47), at(halfWidth(0.47), 0.47), 0.05 * s, shade(shirt, 0.35), "sundressTie"));
+    const bow = bodySurface(bodyView, 0.9, 0.47, 1.05);
+    if (bow.front) ball("sundressBow", bow.at.x, bow.at.y, 0.05 * s, shade(shirt, 0.35));
+  }
+  if (jumpsuit) {
+    collarPoints(shade(shirt, -0.12), "jumpsuitCollar");
+    const zip = surfaceSegment(bodyView, 0, chin - 0.09, 0, 0.36, 0.2, 0.96);
+    if (zip) parts.push(capsule(zip.a, zip.b, 0.025 * s, shade(shirt, -0.3), "zip"));
+    const pocket = surfaceStrip(bodyView, 0.58, 0.5, [0.18, 0.62], [0.2, 0.6], 0);
+    if (pocket) parts.push(quad(pocket, shade(shirt, -0.14), "chestPocket", 3));
+  }
+  if (outfit === OUTFIT["Hawaiian shirt"]) {
+    // Big flowers, an open collar and a button placket.
+    for (const flower of surfaceDots(bodyView, HIBISCUS, hem)) {
+      const petal = people.hibiscus[flower.index % people.hibiscus.length];
+      const { x, y } = flower.at;
+      for (const [px, py] of [[-0.55, 0], [0.55, 0], [0, -0.55], [0, 0.55]] as const) {
+        parts.push(<Ellipse key={`petal${flower.index}${px}${py}`} cx={x + px * flower.rx} cy={y + py * flower.ry} rx={flower.rx * 0.6} ry={flower.ry * 0.6} fill={petal} />);
+      }
+      parts.push(<Ellipse key={`flowerMiddle${flower.index}`} cx={x} cy={y} rx={flower.rx * 0.32} ry={flower.ry * 0.32} fill={isLight(petal) ? people.hibiscus[1] : people.hibiscus[0]} />);
+    }
+    const placket = surfaceSegment(bodyView, 0.05, chin - 0.08, 0.05, hem + 0.03, 0.2, 0.96);
+    if (placket) parts.push(capsule(placket.a, placket.b, 0.02 * s, shade(shirt, -0.25), "placket"));
+    const lapelBot = Math.max(hem + 0.08, chin - 0.12);
+    for (const e of [-1, 1] as const) {
+      const lInk = surfaceStrip(bodyView, Math.min(0.71, chin + 0.03), lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], ink * 0.8);
+      const lFill = surfaceStrip(bodyView, Math.min(0.71, chin + 0.03), lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], 0);
+      if (lInk && lFill) {
+        parts.push(quad(lInk, garden.ink, `campCollarInk${e}`, 2));
+        parts.push(quad(lFill, shade(shirt, 0.12), `campCollar${e}`, 2));
+      }
+    }
   }
   if (pants === 1 || pants === 2) {
     // Trousers or shorts: hips, then a leg each side, outlined as one shape.
-    const colour = people.pants[lookPart(look, "pantsColour")] ?? people.pants[0];
+    const colour = bottoms;
     // Sitting, the feet come forward and the legs are out of sight: just the lap.
     const legBottom = seated ? 0.24 : pants === 1 ? 0.11 : 0.19;
     if (pants === 2 && !seated) {
@@ -976,7 +1079,7 @@ const AvatarView = ({
     parts.push(capsule(at(-halfWidth(0.34), 0.34), at(halfWidth(0.34), 0.34), 0.03 * s, shade(colour, -0.22), "waist"));
   }
   if (pants === 3) {
-    const colour = people.pants[lookPart(look, "pantsColour")] ?? people.pants[0];
+    const colour = bottoms;
     piece("skirtBottom", colour, 0.36, 0.12, halfWidth(0.36) + 0.01, 0.44, 14);
     parts.push(capsule(at(-halfWidth(0.35), 0.35), at(halfWidth(0.35), 0.35), 0.03 * s, shade(colour, -0.22), "waist"));
   }
