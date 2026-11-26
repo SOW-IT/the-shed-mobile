@@ -352,6 +352,7 @@ type SheetGame = {
   turnEndsAt: number;
   result?: NonNullable<Cafe["game"]>["result"];
   rematch?: Side;
+  left: boolean;
   away: boolean;
   watchers: number;
 };
@@ -430,11 +431,15 @@ const Said = ({ text, end, maxWidth, testID }: { text: string | null; end: boole
   );
 };
 
-const EDGE_WIDTH = 3;
-const PULSE_WIDTH = 12;
+const EDGE_WIDTH = 5;
+const PULSE_WIDTH = 24;
 const EDGE_RADIUS = Platform.OS === "web" ? 0 : 44;
+const WASH = 0.3;
+const WASH_FLASH = 0.55;
 
-const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolean; endsAt: number; calm: boolean }) => {
+const clear = (hex: string) => `${hex}00`;
+
+const TurnEdge = ({ colour, glow, mine, endsAt, calm }: { colour: string; glow: string; mine: boolean; endsAt: number; calm: boolean }) => {
   const steady = useSharedValue(0);
   const pulse = useSharedValue(0);
   const last = useRef<TurnMark | null>(null);
@@ -457,10 +462,12 @@ const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolea
     if (!starts) return;
     pulse.set(
       withSequence(
-        withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
-        withTiming(0.3, { duration: 260, easing: Easing.inOut(Easing.quad) }),
-        withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 650, easing: Easing.in(Easing.quad) })
+        withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }),
+        withTiming(0.2, { duration: 240, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }),
+        withTiming(0.2, { duration: 240, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 700, easing: Easing.in(Easing.quad) })
       )
     );
   }, [mine, endsAt, calm, pulse, steady]);
@@ -468,14 +475,36 @@ const TurnEdge = ({ colour, mine, endsAt, calm }: { colour: string; mine: boolea
     if (mine && Platform.OS !== "web") void Haptics.selectionAsync();
   }, [mine, endsAt]);
   const steadyStyle = useAnimatedStyle(() => ({ opacity: steady.get() }));
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: 0.75 * pulse.get() }));
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.get() }));
+  const washStyle = useAnimatedStyle(() => ({ opacity: WASH * steady.get() + WASH_FLASH * pulse.get() }));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" testID={mine ? "cafe-edge-mine" : "cafe-edge-none"}>
-      <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: colour, borderWidth: PULSE_WIDTH, borderRadius: EDGE_RADIUS }, pulseStyle]} />
+      <Reanimated.View style={[StyleSheet.absoluteFill, gradientStyle(`linear-gradient(to top, ${glow} 0%, ${glow} 45%, ${clear(glow)} 100%)`), washStyle]} testID={mine ? "cafe-turn-wash" : undefined} />
+      <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: glow, borderWidth: PULSE_WIDTH, borderRadius: EDGE_RADIUS }, pulseStyle]} />
       <Reanimated.View style={[StyleSheet.absoluteFill, { borderColor: colour, borderWidth: EDGE_WIDTH, borderRadius: EDGE_RADIUS }, steadyStyle]} />
     </View>
   );
 };
+
+const TurnTint = ({ side, on, calm }: { side: Side; on: boolean; calm: boolean }) => {
+  const c = useCafeTheme();
+  const shown = useSharedValue(on ? 1 : 0);
+  useEffect(() => {
+    const to = on ? 1 : 0;
+    shown.set(calm ? to : withTiming(to, { duration: 220 }));
+  }, [on, calm, shown]);
+  const style = useAnimatedStyle(() => ({ opacity: shown.get() }));
+  return (
+    <Reanimated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: c[side].tint, borderColor: c[side].glow }, style]}
+      testID={on ? "cafe-sheet-tint" : undefined}
+    />
+  );
+};
+
+const haloOf = (glow: string) =>
+  Platform.OS === "ios" ? { shadowColor: glow, shadowOpacity: 0.95, shadowRadius: 30, shadowOffset: { width: 0, height: 0 } } : { boxShadow: `0px 0px 36px 10px ${glow}` };
 
 const GLOW_WIDTH = 56;
 const BEAT_MS = 520;
@@ -651,10 +680,12 @@ const CafeSheet = ({
     if (resultSaid) announce(resultSaid);
   }, [resultSaid]);
   if (!mounted || !kind) return null;
-  const rematch = watching ? null : rematchWords(game.rematch, mine, them);
+  const walkedOut = game.result?.why === "abandoned" || game.result?.why === "left";
+  const rematch = watching || walkedOut ? null : game.left ? `${them} left` : rematchWords(game.rematch, mine, them);
   const seconds = Math.min(TURN_SECONDS, secondsLeft(game.turnEndsAt, now));
-  const turnColour = c[game.board.turn].turn;
   const edge = turnEdge(game, mine);
+  const tinted = !watching && edge === "mine";
+  const turnColour = tinted ? c[mine].onTint : c[game.board.turn].turn;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} testID="cafe-scrim">
@@ -662,7 +693,7 @@ const CafeSheet = ({
       </Pressable>
       {watching ? null : (
         <>
-          <TurnEdge colour={c[mine].turn} mine={edge === "mine"} endsAt={game.turnEndsAt} calm={calm} />
+          <TurnEdge colour={c[mine].turn} glow={c[mine].glow} mine={edge === "mine"} endsAt={game.turnEndsAt} calm={calm} />
           <LowTimeGlow colour={c.lowTime} active={edge === "mine" && !busy} endsAt={game.turnEndsAt} now={now} serverNow={serverNow} calm={calm} />
         </>
       )}
@@ -673,12 +704,14 @@ const CafeSheet = ({
             card(c),
             styles.sheet,
             { width: sheetWidth, bottom, maxHeight: room },
+            tinted ? haloOf(c[mine].glow) : null,
             calm ? { opacity: shown, ...swipe.dragStyle } : { opacity: shown, transform: [{ translateY: Animated.add(shown.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }), swipe.drag) }] },
           ]}
           testID="cafe-sheet"
           onLayout={(e) => onTopRef.current?.(e.nativeEvent.layout.y)}
           accessibilityViewIsModal
         >
+          {watching ? null : <TurnTint side={mine} on={tinted} calm={calm} />}
           <SharpScrollView contentContainerStyle={styles.sheetBody} bounces={false} keyboardShouldPersistTaps="handled">
             <View testID="cafe-sheet-header" style={closable ? null : styles.headNoHandle} {...(closable ? swipe.headerHandlers : null)}>
               {closable ? <View style={[styles.handle, { backgroundColor: c.handle }]} testID="cafe-handle" /> : null}
@@ -754,7 +787,7 @@ const CafeSheet = ({
                   {result.detail ? <Text style={[styles.resultDetail, { color: c.muted }]}>{result.detail}</Text> : null}
                 </View>
                 <View style={styles.answers}>
-                  {watching || game.result?.why === "abandoned" || game.result?.why === "left" ? null : (
+                  {watching || walkedOut || game.left ? null : (
                     <Pressable
                       onPress={onRematch}
                       disabled={game.rematch === mine}
@@ -821,7 +854,17 @@ export const CafeLayer = ({
   const [closedGame, setClosedGame] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const worldName = useWorldName();
-  const game = games.game && games.game.id !== closedGame ? games.game : null;
+  const latest = games.game;
+  const leftWaiting = latest !== null && latest.result !== undefined && latest.left && latest.rematch === latest.side;
+  const game = latest && latest.id !== closedGame && !leftWaiting ? latest : null;
+  const leftId = leftWaiting ? latest.id : null;
+  const leftName = latest ? worldName(latest.opponentName) : "";
+  const noted = useRef<string | null>(null);
+  useEffect(() => {
+    if (leftId === null || noted.current === leftId) return;
+    noted.current = leftId;
+    onNote(`${leftName} left`);
+  }, [leftId, leftName, onNote]);
   const stopWatching = useCallback(
     (note: string) => {
       onStopWatching();
@@ -890,7 +933,12 @@ export const CafeLayer = ({
           busy={busy}
           onMove={(index) => move(game.id, index)}
           onGiveUp={() => void games.giveUp(game.id).then(say)}
-          onRematch={() => void games.rematch(game.id).then(say)}
+          onRematch={() =>
+            void games.rematch(game.id).then((problem) => {
+              say(problem);
+              if (problem) setClosedGame(game.id);
+            })
+          }
           onClose={() => setClosedGame(game.id)}
           onSeen={seen}
           onTop={onSheetTop}
@@ -898,7 +946,7 @@ export const CafeLayer = ({
       ) : watched ? (
         <CafeSheet
           key={`watch-${watched.id}`}
-          game={{ ...watched, away: false, watchers: 0 }}
+          game={{ ...watched, left: false, away: false, watchers: 0 }}
           side={null}
           names={{ a: worldName(watched.a.name), b: worldName(watched.b.name) }}
           now={now}
@@ -981,6 +1029,7 @@ const styles = StyleSheet.create({
   saidEnd: { borderBottomRightRadius: 3 },
   saidText: { fontSize: 12.5, fontWeight: "700" },
   glow: { position: "absolute", top: 0, bottom: 0, width: GLOW_WIDTH },
+  tint: { borderRadius: 26.5, borderWidth: 2.5 },
   glowLeft: { left: 0 },
   glowRight: { right: 0 },
   sheetBody: { paddingTop: 10, paddingHorizontal: 16, paddingBottom: 18, gap: 12 },
