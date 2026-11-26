@@ -22,6 +22,7 @@ import {
   playingLine,
   playingTag,
   recordScore,
+  timeOut,
   type CafeBoard,
   type CafeGameKind,
   type MoveResult,
@@ -210,6 +211,70 @@ describe("missed turns", () => {
     expect(again.lost).toBe(true);
     const cleared = ok(applyMove("fourInARow", again.board, "b", 1)).board;
     expect(cleared.missed.b).toBe(0);
+  });
+});
+
+describe("running out of time", () => {
+  const free = (board: CafeBoard) => board.cells.flatMap((cell, index) => (cell === 0 ? [index] : []));
+
+  test("in Dots and Boxes a random free line is drawn and the turn passes", () => {
+    const board = withCells("dotsAndBoxes", { 0: 1, 1: 2 });
+    const first = timeOut("dotsAndBoxes", board, () => 0);
+    expect(first.winner).toBeUndefined();
+    expect(first.board).toMatchObject({ last: 2, turn: "b", missed: { a: 1, b: 0 } });
+    expect(first.board.cells[2]).toBe(1);
+    const last = timeOut("dotsAndBoxes", board, () => 0.999999);
+    expect(last.board.last).toBe(DOTS_LINES - 1);
+    const middle = timeOut("dotsAndBoxes", board, () => 0.5);
+    expect(free(board)).toContain(middle.board.last);
+    expect(free(middle.board)).toHaveLength(free(board).length - 1);
+  });
+
+  test("every pick is a line nobody has drawn", () => {
+    let board = newBoard("dotsAndBoxes");
+    for (let turn = 0; turn < 10; turn++) {
+      const open = free(board);
+      board = timeOut("dotsAndBoxes", board).board;
+      expect(open).toContain(board.last);
+    }
+    expect(free(board)).toHaveLength(DOTS_LINES - 10);
+  });
+
+  test("a line that closes a box scores it and keeps the turn", () => {
+    const [top, bottom, left, right] = boxEdges(0);
+    const board = withCells("dotsAndBoxes", { [top]: 1, [bottom]: 2, [left]: 1 }, "b");
+    const open = free(board);
+    const timed = timeOut("dotsAndBoxes", board, () => open.indexOf(right) / open.length);
+    expect(timed.board).toMatchObject({ last: right, turn: "b" });
+    expect(timed.board.boxes[0]).toBe(2);
+  });
+
+  test("running out of time never loses Dots and Boxes", () => {
+    let board = newBoard("dotsAndBoxes");
+    for (let turn = 0; turn < 4; turn++) {
+      const timed = timeOut("dotsAndBoxes", board);
+      expect(timed.winner).toBeUndefined();
+      board = timed.board;
+    }
+  });
+
+  test("the last free line ends the game on boxes, as a played line would", () => {
+    const board = withCells("dotsAndBoxes", Object.fromEntries(Array.from({ length: DOTS_LINES - 1 }, (_, i) => [i, 1])));
+    const won = { ...board, boxes: board.boxes.map((_, i) => (i < 9 ? 1 : 2)) };
+    expect(timeOut("dotsAndBoxes", won)).toMatchObject({ winner: "a", why: "played", board: { last: DOTS_LINES - 1 } });
+  });
+
+  test("a board with no free lines settles on boxes instead of breaking", () => {
+    const full = withCells("dotsAndBoxes", Object.fromEntries(Array.from({ length: DOTS_LINES }, (_, i) => [i, 2])));
+    expect(timeOut("dotsAndBoxes", { ...full, boxes: full.boxes.map((_, i) => (i < 4 ? 1 : 2)) })).toMatchObject({ winner: "b", why: "played" });
+    expect(timeOut("dotsAndBoxes", { ...full, boxes: full.boxes.map((_, i) => (i < 8 ? 1 : 2)) })).toMatchObject({ winner: "draw", why: "played" });
+  });
+
+  test("the other games still pass the turn, and lose on the second miss in a row", () => {
+    const first = timeOut("ticTacToe", newBoard("ticTacToe"));
+    expect(first).toEqual({ board: { ...newBoard("ticTacToe"), turn: "b", missed: { a: 1, b: 0 } }, why: "timeout" });
+    const again = timeOut("ticTacToe", { ...first.board, turn: "a" });
+    expect(again).toMatchObject({ winner: "b", why: "timeout" });
   });
 });
 
