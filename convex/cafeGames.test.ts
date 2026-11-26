@@ -20,6 +20,7 @@ afterEach(() => {
 const later = (ms: number) => vi.setSystemTime(Date.now() + ms);
 const REFILL = 13_000;
 const near = (ms: number) => expect.closeTo(ms, -2);
+const EMOTE_GAP = 5_000;
 
 const rows = (t: T) =>
   t.run(async (ctx) => ({
@@ -413,7 +414,100 @@ describe("rematch and clean-up", () => {
     );
     expect(await ben.who.mutation(api.cafeGames.rematch, { gameId })).toEqual({ ok: false, reason: "One of you is already playing." });
     await anna.who.mutation(api.world.travel, { to: "garden" });
-    expect(await ben.who.mutation(api.cafeGames.rematch, { gameId })).toEqual({ ok: false, reason: "They've left the Café." });
+    const { aName } = (await rows(t)).games[0];
+    expect(await ben.who.mutation(api.cafeGames.rematch, { gameId })).toEqual({ ok: false, reason: `${aName} left.` });
+  });
+
+  const stateOf = (t: T, memberId: Id<"worldMembers">) =>
+    t.run(async (ctx) => (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", memberId)).unique())!);
+
+  test("asking for a rematch then the other player closing shows they left, and their offer goes with them", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ left: false });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId });
+    await ben.who.mutation(api.cafeGames.close, { gameId });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ id: gameId, rematch: "a", left: true });
+    expect(await anna.who.mutation(api.cafeGames.rematch, { gameId })).toEqual({ ok: true });
+    await anna.who.mutation(api.cafeGames.close, { gameId });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+    expect((await rows(t)).games).toHaveLength(1);
+  });
+
+  test("the other player leaving first turns a rematch down, and leaving the World counts too", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    await ben.who.mutation(api.cafeGames.rematch, { gameId });
+    await ben.who.mutation(api.cafeGames.close, { gameId });
+    expect((await rows(t)).games[0].rematch).toBeUndefined();
+    const { bName } = (await rows(t)).games[0];
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ left: true });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.rematch).toBeUndefined();
+    expect(await anna.who.mutation(api.cafeGames.rematch, { gameId })).toEqual({ ok: false, reason: `${bName} left.` });
+    expect((await rows(t)).games[0].rematch).toBeUndefined();
+
+    const second = await startGame();
+    await second.anna.who.mutation(api.cafeGames.giveUp, { gameId: second.gameId });
+    await second.anna.who.mutation(api.cafeGames.rematch, { gameId: second.gameId });
+    await second.ben.who.mutation(api.world.leave, {});
+    expect((await second.anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ rematch: "a", left: true });
+
+    // Walking out of the Café and coming straight back still counts as having left the finished game.
+    const third = await startGame();
+    await third.anna.who.mutation(api.cafeGames.giveUp, { gameId: third.gameId });
+    await third.anna.who.mutation(api.cafeGames.rematch, { gameId: third.gameId });
+    await third.ben.who.mutation(api.world.travel, { to: "garden" });
+    later(5000);
+    await third.ben.who.mutation(api.world.travel, { to: "cafe" });
+    expect((await third.anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ rematch: "a", left: true });
+    expect((await third.ben.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+  });
+
+  test("both closing clears the game for both, and an offer from someone who closed is gone", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await anna.who.mutation(api.cafeGames.giveUp, { gameId });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId });
+    await anna.who.mutation(api.cafeGames.close, { gameId });
+    expect((await ben.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ left: true });
+    expect((await ben.who.query(api.cafeGames.mine, {}))?.game?.rematch).toBeUndefined();
+    await ben.who.mutation(api.cafeGames.close, { gameId });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+    expect((await ben.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
+    expect((await rows(t)).games[0]).toMatchObject({ closedA: true, closedB: true });
+  });
+
+  test("a live game never reads as left", async () => {
+    const { anna, ben } = await startGame();
+    await ben.who.mutation(api.world.travel, { to: "garden" });
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ left: false });
+  });
+
+  test("the winner cheers and the loser cries, the same as scissors paper rock; a draw does neither", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    expect((await stateOf(t, anna.memberId)).act).toBeUndefined();
+    await ben.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect((await stateOf(t, anna.memberId)).act).toEqual({ emote: "cheer", at: near(Date.now()) });
+    expect((await stateOf(t, ben.memberId)).act).toEqual({ emote: "cry", at: near(Date.now()) });
+    await anna.who.mutation(api.cafeGames.rematch, { gameId });
+    await ben.who.mutation(api.cafeGames.rematch, { gameId });
+    later(EMOTE_GAP);
+    const next = (await rows(t)).games[1];
+    const board = await boardOf(t, next._id);
+    await t.run((ctx) => ctx.db.patch("cafeGames", next._id, { kind: "ticTacToe" }));
+    await t.run((ctx) => ctx.db.patch("cafeBoards", board._id, { board: { ...newBoard("ticTacToe"), cells: [1, 2, 1, 1, 2, 2, 2, 1, 0], turn: "a" } }));
+    await ben.who.mutation(api.cafeGames.move, { gameId: next._id, move: 8 });
+    expect((await rows(t)).games[1].result).toEqual({ winner: "draw", why: "played" });
+    expect((await stateOf(t, anna.memberId)).act?.emote).toBe("cheer");
+    expect((await stateOf(t, anna.memberId)).act?.at).toBeLessThan(Date.now() - EMOTE_GAP / 2);
+  });
+
+  test("only someone still in the World gets an emote", async () => {
+    const { t, anna, ben, gameId } = await startGame();
+    await ben.who.mutation(api.world.leave, {});
+    await anna.who.mutation(api.cafeGames.giveUp, { gameId });
+    expect((await rows(t)).games[0].result).toEqual({ winner: "b", why: "gaveUp" });
+    expect((await stateOf(t, anna.memberId)).act?.emote).toBe("cry");
+    expect(await t.run((ctx) => ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", ben.memberId)).unique())).toBeNull();
   });
 
   test("an abandoned game can't be replayed", async () => {

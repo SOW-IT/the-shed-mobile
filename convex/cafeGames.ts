@@ -23,7 +23,7 @@ import {
   timeOut,
   type Winner,
 } from "../shared/cafeGames";
-import { ROOM_CAP, takeToken } from "../shared/world";
+import { DUEL_LOSER_EMOTE, DUEL_WINNER_EMOTE, ROOM_CAP, takeToken, type EmoteId } from "../shared/world";
 import { cafeBoardValidator, cafeResultValidator, cafeSideValidator } from "./cafeGamesData";
 import { Ctx, optionalEmail, requireEmail } from "./model";
 import { blockedEither, memberByEmail, placeOf, requireMe } from "./world";
@@ -183,6 +183,15 @@ export const endLiveGameOf = async (ctx: MutationCtx, email: string, now: number
 };
 
 export const cafeMoved = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms"> | null, now: number) => {
+  for (const ended of await gamesOf(ctx, email)) {
+    if (ended.endedAt === undefined || ended.next !== undefined || roomId === ended.roomId) continue;
+    const side = sideOf(ended, email);
+    if (!side) continue;
+    const field = side === "a" ? "closedA" : "closedB";
+    if (ended[field] !== true) {
+      await ctx.db.patch("cafeGames", ended._id, { [field]: true, ...(ended.rematch === side ? { rematch: undefined } : {}) });
+    }
+  }
   const game = await liveGameOf(ctx, email);
   if (!game) return;
   const field = sideOf(game, email) === "a" ? "awayA" : "awayB";
@@ -221,8 +230,18 @@ const bumpVersus = async (ctx: MutationCtx, game: Game, winner: Winner) => {
   else await ctx.db.insert("cafeVersus", { a, b, aWins: 0, bWins: 0, draws: 0, [change]: 1 });
 };
 
+const emote = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms">, id: EmoteId, now: number) => {
+  const member = await memberByEmail(ctx, email);
+  const state = member?.roomId === roomId ? await stateOf(ctx, member._id) : null;
+  if (state) await ctx.db.patch("worldState", state._id, { act: { emote: id, at: now } });
+};
+
 const endGame = async (ctx: MutationCtx, game: Game, winner: Winner, why: Why, now: number) => {
   await ctx.db.patch("cafeGames", game._id, { endedAt: now, result: { winner, why }, awayA: undefined, awayB: undefined });
+  if (winner !== "draw") {
+    await emote(ctx, winner === "a" ? game.a : game.b, game.roomId, DUEL_WINNER_EMOTE, now);
+    await emote(ctx, winner === "a" ? game.b : game.a, game.roomId, DUEL_LOSER_EMOTE, now);
+  }
   if (why !== "abandoned") {
     await bumpRecord(ctx, game.a, game.kind, winner === "draw" ? "draws" : winner === "a" ? "wins" : "losses");
     await bumpRecord(ctx, game.b, game.kind, winner === "draw" ? "draws" : winner === "b" ? "wins" : "losses");
@@ -239,6 +258,12 @@ const startGame = async (ctx: MutationCtx, roomId: Id<"worldRooms">, kind: CafeG
   await ctx.db.insert("cafeBoards", { gameId, board: newBoard(kind), moves: 0, turnEndsAt });
   await ctx.scheduler.runAt(turnEndsAt, internal.cafeGames.timeout, { gameId, moves: 0 });
   return gameId;
+};
+
+const opponentLeft = async (ctx: Ctx, game: Game, side: Side) => {
+  if (game[side === "a" ? "closedB" : "closedA"] === true) return true;
+  const them = await memberByEmail(ctx, side === "a" ? game.b : game.a);
+  return them?.roomId !== game.roomId || placeOf(them) !== CAFE_PLACE;
 };
 
 const okReply = v.object({ ok: v.literal(true) });
@@ -361,6 +386,7 @@ export const rematch = mutation({
     const side = game && sideOf(game, email);
     if (!game || !side || game.endedAt === undefined || game.result?.why === "abandoned") return refuse("That game's gone.");
     if (game.next !== undefined || game.rematch === side) return done;
+    if (await opponentLeft(ctx, game, side)) return refuse(`${side === "a" ? game.bName : game.aName} left.`);
     if (game.rematch === undefined) {
       await ctx.db.patch("cafeGames", game._id, { rematch: side });
       return done;
@@ -386,7 +412,7 @@ export const close = mutation({
     if (!side) return refuse("That isn't your game.");
     if (game.endedAt === undefined) return refuse("Finish your game first.");
     const field = side === "a" ? "closedA" : "closedB";
-    if (game[field] !== true) await ctx.db.patch("cafeGames", game._id, { [field]: true });
+    if (game[field] !== true) await ctx.db.patch("cafeGames", game._id, { [field]: true, ...(game.rematch === side ? { rematch: undefined } : {}) });
     return done;
   },
 });
@@ -494,6 +520,7 @@ export const mine = query({
           opponentName: v.string(),
           result: v.optional(cafeResultValidator),
           rematch: v.optional(cafeSideValidator),
+          left: v.boolean(),
           away: v.boolean(),
           board: cafeBoardValidator,
           turnEndsAt: v.number(),
@@ -538,6 +565,7 @@ export const mine = query({
         opponentName: side === "a" ? game.bName : game.aName,
         result: game.result,
         rematch: game.rematch,
+        left: game.endedAt !== undefined && (await opponentLeft(ctx, game, side)),
         away: (side === "a" ? game.awayA : game.awayB) !== undefined,
         board: row.board,
         turnEndsAt: row.turnEndsAt,

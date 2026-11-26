@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.25] - 2026-11-26
+## [2.13.29] - 2026-11-27
 
 ### Changed
 - **Running out of time in Dots and Boxes draws a line for you.** When a
@@ -18,6 +18,68 @@ All notable changes to **The SHED** mobile app. This project follows
   same board. Running out of time no longer skips the turn or loses a Dots
   and Boxes game; the game ends when the last line is drawn, as usual. The
   other Café games still pass the turn, and lose on a second miss in a row.
+
+## [2.13.27] - 2026-11-26
+
+### Added
+- **Hold a finger on a Café board to see where your move will go.** In
+  all four Café games your move now lands where you let go, not where you
+  first touch. While your finger is down, the board shows exactly what
+  you'd place and follows you as you drag: in Dots and Boxes the stick
+  nearest your finger, see-through in your colour; in Five in a Row the
+  whole row and column through the point, with a see-through stone on it;
+  in Four in a Row the column, with a see-through piece where it would
+  land; in Tic-tac-toe the square, with a faint mark. Let go off the board
+  or on a taken spot and nothing is placed. A quick tap still plays
+  straight away. On the web, the same preview follows the mouse and a
+  click plays. This works in the World's Café and in two players on one
+  phone.
+- **Winning a Café game cheers, losing one cries.** When a Café game ends,
+  the winner's character cheers and the loser's cries over their head,
+  for everyone in the World to see, the same as scissors paper rock. A
+  draw does neither.
+- **Ask to visit someone's home when they're home.** In the World's People
+  panel, anyone currently at their home has an enter-door button next to
+  the invite button. Tapping it sends them a prompt to let you in, which
+  invites you straight to their home.
+
+### Changed
+- **It's much more obvious when it's your turn in a Café game.** The game
+  card turns your colour, with a glow around it, for as long as it's your
+  turn, and "Your turn" is written in a stronger shade of your colour. The
+  screen behind the card fills with your colour too, and flashes three
+  times, brighter than before, when your turn starts. With reduce motion
+  or battery saver on, the colours stay and the flashing doesn't.
+- **If you ask for a rematch and the other player closes the game or
+  leaves, your game closes too**, with a note saying they left, instead
+  of waiting forever. If they leave before you ask, the Rematch button
+  goes and the card says they left. This comes from the server, so it
+  works even when their app was closed.
+
+### Fixed
+- **Feet on sideways seats now sit off to the side instead of dangling
+  down over the armrest**, such as on the Library armchairs and side
+  benches.
+
+## [2.13.26] - 2026-11-26
+
+### Added
+- **Poke your devotional group.** Once you have finished today's devotional,
+  tap **Poke group** on an active group to send a push and in-app notification
+  to everyone in the group who hasn't done today's devotional yet. You can add
+  an optional custom message (up to 160 characters) or leave it blank to send
+  a default nudge. Tapping the notification opens today's devotional, and a
+  group can be poked at most once an hour.
+
+## [2.13.25] - 2026-11-26
+
+### Changed
+- **Devotionals save as you go.** The Save button is gone. What you type is
+  kept on your phone half a second after you stop typing, and saved to your
+  account when you go back, or when you switch away from the app. If you are
+  offline it stays on your phone and is saved the next time you open that
+  day. Typing no longer makes the header flicker or calls the server on
+  every keystroke.
 
 ## [2.13.24] - 2026-11-26
 
