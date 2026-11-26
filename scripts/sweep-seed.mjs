@@ -137,6 +137,13 @@ if (existsSync("convex/gamePlayers.ts")) {
     "gamePlayers",
     players.map(({ i, game }) => ({ email: `sweep.person${i}@sow.org.au`, game, name: `${POKE_LIST[i]} Sweep`, since: now - i * 60_000 }))
   );
+  // In the app too, so the World's People panel lists them under "In the
+  // app" with the game they're in. Seen at the seed's hour, still ahead of
+  // the clock, so they stay in the app for the whole run.
+  importRows(
+    "appPresence",
+    players.map(({ i }) => ({ email: `sweep.person${i}@sow.org.au`, appSeenAt: now }))
+  );
 }
 
 // A saved devotional for the editor's screenshots, and an empty day beside it.
