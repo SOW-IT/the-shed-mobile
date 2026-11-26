@@ -26,6 +26,7 @@ import {
 } from "./eventRequestData";
 import { cafeBoardValidator, cafeResultValidator, cafeSideValidator } from "./cafeGamesData";
 import { gameIdValidator } from "./gameScoreData";
+import { mahjongHandValidator, mahjongPhaseValidator, mahjongSeatValidator, mahjongSettingsValidator } from "./mahjongData";
 import {
   worldAskValidator,
   worldBucketValidator,
@@ -461,12 +462,16 @@ export default defineSchema({
     earnedToday: v.number(),
     items: v.record(v.string(), v.number()),
     wallpapers: v.array(v.string()),
+    // What the bank has paid this person for beating mahjong bots today
+    // (shared/mahjong/coins.ts caps it), and which Sydney day that was.
+    mahjongBankDay: v.optional(v.string()),
+    mahjongBankToday: v.optional(v.number()),
   }).index("by_email", ["email"]),
 
   coinLedger: defineTable({
     email: v.string(),
     delta: v.number(),
-    kind: v.union(v.literal("start"), v.literal("game"), v.literal("buy"), v.literal("seed-buy"), v.literal("crop-sell"), v.literal("plot-buy"), v.literal("building-buy"), v.literal("animal-buy"), v.literal("feed-buy"), v.literal("nametag-buy"), v.literal("product-sell")),
+    kind: v.union(v.literal("start"), v.literal("game"), v.literal("buy"), v.literal("seed-buy"), v.literal("crop-sell"), v.literal("plot-buy"), v.literal("building-buy"), v.literal("animal-buy"), v.literal("feed-buy"), v.literal("nametag-buy"), v.literal("product-sell"), v.literal("mahjong")),
     runId: v.optional(v.string()),
     game: v.optional(v.string()),
     item: v.optional(v.string()),
@@ -568,6 +573,43 @@ export default defineSchema({
   })
     .index("by_a_and_b", ["a", "b"])
     .index("by_b", ["b"]),
+
+  // A mahjong table in a Café room: who sits where, the host, the settings
+  // and the phase. Small, so everyone in the Café can read it.
+  mahjongTables: defineTable({
+    roomId: v.id("worldRooms"),
+    table: v.string(),
+    phase: mahjongPhaseValidator,
+    host: v.optional(v.string()),
+    seats: v.array(mahjongSeatValidator),
+    // Each seat's coins won or lost at this table, for its score.
+    net: v.array(v.number()),
+    settings: mahjongSettingsValidator,
+    handNo: v.number(),
+    firstDealer: v.optional(v.number()),
+    dealer: v.optional(v.number()),
+    roundWind: v.number(),
+    allAwayAt: v.optional(v.number()),
+  }).index("by_roomId_and_table", ["roomId", "table"]),
+
+  // Who's at which table, so a move or a leave finds their seat at once.
+  mahjongPlayers: defineTable({
+    email: v.string(),
+    tableId: v.id("mahjongTables"),
+    seat: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_tableId", ["tableId"]),
+
+  // The hand being played at a table: the wall and every hand. Only the
+  // server reads it whole; each phone gets its own view (mahjong.mine).
+  mahjongHands: defineTable({
+    tableId: v.id("mahjongTables"),
+    handNo: v.number(),
+    // Bumped on every change; a scheduled tick for an older beat does nothing.
+    beat: v.number(),
+    state: mahjongHandValidator,
+  }).index("by_tableId", ["tableId"]),
 
   devotionals: defineTable({
     email: v.string(),

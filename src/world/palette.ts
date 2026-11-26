@@ -113,6 +113,10 @@ export const places = {
     couch: "#5B8DB8",
     pot: "#C9603A",
     plant: "#5FA066",
+    felt: "#2F7A55",
+    feltEdge: "#7A4A2C",
+    tile: "#FFFEF8",
+    tileBack: "#3E8E6A",
   },
   home: {
     sky: "#EFE6D6",
@@ -482,3 +486,6 @@ export const shade = (hex: string, amount: number): string => {
   shadeCache.set(key, result);
   return result;
 };
+
+/** A mahjong bot's face: a screen with glowing eyes. The same in both themes, like the World. */
+export const botFace = { head: "#8FB7C9", face: "#21343D", eye: "#9BF0E1", edge: "#F5F3E3", antenna: "#F6D365" };

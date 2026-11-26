@@ -75,6 +75,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
+import { MahjongLayer } from "./mahjong/MahjongLayer";
+import { mahjongTap, tableToWatch } from "./mahjong/tap";
+import { useMahjong } from "./mahjong/useMahjong";
 
 const KEYBOARD_GAP = 8;
 
@@ -261,6 +264,7 @@ export const WorldScreen = ({
   const world = useWorld(active, awayKind === "arcade", arrival, awayKind === "devotional");
   const wallet = useCoins();
   const cafe = useCafe(world);
+  const mahjong = useMahjong(world);
   const inBackyard = world.place === "backyard" && world.status === "in";
   const calm = useBatterySaver();
   const farm = useFarm({ roomId: world.roomId, inBackyard });
@@ -357,6 +361,12 @@ export const WorldScreen = ({
     if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
   };
   const [note, setNote] = useState<string | null>(null);
+  const [heardRefusal, setHeardRefusal] = useState(0);
+  if (world.sitRefused && world.sitRefused.at !== heardRefusal) {
+    setHeardRefusal(world.sitRefused.at);
+    setNote(world.sitRefused.text);
+  }
+  const setMahjongWatch = (_tableId: Id<"mahjongTables">) => setNote("A game's on at that table.");
   const [editing, setEditing] = useState(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
@@ -496,9 +506,9 @@ export const WorldScreen = ({
     if (other) void world.ask(other.memberId, kind).then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
   };
 
-  const live = useRef({ world, askFor, worldName, farm, animals });
+  const live = useRef({ world, askFor, worldName, farm, animals, mahjong });
   useEffect(() => {
-    live.current = { world, askFor, worldName, farm, animals };
+    live.current = { world, askFor, worldName, farm, animals, mahjong };
   });
   const aimedAt = useRef<string | null>(null);
   const stepToward = (to: string, since: number, kind: AskKind): boolean => {
@@ -793,7 +803,16 @@ export const WorldScreen = ({
     setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
-    const tapped = seats.find((seat) => seat.id === seatId);
+    const mahjongMove = mahjongTap(seatId, mahjong.tables, me?.memberId ?? null);
+    if (mahjongMove?.kind === "watch") {
+      setMahjongWatch(mahjongMove.tableId);
+      return;
+    }
+    if (mahjongMove?.kind === "taken") {
+      setNote("Those seats are taken.");
+      return;
+    }
+    const tapped = seats.find((seat) => seat.id === (mahjongMove?.kind === "sit" ? mahjongMove.seat : seatId));
     if (!tapped) return;
     const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
     const free = seats
@@ -1687,6 +1706,13 @@ export const WorldScreen = ({
           setSeatTrip(null);
           setPlotCard(null);
           setYardCard(null);
+          // Someone playing mahjong: open their game to watch.
+          const atTable = tableToWatch(live.current.mahjong.tables, memberId);
+          if (atTable) {
+            setPerson(null);
+            setMahjongWatch(atTable);
+            return;
+          }
           setPerson((current) => (current === memberId ? null : memberId));
         }}
         selected={person}
@@ -1817,6 +1843,16 @@ export const WorldScreen = ({
         testID="world-under-chat"
       />
       {cafeLayer(true)}
+      <MahjongLayer
+        mahjong={mahjong}
+        people={world.people}
+        top={insets.top + TOP_BAR_GAP}
+        bottom={chatTop}
+        nameOf={worldName}
+        onNote={setNote}
+        onStart={() => void mahjong.start().then((problem) => problem && setNote(problem))}
+        onWatch={setMahjongWatch}
+      />
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
         <DuelCard {...duelProps} />
         {myHome && !decorating ? (
