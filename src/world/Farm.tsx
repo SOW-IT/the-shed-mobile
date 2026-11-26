@@ -517,15 +517,77 @@ export const PlotNote = ({ x, y, text }: { x: number; y: number; text: string })
   </View>
 );
 
-export const PlotCard = ({ x, y, text, stageWidth }: { x: number; y: number; text: string; stageWidth: number }) => (
-  <View pointerEvents="none" style={[styles.card, { left: Math.min(Math.max(8, x - CARD_WIDTH / 2), stageWidth - CARD_WIDTH - 8), top: y - 44 }]} testID="world-plant-card">
-    <Text style={styles.cardText} numberOfLines={2}>
-      {text}
-    </Text>
-  </View>
-);
+export type FarmCardTone = keyof typeof farm.cardTones;
 
-const CARD_WIDTH = 270;
+export type FarmCardData = {
+  title: string;
+  badge: string;
+  tone: FarmCardTone;
+  detail?: string;
+  hint?: string;
+  progress?: number;
+  icon?: ReactNode;
+};
+
+export const PlotCard = ({
+  x,
+  y,
+  card,
+  stageWidth,
+}: {
+  x: number;
+  y: number;
+  card: FarmCardData;
+  stageWidth: number;
+}) => {
+  const palette = farm.cardTones[card.tone];
+  const left = Math.min(Math.max(8, x - CARD_WIDTH / 2), Math.max(8, stageWidth - CARD_WIDTH - 8));
+  const tailShift = Math.min(Math.max(20, x - left), CARD_WIDTH - 20) - CARD_WIDTH / 2;
+  const pct = card.progress === undefined ? null : `${Math.round(Math.min(1, Math.max(0, card.progress)) * 100)}%`;
+  return (
+    <View pointerEvents="none" style={[styles.cardWrap, { left, top: y - 78 }]} testID="world-plant-card">
+      <View style={styles.card}>
+        <View style={[styles.cardAccent, { backgroundColor: palette.accent }]} />
+        <View style={styles.cardBody}>
+          {card.icon ? <View style={[styles.cardIcon, { borderColor: palette.accent }]}>{card.icon}</View> : null}
+          <View style={styles.cardContent}>
+            <View style={styles.cardRow}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {card.title}
+              </Text>
+              <View style={[styles.cardPill, { backgroundColor: palette.pillBg }]}>
+                <Text style={[styles.cardPillText, { color: palette.pillText }]} numberOfLines={1}>
+                  {card.badge}
+                </Text>
+              </View>
+            </View>
+            {pct !== null ? (
+              <View style={styles.cardTrack}>
+                <View style={[styles.cardFill, { width: pct as `${number}%`, backgroundColor: palette.bar }]} />
+              </View>
+            ) : null}
+            {card.detail ? (
+              <Text style={styles.cardDetail} numberOfLines={1}>
+                {card.detail}
+              </Text>
+            ) : null}
+            {card.hint ? (
+              <Text style={[styles.cardHint, { color: palette.pillText }]} numberOfLines={1}>
+                {card.hint}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </View>
+      <View style={[styles.cardTailRow, { transform: [{ translateX: tailShift }] }]}>
+        <View style={styles.cardTailInk} />
+        <View style={styles.cardTail} />
+      </View>
+    </View>
+  );
+};
+
+const CARD_WIDTH = 248;
 
 const styles = StyleSheet.create({
   abs: { position: "absolute" },
@@ -539,6 +601,52 @@ const styles = StyleSheet.create({
   tagText: { color: farm.tagText, fontSize: 11, fontWeight: "800" },
   note: { position: "absolute", width: 180, alignItems: "center" },
   noteText: { color: farm.tagText, backgroundColor: farm.tag, fontSize: 11, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: "hidden" },
-  card: { position: "absolute", width: CARD_WIDTH, alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: farm.card, borderWidth: 2.5, borderColor: garden.ink, ...popShadow() },
-  cardText: { color: garden.ink, fontSize: 14, fontWeight: "700", textAlign: "center" },
+  cardWrap: { position: "absolute", width: CARD_WIDTH, alignItems: "center" },
+  card: {
+    width: CARD_WIDTH,
+    borderRadius: 16,
+    backgroundColor: farm.card,
+    borderWidth: 2.5,
+    borderColor: garden.ink,
+    overflow: "hidden",
+    ...popShadow(),
+  },
+  cardAccent: { height: 5, width: "100%" },
+  cardBody: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  cardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: farm.cardBadgeBg,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardContent: { flex: 1, gap: 4 },
+  cardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  cardTitle: { flexShrink: 1, color: garden.ink, fontSize: 14, fontWeight: "800" },
+  cardPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  cardPillText: { fontSize: 11, fontWeight: "800" },
+  cardTrack: { height: 6, borderRadius: 3, backgroundColor: farm.cardTrack, overflow: "hidden" },
+  cardFill: { height: "100%", borderRadius: 3 },
+  cardDetail: { color: farm.cardMuted, fontSize: 11.5, fontWeight: "700" },
+  cardHint: { fontSize: 11, fontWeight: "700" },
+  cardTailRow: { height: 10, alignItems: "center" },
+  cardTailInk: {
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: garden.ink,
+  },
+  cardTail: {
+    marginTop: -12,
+    borderLeftWidth: 5.5,
+    borderRightWidth: 5.5,
+    borderTopWidth: 7.5,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: farm.card,
+  },
 });

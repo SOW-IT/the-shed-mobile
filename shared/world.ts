@@ -21,7 +21,7 @@ export const INTERACT_RADIUS = 2.5;
 export const ASK_MS = 10_000;
 /** How long a mutual action plays once accepted. */
 export const MUTUAL_MS = 1750;
-export const MAX_SAY_LENGTH = 120;
+export const MAX_SAY_LENGTH = 100;
 export const JOINED_WORLD = "joined the World";
 /** How long a chat line is kept, unless someone reports it. */
 export const CHAT_TTL_MS = 60 * 60_000;

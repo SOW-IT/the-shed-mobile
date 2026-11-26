@@ -345,6 +345,7 @@ describe("version 3 looks", () => {
 });
 
 test("cleanLine trims, joins lines and caps the length", () => {
+  expect(MAX_SAY_LENGTH).toBe(100);
   expect(cleanLine("  hi\n  there ")).toBe("hi there");
   expect(cleanLine("   ")).toBeNull();
   expect(Array.from(cleanLine("🌸".repeat(200))!)).toHaveLength(MAX_SAY_LENGTH);

@@ -1,7 +1,46 @@
+import { shiftDay } from "./calendar";
 import { sydneyDateTime } from "./devotionalGroups";
 
 export const DAY_MS = 24 * 60 * 60_000;
 const HOUR_MS = 60 * 60_000;
+const SYDNEY_AEST_OFFSET_MS = 10 * HOUR_MS;
+const SYDNEY_AEDT_OFFSET_MS = 11 * HOUR_MS;
+
+/** Exact UTC ms of 00:00:00 in Australia/Sydney on a YYYY-MM-DD calendar date. */
+export const sydneyMidnight = (date: string): number => {
+  const [y, m, d] = date.split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, d);
+  const aedt = utc - SYDNEY_AEDT_OFFSET_MS;
+  const check = sydneyDateTime(aedt);
+  return check.date === date && check.hour === 0 ? aedt : utc - SYDNEY_AEST_OFFSET_MS;
+};
+
+const dayDiff = (a: string, b: string): number => {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / DAY_MS);
+};
+
+/**
+ * Daily farm cycle window k, resetting at midnight Australia/Sydney:
+ * - Window 0 runs from planting/buying through the end of the next Sydney day
+ *   (e.g. planting at 11:58pm waits 2 min + 24h; 10:00pm waits 2h + 24h).
+ * - Window k >= 1 is a single Sydney calendar day (00:00 to 00:00 Sydney).
+ */
+export const farmWindow = (origin: number, k: number): { start: number; end: number } => {
+  const originDay = sydneyDateTime(origin).date;
+  return {
+    start: k === 0 ? origin : sydneyMidnight(shiftDay(originDay, k + 1)),
+    end: sydneyMidnight(shiftDay(originDay, k + 2)),
+  };
+};
+
+export const farmWindowIndex = (origin: number, at: number): number => {
+  const originDay = sydneyDateTime(origin).date;
+  const atDay = sydneyDateTime(Math.max(at, origin)).date;
+  const diff = dayDiff(originDay, atDay);
+  return diff < 2 ? 0 : diff - 1;
+};
 
 export const CROPS = {
   lettuce: { label: "Lettuce", days: 1, seed: 3, sell: 4 },
@@ -100,17 +139,19 @@ const stageAt = (progress: number): Stage => (progress < 0.25 ? "seed" : progres
 export const growth = (plant: PlantTimes, at: number): Growth => {
   const now = Math.max(at, plant.plantedAt);
   const days = daysOf(plant.crop);
+  const originDay = sydneyDateTime(plant.plantedAt).date;
   const wateredIn = (start: number, end: number) => plant.waterings.find((w) => w.at >= start && w.at < end)?.at ?? null;
   let grown = 0;
   let wilts = 0;
   let lastDry = false;
   for (let k = 0; ; k++) {
-    const start = plant.plantedAt + k * DAY_MS;
-    const end = start + DAY_MS;
+    const start = k === 0 ? plant.plantedAt : sydneyMidnight(shiftDay(originDay, k + 1));
+    const end = sydneyMidnight(shiftDay(originDay, k + 2));
     const wateredAt = k === 0 ? null : wateredIn(start, end);
     const good = k === 0 || wateredAt !== null;
     if (now < end) {
-      const into = Math.max(0, now - start) / DAY_MS;
+      const span = Math.max(1, end - start);
+      const into = Math.max(0, now - start) / span;
       const progress = (grown + (good ? into : 0)) / days;
       return {
         stage: stageAt(progress),
@@ -122,7 +163,7 @@ export const growth = (plant: PlantTimes, at: number): Growth => {
         wilted: !good && lastDry,
         ripeAt: null,
         diedAt: null,
-        readyAt: end + (days - grown - 1) * DAY_MS,
+        readyAt: sydneyMidnight(shiftDay(originDay, k + 1 + days - grown)),
         progress,
       };
     }

@@ -3,7 +3,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { ANIMALS, BUILDINGS, FEEDS, GOODS, MAX_FEED_EACH, MAX_NAME_TAGS, NAME_TAG_PRICE } from "../shared/animals";
-import { DAY_MS, FREE_PLOTS } from "../shared/farm";
+import { DAY_MS, farmWindow, FREE_PLOTS } from "../shared/farm";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -84,8 +84,8 @@ const raise = (t: T, owner: string, kind: "chicken" | "cow", boughtAt: number, f
 const animal = (t: T, id: Id<"worldAnimals">) => t.run((ctx) => ctx.db.get("worldAnimals", id));
 
 const grownHen = (t: T, owner: string, extra: number[] = []) => {
-  const born = Date.now() - 4 * DAY_MS - HOUR;
-  return raise(t, owner, "chicken", born, [1, 2, 3].map((n) => born + n * DAY_MS + HOUR).concat(extra), "Henrietta");
+  const born = Date.now() - 5 * DAY_MS - HOUR;
+  return raise(t, owner, "chicken", born, [1, 2, 3].map((n) => farmWindow(born, n).start + HOUR).concat(extra), "Henrietta");
 };
 
 describe("buildings", () => {
@@ -164,7 +164,7 @@ describe("buying animals", () => {
     const t = newConvex();
     await give(t, ANNA, 100);
     await build(t, ANNA, "barn");
-    await raise(t, ANNA, "cow", Date.now() - 3 * DAY_MS, [], "Daisy");
+    await raise(t, ANNA, "cow", Date.now() - 4 * DAY_MS, [], "Daisy");
     await raise(t, ANNA, "cow", Date.now() - HOUR, [], "Bessie");
     await asUser(t, ANNA).mutation(api.animals.buyAnimal, { kind: "cow", name: "Clover" });
     expect((await t.run((ctx) => ctx.db.query("worldAnimals").collect())).map((a) => a.name)).toEqual(["Bessie", "Clover"]);
@@ -213,7 +213,7 @@ describe("feeding", () => {
   test("one feed from the bag, once a window, and buying covers the first", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
-    const id = await raise(t, ANNA, "cow", Date.now() - DAY_MS - HOUR, [], "Daisy");
+    const id = await raise(t, ANNA, "cow", Date.now() - 2 * DAY_MS - HOUR, [], "Daisy");
     const anna = asUser(t, ANNA);
     expect(await anna.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Josh." });
     await setFarm(t, ANNA, { feed: { hay: 2, grain: 5 } });
@@ -229,9 +229,9 @@ describe("feeding", () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
     await setFarm(t, ANNA, { feed: { grain: 5 } });
-    const gone = await raise(t, ANNA, "chicken", Date.now() - 3 * DAY_MS, [], "Pip");
+    const gone = await raise(t, ANNA, "chicken", Date.now() - 4 * DAY_MS, [], "Pip");
     expect(await asUser(t, ANNA).mutation(api.animals.feed, { animalId: gone })).toMatchObject({ ok: false, reason: "Pip wandered off." });
-    const elsewhere = await raise(t, BEN, "chicken", Date.now() - DAY_MS - HOUR);
+    const elsewhere = await raise(t, BEN, "chicken", Date.now() - 2 * DAY_MS - HOUR);
     await expect(asUser(t, ANNA).mutation(api.animals.feed, { animalId: elsewhere })).rejects.toThrow(/isn't here/);
     await expect(asUser(t, ANNA).mutation(api.animals.feed, { animalId: "nope" })).rejects.toThrow(/isn't here/);
     await go(t, ANNA, "garden");
@@ -242,8 +242,8 @@ describe("feeding", () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
     await setFarm(t, ANNA, { feed: { grain: 20 } });
-    const born = Date.now() - 4 * DAY_MS - HOUR;
-    const id = await raise(t, ANNA, "chicken", born, [1, 2, 3, 4].map((n) => born + n * DAY_MS + 10 * 60_000));
+    const born = Date.now() - 5 * DAY_MS - HOUR;
+    const id = await raise(t, ANNA, "chicken", born, [1, 2, 3, 4].map((n) => farmWindow(born, n).start + 10 * 60_000));
     for (let n = 0; n < 3; n++) {
       later(DAY_MS);
       expect(await asUser(t, ANNA).mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: true });
@@ -258,7 +258,7 @@ describe("visitors", () => {
     await intoBackyard(t, ANNA);
     await visit(t, ANNA, BEN);
     await setFarm(t, ANNA, { feed: { hay: 3 } });
-    const id = await raise(t, ANNA, "cow", Date.now() - DAY_MS - HOUR, [], "Daisy");
+    const id = await raise(t, ANNA, "cow", Date.now() - 2 * DAY_MS - HOUR, [], "Daisy");
     const ben = asUser(t, BEN);
     expect(await ben.mutation(api.animals.feed, { animalId: id })).toMatchObject({ ok: false, reason: "Get feed from Josh." });
     await setFarm(t, BEN, { feed: { hay: 1 } });
@@ -333,8 +333,8 @@ describe("collecting", () => {
   test("milking a grown cow", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
-    const born = Date.now() - 5 * DAY_MS - 2 * HOUR;
-    const id = await raise(t, ANNA, "cow", born, [1, 2, 3, 4, 5].map((n) => born + n * DAY_MS + HOUR));
+    const born = Date.now() - 6 * DAY_MS - 2 * HOUR;
+    const id = await raise(t, ANNA, "cow", born, [1, 2, 3, 4, 5].map((n) => farmWindow(born, n).start + HOUR));
     await setFarm(t, ANNA, { goods: { milk: 2 } });
     expect(await asUser(t, ANNA).mutation(api.animals.collect, { animalId: id })).toMatchObject({ ok: true, good: "milk" });
     expect((await farmRow(t, ANNA))?.goods).toEqual({ milk: 3 });
@@ -358,7 +358,7 @@ describe("renaming", () => {
   test("not once it's wandered off", async () => {
     const t = newConvex();
     await setFarm(t, ANNA, { nameTags: 1 });
-    const id = await raise(t, ANNA, "cow", Date.now() - 3 * DAY_MS, [], "Daisy");
+    const id = await raise(t, ANNA, "cow", Date.now() - 4 * DAY_MS, [], "Daisy");
     await expect(asUser(t, ANNA).mutation(api.animals.rename, { animalId: id, name: "Bessie" })).rejects.toThrow(/wandered off/);
     expect((await farmRow(t, ANNA))?.nameTags).toBe(1);
   });
@@ -436,9 +436,9 @@ describe("reminders", () => {
     const t = newConvex();
     vi.setSystemTime(at);
     await setFarm(t, ANNA, {});
-    await t.run((ctx) => ctx.db.insert("worldPlants", { owner: ANNA, plot: 0, crop: "tomato", plantedAt: at - DAY_MS - HOUR, waterings: [] }));
-    await raise(t, ANNA, "cow", at - DAY_MS - HOUR);
-    await raise(t, ANNA, "chicken", at - 2 * DAY_MS - HOUR);
+    await t.run((ctx) => ctx.db.insert("worldPlants", { owner: ANNA, plot: 0, crop: "tomato", plantedAt: at - 2 * DAY_MS - HOUR, waterings: [] }));
+    await raise(t, ANNA, "cow", at - 2 * DAY_MS - HOUR);
+    await raise(t, ANNA, "chicken", at - 3 * DAY_MS - HOUR);
     await grownHen(t, ANNA, [at - HOUR]);
     expect(await t.mutation(internal.farm.remind, {})).toEqual({ skipped: false, sent: 1 });
     expect(await sentTo(t)).toEqual([expect.objectContaining({ to: ANNA, body: "1 plant needs water · 2 animals are hungry · 1 egg to collect" })]);
@@ -449,8 +449,8 @@ describe("reminders", () => {
     const t = newConvex();
     vi.setSystemTime(AEDT_6PM);
     await setFarm(t, ANNA, {});
-    const born = AEDT_6PM - 5 * DAY_MS - 2 * HOUR;
-    await raise(t, ANNA, "cow", born, [1, 2, 3, 4, 5].map((n) => born + n * DAY_MS + HOUR));
+    const born = AEDT_6PM - 6 * DAY_MS - 2 * HOUR;
+    await raise(t, ANNA, "cow", born, [1, 2, 3, 4, 5].map((n) => farmWindow(born, n).start + HOUR));
     expect(await t.mutation(internal.farm.remind, {})).toMatchObject({ sent: 1 });
     expect(await sentTo(t)).toEqual([expect.objectContaining({ body: "1 cow to milk" })]);
   });
@@ -459,7 +459,7 @@ describe("reminders", () => {
     const t = newConvex();
     vi.setSystemTime(AEDT_6PM);
     await asUser(t, ANNA).mutation(api.farm.setReminders, { on: false });
-    await raise(t, ANNA, "cow", AEDT_6PM - DAY_MS - HOUR);
+    await raise(t, ANNA, "cow", AEDT_6PM - 2 * DAY_MS - HOUR);
     expect(await t.mutation(internal.farm.remind, {})).toMatchObject({ sent: 0 });
   });
 

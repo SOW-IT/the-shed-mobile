@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
-import { CROPS, DAY_MS, FREE_PLOTS, MAX_SEED_BUY, MAX_SEEDS_EACH, PLOT_COUNT, PLOT_PRICES, STARTER_SEEDS, sellPrice, stackKey } from "../shared/farm";
+import { CROPS, DAY_MS, farmWindow, FREE_PLOTS, MAX_SEED_BUY, MAX_SEEDS_EACH, PLOT_COUNT, PLOT_PRICES, STARTER_SEEDS, sellPrice, stackKey } from "../shared/farm";
 import { BACK_DOOR } from "../shared/home";
 import { HOME_ARRIVAL, posAt } from "../shared/world";
 
@@ -290,16 +290,18 @@ describe("planting, watering and harvesting", () => {
     await intoBackyard(t, ANNA);
     const anna = asUser(t, ANNA);
     await anna.mutation(api.farm.plant, { plot: 0, crop: "lettuce" });
+    const lettucePlanted = Date.now();
     expect(await anna.mutation(api.farm.water, { plot: 0 })).toMatchObject({ ok: false, reason: "Already watered." });
     await expect(anna.mutation(api.farm.water, { plot: 1 })).rejects.toThrow(/Nothing's growing/);
-    later(DAY_MS);
+    vi.setSystemTime(farmWindow(lettucePlanted, 1).start);
     expect(await anna.mutation(api.farm.water, { plot: 0 })).toMatchObject({ ok: false, reason: "It's ready. No water needed." });
     await setFarm(t, ANNA, { seeds: { tomato: 1 } });
     await anna.mutation(api.farm.plant, { plot: 1, crop: "tomato" });
-    later(DAY_MS + HOUR);
+    const tomatoPlanted = Date.now();
+    vi.setSystemTime(farmWindow(tomatoPlanted, 1).start + HOUR);
     expect(await anna.mutation(api.farm.water, { plot: 1 })).toMatchObject({ ok: true });
     expect(await anna.mutation(api.farm.water, { plot: 1 })).toMatchObject({ ok: false, reason: "Already watered." });
-    later(4 * DAY_MS);
+    vi.setSystemTime(farmWindow(tomatoPlanted, 5).start);
     expect(await anna.mutation(api.farm.water, { plot: 1 })).toMatchObject({ ok: false, reason: "It's died." });
   });
 
@@ -310,11 +312,12 @@ describe("planting, watering and harvesting", () => {
     await setFarm(t, ANNA, { seeds: { lettuce: 1, carrot: 1 } });
     await anna.mutation(api.farm.plant, { plot: 0, crop: "lettuce" });
     await anna.mutation(api.farm.plant, { plot: 1, crop: "carrot" });
+    const planted = Date.now();
     expect(await anna.mutation(api.farm.harvest, { plot: 0 })).toMatchObject({ ok: false, reason: "It isn't ready yet." });
-    later(2 * DAY_MS + HOUR);
+    vi.setSystemTime(farmWindow(planted, 2).start + HOUR);
     expect(await anna.mutation(api.farm.harvest, { plot: 0 })).toMatchObject({ ok: true, crop: "lettuce", wilts: 0 });
     expect(await anna.mutation(api.farm.water, { plot: 1 })).toMatchObject({ ok: true });
-    later(DAY_MS);
+    vi.setSystemTime(farmWindow(planted, 3).start);
     expect(await anna.mutation(api.farm.harvest, { plot: 1 })).toMatchObject({ ok: true, crop: "carrot", wilts: 1 });
     expect((await farmRow(t, ANNA))?.crops).toEqual({ [stackKey("lettuce", 0)]: 1, [stackKey("carrot", 1)]: 1 });
     expect(await anna.query(api.farm.bag, {})).toEqual({ seeds: { lettuce: 0, carrot: 0 }, crops: { "lettuce:0": 1, "carrot:1": 1 }, reminders: true, feed: {}, goods: {}, nameTags: 0 });
@@ -325,12 +328,13 @@ describe("planting, watering and harvesting", () => {
     await intoBackyard(t, ANNA);
     const anna = asUser(t, ANNA);
     await anna.mutation(api.farm.plant, { plot: 2, crop: "lettuce" });
+    const planted = Date.now();
     expect(await anna.mutation(api.farm.clear, { plot: 2 })).toMatchObject({ ok: false, reason: "It's still growing." });
     await t.run(async (ctx) => {
       const row = (await ctx.db.query("worldPlants").first())!;
       await ctx.db.patch("worldPlants", row._id, { crop: "watermelon" });
     });
-    later(4 * DAY_MS);
+    vi.setSystemTime(farmWindow(planted, 4).start);
     expect(await anna.mutation(api.farm.harvest, { plot: 2 })).toMatchObject({ ok: false, reason: "It's died." });
     expect(await anna.mutation(api.farm.clear, { plot: 2 })).toMatchObject({ ok: true });
     expect(await t.run((ctx) => ctx.db.query("worldPlants").collect())).toEqual([]);
@@ -344,8 +348,9 @@ describe("who can do what", () => {
     await intoBackyard(t, ANNA);
     await setFarm(t, ANNA, { seeds: { tomato: 1 } });
     await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "tomato" });
+    const planted = Date.now();
     await visit(t, ANNA, BEN);
-    later(DAY_MS);
+    vi.setSystemTime(farmWindow(planted, 1).start + HOUR);
     expect(await asUser(t, BEN).mutation(api.farm.water, { plot: 0 })).toMatchObject({ ok: true });
     const roomId = (await memberOf(t, BEN)).room!._id;
     const seen = await asUser(t, BEN).query(api.farm.farm, { roomId });
@@ -360,8 +365,9 @@ describe("who can do what", () => {
     await intoBackyard(t, ANNA);
     await setFarm(t, ANNA, { seeds: { tomato: 1 } });
     await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "tomato" });
+    const planted = Date.now();
     await visit(t, ANNA, BEN);
-    later(DAY_MS);
+    vi.setSystemTime(farmWindow(planted, 1).start + HOUR);
     await asUser(t, BEN).mutation(api.farm.water, { plot: 0 });
     await asUser(t, BEN).mutation(api.farm.water, { plot: 0 });
     expect(await t.run((ctx) => ctx.db.query("worldWaterers").collect())).toMatchObject([{ email: BEN, owner: ANNA }]);
@@ -382,7 +388,8 @@ describe("who can do what", () => {
     await intoBackyard(t, ANNA);
     await setFarm(t, ANNA, { seeds: { tomato: 1 } });
     await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "tomato" });
-    later(DAY_MS);
+    const planted = Date.now();
+    vi.setSystemTime(farmWindow(planted, 1).start + HOUR);
     await asUser(t, ANNA).mutation(api.farm.water, { plot: 0 });
     const farm = await asUser(t, ANNA).query(api.farm.farm, {});
     expect(farm?.plants[0].waterings[0]).toMatchObject({ by: null, mine: true });
@@ -392,11 +399,12 @@ describe("who can do what", () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
     await asUser(t, ANNA).mutation(api.farm.plant, { plot: 0, crop: "lettuce" });
+    const planted = Date.now();
     await visit(t, ANNA, BEN);
     await setFarm(t, BEN, { seeds: { lettuce: 2 } });
     const ben = asUser(t, BEN);
     await expect(ben.mutation(api.farm.plant, { plot: 1, crop: "lettuce" })).rejects.toThrow(/Only the owner/);
-    later(DAY_MS);
+    vi.setSystemTime(farmWindow(planted, 1).start);
     await expect(ben.mutation(api.farm.harvest, { plot: 0 })).rejects.toThrow(/Only the owner/);
     await expect(ben.mutation(api.farm.clear, { plot: 0 })).rejects.toThrow(/Only the owner/);
     expect(await t.run((ctx) => ctx.db.query("worldPlants").collect())).toHaveLength(1);
@@ -545,7 +553,7 @@ describe("reminders", () => {
     expect(await t.mutation(internal.farm.remind, {})).toEqual({ skipped: true, sent: 0 });
     vi.setSystemTime(at);
     await setFarm(t, ANNA, {});
-    await growing(t, ANNA, at - DAY_MS - HOUR);
+    await growing(t, ANNA, at - 2 * DAY_MS - HOUR);
     await t.run((ctx) => ctx.db.insert("worldPlants", { owner: ANNA, plot: 1, crop: "lettuce", plantedAt: at - 3 * DAY_MS, waterings: [] }));
     expect(await t.mutation(internal.farm.remind, {})).toEqual({ skipped: false, sent: 1 });
     expect(await sentTo(t)).toEqual([expect.objectContaining({ to: ANNA, body: "1 plant needs water · 1 ready to harvest" })]);
@@ -574,7 +582,7 @@ describe("reminders", () => {
     const t = newConvex();
     vi.setSystemTime(AEDT_6PM);
     await asUser(t, ANNA).mutation(api.farm.setReminders, { on: false });
-    await growing(t, ANNA, AEDT_6PM - DAY_MS - HOUR);
+    await growing(t, ANNA, AEDT_6PM - 2 * DAY_MS - HOUR);
     expect(await t.mutation(internal.farm.remind, {})).toMatchObject({ sent: 0 });
     expect((await asUser(t, ANNA).query(api.farm.bag, {}))?.reminders).toBe(false);
     await asUser(t, ANNA).mutation(api.farm.setReminders, { on: true });
@@ -587,7 +595,7 @@ describe("reminders", () => {
     for (let i = 0; i < 55; i++) {
       const owner = `farmer${i}@sow.org.au`;
       await setFarm(t, owner, {});
-      await growing(t, owner, AEDT_6PM - DAY_MS - HOUR);
+      await growing(t, owner, AEDT_6PM - 2 * DAY_MS - HOUR);
     }
     expect(await t.mutation(internal.farm.remind, {})).toMatchObject({ sent: 50 });
     const next = (await pushes(t)).find((job) => job.name.includes("remindFrom"))!;

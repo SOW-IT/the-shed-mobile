@@ -8,6 +8,8 @@ import {
   DAY_MS,
   farmNudge,
   farmPushDay,
+  farmWindow,
+  farmWindowIndex,
   growth,
   growthLook,
   isCrop,
@@ -23,12 +25,15 @@ import {
   sellPrice,
   stackKey,
   stackLabel,
+  sydneyMidnight,
   timeLeft,
 } from "./farm";
 
+// 2026-11-25 13:00 AEDT (UTC+11)
 const AT = Date.UTC(2026, 10, 25, 2, 0);
+const MINUTE = 60_000;
 const HOUR = 60 * 60_000;
-const day = (n: number) => AT + n * DAY_MS;
+const day = (n: number) => farmWindow(AT, n).start;
 
 const tomato = (waterings: number[]) => ({ crop: "tomato", plantedAt: AT, waterings: waterings.map((at) => ({ at })) });
 
@@ -110,14 +115,42 @@ describe("watering windows", () => {
   test("an unknown crop grows like lettuce", () => {
     expect(growth({ crop: "kale", plantedAt: AT, waterings: [] }, day(1)).stage).toBe("ripe");
   });
+
+  test("resets at midnight Sydney time: planting at 11:58pm waits 2 min + 24h, 10pm waits 2h + 24h", () => {
+    const mid26 = sydneyMidnight("2026-11-26");
+    const mid27 = sydneyMidnight("2026-11-27");
+    const mid28 = sydneyMidnight("2026-11-28");
+    const mid29 = sydneyMidnight("2026-11-29");
+    // Plant lettuce at 11:58pm on Nov 25 Sydney
+    const lateLettuce = { crop: "lettuce", plantedAt: mid26 - 2 * MINUTE, waterings: [] };
+    expect(growth(lateLettuce, mid26)).toMatchObject({ window: 0, thirsty: false, readyAt: mid27 });
+    expect(growth(lateLettuce, mid27 - 1).stage).not.toBe("ripe");
+    expect(growth(lateLettuce, mid27)).toMatchObject({ stage: "ripe", ripeAt: mid27 });
+    // Plant lettuce at 10:00pm on Nov 25 Sydney
+    const eveningLettuce = { crop: "lettuce", plantedAt: mid26 - 2 * HOUR, waterings: [] };
+    expect(growth(eveningLettuce, mid26 + 23 * HOUR).stage).not.toBe("ripe");
+    expect(growth(eveningLettuce, mid27)).toMatchObject({ stage: "ripe", ripeAt: mid27 });
+    // Water a thirsty plant at 11:59pm, needs water again at 12:00am next Sydney day, water at 12:01am, wait 23h59m
+    const plant = { crop: "tomato", plantedAt: mid26 - 2 * HOUR, waterings: [{ at: mid28 - MINUTE }] };
+    expect(growth(plant, mid28 - 30_000)).toMatchObject({ window: 1, thirsty: false });
+    expect(growth(plant, mid28)).toMatchObject({ window: 2, thirsty: true, windowEndsAt: mid29 });
+    const wateredAgain = { ...plant, waterings: [...plant.waterings, { at: mid28 + MINUTE }] };
+    expect(growth(wateredAgain, mid28 + 2 * MINUTE)).toMatchObject({ window: 2, thirsty: false, windowEndsAt: mid29 });
+    expect(growth(wateredAgain, mid29 - 1)).toMatchObject({ window: 2, thirsty: false });
+    expect(growth(wateredAgain, mid29)).toMatchObject({ window: 3, thirsty: true });
+    // DST transitions: spring forward (23h day) and fall back (25h day)
+    expect(sydneyMidnight("2026-10-05") - sydneyMidnight("2026-10-04")).toBe(23 * HOUR);
+    expect(sydneyMidnight("2026-04-06") - sydneyMidnight("2026-04-05")).toBe(25 * HOUR);
+    expect(farmWindowIndex(mid26 - 2 * MINUTE, mid27)).toBe(1);
+  });
 });
 
 describe("the plant card", () => {
   test("says the crop, the time left and the wilts", () => {
     expect(plantCard(tomato([day(2) + 1]), day(2) + 2 * HOUR)).toBe("Tomato · 3 days left · wilted 1×");
-    expect(plantCard(tomato([]), AT)).toBe("Tomato · 4 days left");
-    expect(plantCard(tomato([]), AT - 30_000)).toBe("Tomato · 4 days left");
-    expect(plantCard({ crop: "lettuce", plantedAt: AT, waterings: [] }, AT + 20 * HOUR)).toBe("Lettuce · 4h left");
+    expect(plantCard(tomato([]), AT)).toBe("Tomato · 5 days left");
+    expect(plantCard(tomato([]), AT - 30_000)).toBe("Tomato · 5 days left");
+    expect(plantCard({ crop: "lettuce", plantedAt: AT, waterings: [] }, day(1) - 4 * HOUR)).toBe("Lettuce · 4h left");
     expect(plantCard({ crop: "lettuce", plantedAt: AT, waterings: [] }, day(1))).toBe("Lettuce · ready");
     expect(plantCard(tomato([]), day(5))).toBe("Tomato · died · wilted 3×");
   });

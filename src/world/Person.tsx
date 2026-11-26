@@ -1516,6 +1516,9 @@ export const Avatar = memo(
 );
 
 const TYPING_DOTS = [0, 1, 2];
+const TAG_WIDTH = 200;
+const TAG_EDGE_PAD = 10;
+const WEB_WRAP = Platform.OS === "web" ? ({ overflowWrap: "anywhere", wordBreak: "break-word" } as object) : null;
 
 /** The name, line and emote over someone's head, above all the scenery. */
 const TagView = ({
@@ -1523,6 +1526,8 @@ const TagView = ({
   y,
   name,
   me,
+  npc = false,
+  stageWidth,
   line,
   typing,
   emote,
@@ -1537,6 +1542,8 @@ const TagView = ({
   y: number;
   name: string;
   me: boolean;
+  npc?: boolean;
+  stageWidth?: number;
   line?: string;
   typing?: number;
   emote?: string;
@@ -1547,50 +1554,58 @@ const TagView = ({
   reading?: boolean;
   shout?: boolean;
   calm?: boolean;
-}) => (
-  <View pointerEvents="none" style={[styles.tag, { left: x - 120, top: y - 400 }]}>
-    {emote ? (
-      <Text style={[styles.emote, { opacity: 1 - emoteRise * emoteRise, transform: [{ translateY: -emoteRise * 26 }] }]}>{emote}</Text>
-    ) : null}
-    {line ? (
-      <View
-        style={[
-          styles.bubble,
-          calm ? { opacity: lineFade } : { opacity: lineFade, transform: [{ translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
-        ]}
-      >
-        <Text style={[styles.bubbleText, shout && styles.shoutText]}>{line}</Text>
-        <View style={styles.tailRow}>
-          <View style={styles.tailInk} />
-          <View style={styles.tail} />
+}) => {
+  const bubbleShift =
+    stageWidth !== undefined && line
+      ? Math.min(Math.max(TAG_EDGE_PAD + TAG_WIDTH / 2, x), Math.max(TAG_EDGE_PAD + TAG_WIDTH / 2, stageWidth - TAG_EDGE_PAD - TAG_WIDTH / 2)) - x
+      : 0;
+  return (
+    <View pointerEvents="none" style={[styles.tag, { left: x - TAG_WIDTH / 2, top: y - 400 }]}>
+      {emote ? (
+        <Text style={[styles.emote, { opacity: 1 - emoteRise * emoteRise, transform: [{ translateY: -emoteRise * 26 }] }]}>{emote}</Text>
+      ) : null}
+      {line ? (
+        <View
+          style={[
+            styles.bubble,
+            calm
+              ? { opacity: lineFade, transform: [{ translateX: bubbleShift }] }
+              : { opacity: lineFade, transform: [{ translateX: bubbleShift }, { translateY: (1 - lineFade) * 6 }, { scale: 0.92 + 0.08 * lineFade }] },
+          ]}
+        >
+          <Text style={[styles.bubbleText, shout && styles.shoutText, WEB_WRAP]}>{line}</Text>
+          <View style={[styles.tailRow, { transform: [{ translateX: -bubbleShift }] }]}>
+            <View style={styles.tailInk} />
+            <View style={styles.tail} />
+          </View>
         </View>
-      </View>
-    ) : typing !== undefined ? (
-      <View style={[styles.bubble, styles.typingBubble]} accessibilityLabel={`${name} is typing`} testID="world-typing">
-        {TYPING_DOTS.map((i) => (
-          <View key={i} style={[styles.typingDot, { transform: [{ translateY: -3 * Math.max(0, Math.sin(typing * 7 - i * 0.9)) }] }]} />
-        ))}
-        <View style={styles.tailRow}>
-          <View style={styles.tailInk} />
-          <View style={styles.tail} />
+      ) : typing !== undefined ? (
+        <View style={[styles.bubble, styles.typingBubble]} accessibilityLabel={`${name} is typing`} testID="world-typing">
+          {TYPING_DOTS.map((i) => (
+            <View key={i} style={[styles.typingDot, { transform: [{ translateY: -3 * Math.max(0, Math.sin(typing * 7 - i * 0.9)) }] }]} />
+          ))}
+          <View style={styles.tailRow}>
+            <View style={styles.tailInk} />
+            <View style={styles.tail} />
+          </View>
         </View>
-      </View>
-    ) : null}
-    {reading ? (
-      <View style={styles.readingBadge} accessibilityLabel="Doing devotional" testID="world-reading-icon">
-        <Ionicons name="book-outline" size={14} color={hud.cream} />
-      </View>
-    ) : null}
-    {status ? (
-      <Text style={styles.status} numberOfLines={1}>
-        {status}
+      ) : null}
+      {reading ? (
+        <View style={styles.readingBadge} accessibilityLabel="Doing devotional" testID="world-reading-icon">
+          <Ionicons name="book-outline" size={14} color={hud.cream} />
+        </View>
+      ) : null}
+      {status ? (
+        <Text style={styles.status} numberOfLines={1}>
+          {status}
+        </Text>
+      ) : null}
+      <Text style={[styles.name, me && styles.meName, npc && styles.npcName]} numberOfLines={1} testID={npc ? "world-npc-tag" : undefined}>
+        {name}
       </Text>
-    ) : null}
-    <Text style={[styles.name, me && styles.meName]} numberOfLines={1}>
-      {name}
-    </Text>
-  </View>
-);
+    </View>
+  );
+};
 
 export const Tag = memo(TagView);
 
@@ -1598,22 +1613,22 @@ const styles = StyleSheet.create({
   abs: { position: "absolute" },
   waterline: { left: 0, top: 0, width: "100%", overflow: "hidden" },
   quad: { position: "absolute", left: 0, top: 0, width: QUAD_SIZE, height: QUAD_SIZE },
-  tag: { position: "absolute", width: 240, height: 400, alignItems: "center", justifyContent: "flex-end", gap: 10 },
+  tag: { position: "absolute", width: TAG_WIDTH, height: 400, alignItems: "center", justifyContent: "flex-end", gap: 10 },
   emote: { fontSize: 30, marginBottom: -4 },
   bubble: {
-    maxWidth: 214,
+    maxWidth: 172,
     backgroundColor: hud.card,
     borderColor: hud.forest,
     borderWidth: 2.5,
     borderRadius: 18,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     ...popShadow(),
     marginBottom: 2,
   },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 11 },
   typingDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: hud.forest },
-  bubbleText: { color: hud.forest, fontSize: 14.5, lineHeight: 18.5, fontWeight: "600" },
+  bubbleText: { maxWidth: "100%", color: hud.forest, fontSize: 14, lineHeight: 18, fontWeight: "600", textAlign: "center" },
   shoutText: { fontSize: 30, lineHeight: 36 },
   status: {
     fontSize: 11,
@@ -1670,4 +1685,5 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   meName: { backgroundColor: hud.accent, color: hud.onAccent },
+  npcName: { backgroundColor: hud.npcBg, color: hud.forest },
 });
