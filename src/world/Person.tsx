@@ -5,7 +5,50 @@ import { QUAD_SIZE, type Camera, type ScreenPoint } from "./camera";
 import { garden, hud, isLight, people, shade } from "./palette";
 import { popShadow } from "./popShadow";
 import { Ellipse, flatQuad, quadTransform } from "./Shapes";
-import { bandOverHead, capShape, earCup, HAT_PITCH, hoodLayer, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
+import {
+  backDrapeCover,
+  bandOverHead,
+  BEANIE_BODY,
+  BEANIE_CUFF,
+  beretPose,
+  bowPose,
+  braidPoints,
+  capShape,
+  crownShape,
+  curlPoints,
+  curtainsPose,
+  earCup,
+  earFlowerPose,
+  glassesTemples,
+  HAT_PITCH,
+  headPoint,
+  hoodLayer,
+  mohawkPoints,
+  ponytailPose,
+  projectOnHead,
+  ringOnHead,
+  sideSweptPose,
+  spikePoints,
+  wavyHemPoints,
+  type Disc,
+  type HeadView,
+  type Point,
+} from "./headwear";
+import {
+  backpackPose,
+  bodyHalfWidth,
+  bowTiePose,
+  necklacePose,
+  PLAID_ANGLES,
+  POLKA_DOTS,
+  scarfPose,
+  surfaceDots,
+  surfaceSegment,
+  surfaceStrip,
+  TIE_DYE_BLOBS,
+  TIE_DYE_LIGHTS,
+  type BodyView,
+} from "./bodywear";
 import { FACE_MIN } from "./talk";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
@@ -82,6 +125,20 @@ const hidesCrest = (hat: number) => hat !== 0 && hat !== 6 && hat !== 7;
 const coversFringe = (hat: number) => hat === 1 || hat === 2 || hat === 4;
 
 const CAP_HAIR_TOP = 0.2;
+
+const OVERALL_BRACES = [
+  [-0.56, 0.7, -0.5, 0.56],
+  [0.56, 0.7, 0.5, 0.56],
+  [-Math.PI + 0.68, 0.7, -Math.PI + 0.16, 0.36],
+  [Math.PI - 0.68, 0.7, Math.PI - 0.16, 0.36],
+] as const;
+
+const BACKPACK_STRAPS = [
+  [-0.62, 0.69, -0.56, 0.38],
+  [0.62, 0.69, 0.56, 0.38],
+  [-0.56, 0.38, -2.05, 0.36],
+  [0.56, 0.38, 2.05, 0.36],
+] as const;
 
 type Stride = { stridePhase: number; strideAmp: number };
 
@@ -476,16 +533,16 @@ const AvatarView = ({
   const headTopY = head.y - hh / 2 - (hh - r * 2) * 0.25;
   const onScreen = headView(headLeft, headTopY);
   const capColour = people.hats.cap;
-  const crownLayer = (fill: string, grow: number, key: string) => {
-    const cap = capShape(headView(-ink, -ink));
+  const innerHeadView = headView(-ink, -ink);
+  const crownLayer = (cap: ReturnType<typeof capShape>, fill: string, grow: number, key: string) => {
     const cover = <View key={`${key}Cover`} style={[styles.abs, { left: -iw, top: -ih, width: iw * 3, height: ih * 3, backgroundColor: fill }]} />;
     const above = (child: ReactNode) => (cap.edge ? halfPlane(`${key}Top`, cap.edge[0], cap.edge[1], cap.top, child, grow) : child);
     if (cap.rimIsCrown) return [disc(cap.rim, fill, `${key}Rim`, grow), above(cover)];
     return [crescent(cap.rim.centre, cap.rimAcross, cap.rimUp, Math.max(iw, ih) * 1.2, fill, `${key}Rim`, grow) ?? above(cover)];
   };
-  const crown = () => (
+  const crownShell = (key: string, children: ReactNode) => (
     <View
-      key="capCrown"
+      key={key}
       pointerEvents="none"
       style={[
         styles.abs,
@@ -502,23 +559,99 @@ const AvatarView = ({
         },
       ]}
     >
-      {crownLayer(garden.ink, ink * 0.9, "capInk")}
-      {crownLayer(capColour, 0, "cap")}
+      {children}
     </View>
   );
+  const crown = () => {
+    const cap = capShape(innerHeadView);
+    return crownShell(
+      "capCrown",
+      <>
+        {crownLayer(cap, garden.ink, ink * 0.9, "capInk")}
+        {crownLayer(cap, capColour, 0, "cap")}
+      </>
+    );
+  };
+  const beanieCrown = () => {
+    const cuff = capShape(innerHeadView, BEANIE_CUFF);
+    const bodyCap = capShape(innerHeadView, BEANIE_BODY);
+    return crownShell(
+      "beanieCrown",
+      <>
+        {crownLayer(cuff, garden.ink, ink * 0.9, "beanieInk")}
+        {crownLayer(cuff, shade(people.hats.beanie, -0.15), 0, "beanieCuff")}
+        {crownLayer(bodyCap, shade(people.hats.beanie, -0.28), ink * 0.5, "beanieSeam")}
+        {crownLayer(bodyCap, people.hats.beanie, 0, "beanieBody")}
+        <View style={[styles.abs, { left: icx + inner * 0.05, top: icy - inner * 0.85, width: inner * 0.55, height: inner * 0.28, borderRadius: inner, backgroundColor: shade(people.hats.beanie, 0.18) }]} />
+      </>
+    );
+  };
+  const headbandCrown = () => {
+    const ring = ringOnHead(innerHeadView, { y: 0.48, tilt: 0.22, radius: 1.0 }, 24);
+    const width = 0.08 * s;
+    const colour = fav(people.hats.headband);
+    const segs: ReactNode[] = [];
+    for (const [pass, fill, grow] of [["Ink", garden.ink, ink * 1.4], ["", colour, 0]] as const) {
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i];
+        const b = ring[(i + 1) % ring.length];
+        if (!a.front && !b.front) continue;
+        segs.push(capsule(a.at, b.at, width + grow, fill, `headband${pass}${i}`));
+      }
+    }
+    return crownShell("headbandCrown", segs);
+  };
+  const capOnScreen = capped ? capShape(onScreen) : null;
   const peak = () => {
-    const cap = capShape(onScreen);
-    const { centre, a, b } = cap.peak;
+    if (!capOnScreen) return;
+    const { centre, a, b } = capOnScreen.peak;
     const fill = shade(capColour, -0.12);
     parts.push(
       halfPlane("peak", { x: centre.x - a.x, y: centre.y - a.y }, { x: centre.x + a.x, y: centre.y + a.y }, { x: centre.x + b.x, y: centre.y + b.y }, [
-        disc(cap.peak, garden.ink, "peakInk", ink),
-        disc(cap.peak, fill, "peakFill", 0),
+        disc(capOnScreen.peak, garden.ink, "peakInk", ink),
+        disc(capOnScreen.peak, fill, "peakFill", 0),
       ])
     );
-    ball("capButton", cap.top.x, cap.top.y + ink * 0.4, 0.045 * s, shade(capColour, -0.1));
   };
-  const capPeakInFront = capped && capShape(onScreen).peakInFront;
+  const capPeakInFront = capOnScreen !== null && capOnScreen.peakInFront;
+  const bodyView: BodyView = {
+    footX: foot.x,
+    footY: foot.y,
+    s,
+    up,
+    bob,
+    dx,
+    width: body.width,
+    height: body.height,
+    facing,
+    side,
+  };
+  const flowerRing = hat === 3 ? ringOnHead(onScreen, { y: 0.56, tilt: 0.28, radius: look.hair === 10 ? 1.2 : 1.04 }, 10) : null;
+  const flowerCrown = (layer: "back" | "front") => {
+    if (!flowerRing) return;
+    const list = flowerRing.filter((f) => (f.front ? "front" : "back") === layer).sort((a, b) => a.depth - b.depth);
+    for (const f of list) ball(`crown${f.index}`, f.at.x, f.at.y, 0.095 * s, garden.blooms[f.index % garden.blooms.length]);
+  };
+  const bow = hat === 6 ? bowPose(onScreen, onAfro / onScreen.ry) : null;
+  const drawBow = () => {
+    if (!bow) return;
+    const colour = fav(people.hats.bow);
+    for (const loop of bow.loops) {
+      parts.push(
+        <Ellipse
+          key={`bowLoop${loop.side}`}
+          cx={loop.at.x}
+          cy={loop.at.y}
+          rx={0.105 * s * loop.scale}
+          ry={0.08 * s}
+          fill={colour}
+          ink={ink}
+          inkColour={garden.ink}
+        />
+      );
+    }
+    ball("bowKnot", bow.knot.at.x, bow.knot.at.y, 0.045 * s, shade(colour, -0.15));
+  };
   const level = (y: number, radius: number) => {
     const c = projectOnHead(onScreen, [0, y, 0]);
     return { cx: c.x, cy: c.y, rx: onScreen.rx * radius, ry: onScreen.ry * radius * Math.sin(HAT_PITCH) };
@@ -582,9 +715,11 @@ const AvatarView = ({
   };
   const feetInFront = seated && facing >= 0;
   if (!feetInFront && !swim) feet();
+  const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const accessory = look.accessory ?? 0;
-  // A backpack shows behind the body from the front, over it from behind.
-  const backpack = (key: string) =>
+  const pack = accessory === 2 ? backpackPose(bodyView) : null;
+  const drawBackpack = (key: string) => {
+    if (!pack) return;
     parts.push(
       <View
         key={key}
@@ -592,11 +727,11 @@ const AvatarView = ({
         style={[
           styles.abs,
           {
-            left: at(-0.27 - side * 0.12, 0.72).x,
-            top: at(0, 0.72).y,
-            width: 0.54 * s,
-            height: 0.52 * up,
-            borderRadius: 0.14 * s,
+            left: pack.left,
+            top: pack.top,
+            width: pack.width,
+            height: pack.height,
+            borderRadius: Math.min(0.14 * s, pack.width * 0.45),
             backgroundColor: people.backpack,
             borderWidth: ink,
             borderColor: garden.ink,
@@ -604,10 +739,44 @@ const AvatarView = ({
         ]}
       />
     );
-  if (accessory === 2 && facing >= 0) backpack("packBehind");
-  if (look.hair === 4) {
-    for (const e of [-1, 1]) ball(`tail${e}`, head.x + e * r * 1.05, head.y + r * 0.15, 0.15 * s, hair);
-  }
+    if (pack.pocket) {
+      parts.push(
+        <View
+          key={`${key}Pocket`}
+          pointerEvents="none"
+          style={[
+            styles.abs,
+            {
+              left: pack.pocket.left,
+              top: pack.pocket.top,
+              width: pack.pocket.width,
+              height: pack.pocket.height,
+              borderRadius: Math.min(0.08 * s, pack.pocket.width * 0.4),
+              backgroundColor: shade(people.backpack, -0.12),
+              borderWidth: ink * 0.7,
+              borderColor: garden.ink,
+            },
+          ]}
+        />
+      );
+    }
+  };
+  const scarf = accessory === 3 ? scarfPose(bodyView, chin, swing) : null;
+  const drawScarfTail = (key: string) => {
+    if (!scarf) return;
+    parts.push(capsule(scarf.tailStart, scarf.tailEnd, 0.1 * s + ink * 2, garden.ink, `${key}Ink`));
+    parts.push(capsule(scarf.tailStart, scarf.tailEnd, 0.1 * s, shade(people.scarf, -0.1), key));
+  };
+  const braid = look.hair === 14 ? braidPoints(onScreen) : null;
+  const drawBraid = () => {
+    if (!braid) return;
+    for (const node of braid.nodes) {
+      ball(node.tie ? "braidTie" : `braid${node.index}`, node.at.x, node.at.y, node.scale * s, node.tie ? fav(people.scarf) : hair);
+    }
+  };
+  if (pack && !pack.over) drawBackpack("packBehind");
+  if (scarf && !scarf.tailInFront) drawScarfTail("scarfTailBehind");
+  if (braid && !braid.front) drawBraid();
   const arm = (e: number) => {
     const hand = e < 0 ? move.hands.l : move.hands.r;
     const shoulder = at(0.26 * e, 0.6);
@@ -629,9 +798,6 @@ const AvatarView = ({
       parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${layer}`));
     }
   };
-  // The chin, in body units: the head covers the neck, so collars, bow ties
-  // and necklaces hang just below it.
-  const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const outfit = lookPart(look, "outfit");
   const hood = outfit === 5 ? hoodLayer(facing) : null;
   const hoodFill = shade(shirt, -0.18);
@@ -665,8 +831,6 @@ const AvatarView = ({
       { x: at(l2, bottom).x - grow, y: at(0, bottom).y + grow },
     ];
   };
-  const dot = (key: string, x: number, y: number, rad: number, fill: string) =>
-    parts.push(<View key={key} pointerEvents="none" style={[styles.abs, { left: at(x, y).x - rad, top: at(x, y).y - rad, width: rad * 2, height: rad * 2, borderRadius: rad, backgroundColor: fill }]} />);
   const piece = (key: string, fill: string, top: number, bottom: number, topHalf: number, bottomHalf: number, radius = 12) => {
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
@@ -685,56 +849,113 @@ const AvatarView = ({
   if (outfit === 2) piece("skirt", shade(shirt, -0.28), 0.4, 0.1, halfWidth(0.4) + 0.01, 0.45, 14);
   if (outfit === 3) {
     piece("dungarees", people.denim, 0.36, 0.14, halfWidth(0.36) + 0.01, 0.34, 10);
-    if (facing >= 0) {
-      piece("bib", people.denim, 0.58, 0.34, 0.13, 0.15, 6);
-      for (const e of [-1, 1]) parts.push(capsule(at(0.12 * e, 0.7), at(0.11 * e, 0.56), 0.05 * s, people.denim, `brace${e}`));
-    } else {
-      for (const e of [-1, 1]) parts.push(capsule(at(0.14 * e, 0.7), at(0.04 * e, 0.36), 0.05 * s, people.denim, `brace${e}`));
+    const bibInk = surfaceStrip(bodyView, 0.58, 0.34, [-0.58, 0.58], [-0.56, 0.56], ink);
+    const bibFill = surfaceStrip(bodyView, 0.58, 0.34, [-0.58, 0.58], [-0.56, 0.56], 0);
+    if (bibInk && bibFill) {
+      parts.push(quad(bibInk, garden.ink, "bibInk", 6));
+      parts.push(quad(bibFill, people.denim, "bib", 6));
     }
+    OVERALL_BRACES.forEach(([t0, y0, t1, y1], i) => {
+      const seg = surfaceSegment(bodyView, t0, y0, t1, y1, -0.02);
+      if (seg) parts.push(capsule(seg.a, seg.b, 0.05 * s, people.denim, `brace${i}`));
+    });
   }
   if (outfit === 4) {
     for (const y of [0.58, 0.44, 0.3]) {
       parts.push(capsule(at(-halfWidth(y) + 0.04, y), at(halfWidth(y) - 0.04, y), 0.055 * s, shade(shirt, -0.3), `stripe${y}`));
     }
   }
-  if (outfit === 6 && facing >= 0) {
-    // Collared: a white collar and two buttons.
-    for (const e of [-1, 1]) {
-      parts.push(quad(sidePanel(e, chin + 0.03, chin - 0.1, [0, 0.15], [0.02, 0.11], ink * 0.8), garden.ink, `collarInk${e}`, 2));
-      parts.push(quad(sidePanel(e, chin + 0.03, chin - 0.1, [0, 0.15], [0.02, 0.11], 0), people.collar, `collar${e}`, 2));
+  if (outfit === 6) {
+    const collarY = chin + 0.01;
+    const collarR = bodyHalfWidth(collarY);
+    parts.push(capsule(at(-collarR + 0.02, collarY), at(collarR - 0.02, collarY), 0.055 * s + ink * 1.4, garden.ink, "collarBandInk"));
+    parts.push(capsule(at(-collarR + 0.02, collarY), at(collarR - 0.02, collarY), 0.055 * s, people.collar, "collarBand"));
+    for (const e of [-1, 1] as const) {
+      const topSpan: readonly [number, number] = e > 0 ? [0.02, 0.66] : [-0.66, -0.02];
+      const botSpan: readonly [number, number] = e > 0 ? [0.08, 0.44] : [-0.44, -0.08];
+      const cInk = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, ink * 0.8);
+      const cFill = surfaceStrip(bodyView, chin + 0.03, chin - 0.1, topSpan, botSpan, 0);
+      if (cInk && cFill) {
+        parts.push(quad(cInk, garden.ink, `collarInk${e}`, 2));
+        parts.push(quad(cFill, people.collar, `collar${e}`, 2));
+      }
     }
-    for (const y of [chin - 0.16, chin - 0.28]) if (y > hem + 0.04) dot(`button${y}`, 0, y, 0.022 * s, shade(shirt, -0.35));
+    const buttons = surfaceDots(
+      bodyView,
+      [
+        { theta: 0, y: chin - 0.16, rad: 0.022 },
+        { theta: 0, y: chin - 0.28, rad: 0.022 },
+      ],
+      hem,
+      0.1
+    );
+    for (const b of buttons) {
+      parts.push(<Ellipse key={`button${b.index}`} cx={b.at.x} cy={b.at.y} rx={b.rx} ry={b.ry} fill={shade(shirt, -0.35)} />);
+    }
   }
-  if (outfit === 7 && facing >= 0) {
-    // A jacket, open over a tee.
-    piece("tee", isLight(shirt) ? people.shades : people.collar, 0.7, hem, 0.07, 0.09, 4);
-    for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.71, 0.56, [0.07, 0.17], [0.09, 0.12], 0), shade(shirt, -0.15), `lapel${e}`, 2));
+  if (outfit === 7) {
+    const teeInk = surfaceStrip(bodyView, 0.7, hem, [-0.34, 0.34], [-0.28, 0.28], ink);
+    const teeFill = surfaceStrip(bodyView, 0.7, hem, [-0.34, 0.34], [-0.28, 0.28], 0);
+    if (teeInk && teeFill) {
+      parts.push(quad(teeInk, garden.ink, "teeInk", 4));
+      parts.push(quad(teeFill, isLight(shirt) ? people.shades : people.collar, "tee", 4));
+    }
+    const lapelBot = Math.max(hem + 0.05, Math.min(0.56, chin - 0.06));
+    for (const e of [-1, 1] as const) {
+      const topSpan: readonly [number, number] = e > 0 ? [0.34, 0.94] : [-0.94, -0.34];
+      const botSpan: readonly [number, number] = e > 0 ? [0.31, 0.54] : [-0.54, -0.31];
+      const lapel = surfaceStrip(bodyView, 0.71, lapelBot, topSpan, botSpan, 0);
+      if (lapel) parts.push(quad(lapel, shade(shirt, -0.15), `lapel${e}`, 2));
+    }
   }
   if (outfit === 8) {
-    // A jumper: ribbing at the neck and the hem.
     piece("ribbing", shade(shirt, -0.16), hem + 0.07, hem, halfWidth(hem + 0.07) + 0.005, halfWidth(hem) + 0.005, 6);
-    if (facing >= 0) parts.push(capsule(at(-0.1, 0.69), at(0.1, 0.69), 0.05 * s, shade(shirt, -0.16), "neck"));
+    const neckY = Math.min(0.69, chin + 0.01);
+    const neckR = bodyHalfWidth(neckY) - 0.03;
+    parts.push(capsule(at(-neckR, neckY), at(neckR, neckY), 0.05 * s, shade(shirt, -0.16), "neck"));
   }
   if (outfit === 9) {
-    const spots = [[-0.12, 0.6], [0.08, 0.62], [-0.02, 0.5], [0.16, 0.44], [-0.18, 0.4], [0.05, 0.33], [-0.1, 0.25], [0.2, 0.22]] as const;
-    for (const [x, y] of spots) if (y > hem + 0.04) dot(`spot${x}${y}`, x, y, 0.035 * s, isLight(shirt) ? shade(shirt, -0.3) : shade(shirt, 0.5));
+    const spotFill = isLight(shirt) ? shade(shirt, -0.3) : shade(shirt, 0.5);
+    for (const spot of surfaceDots(bodyView, POLKA_DOTS, hem)) {
+      parts.push(<Ellipse key={`spot${spot.index}`} cx={spot.at.x} cy={spot.at.y} rx={spot.rx} ry={spot.ry} fill={spotFill} />);
+    }
   }
   if (outfit === 10) {
     const plaid = (key: string, a: { x: number; y: number }, b: { x: number; y: number }) => parts.push(capsule(a, b, 0.028 * s, people.plaid, key));
     for (const y of [0.6, 0.45, hem + 0.1]) plaid(`plaidAcross${y}`, at(-halfWidth(y) + 0.03, y), at(halfWidth(y) - 0.03, y));
-    for (const k of [-0.6, 0.6]) plaid(`plaidDown${k}`, at(k * halfWidth(0.66), 0.66), at(k * halfWidth(hem + 0.04), hem + 0.04));
-    if (facing >= 0) {
-      piece("flannelTee", people.shades, 0.7, hem, 0.075, 0.095, 4);
-      parts.push(capsule(at(-0.075, 0.69), at(0.075, 0.69), 0.04 * s, shade(people.shades, 0.25), "teeNeck"));
-      for (const e of [-1, 1]) parts.push(quad(sidePanel(e, 0.71, 0.56, [0.075, 0.17], [0.095, 0.12], 0), shade(shirt, -0.12), `flannelLapel${e}`, 2));
+    PLAID_ANGLES.forEach((angle, i) => {
+      const seg = surfaceSegment(bodyView, angle, 0.66, angle, hem + 0.04, 0.18, 0.92);
+      if (seg) plaid(`plaidDown${i}`, seg.a, seg.b);
+    });
+    const fInk = surfaceStrip(bodyView, 0.7, hem, [-0.36, 0.36], [-0.3, 0.3], ink);
+    const fFill = surfaceStrip(bodyView, 0.7, hem, [-0.36, 0.36], [-0.3, 0.3], 0);
+    if (fInk && fFill) {
+      parts.push(quad(fInk, garden.ink, "flannelTeeInk", 4));
+      parts.push(quad(fFill, people.shades, "flannelTee", 4));
+    }
+    const teeNeckY = Math.min(0.69, chin + 0.01);
+    const teeNeck = surfaceSegment(bodyView, -0.34, teeNeckY, 0.34, teeNeckY, 0.05, 0.94);
+    if (teeNeck) parts.push(capsule(teeNeck.a, teeNeck.b, 0.04 * s, shade(people.shades, 0.25), "teeNeck"));
+    const fLapelBot = Math.max(hem + 0.05, Math.min(0.56, chin - 0.06));
+    for (const e of [-1, 1] as const) {
+      const topSpan: readonly [number, number] = e > 0 ? [0.36, 0.94] : [-0.94, -0.36];
+      const botSpan: readonly [number, number] = e > 0 ? [0.33, 0.56] : [-0.56, -0.33];
+      const lapel = surfaceStrip(bodyView, 0.71, fLapelBot, topSpan, botSpan, 0);
+      if (lapel) parts.push(quad(lapel, shade(shirt, -0.12), `flannelLapel${e}`, 2));
     }
   }
   if (outfit === 11) {
-    const dye = [[-0.1, 0.6, 0.075], [0.11, 0.52, 0.07], [-0.04, 0.42, 0.06], [0.15, 0.36, 0.05], [-0.16, 0.33, 0.055]] as const;
-    for (const [x, y, rad] of dye) if (y > hem + 0.03) dot(`dye${x}${y}`, x, y, rad * s, people.tieDye);
-    for (const [x, y] of [[0.02, 0.56], [-0.13, 0.47], [0.07, 0.3]] as const) if (y > hem + 0.03) dot(`dyeLight${x}${y}`, x, y, 0.04 * s, shade(shirt, 0.35));
+    for (const blob of surfaceDots(bodyView, TIE_DYE_BLOBS, hem)) {
+      parts.push(<Ellipse key={`dye${blob.index}`} cx={blob.at.x} cy={blob.at.y} rx={blob.rx} ry={blob.ry} fill={people.tieDye} />);
+    }
+    const lightFill = shade(shirt, 0.35);
+    for (const blob of surfaceDots(bodyView, TIE_DYE_LIGHTS, hem)) {
+      parts.push(<Ellipse key={`dyeLight${blob.index}`} cx={blob.at.x} cy={blob.at.y} rx={blob.rx} ry={blob.ry} fill={lightFill} />);
+    }
     for (const e of [-1, 1]) parts.push(capsule(at(0.215 * e, 0.66), at(0.2 * e, 0.54), 0.09 * s, skin, `shoulder${e}`));
-    if (facing >= 0) parts.push(capsule(at(-0.06, 0.69), at(0.06, 0.69), 0.07 * s, skin, "scoop"));
+    const scoopY = Math.min(0.69, chin + 0.02);
+    const scoop = surfaceSegment(bodyView, -0.3, scoopY, 0.3, scoopY, 0.1, 0.94);
+    if (scoop) parts.push(capsule(scoop.a, scoop.b, 0.07 * s, skin, "scoop"));
   }
   if (pants === 1 || pants === 2) {
     // Trousers or shorts: hips, then a leg each side, outlined as one shape.
@@ -769,53 +990,101 @@ const AvatarView = ({
       for (const e of [-1, 1]) parts.push(capsule(at(0.05 * e, chin - 0.01), at(0.06 * e, chin - 0.13), 0.03 * s, people.drawstring, `string${e}`));
     }
   }
-  if (accessory === 2 && facing >= 0) {
-    for (const e of [-1, 1]) parts.push(capsule(at(0.13 * e, 0.69), at(0.15 * e, 0.38), 0.05 * s, people.backpackStrap, `strap${e}`));
+  if (pack) {
+    BACKPACK_STRAPS.forEach(([t0, y0, t1, y1], i) => {
+      const seg = surfaceSegment(bodyView, t0, y0, t1, y1, -0.02);
+      if (seg) parts.push(capsule(seg.a, seg.b, 0.05 * s, people.backpackStrap, `strap${i}`));
+    });
+    if (pack.over) drawBackpack("packFront");
   }
-  if (accessory === 2 && facing < 0) backpack("packFront");
-  if (accessory === 3) {
-    // Wrapped under the chin (higher up, the head hides it), its end hanging in front.
-    parts.push(capsule(at(-0.25, 0.58), at(0.25, 0.58), 0.13 * s + ink * 2, garden.ink, "scarfInk"));
-    parts.push(capsule(at(-0.25, 0.58), at(0.25, 0.58), 0.13 * s, people.scarf, "scarf"));
-    if (facing > -0.2) {
-      parts.push(capsule(at(0.13, 0.56), at(0.16 + swing, 0.36), 0.1 * s + ink * 2, garden.ink, "scarfTailInk"));
-      parts.push(capsule(at(0.13, 0.56), at(0.16 + swing, 0.36), 0.1 * s, shade(people.scarf, -0.1), "scarfTail"));
+  if (scarf) {
+    parts.push(capsule(scarf.wrapLeft, scarf.wrapRight, 0.13 * s + ink * 2, garden.ink, "scarfInk"));
+    parts.push(capsule(scarf.wrapLeft, scarf.wrapRight, 0.13 * s, people.scarf, "scarf"));
+    if (scarf.tailInFront) drawScarfTail("scarfTail");
+  }
+  if (accessory === 4) {
+    const tie = bowTiePose(bodyView, chin);
+    if (tie.visible) {
+      const colour = fav(people.scarf);
+      for (const wing of tie.wings) {
+        if (!wing.visible) continue;
+        const wInk = surfaceStrip(bodyView, tie.yTop + 0.01, tie.yBot - 0.01, wing.span, wing.span, ink * 0.8, 0.99);
+        const wFill = surfaceStrip(bodyView, tie.yTop, tie.yBot, wing.span, wing.span, 0, 0.99);
+        if (wInk && wFill) {
+          parts.push(quad(wInk, garden.ink, `tieInk${wing.side}`, 3));
+          parts.push(quad(wFill, colour, `tie${wing.side}`, 3));
+        }
+      }
+      ball("knot", tie.knot.x, tie.knot.y, 0.04 * s, shade(colour, -0.15));
     }
   }
-  if (accessory === 4 && facing >= 0) {
-    // A bow tie, in their favourite colour.
-    for (const e of [-1, 1]) {
-      parts.push(quad(sidePanel(e, chin + 0.005, chin - 0.105, [0.01, 0.12], [0.01, 0.12], ink * 0.8), garden.ink, `tieInk${e}`, 3));
-      parts.push(quad(sidePanel(e, chin - 0.005, chin - 0.095, [0.01, 0.115], [0.01, 0.115], 0), fav(people.scarf), `tie${e}`, 3));
+  if (accessory === 5) {
+    const neck = necklacePose(bodyView, chin);
+    for (const p of neck.pearls) {
+      parts.push(<Ellipse key={`pearl${p.index}`} cx={p.at.x} cy={p.at.y} rx={0.024 * s} ry={0.024 * s} fill={people.pearl} ink={ink * 0.4} inkColour={garden.ink} />);
     }
-    ball("knot", at(0, chin - 0.05).x, at(0, chin - 0.05).y, 0.04 * s, shade(fav(people.scarf), -0.15));
-  }
-  if (accessory === 5 && facing >= 0) {
-    // A string of pearls with a pendant in their favourite colour.
-    for (let i = 0; i <= 6; i++) {
-      const x = -0.15 + i * (0.3 / 6);
-      dot(`pearl${i}`, x, chin + 0.01 - 0.08 * (1 - (x / 0.15) ** 2), 0.024 * s, people.pearl);
-    }
-    ball("pendant", at(0, chin - 0.11).x, at(0, chin - 0.11).y, 0.04 * s, fav(garden.blooms[0]));
+    if (neck.pendant) ball("pendant", neck.pendant.x, neck.pendant.y, 0.04 * s, fav(garden.blooms[0]));
   }
   if (feetInFront) feet();
   arms("front");
 
-  // Hair that sits behind the head: a bun, or long hair down to the shoulders.
-  if (look.hair === 1 && !hidesBun(hat)) ball("bun", head.x - side * 0.15 * s, head.y - 0.46 * s - lift, 0.17 * s, hair);
-  if (look.hair === 2) {
+  const bun = look.hair === 1 && !hidesBun(hat) ? headPoint(onScreen, [0, 1.02, -0.36]) : null;
+  if (bun && !bun.front) ball("bun", bun.at.x, bun.at.y, 0.17 * s, hair);
+  const pigtails = look.hair === 4 ? ([-1, 1] as const).map((e) => ({ e, ...headPoint(onScreen, [e * 1.08, -0.18, -0.12]) })) : null;
+  if (pigtails) {
+    for (const p of pigtails) if (!p.front) ball(`tail${p.e}`, p.at.x, p.at.y, 0.15 * s, hair);
+  }
+  const curtain =
+    look.hair === 2
+      ? {
+          key: "long",
+          left: head.x - r * 1.05 - side * 0.1 * s,
+          top: head.y - r * (capped ? CAP_HAIR_TOP : 0.4),
+          width: r * 2.1,
+          height: r * (capped ? 0.95 + CAP_HAIR_TOP : 1.35),
+          radius: r * 0.5,
+        }
+      : look.hair === 9
+        ? {
+            key: "bob",
+            left: head.x - r * 1.08 - side * 0.08 * s,
+            top: head.y - r * (capped ? CAP_HAIR_TOP : 0.5),
+            width: r * 2.16,
+            height: r * (capped ? 0.65 + CAP_HAIR_TOP : 1.15),
+            radius: r * 0.45,
+          }
+        : look.hair === 16
+          ? {
+              key: "mullet",
+              left: head.x - side * r * 0.42 - (r * (2.04 - 0.46 * Math.abs(side))) / 2,
+              top: head.y - r * 0.2,
+              width: r * (2.04 - 0.46 * Math.abs(side)),
+              height: r * (1.05 + 0.24 * Math.max(0, -facing)),
+              radius: r * 0.45,
+            }
+          : look.hair === 17
+            ? {
+                key: "wavy",
+                left: head.x - r * 1.08 - side * 0.1 * s,
+                top: head.y - (capped ? r * CAP_HAIR_TOP : r * 0.4 + lift),
+                width: r * 2.16,
+                height: capped ? r * (0.9 + CAP_HAIR_TOP) : r * 1.3 + lift,
+                radius: r * 0.5,
+              }
+            : null;
+  if (curtain) {
     parts.push(
       <View
-        key="long"
+        key={curtain.key}
         pointerEvents="none"
         style={[
           styles.abs,
           {
-            left: head.x - r * 1.05 - side * 0.1 * s,
-            top: head.y - r * (capped ? CAP_HAIR_TOP : 0.4),
-            width: r * 2.1,
-            height: r * (capped ? 0.95 + CAP_HAIR_TOP : 1.35),
-            borderRadius: r * 0.5,
+            left: curtain.left,
+            top: curtain.top,
+            width: curtain.width,
+            height: curtain.height,
+            borderRadius: curtain.radius,
             backgroundColor: hair,
             borderWidth: ink,
             borderColor: garden.ink,
@@ -824,35 +1093,20 @@ const AvatarView = ({
       />
     );
   }
-  // A ponytail, swinging a little as they walk: behind the head, or down
-  // the back of it when they face away.
-  const ponytail = () => {
-    const back = facing < -0.2;
-    const tie = { x: head.x - side * 0.3 * s, y: back || capped ? head.y - r * 0.2 : head.y - r * 0.55 - lift };
-    // From behind, it hangs from the tie down past the nape.
-    const start = back ? tie : at(-side * 0.32, 1.12);
-    const end = back ? { x: tie.x + swing * s, y: head.y + r * 1.2 } : at(-side * 0.42 + swing, 0.82);
-    if (back) {
-      parts.push(<Ellipse key="tail" cx={(start.x + end.x) / 2} cy={(start.y + end.y) / 2} rx={0.19 * s} ry={(end.y - start.y) / 2} fill={hair} ink={ink * 0.8} inkColour={garden.ink} ramp />);
-    } else {
-      parts.push(capsule(start, end, 0.16 * s + ink * 2, garden.ink, "tailInk"));
-      parts.push(capsule(start, end, 0.16 * s, hair, "tail"));
-    }
-    ball("tie", tie.x, tie.y, 0.11 * s, hair);
-  };
-  if (look.hair === 7 && facing >= -0.2) ponytail();
-  if (look.hair === 9) {
-    // A bob: hair to the jaw on both sides.
-    parts.push(
-      <View
-        key="bob"
-        pointerEvents="none"
-        style={[styles.abs, { left: head.x - r * 1.08 - side * 0.08 * s, top: head.y - r * (capped ? CAP_HAIR_TOP : 0.5), width: r * 2.16, height: r * (capped ? 0.65 + CAP_HAIR_TOP : 1.15), borderRadius: r * 0.45, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
-      />
-    );
+  const wavyEnds = look.hair === 17 ? wavyHemPoints(onScreen, capped) : null;
+  if (wavyEnds) {
+    for (const w of wavyEnds) if (!w.front) ball(`waveBack${w.index}`, w.at.x, w.at.y, 0.1 * s, hair);
   }
-  // An afro: round, or puffing out at the sides under a hat. From behind
-  // it covers the back of the head (unless a cap or beanie is there).
+  const pony = look.hair === 7 ? ponytailPose(onScreen, capped, swing) : null;
+  const drawPonytail = (layer: string) => {
+    if (!pony) return;
+    parts.push(capsule(pony.tie, pony.mid, 0.18 * s + ink * 2, garden.ink, `tailInkA${layer}`));
+    parts.push(capsule(pony.mid, pony.tip, 0.15 * s + ink * 2, garden.ink, `tailInkB${layer}`));
+    parts.push(capsule(pony.tie, pony.mid, 0.18 * s, hair, `tailA${layer}`));
+    parts.push(capsule(pony.mid, pony.tip, 0.15 * s, hair, `tailB${layer}`));
+    ball(`tie${layer}`, pony.tie.x, pony.tie.y, 0.11 * s, hair);
+  };
+  if (pony && !pony.front) drawPonytail("Back");
   const afroOver = facing < -0.35 && hat !== 1 && hat !== 2;
   const afro = () =>
     capped
@@ -863,29 +1117,17 @@ const AvatarView = ({
   const phonesOverAfro = accessory === 6 && look.hair === 10 && !flattensAfro(hat);
   if (phonesOverAfro) headphones("back");
   if (look.hair === 10 && !afroOver) afro();
-  // Curls: over the hair, or just the side ones peeking out under a cap,
-  // beanie or headband (which would otherwise hide under the curls).
   const curlsTucked = hat === 1 || hat === 2 || hat === 7;
-  const curls = (keep: (i: number) => boolean) => {
-    for (let i = 0; i < 7; i++) {
-      if (!keep(i)) continue;
-      const a = Math.PI * (0.05 + (i / 6) * 0.9);
-      ball(`curl${i}`, head.x - Math.cos(a) * r * 0.92, head.y - Math.sin(a) * r * 0.85 + r * 0.05, 0.13 * s, hair);
-    }
-  };
-  if (look.hair === 3 && capped) {
-    for (const e of [-1, 1]) {
-      ball(`curlHigh${e}`, head.x + e * r * 0.93 - side * 0.08 * s, head.y - r * 0.02, 0.13 * s, hair);
-      ball(`curlLow${e}`, head.x + e * r * 0.84 - side * 0.08 * s, head.y + r * 0.32, 0.13 * s, hair);
-    }
-  } else if (look.hair === 3 && curlsTucked) curls((i) => i <= 1 || i >= 5);
+  const curlsList = look.hair === 3 ? curlPoints(onScreen, curlsTucked) : null;
+  if (curlsList) {
+    for (const c of curlsList) if (!c.front) parts.push(<Ellipse key={`curlBack${c.index}`} cx={c.at.x} cy={c.at.y} rx={0.13 * s} ry={0.13 * s} fill={hair} ink={ink * 0.7} inkColour={garden.ink} />);
+  }
   if (look.hair === 5 && hat === 0) {
-    // Spikes standing up from behind the head, the outer ones leaning out.
-    for (const k of [-2, -1, 0, 1, 2]) {
+    for (const sp of spikePoints(onScreen)) {
       const half = 0.27 * r;
-      const tall = (0.9 - 0.1 * Math.abs(k)) * r;
-      const cx = head.x + k * 0.36 * r - side * 0.1 * s;
-      const base = head.y - 0.5 * r - lift + k * k * 0.06 * r;
+      const tall = Math.max(0.2 * r, sp.length);
+      const cx = (sp.base.x + sp.tip.x) / 2;
+      const cy = (sp.base.y + sp.tip.y) / 2;
       const spike = (grow: number, fill: string, key: string) =>
         parts.push(
           <View
@@ -895,83 +1137,76 @@ const AvatarView = ({
               styles.abs,
               {
                 left: cx - half - grow,
-                top: base - tall - grow * 1.6,
+                top: cy - tall / 2 - grow * 1.4,
                 borderLeftWidth: half + grow,
                 borderRightWidth: half + grow,
                 borderBottomWidth: tall + grow * 1.6,
                 borderLeftColor: "transparent",
                 borderRightColor: "transparent",
                 borderBottomColor: fill,
-                transform: [{ rotate: `${k * 0.4}rad` }],
+                transform: [{ rotate: `${sp.angle}rad` }],
               },
             ]}
           />
         );
-      spike(ink, garden.ink, `spikeInk${k}`);
-      spike(0, hair, `spike${k}`);
+      spike(ink, garden.ink, `spikeInk${sp.index}`);
+      spike(0, hair, `spike${sp.index}`);
     }
   }
-  if (look.hair === 14) {
-    // A braid over one shoulder.
-    for (let i = 0; i < 3; i++) ball(`braid${i}`, head.x + r * 0.8 * facing - side * 0.1 * s, head.y + r * (0.55 + 0.32 * i), (0.105 - 0.012 * i) * s, hair);
-    ball("braidTie", head.x + r * 0.8 * facing - side * 0.1 * s, head.y + r * 1.42, 0.05 * s, fav(people.scarf));
+  const mohawk = look.hair === 12 && !hidesCrest(hat) ? mohawkPoints(onScreen) : null;
+  if (mohawk) {
+    for (const m of mohawk) if (!m.front) ball(`crestBack${m.index}`, m.at.x, m.at.y, 0.11 * s, hair);
   }
-  if (look.hair === 16) {
-    // A mullet: short on top, long at the back.
-    parts.push(
-      <View
-        key="mullet"
-        pointerEvents="none"
-        style={[styles.abs, { left: head.x - r * 1.02 - side * 0.15 * s, top: head.y - r * 0.2, width: r * 2.04, height: r * (1.05 + 0.3 * Math.max(0, -facing)), borderRadius: r * 0.45, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
-      />
-    );
+  const spaceBuns = look.hair === 13 && !coversFringe(hat) ? ([-1, 1] as const).map((e) => ({ e, ...headPoint(onScreen, [e * 0.72, 0.84, -0.14]) })) : null;
+  if (spaceBuns) {
+    for (const sb of spaceBuns) if (!sb.front) ball(`spaceBunBack${sb.e}`, sb.at.x, sb.at.y, 0.16 * s, hair);
   }
-  if (look.hair === 17) {
-    // Wavy: long hair with a rippled end.
-    parts.push(
-      <View
-        key="wavy"
-        pointerEvents="none"
-        style={[styles.abs, { left: head.x - r * 1.08 - side * 0.1 * s, top: head.y - (capped ? r * CAP_HAIR_TOP : r * 0.4 + lift), width: r * 2.16, height: capped ? r * (0.9 + CAP_HAIR_TOP) : r * 1.3 + lift, borderRadius: r * 0.5, backgroundColor: hair, borderWidth: ink, borderColor: garden.ink }]}
-      />
-    );
-    const ends = facing > 0.2 ? [-0.92, -0.62, 0.62, 0.92] : [-0.8, -0.27, 0.27, 0.8];
-    ends.forEach((x, i) => ball(`wave${i}`, head.x - side * 0.1 * s + r * x, head.y + r * (facing > 0.2 ? 0.92 - 0.12 * Math.abs(x) : 0.9), 0.1 * s, hair));
-  }
-  // A flower tucked behind one ear, drawn behind the head while that ear is
-  // turned away so it peeks out round the side.
-  const earFlower = () => {
-    const out = side < 0.3 ? 0.9 : 1.05;
-    const fx = head.x + r * out * (Math.abs(facing) < 0.35 ? 0.35 * Math.sign(facing || 1) : facing);
-    const fy = head.y - r * (side < 0.3 ? 0.35 : 0.62);
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      ball(`petal${i}`, fx + Math.cos(a) * 0.065 * s, fy + Math.sin(a) * 0.065 * s, 0.05 * s, fav(garden.blooms[0]));
-    }
-    ball("flowerMiddle", fx, fy, 0.04 * s, garden.blooms[1]);
+  const earFlower = accessory === 7 ? earFlowerPose(onScreen) : null;
+  const drawEarFlower = () => {
+    if (!earFlower) return;
+    const petalScale = 0.75 + 0.25 * earFlower.facing;
+    for (const p of earFlower.petals) ball(`petal${p.index}`, p.at.x, p.at.y, 0.05 * s * petalScale, fav(garden.blooms[0]));
+    ball("flowerMiddle", earFlower.centre.x, earFlower.centre.y, 0.04 * s * petalScale, garden.blooms[1]);
   };
-  if (accessory === 7 && side >= 0.3) earFlower();
+  if (earFlower && !earFlower.front) drawEarFlower();
+  if (bow && !bow.front) drawBow();
+  if (hat === 3) flowerCrown("back");
   if (capped && !capPeakInFront) peak();
   if (hat === 4) {
-    // The sun hat's brim behind the head.
     brimHalf("brimBack", people.hats.sunHat, "back");
   }
   if (accessory === 6 && !phonesOverAfro) headphones("back");
 
-  // The head: ink disc, skin, the face, and the hair cap clipped to the head.
-  const capDrop = 0.73 + 0.55 * facing;
-  // A cap or beanie over the hair. The beanie comes lower; from behind both
-  // stop partway down, so the hair shows under them.
-  const hatDrop = hat === 1 ? Math.max(0.55, capDrop) : Math.max(0.3, capDrop - 0.25);
-  const face = [];
-  const faceOn = facing > FACE_MIN;
-  // The placement sliders: each step moves, grows or turns a part a little,
-  // and the middle step is where it always was.
   const eyeStyle = lookPart(look, "eyes");
-  const iris = people.eyeColours[lookPart(look, "eyeColour")] ?? people.eye;
   const eyeLift = nudge(look, "eyeY") * 0.022;
   const eyeGap = nudge(look, "eyeGap") * 0.016;
   const eyeScale = 1 + nudge(look, "eyeSize") * 0.09;
+  const glasses = lookPart(look, "glasses");
+  const spread = eyeStyle === 4 ? 0.19 : 0.15;
+  const glassesLens = glasses > 0 ? (LENSES[glasses - 1] ?? LENSES[0]) : null;
+  const temples =
+    glassesLens !== null
+      ? glassesTemples(
+          onScreen,
+          (0.86 * Math.sin(HAT_PITCH) - ((0.11 - eyeLift) * s) / onScreen.ry) / Math.cos(HAT_PITCH),
+          Math.min(0.95, ((spread + eyeGap + glassesLens.w * eyeScale * 0.5) * s) / onScreen.rx)
+        )
+      : null;
+  const drawTemples = (layer: "back" | "front") => {
+    if (!temples || !glassesLens) return;
+    const colour = glasses === 5 ? people.clearRim : people.glasses;
+    const w = glassesLens.rim * s;
+    for (const tm of temples) {
+      if ((tm.armFront ? "front" : "back") === layer) parts.push(capsule(tm.lens, tm.ear, w, colour, `templeArm${tm.side}${layer}`));
+      if ((tm.hookFront ? "front" : "back") === layer) parts.push(capsule(tm.ear, tm.hook, w, colour, `templeHook${tm.side}${layer}`));
+    }
+  };
+  if (temples) drawTemples("back");
+
+  const capDrop = 0.73 + 0.55 * facing;
+  const face = [];
+  const faceOn = facing > FACE_MIN;
+  const iris = people.eyeColours[lookPart(look, "eyeColour")] ?? people.eye;
   const eyeTurn = nudge(look, "eyeTilt") * 0.12;
   const browLift = nudge(look, "browY") * 0.014;
   const browGap = nudge(look, "browGap") * 0.014;
@@ -980,13 +1215,10 @@ const AvatarView = ({
   const mouthLift = nudge(look, "mouthY") * 0.018;
   const mouthScale = 1 + nudge(look, "mouthSize") * 0.1;
   const mouthTurn = nudge(look, "mouthTilt") * 0.12;
-  // Their own brows: a darker shade of their hair, or of the colour they picked.
   const browPick = lookPart(look, "browColour");
   const browColour = shade(browPick > 0 ? (people.hairColours[browPick - 1] ?? hair) : hair, -0.3);
-  const glasses = lookPart(look, "glasses");
   const eyeshadow = people.eyeshadow[lookPart(look, "eyeshadow") - 1];
   const lipstick = people.lipstick[lookPart(look, "lipstick") - 1];
-  const spread = eyeStyle === 4 ? 0.19 : 0.15;
   const eyeAt = (e: number) => ({ x: icx + ((spread + eyeGap) * e * facing + 0.39 * side) * s, y: icy + (0.11 - eyeLift) * s });
   // Eyes, brows and the mouth are each drawn in a box round their middle, so
   // a slider turns or grows the part where it is.
@@ -1093,10 +1325,9 @@ const AvatarView = ({
       face.push(<View key={`tear${e}`} style={[styles.abs, { left: ex - 0.025 * s, top: ey + 0.05 * s + drop, width: 0.05 * s, height: 0.07 * s, borderRadius: s, backgroundColor: people.tear }]} />);
     }
     if (glasses > 0) {
-      // Glasses fit the eyes: they follow the sliders but don't tilt.
       const k = eyeScale;
       const lens = LENSES[glasses - 1] ?? LENSES[0];
-      const w = lens.w * k * s;
+      const w = lens.w * k * s * (0.32 + 0.68 * Math.max(0, facing));
       const h = lens.h * k * s;
       face.push(
         <View key={`lens${e}`} style={[styles.abs, { left: ex - w / 2, top: ey - h / 2, width: w, height: h, borderRadius: (Math.min(w, h) / 2) * lens.round, borderWidth: lens.rim * s, borderColor: glasses === 5 ? people.clearRim : people.glasses, backgroundColor: glasses === 3 ? people.shades : glasses === 5 ? people.clearLens : undefined }]}>
@@ -1138,12 +1369,13 @@ const AvatarView = ({
       }
     }
   }
-  if (faceOn && glasses > 0 && Math.abs(side) < 0.6) {
-    // From one lens's inner rim to the other's, wherever the sliders put them.
+  if (glasses > 0 && 0.39 * facing - 0.15 * Math.abs(side) >= 0.08) {
     const lens = LENSES[glasses - 1] ?? LENSES[0];
-    const gap = 2 * (spread + eyeGap) * Math.abs(facing) * s - lens.w * eyeScale * s;
-    const w = Math.max(0, gap) + lens.rim * s * 2;
-    face.push(<View key="bridge" style={[styles.abs, { left: icx + 0.39 * side * s - w / 2, top: icy + (0.09 - eyeLift) * s, width: w, height: 0.025 * s, backgroundColor: glasses === 5 ? people.clearRim : people.glasses }]} />);
+    const lensW = lens.w * eyeScale * s * (0.32 + 0.68 * Math.max(0, facing));
+    const leftInner = eyeAt(-1).x + lensW / 2;
+    const rightInner = eyeAt(1).x - lensW / 2;
+    const w = Math.max(0, rightInner - leftInner) + lens.rim * s * 2;
+    face.push(<View key="bridge" style={[styles.abs, { left: (leftInner + rightInner) / 2 - w / 2, top: icy + (0.09 - eyeLift) * s, width: w, height: 0.025 * s, backgroundColor: glasses === 5 ? people.clearRim : people.glasses }]} />);
   }
   if (faceOn && lookPart(look, "freckles") === 3) {
     // Across the nose, from cheek to cheek.
@@ -1282,8 +1514,8 @@ const AvatarView = ({
       ]}
     />
   );
-  // A beanie's turned-up cuff: its lower edge, the same depth all the way round.
-  const beanieTop = hatDrop + 0.26;
+  const sideSwept = look.hair === 11 && !coversFringe(hat) ? sideSweptPose(innerHeadView) : null;
+  const curtains = look.hair === 15 && !coversFringe(hat) ? curtainsPose(innerHeadView) : null;
   parts.push(
     <View
       key="head"
@@ -1327,45 +1559,60 @@ const AvatarView = ({
         {/* The hair cap (none when bald; short and fine for a buzz cut). */}
         {look.hair === 8 ? null : dome(capDrop + (buzz ? 0.22 : 0), buzz ? shade(hair, 0.25) : hair, "hairCap")}
         {look.hair === 8 || capHat ? null : shine(capDrop, hair, "hairShine")}
-        {look.hair === 11 && hat === 0 && faceOn ? (
-          // Side swept: a fringe falling over one side of the forehead.
+        {sideSwept && sideSwept.visible ? (
           <View
             style={[
               styles.abs,
               {
-                left: icx + (0.1 * facing + 0.36 * side) * s - r * 0.62,
-                top: icy - r * 0.62,
-                width: r * 1.24,
+                left: sideSwept.at.x - (r * 1.24 * sideSwept.scaleX) / 2,
+                top: sideSwept.at.y - r * 0.29,
+                width: r * 1.24 * sideSwept.scaleX,
                 height: r * 0.58,
                 borderRadius: r,
                 backgroundColor: hair,
-                transform: [{ rotate: "0.35rad" }],
+                transform: [{ rotate: `${sideSwept.tilt}rad` }],
               },
             ]}
           />
         ) : null}
-        {look.hair === 15 && !coversFringe(hat) && facing > 0.45
-          ? // Curtains: parted in the middle, swept down to each temple.
-            [
-              ...[-1, 1].map((e) => (
+        {curtains
+          ? [
+              ...curtains.locks.map((lock) =>
+                lock.visible ? (
+                  <View
+                    key={`curtain${lock.side}`}
+                    style={[
+                      styles.abs,
+                      {
+                        left: lock.at.x - (inner * 0.7 * lock.scaleX) / 2,
+                        top: lock.at.y - inner * 0.34,
+                        width: inner * 0.7 * lock.scaleX,
+                        height: inner * 0.78,
+                        borderRadius: inner * 0.35,
+                        backgroundColor: hair,
+                      },
+                    ]}
+                  />
+                ) : null
+              ),
+              curtains.parting.visible ? (
                 <View
-                  key={`curtain${e}`}
-                  style={[styles.abs, { left: icx + 0.39 * side * s + (e * 0.82 * facing - 0.35) * inner, top: icy - inner * 0.62, width: inner * 0.7, height: inner * 0.78, borderRadius: inner * 0.35, backgroundColor: hair }]}
+                  key="parting"
+                  style={[
+                    styles.abs,
+                    {
+                      left: curtains.parting.at.x - 0.13 * inner * curtains.parting.scaleX,
+                      top: curtains.parting.at.y - inner * 0.08,
+                      width: 0.26 * inner * curtains.parting.scaleX,
+                      height: 0.26 * inner,
+                      transform: [{ rotate: "45deg" }],
+                      backgroundColor: skin,
+                    },
+                  ]}
                 />
-              )),
-              <View
-                key="parting"
-                style={[styles.abs, { left: icx + 0.39 * side * s - 0.13 * inner, top: icy - inner * 0.33, width: inner * 0.26, height: inner * 0.26, transform: [{ rotate: "45deg" }], backgroundColor: skin }]}
-              />,
+              ) : null,
             ]
           : null}
-        {hat === 2 ? dome(hatDrop, shade(people.hats.beanie, -0.15), "cuff") : null}
-        {hat === 2 ? dome(beanieTop, people.hats.beanie, "beanie") : null}
-        {hat === 2 ? shine(beanieTop, people.hats.beanie, "hatShine") : null}
-        {hat === 7 ? (
-          // A headband across the top of the head.
-          <View style={[styles.abs, { left: 0, width: iw, top: icy + (-0.62 + 0.2 * (1 - facing)) * inner, height: inner * 0.2, backgroundColor: fav(people.hats.headband) }]} />
-        ) : null}
       </View>
     </View>
   );
@@ -1375,29 +1622,65 @@ const AvatarView = ({
     parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
     parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
   }
-  // Hair and hats on top of the head.
+  const drapeCover = curtain ? backDrapeCover(facing) : 0;
+  if (curtain && drapeCover > 0) {
+    const inLeft = curtain.left + ink;
+    const inWidth = Math.max(0, curtain.width - ink * 2);
+    const inTop = onScreen.cy;
+    const inHeight = Math.max(0, curtain.top + curtain.height - ink - inTop);
+    const w = inWidth * drapeCover;
+    const x = side >= 0 ? inLeft : inLeft + inWidth - w;
+    const br = Math.max(0, curtain.radius - ink);
+    parts.push(
+      <View
+        key={`${curtain.key}BackDrape`}
+        pointerEvents="none"
+        style={[
+          styles.abs,
+          {
+            left: x,
+            top: inTop,
+            width: w,
+            height: inHeight,
+            borderBottomLeftRadius: side >= 0 || drapeCover > 0.9 ? br : 0,
+            borderBottomRightRadius: side < 0 || drapeCover > 0.9 ? br : 0,
+            backgroundColor: hair,
+          },
+        ]}
+      />
+    );
+  }
+  if (wavyEnds) {
+    for (const w of wavyEnds) if (w.front) ball(`waveFront${w.index}`, w.at.x, w.at.y, 0.1 * s, hair);
+  }
   if (look.hair === 10 && afroOver) afro();
-  if (look.hair === 7 && facing < -0.2) ponytail();
-  if (look.hair === 3 && !curlsTucked) curls(() => true);
-  if (capped) parts.push(crown());
+  if (bun && bun.front) ball("bunFront", bun.at.x, bun.at.y, 0.17 * s, hair);
+  if (pigtails) {
+    for (const p of pigtails) if (p.front) ball(`tailFront${p.e}`, p.at.x, p.at.y, 0.15 * s, hair);
+  }
+  if (pony && pony.front) drawPonytail("Front");
+  if (curlsList) {
+    for (const c of curlsList) if (c.front) parts.push(<Ellipse key={`curlFront${c.index}`} cx={c.at.x} cy={c.at.y} rx={0.13 * s} ry={0.13 * s} fill={hair} ink={ink * 0.7} inkColour={garden.ink} />);
+  }
+  if (braid && braid.front) drawBraid();
+  if (capped) {
+    parts.push(crown());
+    if (capOnScreen) ball("capButton", capOnScreen.top.x, capOnScreen.top.y + ink * 0.4, 0.045 * s, shade(capColour, -0.1));
+  }
   if (capped && capPeakInFront) peak();
-  if (look.hair === 12 && !hidesCrest(hat)) {
-    // A mohawk's crest, front to back along the top.
-    for (let i = 0; i < 5; i++) {
-      const a = -0.95 + i * 0.475;
-      ball(`crest${i}`, head.x + Math.sin(a) * r * 0.8 * side, head.y - r * (0.86 + 0.3 * Math.cos(a)) - lift, 0.11 * s, hair);
-    }
+  if (hat === 2) {
+    parts.push(beanieCrown());
+    const pom = projectOnHead(onScreen, [0, 1.06, -0.16]);
+    ball("pompom", pom.x, pom.y, 0.12 * s, people.hats.pompom);
   }
-  if (look.hair === 13 && !coversFringe(hat)) {
-    for (const e of [-1, 1]) ball(`spaceBun${e}`, head.x + e * r * 0.66 * facing - side * 0.1 * s, head.y - r * 0.8 - lift, 0.16 * s, hair);
+  if (mohawk) {
+    for (const m of mohawk) if (m.front) ball(`crestFront${m.index}`, m.at.x, m.at.y, 0.11 * s, hair);
   }
-  if (hat === 2) ball("pompom", head.x - side * 0.1 * s, head.y - r * 1.02 - lift, 0.12 * s, people.hats.pompom);
-  if (hat === 3) {
-    for (let i = 0; i < 7; i++) {
-      const a = Math.PI * (0.08 + (i / 6) * 0.84);
-      ball(`crown${i}`, head.x - Math.cos(a) * r * 0.98, head.y - r * 0.42 - lift - Math.sin(a) * r * 0.32, 0.1 * s, garden.blooms[i % garden.blooms.length]);
-    }
+  if (spaceBuns) {
+    const frontBuns = spaceBuns.filter((sb) => sb.front).sort((a, b) => a.depth - b.depth);
+    for (const sb of frontBuns) ball(`spaceBunFront${sb.e}`, sb.at.x, sb.at.y, 0.16 * s, hair);
   }
+  if (hat === 3) flowerCrown("front");
   if (hat === 4) {
     const base = level(SUN_HAT.brimY, SUN_HAT.baseRadius);
     const band = level(SUN_HAT.bandY, (SUN_HAT.baseRadius + SUN_HAT.topRadius) / 2 + 0.04);
@@ -1417,30 +1700,38 @@ const AvatarView = ({
     brimHalf("brimFront", shade(people.hats.sunHat, 0.08), "front");
   }
   if (hat === 5) {
-    // A beret in their favourite colour: a soft dome pulled down over the
-    // top of the head and tipped to one side.
-    const bx = head.x - side * 0.1 * s - r * 0.12;
+    const beret = beretPose(onScreen);
     const colour = fav(people.hats.beret);
     parts.push(
       <View
         key="beret"
         pointerEvents="none"
-        style={[styles.abs, { left: bx - r * 1.1, top: head.y - r * 1.3 - lift, width: r * 2.2, height: r * 0.95, borderTopLeftRadius: r * 1.1, borderTopRightRadius: r * 1.1, borderBottomLeftRadius: r * 0.5, borderBottomRightRadius: r * 0.5, backgroundColor: colour, borderWidth: ink, borderColor: garden.ink, transform: [{ rotate: "-9deg" }] }]}
+        style={[
+          styles.abs,
+          {
+            left: beret.centre.x - r * 1.1,
+            top: beret.centre.y - r * 0.475,
+            width: r * 2.2,
+            height: r * 0.95,
+            borderTopLeftRadius: r * 1.1,
+            borderTopRightRadius: r * 1.1,
+            borderBottomLeftRadius: r * 0.5,
+            borderBottomRightRadius: r * 0.5,
+            backgroundColor: colour,
+            borderWidth: ink,
+            borderColor: garden.ink,
+            transform: [{ rotate: `${beret.tilt}rad` }],
+          },
+        ]}
       >
-        <View style={{ position: "absolute", left: r * 0.35, top: r * 0.12, width: r * 0.6, height: r * 0.22, borderRadius: r, backgroundColor: shade(colour, 0.18) }} />
+        <View style={{ position: "absolute", left: r * 0.85, top: r * 0.12, width: r * 0.6, height: r * 0.22, borderRadius: r, backgroundColor: shade(colour, 0.18) }} />
       </View>
     );
-    ball("stalk", bx - r * 0.15, head.y - r * 1.33 - lift, 0.04 * s, shade(colour, -0.2));
+    if (beret.stalkInFront) ball("stalk", beret.stalk.x, beret.stalk.y, 0.04 * s, shade(colour, -0.2));
   }
-  if (hat === 6) {
-    // A bow on top, to one side.
-    const bx = head.x + r * 0.5 * facing - side * 0.1 * s;
-    const by = head.y - r * 0.82 - lift - onAfro;
-    for (const e of [-1, 1]) parts.push(<Ellipse key={`bowLoop${e}`} cx={bx + e * 0.1 * s} cy={by} rx={0.11 * s} ry={0.08 * s} fill={fav(people.hats.bow)} ink={ink} inkColour={garden.ink} />);
-    ball("bowKnot", bx, by, 0.045 * s, shade(fav(people.hats.bow), -0.15));
-  }
+  if (bow && bow.front) drawBow();
+  if (hat === 7) parts.push(headbandCrown());
   if (hat === 8) {
-    // A party hat: a cone with a pompom.
     const half = r * 0.42;
     const tall = r * 0.86;
     const base = head.y - r * 0.78 - lift - onAfro;
@@ -1449,21 +1740,74 @@ const AvatarView = ({
     ball("partyPompom", head.x, base - tall, 0.07 * s, people.hats.pompom);
   }
   if (hat === 9) {
-    // A little gold crown with a jewel in their favourite colour.
-    const half = r * 0.48;
-    const top = head.y - r * 1.02 - lift - onAfro;
-    for (const k of [-1, 0, 1]) {
-      parts.push(<View key={`point${k}`} pointerEvents="none" style={[styles.abs, { left: head.x + k * r * 0.32 - r * 0.16, top: top - r * 0.3, borderLeftWidth: r * 0.16, borderRightWidth: r * 0.16, borderBottomWidth: r * 0.32, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: people.hats.crown }]} />);
+    const cr = crownShape(onScreen, onAfro / onScreen.ry);
+    const tipHalf = Math.max(0.8, 0.02 * r);
+    const pointQuad = (pt: (typeof cr.points)[number], grow: number) => {
+      const span = Math.abs(pt.right.x - pt.left.x);
+      if (span < 2) return null;
+      const [l, ri] = pt.left.x <= pt.right.x ? [pt.left, pt.right] : [pt.right, pt.left];
+      return [
+        { x: pt.tip.x - tipHalf - grow * 0.6, y: pt.tip.y - grow },
+        { x: pt.tip.x + tipHalf + grow * 0.6, y: pt.tip.y - grow },
+        { x: ri.x + grow * 0.8, y: ri.y + grow * 0.5 },
+        { x: l.x - grow * 0.8, y: l.y + grow * 0.5 },
+      ];
+    };
+    for (const pt of cr.points) {
+      if (pt.front) continue;
+      const qInk = pointQuad(pt, ink);
+      const qFill = pointQuad(pt, 0);
+      if (qInk && qFill) {
+        parts.push(quad(qInk, garden.ink, `pointInk${pt.index}`));
+        parts.push(quad(qFill, shade(people.hats.crown, -0.18), `point${pt.index}`));
+      }
     }
-    parts.push(<View key="crownBand" pointerEvents="none" style={[styles.abs, { left: head.x - half, top, width: half * 2, height: r * 0.28, borderRadius: r * 0.06, backgroundColor: people.hats.crown, borderWidth: ink, borderColor: garden.ink }]} />);
-    if (facing > 0.15) ball("jewel", head.x + side * r * 0.3, top + r * 0.14, 0.04 * s, fav(people.lipstick[1]));
+    parts.push(<Ellipse key="crownBandBack" cx={cr.band.x} cy={cr.band.y} rx={cr.rx} ry={cr.ry} fill={shade(people.hats.crown, -0.22)} ink={ink * 0.8} inkColour={garden.ink} />);
+    parts.push(<Ellipse key="crownBaseInk" cx={cr.base.x} cy={cr.base.y} rx={cr.rx + ink} ry={cr.ry + ink} fill={garden.ink} />);
+    parts.push(
+      quad(
+        [
+          { x: cr.band.x - cr.rx - ink, y: cr.band.y - ink * 0.4 },
+          { x: cr.band.x + cr.rx + ink, y: cr.band.y - ink * 0.4 },
+          { x: cr.base.x + cr.rx + ink, y: cr.base.y + ink * 0.4 },
+          { x: cr.base.x - cr.rx - ink, y: cr.base.y + ink * 0.4 },
+        ],
+        garden.ink,
+        "crownBandInk",
+        4
+      )
+    );
+    for (const pt of cr.points) {
+      if (!pt.front) continue;
+      const qInk = pointQuad(pt, ink);
+      if (qInk) parts.push(quad(qInk, garden.ink, `pointInk${pt.index}`));
+    }
+    parts.push(
+      quad(
+        [
+          { x: cr.band.x - cr.rx, y: cr.band.y },
+          { x: cr.band.x + cr.rx, y: cr.band.y },
+          { x: cr.base.x + cr.rx, y: cr.base.y },
+          { x: cr.base.x - cr.rx, y: cr.base.y },
+        ],
+        people.hats.crown,
+        "crownBand",
+        4
+      )
+    );
+    parts.push(<Ellipse key="crownBaseRim" cx={cr.base.x} cy={cr.base.y} rx={cr.rx} ry={cr.ry} fill={people.hats.crown} />);
+    for (const pt of cr.points) {
+      if (!pt.front) continue;
+      const qFill = pointQuad(pt, 0);
+      if (qFill) parts.push(quad(qFill, people.hats.crown, `point${pt.index}`));
+    }
+    if (cr.jewel.front) ball("jewel", cr.jewel.at.x, cr.jewel.at.y, 0.04 * s, fav(people.lipstick[1]));
   }
+  if (temples) drawTemples("front");
   if (accessory === 6) {
-    // Headphones: a band over the top and a cup over each ear. Side-on, the
-    // band is an arc along the top of the head.
     headphones("front");
   }
-  if (accessory === 7 && side < 0.3) earFlower();
+  if (earFlower && earFlower.front) drawEarFlower();
   arms("over");
   if (move.palms > 0.6 && facing >= 0) {
     const y = move.hands.l?.[1] ?? 0.46;
