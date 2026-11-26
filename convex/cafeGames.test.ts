@@ -295,6 +295,44 @@ describe("the turn timer", () => {
     expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.result).toEqual({ winner: "b", why: "timeout" });
     await t.mutation(internal.cafeGames.timeout, { gameId, moves: 2 });
   });
+
+  test("in Dots and Boxes the server draws a random free line, resets the clock, and the game plays on", async () => {
+    const { t, anna, ben, gameId } = await startGame("dotsAndBoxes");
+    const timers = () => t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    const pending = async () => (await timers()).filter((job) => job.name.endsWith("timeout") && job.state.kind === "pending");
+    later(CAFE_TURN_MS);
+    await t.mutation(internal.cafeGames.timeout, { gameId, moves: 0 });
+    const first = await boardOf(t, gameId);
+    expect(first).toMatchObject({ moves: 1, turnEndsAt: near(Date.now() + CAFE_TURN_MS), board: { turn: "b", missed: { a: 1, b: 0 } } });
+    expect(first.board.cells.filter((cell) => cell !== 0)).toEqual([1]);
+    expect(first.board.cells[first.board.last!]).toBe(1);
+    expect((await pending()).map((job) => job.args[0])).toContainEqual({ gameId, moves: 1 });
+    const taken = first.board.last!;
+    expect(await ben.who.mutation(api.cafeGames.move, { gameId, move: taken })).toEqual({ ok: false, reason: "You can't go there." });
+    expect(await ben.who.mutation(api.cafeGames.move, { gameId, move: taken === 0 ? 1 : 0 })).toEqual({ ok: true });
+    for (let moves = 2; moves < 6; moves++) {
+      later(CAFE_TURN_MS);
+      await t.mutation(internal.cafeGames.timeout, { gameId, moves });
+    }
+    const after = await boardOf(t, gameId);
+    expect(after.moves).toBe(6);
+    expect(after.board.cells.filter((cell) => cell !== 0)).toHaveLength(6);
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.result).toBeUndefined();
+  });
+
+  test("in Dots and Boxes a timed-out last line finishes the game on boxes", async () => {
+    const { t, anna, gameId } = await startGame("dotsAndBoxes");
+    const board = newBoard("dotsAndBoxes");
+    const nearlyFull = { ...board, cells: board.cells.map((_, i) => (i === 0 ? 0 : 2)), boxes: board.boxes.map((_, i) => (i < 3 ? 1 : 2)) };
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("cafeBoards").withIndex("by_gameId", (q) => q.eq("gameId", gameId)).unique())!;
+      await ctx.db.patch("cafeBoards", row._id, { board: nearlyFull });
+    });
+    later(CAFE_TURN_MS);
+    await t.mutation(internal.cafeGames.timeout, { gameId, moves: 0 });
+    expect((await boardOf(t, gameId)).board.cells.every((cell) => cell !== 0)).toBe(true);
+    expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.result).toEqual({ winner: "b", why: "played" });
+  });
 });
 
 describe("leaving forfeits after a grace period", () => {
