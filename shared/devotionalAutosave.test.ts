@@ -102,6 +102,29 @@ describe("devotional autosave", () => {
     expect(writes).toEqual([]);
   });
 
+  test("cancel drops an edit queued behind a write still under way, but lets that write finish", async () => {
+    let finish: () => void = () => {};
+    const { autosave, writes } = setup((text) =>
+      text === "First"
+        ? new Promise<void>((resolve) => {
+            finish = resolve;
+          })
+        : Promise.resolve()
+    );
+    autosave.edit("First");
+    await vi.advanceTimersByTimeAsync(DEVOTIONAL_AUTOSAVE_DELAY_MS);
+    expect(writes).toEqual(["First"]);
+    autosave.edit("Queued");
+    void autosave.flushLocal();
+    autosave.cancel();
+    finish();
+    await autosave.flushLocal();
+    expect(writes).toEqual(["First"]);
+    autosave.edit("After");
+    await autosave.flushLocal();
+    expect(writes).toEqual(["First", "After"]);
+  });
+
   test("a custom delay is honoured", async () => {
     const writes: string[] = [];
     const autosave = createDevotionalAutosave<string>({

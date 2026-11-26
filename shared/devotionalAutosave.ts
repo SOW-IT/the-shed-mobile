@@ -8,6 +8,7 @@ export const createDevotionalAutosave = <T>(options: {
   let pending: { edit: T } | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let writing: Promise<void> = Promise.resolve();
+  let generation = 0;
 
   const stopTimer = () => {
     if (timer !== undefined) clearTimeout(timer);
@@ -19,11 +20,14 @@ export const createDevotionalAutosave = <T>(options: {
     const next = pending;
     pending = null;
     if (next) {
-      writing = writing.then(
-        () => options.writeLocal(next.edit).then(
-          () => undefined,
-          () => undefined
-        )
+      const queuedIn = generation;
+      writing = writing.then(() =>
+        queuedIn !== generation
+          ? undefined
+          : options.writeLocal(next.edit).then(
+              () => undefined,
+              () => undefined
+            )
       );
     }
     return writing;
@@ -41,6 +45,7 @@ export const createDevotionalAutosave = <T>(options: {
   const cancel = () => {
     stopTimer();
     pending = null;
+    generation += 1;
   };
 
   return { edit, flushLocal, cancel };

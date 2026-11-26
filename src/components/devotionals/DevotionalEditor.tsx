@@ -132,7 +132,10 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
   const [autosave] = useState(() =>
     createDevotionalAutosave<{ email: string; date: string; content: DevotionalContent; base: number | null }>({
-      writeLocal: (local) => saveLocalDevotional(local.email, local.date, local.content, local.base),
+      writeLocal: async (local) => {
+        await saveLocalDevotional(local.email, local.date, local.content, local.base);
+        setTyped((current) => (current && sameDevotionalContent(current, local.content) ? null : current));
+      },
     })
   );
 
@@ -412,7 +415,8 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                   setError(null);
                   autosave.cancel();
                   setTyped(null);
-                  void takeServerDevotional(email, validDate, conflict.theirs);
+                  const theirs = conflict.theirs;
+                  void autosave.flushLocal().then(() => takeServerDevotional(email, validDate, theirs));
                 }}
               />
             </View>
