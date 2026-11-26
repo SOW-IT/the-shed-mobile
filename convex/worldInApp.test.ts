@@ -121,6 +121,29 @@ describe("In the app", () => {
     await expect(t.query(api.world.inApp, { limit: 10, tick: 0 })).rejects.toThrow(/signed in/);
   });
 
+  test("shows the game someone's in, the same one the arcade shows, and drops it when they leave", async () => {
+    const t = newConvex();
+    await staff(t, [
+      { email: ANNA, name: "Anna" },
+      { email: BEN, name: "Ben" },
+      { email: CARA, name: "Cara" },
+    ]);
+    const ben = asUser(t, BEN);
+    await ben.mutation(api.presence.appHeartbeat, {});
+    await asUser(t, CARA).mutation(api.presence.appHeartbeat, {});
+    await ben.mutation(api.gamePlayers.playing, { game: "shooter" });
+    await ben.mutation(api.gamePlayers.left, { game: "shooter" });
+    await ben.mutation(api.gamePlayers.playing, { game: "flappy" });
+    const list = await asUser(t, ANNA).query(api.world.inApp, { limit: OFFLINE_FIRST, tick: 0 });
+    expect(list.people).toMatchObject([{ name: "Ben", playing: "flappy" }, { name: "Cara" }]);
+    expect(list.people[1]).not.toHaveProperty("playing");
+    expect(await asUser(t, ANNA).query(api.gamePlayers.nowPlaying, {})).toMatchObject([{ game: "flappy", count: 1 }]);
+
+    await ben.mutation(api.gamePlayers.left, { game: "flappy" });
+    const after = await asUser(t, ANNA).query(api.world.inApp, { limit: OFFLINE_FIRST, tick: 0 });
+    expect(after.people[0]).not.toHaveProperty("playing");
+  });
+
   test("someone past the first page by last seen but with a newer heartbeat still makes the first page", async () => {
     const t = newConvex();
     const people = Array.from({ length: 12 }, (_, i) => ({ email: `p${String(i).padStart(2, "0")}@sow.org.au`, name: `P${String(i).padStart(2, "0")}` }));

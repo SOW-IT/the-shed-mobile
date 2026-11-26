@@ -25,7 +25,6 @@ import {
   WORLD_PLACE,
   asksDevotional,
 } from "@shared/world";
-import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
 import { CROPS, cropLabel, growth, isCrop, penStand, plantCard, plotPrice, plotStand, timeLeft, type BuildingId, type CropId } from "@shared/farm";
 import { ANIMALS, animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
@@ -225,7 +224,6 @@ export const WorldScreen = ({
   onStay,
   onLeave,
   onGame,
-  awayGame,
   onCalendar,
   onPraise,
   onOpenLink,
@@ -242,7 +240,6 @@ export const WorldScreen = ({
   onLeave: () => void;
   /** Goes into a game, or the leaderboard, picked from the arcade panel. */
   onGame: (target: GamesTarget) => void;
-  awayGame?: GameId;
   onCalendar: () => void;
   onPraise: () => void;
   /** Opens an app link (a notification's) over the World, which waits. */
@@ -261,7 +258,7 @@ export const WorldScreen = ({
 }) => {
   const foreground = useForeground();
   const away = awayKind !== null;
-  const world = useWorld(active, awayKind === "arcade", arrival, awayKind === "devotional", awayKind === "arcade" ? awayGame : undefined);
+  const world = useWorld(active, awayKind === "arcade", arrival, awayKind === "devotional");
   const wallet = useCoins();
   const cafe = useCafe(world);
   const inBackyard = world.place === "backyard" && world.status === "in";
