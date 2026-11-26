@@ -3,6 +3,7 @@ import {
   ASK_MS,
   coversPadLabel,
   HOME,
+  BACKYARD,
   HOME_ARRIVAL,
   isPingBars,
   PING_MAX_SAMPLE_MS,
@@ -89,7 +90,11 @@ import {
   isAskKind,
   isDuelPick,
   SEAT_TURN,
-  PEW_TURN,
+  asksDevotional,
+  canTravel,
+  elsewhereTitle,
+  listedPlace,
+  whereIs,
   STANDS,
   standIn,
   towardCamera,
@@ -419,7 +424,7 @@ describe("takeToken", () => {
 describe("places and the pads between them", () => {
   test("every place has a title, and only the listed ones are places", () => {
     for (const place of PLACES) expect(PLACE_TITLES[place]).toMatch(/^The /);
-    expect(PLACES.map(placeName)).toEqual(["Garden", "Chapel", "Campfire", "Café", "Beach"]);
+    expect(PLACES.map(placeName)).toEqual(["Garden", "Chapel", "Campfire", "Café", "Beach", "Library"]);
     expect(placeName("home")).toBe("Home");
     expect(isPlace("chapel")).toBe(true);
     expect(isPlace("moon")).toBe(false);
@@ -443,15 +448,45 @@ describe("places and the pads between them", () => {
   test("the map: which places lead to which, and every way has a way back", () => {
     const leadsTo = Object.fromEntries(PLACES.map((place) => [place, PORTALS[place].map((pad) => pad.to).sort()]));
     expect(leadsTo).toEqual({
-      garden: ["beach", "campfire", "chapel"],
-      beach: ["campfire", "garden"],
-      campfire: ["beach", "cafe", "garden"],
-      chapel: ["cafe", "garden"],
-      cafe: ["campfire", "chapel"],
+      garden: ["beach", "cafe", "chapel", "library"],
+      beach: ["garden"],
+      campfire: ["cafe", "chapel"],
+      chapel: ["campfire", "garden"],
+      cafe: ["campfire", "garden"],
+      library: ["garden"],
     });
     for (const place of PLACES) {
       for (const pad of PORTALS[place]) expect(PORTALS[pad.to].some((back) => back.to === place)).toBe(true);
     }
+  });
+
+  test("the online list shows a home or a backyard as at home, and other places by their name", () => {
+    expect(listedPlace("backyard")).toBe("home");
+    expect(listedPlace("home")).toBe("home");
+    expect(listedPlace("library")).toBe("library");
+    expect(elsewhereTitle("home")).toBe("At home");
+    expect(elsewhereTitle("backyard")).toBe("At home");
+    expect(elsewhereTitle("cafe")).toBe("The Café");
+    expect(whereIs("backyard")).toBe("at home");
+    expect(whereIs("library")).toBe("in The Library");
+  });
+
+  test("you can only travel along a pad, or jump to the Garden or home from anywhere", () => {
+    const everywhere = [...PLACES, HOME, BACKYARD] as const;
+    for (const from of everywhere) {
+      for (const to of everywhere) {
+        const byPad = PORTALS[from].some((pad) => pad.to === to);
+        const expected = from === to || to === "garden" || to === HOME || byPad;
+        expect(canTravel(from, to, "garden"), `${from} to ${to}`).toBe(expected);
+      }
+    }
+    expect(canTravel("beach", "campfire", "garden")).toBe(false);
+    expect(canTravel("library", "cafe", "garden")).toBe(false);
+    expect(canTravel("garden", "backyard", "garden")).toBe(false);
+    expect(canTravel("home", "backyard", "garden")).toBe(true);
+    expect(canTravel("home", "beach", "beach")).toBe(true);
+    expect(canTravel("home", "beach", "garden")).toBe(false);
+    expect(canTravel("backyard", "beach", "beach")).toBe(false);
   });
 
   test("you arrive on the pad that leads back, facing into the room", () => {
@@ -480,12 +515,15 @@ describe("places and the pads between them", () => {
     expect(pairs).toBe(12);
   });
 
-  test("from the Café you land on the Chapel's Café pad on its right, facing west", () => {
-    expect(arrivalSpot("cafe", "chapel")).toEqual({ x: 3.2, z: 3.4, heading: -Math.PI / 2 });
-    expect(arrivalSpot("chapel", "cafe")).toEqual({ x: 0.4, z: 7, heading: Math.PI });
+  test("from the Campfire you land on the Chapel's Campfire pad on its right, facing west", () => {
+    expect(arrivalSpot("campfire", "chapel")).toEqual({ x: 3.2, z: 3.4, heading: -Math.PI / 2 });
+    expect(arrivalSpot("chapel", "campfire")).toEqual({ x: -3.2, z: 3, heading: Math.PI / 2 });
+    expect(arrivalSpot("garden", "cafe")).toEqual({ x: 0.4, z: 7, heading: Math.PI });
+    expect(arrivalSpot("cafe", "garden")).toEqual({ x: 3.2, z: -0.4, heading: -Math.PI / 2 });
+    expect(arrivalSpot("library", "garden")).toEqual({ x: -3.2, z: -0.4, heading: Math.PI / 2 });
+    expect(arrivalSpot("garden", "library")).toEqual({ x: 0, z: 7, heading: Math.PI });
     expect(arrivalSpot("garden", "beach")).toEqual({ x: 0, z: 7, heading: Math.PI });
     expect(arrivalSpot("beach", "garden")).toEqual({ x: 0, z: -10, heading: 0 });
-    expect(arrivalSpot("garden", "campfire")).toEqual({ x: -3.2, z: 3, heading: Math.PI / 2 });
   });
 
   test("with no pad back, you arrive at the spawn facing the camera, off every pad", () => {
@@ -497,11 +535,11 @@ describe("places and the pads between them", () => {
   });
 
   test("standing on the pad you arrived on takes you nowhere; walking onto one does", () => {
-    const pad = PORTALS.chapel.find((p) => p.to === "cafe")!;
+    const pad = PORTALS.chapel.find((p) => p.to === "campfire")!;
     const arrived = { fromX: pad.x, fromZ: pad.z, toX: pad.x, toZ: pad.z, startedAt: 0, heading: -Math.PI / 2 };
     expect(portalReached("chapel", arrived)).toBeNull();
-    expect(portalReached("chapel", { ...arrived, fromX: 0, fromZ: 0 })?.to).toBe("cafe");
-    expect(portalReached("chapel", { ...arrived, fromX: pad.x - 0.3 })?.to).toBe("cafe");
+    expect(portalReached("chapel", { ...arrived, fromX: 0, fromZ: 0 })?.to).toBe("campfire");
+    expect(portalReached("chapel", { ...arrived, fromX: pad.x - 0.3 })?.to).toBe("campfire");
     expect(portalReached("chapel", { fromX: 0, fromZ: 0, toX: 0, toZ: 2, startedAt: 0 })).toBeNull();
   });
 
@@ -565,27 +603,42 @@ describe("sitting turns toward the camera", () => {
   test("a seat facing straight away turns toward the middle of the room", () => {
     expect(towardCamera(Math.PI, -2)).toBeCloseTo((5 * Math.PI) / 6);
     expect(towardCamera(Math.PI, 2)).toBeCloseTo((-5 * Math.PI) / 6);
-    expect(Math.sin(seat("chapel", "pew-left-1.2-0").heading)).toBeGreaterThan(0);
-    expect(Math.sin(seat("chapel", "pew-right-1.2-0").heading)).toBeLessThan(0);
   });
 
-  test("every seat shows more of the face than before: within 150 degrees of the camera", () => {
+  test("every seat but a pew shows more of the face: within 150 degrees of the camera", () => {
     for (const place of PLACES) {
-      for (const s of SEATS[place]) expect(Math.abs(s.heading)).toBeLessThanOrEqual(Math.PI - SEAT_TURN + 1e-9);
+      for (const s of SEATS[place]) {
+        if (place === "chapel") continue;
+        expect(Math.abs(s.heading), `${place} ${s.id}`).toBeLessThanOrEqual(Math.PI - SEAT_TURN + 1e-9);
+      }
     }
   });
 
-  test("every pew seat turns 60 degrees off the camera, toward the aisle, so the face shows", () => {
+  test("every pew seat faces the front of the Chapel, the back of your head to the camera", () => {
     const pews = SEATS.chapel.filter((s) => s.id.startsWith("pew"));
     expect(pews).toHaveLength(24);
+    expect(SEATS.chapel).toHaveLength(24);
     for (const s of pews) {
-      expect(Math.abs(s.heading)).toBeCloseTo(Math.PI - PEW_TURN);
-      expect(Math.abs(s.heading)).toBeCloseTo(Math.abs(seat("cafe", "table-a-left").heading));
-      // Person.tsx draws the face when cos(heading) > 0.15; this is 0.5.
-      expect(Math.cos(s.heading)).toBeGreaterThan(0.45);
-      // Turned toward the aisle: a left pew (x < 0) faces +x, a right pew -x.
-      expect(Math.sign(Math.sin(s.heading))).toBe(s.x < 0 ? 1 : -1);
+      expect(s.heading).toBe(Math.PI);
+      expect(Math.cos(s.heading)).toBeLessThan(-0.99);
     }
+  });
+
+  test("sitting on a pew asks about Devotionals; any other seat doesn't", () => {
+    for (const s of SEATS.chapel) expect(asksDevotional("chapel", s.id)).toBe(true);
+    for (const place of PLACES) {
+      if (place === "chapel") continue;
+      for (const s of SEATS[place]) expect(asksDevotional(place, s.id), `${place} ${s.id}`).toBe(false);
+    }
+    expect(asksDevotional("garden", "pew-left-1.2-0")).toBe(false);
+    expect(asksDevotional("chapel", "lectern")).toBe(false);
+  });
+
+  test("library armchairs face across the room and the reading chairs face the camera", () => {
+    expect(seat("library", "armchair-a").heading).toBeCloseTo(Math.PI / 3);
+    expect(seat("library", "armchair-c").heading).toBeCloseTo(-Math.PI / 3);
+    expect(seat("library", "chair-left").heading).toBe(0);
+    expect(SEATS.library.map((s) => s.id).sort()).toEqual(["armchair-a", "armchair-b", "armchair-c", "armchair-d", "chair-left", "chair-right"]);
   });
 
   test("the two stools at a café table still face each other, both turned toward the camera", () => {

@@ -166,12 +166,12 @@ describe("a home's door", () => {
 
     later(5000);
     expect(await anna.mutation(api.world.travel, { to: "cafe" })).toMatchObject({ ok: true, place: "cafe" });
-    // Going home from the Chapel next time leads back to the Chapel.
+    // Going home from the Campfire next time leads back to the Campfire.
     later(5000);
-    await anna.mutation(api.world.travel, { to: "chapel" });
+    await anna.mutation(api.world.travel, { to: "campfire" });
     later(5000);
     await anna.mutation(api.world.travel, { to: "home" });
-    expect(await backTo(t, ANNA)).toBe("chapel");
+    expect(await backTo(t, ANNA)).toBe("campfire");
   });
 
   test("remembers the place even for someone with no visitor row yet", async () => {

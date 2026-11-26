@@ -305,6 +305,7 @@ describe("leaving forfeits after a grace period", () => {
     later(REFILL / 2);
     await anna.who.mutation(api.world.travel, { to: "chapel" });
     later(REFILL / 2);
+    await anna.who.mutation(api.world.travel, { to: "campfire" });
     await anna.who.mutation(api.world.travel, { to: "cafe" });
     expect((await anna.who.query(api.cafeGames.mine, {}))?.game?.away).toBe(false);
     later(CAFE_AWAY_GRACE_MS);

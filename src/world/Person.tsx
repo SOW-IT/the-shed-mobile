@@ -6,6 +6,7 @@ import { garden, hud, isLight, people, shade } from "./palette";
 import { popShadow } from "./popShadow";
 import { Ellipse, flatQuad, quadTransform } from "./Shapes";
 import { bandOverHead, capShape, earCup, HAT_PITCH, hoodLayer, projectOnHead, type Disc, type HeadView, type Point } from "./headwear";
+import { FACE_MIN } from "./talk";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
 import { fonts } from "@/theme";
@@ -628,8 +629,18 @@ const AvatarView = ({
       parts.push(capsule(a, b, 0.14 * s, skin, `arm${e}${layer}`));
     }
   };
-  arms("back");
+  // The chin, in body units: the head covers the neck, so collars, bow ties
+  // and necklaces hang just below it.
+  const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const outfit = lookPart(look, "outfit");
+  const hood = outfit === 5 ? hoodLayer(facing) : null;
+  const hoodFill = shade(shirt, -0.18);
+  if (hood === "behind") ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, hoodFill);
+  if (hood && Math.abs(side) > 0.35) {
+    const nape = at(-Math.sign(side) * 0.27, chin + 0.02);
+    parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
+  }
+  arms("back");
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
@@ -654,17 +665,12 @@ const AvatarView = ({
       { x: at(l2, bottom).x - grow, y: at(0, bottom).y + grow },
     ];
   };
-  // The chin, in body units: the head covers the neck, so collars, bow ties
-  // and necklaces hang just below it.
-  const chin = Math.min(0.7, ((foot.y - (head.y + hh / 2 - (hh - r * 2) * 0.25)) / up - bob) / body.height);
   const dot = (key: string, x: number, y: number, rad: number, fill: string) =>
     parts.push(<View key={key} pointerEvents="none" style={[styles.abs, { left: at(x, y).x - rad, top: at(x, y).y - rad, width: rad * 2, height: rad * 2, borderRadius: rad, backgroundColor: fill }]} />);
   const piece = (key: string, fill: string, top: number, bottom: number, topHalf: number, bottomHalf: number, radius = 12) => {
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, ink), garden.ink, `${key}Ink`, radius));
     parts.push(quad(panel(top, bottom, topHalf, bottomHalf, 0), fill, key, radius));
   };
-  const hoodBehind = outfit === 5 && hoodLayer(facing) === "behind";
-  if (hoodBehind) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, shade(shirt, -0.1));
   if (outfit === 1) {
     const dress = (grow: number) => panel(0.7, 0.1, 0.21, 0.46, grow);
     parts.push(quad(dress(ink), garden.ink, "bodyInk", 30));
@@ -690,11 +696,6 @@ const AvatarView = ({
     for (const y of [0.58, 0.44, 0.3]) {
       parts.push(capsule(at(-halfWidth(y) + 0.04, y), at(halfWidth(y) - 0.04, y), 0.055 * s, shade(shirt, -0.3), `stripe${y}`));
     }
-  }
-  if (outfit === 5 && facing >= 0) {
-    if (pants > 0) piece("pocket", shade(shirt, -0.14), 0.52, 0.36, 0.13, 0.16, 10);
-    else piece("pocket", shade(shirt, -0.14), 0.38, 0.2, 0.15, 0.19, 10);
-    for (const e of [-1, 1]) parts.push(capsule(at(0.06 * e, 0.68), at(0.07 * e, 0.52), 0.03 * s, people.drawstring, `string${e}`));
   }
   if (outfit === 6 && facing >= 0) {
     // Collared: a white collar and two buttons.
@@ -757,6 +758,17 @@ const AvatarView = ({
     piece("skirtBottom", colour, 0.36, 0.12, halfWidth(0.36) + 0.01, 0.44, 14);
     parts.push(capsule(at(-halfWidth(0.35), 0.35), at(halfWidth(0.35), 0.35), 0.03 * s, shade(colour, -0.22), "waist"));
   }
+  if (hood) {
+    const hemTop = Math.max(chin, 0.36);
+    if (pants > 0) piece("hoodieHem", shirt, hemTop, 0.27, halfWidth(hemTop), halfWidth(0.27) + 0.02, 10);
+    if (hood === "behind") {
+      const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
+      piece("pocket", shade(shirt, -0.14), pocketBottom + 0.09, pocketBottom, halfWidth(pocketBottom + 0.09) - 0.05, halfWidth(pocketBottom) - 0.04, 8);
+      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s + ink * 2, garden.ink, "hoodRimInk"));
+      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s, hoodFill, "hoodRim"));
+      for (const e of [-1, 1]) parts.push(capsule(at(0.05 * e, chin - 0.01), at(0.06 * e, chin - 0.13), 0.03 * s, people.drawstring, `string${e}`));
+    }
+  }
   if (accessory === 2 && facing >= 0) {
     for (const e of [-1, 1]) parts.push(capsule(at(0.13 * e, 0.69), at(0.15 * e, 0.38), 0.05 * s, people.backpackStrap, `strap${e}`));
   }
@@ -789,7 +801,6 @@ const AvatarView = ({
   if (feetInFront) feet();
   arms("front");
 
-  if (outfit === 5 && !hoodBehind) ball("hood", head.x - side * 0.1 * s, head.y + r * 0.42, r * 0.86, shade(shirt, -0.1));
   // Hair that sits behind the head: a bun, or long hair down to the shoulders.
   if (look.hair === 1 && !hidesBun(hat)) ball("bun", head.x - side * 0.15 * s, head.y - 0.46 * s - lift, 0.17 * s, hair);
   if (look.hair === 2) {
@@ -953,7 +964,7 @@ const AvatarView = ({
   // stop partway down, so the hair shows under them.
   const hatDrop = hat === 1 ? Math.max(0.55, capDrop) : Math.max(0.3, capDrop - 0.25);
   const face = [];
-  const faceOn = facing > 0.15;
+  const faceOn = facing > FACE_MIN;
   // The placement sliders: each step moves, grows or turns a part a little,
   // and the middle step is where it always was.
   const eyeStyle = lookPart(look, "eyes");
@@ -1358,6 +1369,12 @@ const AvatarView = ({
       </View>
     </View>
   );
+  if (hood === "over") {
+    const drape = at(-side * 0.03, chin + 0.04);
+    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
+    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
+    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
+  }
   // Hair and hats on top of the head.
   if (look.hair === 10 && afroOver) afro();
   if (look.hair === 7 && facing < -0.2) ponytail();

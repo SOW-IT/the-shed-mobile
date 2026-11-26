@@ -104,30 +104,6 @@ describe("homes are invite only", () => {
     await expect(ben.mutation(api.world.travel, { to: "home", invite: id })).rejects.toThrow(/full/);
   });
 
-  test("following someone into a home still needs that home's invite", async () => {
-    const t = newConvex();
-    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
-    await asUser(t, BEN).mutation(api.world.join, {});
-    await goTo(t, ANNA, "home");
-    await asUser(t, BEN).mutation(api.world.travel, { to: "home", toMember: annaId });
-    expect((await memberOf(t, BEN)).room?.owner).toBe(BEN);
-  });
-
-  test("following someone in with their invite lands beside them, not on them", async () => {
-    const t = newConvex();
-    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
-    const ben = asUser(t, BEN);
-    const { memberId: benId } = await ben.mutation(api.world.join, {});
-    await goTo(t, ANNA, "home");
-    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
-    const [card] = await ben.query(api.world.invites, {});
-    await ben.mutation(api.world.travel, { to: "home", toMember: annaId, invite: card.id });
-    const anna = await memberOf(t, ANNA);
-    const guest = await memberOf(t, BEN);
-    expect(guest.room?._id).toBe(anna.room?._id);
-    expect(distance(posAt(guest.state!, Date.now()), posAt(anna.state!, Date.now()))).toBeGreaterThanOrEqual(ARRIVE_APART);
-  });
-
   test("an invite for someone else, or a made-up one, doesn't open the home on join", async () => {
     const t = newConvex();
     await asUser(t, ANNA).mutation(api.world.join, {});
@@ -182,19 +158,6 @@ describe("homes are invite only", () => {
     expect(Math.abs(at.x) < hw && Math.abs(at.z + 4) < hd).toBe(false);
   });
 
-  test("following someone in with their invite stops at a full home", async () => {
-    const t = newConvex();
-    const { memberId: annaId } = await asUser(t, ANNA).mutation(api.world.join, {});
-    const ben = asUser(t, BEN);
-    const { memberId: benId } = await ben.mutation(api.world.join, {});
-    await goTo(t, ANNA, "home");
-    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
-    const [card] = await ben.query(api.world.invites, {});
-    const { room } = await memberOf(t, ANNA);
-    await t.run((ctx) => ctx.db.patch("worldRooms", room!._id, { memberCount: HOME_CAP }));
-    await expect(ben.mutation(api.world.travel, { to: "home", toMember: annaId, invite: card.id })).rejects.toThrow(/full/);
-  });
-
   test("what's said at home stays in that home", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
@@ -207,13 +170,32 @@ describe("homes are invite only", () => {
     expect(lines?.some((line) => line.text === "just us")).toBe(false);
   });
 
-  test("homes don't show in the places list or anywhere else", async () => {
+  test("homes don't show in the places list, but someone at their own home shows in the online list as at home", async () => {
     const t = newConvex();
     await asUser(t, ANNA).mutation(api.world.join, {});
     await asUser(t, BEN).mutation(api.world.join, {});
     await goTo(t, ANNA, "home");
-    expect(await asUser(t, BEN).query(api.world.elsewhere, {})).toEqual([]);
+    expect(await asUser(t, BEN).query(api.world.elsewhere, {})).toMatchObject([{ place: "home", count: 1, names: ["anna"] }]);
+    expect(await asUser(t, BEN).query(api.world.places, {})).toEqual(expect.not.objectContaining({ home: expect.anything() }));
     expect(await asUser(t, BEN).query(api.world.places, {})).toMatchObject({ garden: 1 });
+  });
+
+  test("the backyard counts as at home too, a guest in someone else's home isn't listed there, and a block hides them", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.world.join, {});
+    const { memberId: benId } = await asUser(t, BEN).mutation(api.world.join, {});
+    await asUser(t, CARA).mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await goTo(t, ANNA, "backyard");
+    expect(await asUser(t, CARA).query(api.world.elsewhere, {})).toMatchObject([{ place: "home", count: 1, names: ["anna"] }]);
+    await goTo(t, ANNA, "home");
+    await asUser(t, ANNA).mutation(api.world.invite, { memberId: benId });
+    const [card] = await asUser(t, BEN).query(api.world.invites, {});
+    await asUser(t, BEN).mutation(api.world.travel, { to: "home", invite: card.id });
+    expect(await asUser(t, CARA).query(api.world.elsewhere, {})).toEqual([expect.objectContaining({ place: "home", count: 1, names: ["anna"] })]);
+    const annaId = (await memberOf(t, ANNA)).member!._id;
+    await asUser(t, CARA).mutation(api.world.block, { memberId: annaId });
+    expect(await asUser(t, CARA).query(api.world.elsewhere, {})).toEqual([]);
   });
 });
 
@@ -241,11 +223,12 @@ describe("a poke brings them to you", () => {
   test("they arrive beside you, where you are now", async () => {
     const t = newConvex();
     const { anna, poke } = await pokeBen(t);
-    await goTo(t, ANNA, "cafe");
+    await goTo(t, ANNA, "garden");
+    await goTo(t, ANNA, "library");
     await asUser(t, BEN).mutation(api.world.join, { poke });
     const ben = await memberOf(t, BEN);
     const annaNow = await memberOf(t, ANNA);
-    expect(ben.member?.place).toBe("cafe");
+    expect(ben.member?.place).toBe("library");
     expect(ben.member?.roomId).toBe(annaNow.member?.roomId);
     expect(distance(posAt(ben.state!, Date.now()), posAt(annaNow.state!, Date.now()))).toBeLessThan(2);
     void anna;
@@ -278,7 +261,7 @@ describe("a poke brings them to you", () => {
     const annaNow = await memberOf(t, ANNA);
     await t.run((ctx) => ctx.db.patch("worldRooms", annaNow.room!._id, { memberCount: ROOM_CAP - 1 }));
     await asUser(t, BEN).mutation(api.world.join, {});
-    await asUser(t, BEN).mutation(api.world.travel, { to: "beach", toMember: annaNow.member!._id });
+    await asUser(t, BEN).mutation(api.world.travel, { to: "beach" });
     later(5000);
     await asUser(t, BEN).mutation(api.world.move, { toX: -4, toZ: 4 });
     later(30_000);

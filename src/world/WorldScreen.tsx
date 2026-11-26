@@ -22,6 +22,8 @@ import {
   INVITE_CARD_MS,
   NPC,
   FARMER,
+  WORLD_PLACE,
+  asksDevotional,
 } from "@shared/world";
 import type { GameId } from "@shared/games";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
@@ -54,6 +56,7 @@ import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
+import { STATUS_CARD_MS } from "./cards";
 import { SettingsPanel } from "./SettingsPanel";
 import { useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { duelFor } from "./duel";
@@ -108,8 +111,8 @@ const OBJECT_SPOTS: Record<InteractivePropId, { x: number; z: number }> = {
 };
 
 const AT_OBJECT = 0.35;
+const CARD_GAP = 8;
 const BESIDE = 1.2;
-const FOLLOW_MS = 12_000;
 const OBJECT_TRIP_MS = 20_000;
 const SAME_FURNITURE = 1.7;
 
@@ -579,6 +582,7 @@ export const WorldScreen = ({
         Date.now() - seatTrip.since > OBJECT_TRIP_MS;
       if (!arrived && !strayed) return;
       setSeatTrip(null);
+      if (arrived && asksDevotional(seatTrip.place, seat.id)) setDevotionalAsked(true);
     }, 120);
     return () => clearInterval(id);
   }, [seatTrip]);
@@ -605,7 +609,7 @@ export const WorldScreen = ({
   const clearPlanting = useCallback(() => setPlanting(null), []);
   const clearGain = useCallback(() => setGain(null), []);
   const triedFromWalk = useRef<number | null>(null);
-  const go = (to: Place, toMember?: Id<"worldMembers">, invite?: Id<"worldInvites">, onArrived?: () => void, door = false) => {
+  const go = (to: Place, invite?: Id<"worldInvites">, onArrived?: () => void, door = false) => {
     setPerson(null);
     setPlotTrip(null);
     setAnimalTrip(null);
@@ -634,7 +638,7 @@ export const WorldScreen = ({
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
     veil(1);
-    void live.current.world.travel(to, { toMember, invite, door }).then((problem) => {
+    void live.current.world.travel(to, { invite, door }).then((problem) => {
       veil(0);
       if (problem) setNote(problem);
       else {
@@ -725,7 +729,7 @@ export const WorldScreen = ({
   useEffect(() => {
     if (backTarget === null) return;
     onStay();
-    goRef.current(backTarget, undefined, undefined, undefined, backDoor);
+    goRef.current(backTarget, undefined, undefined, backDoor);
   }, [backTarget, backDoor, onStay]);
   const myWalkStart = me?.walk?.startedAt ?? null;
   const myArrival = me?.walk ? posAt(me.walk, me.walk.startedAt).arrivesAt : null;
@@ -747,7 +751,7 @@ export const WorldScreen = ({
       triedFromWalk.current = mine.walk.startedAt;
       // A home's door goes back to where you came from (the server remembers).
       const trip = padTrip(latest.place, pad.to, latest.home);
-      goRef.current(trip.to, undefined, undefined, undefined, trip.door);
+      goRef.current(trip.to, undefined, undefined, trip.door);
     };
     id = setTimeout(check, Math.max(0, myArrival + PAD_SETTLE_MS - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
@@ -775,6 +779,7 @@ export const WorldScreen = ({
     const mePose = myPoseNow();
     if (me?.seat === free.id && mePose && !mePose.walking && distance(mePose, free) <= AT_OBJECT) {
       setSeatTrip(null);
+      if (asksDevotional(world.place, free.id)) setDevotionalAsked(true);
       return;
     }
     world.sitOn(free.id);
@@ -908,6 +913,7 @@ export const WorldScreen = ({
       }
       return;
     }
+    setYardCard(null);
     if (plantOn(plot)) setPlotCard({ plot, key: Date.now() });
     if (!needsVisit(plot)) return;
     const spot = plotStand(plot);
@@ -941,7 +947,7 @@ export const WorldScreen = ({
   }, [plotTrip]);
   useEffect(() => {
     if (plotCard === null) return;
-    const id = setTimeout(() => setPlotCard(null), PLOT_CARD_MS);
+    const id = setTimeout(() => setPlotCard(null), STATUS_CARD_MS);
     return () => clearTimeout(id);
   }, [plotCard]);
   const describePlot = (plot: number): string | null => {
@@ -1056,6 +1062,7 @@ export const WorldScreen = ({
     const hungry = l.mood === "hungry" || l.mood === "frail";
     const collect = yardView.mine && l.ready;
     const noFeed = !collect && hungry && (farm.bag?.feed[feedOf(animal.kind)] ?? 0) < 1;
+    setPlotCard(null);
     setYardCard({ at, id, extra: noFeed ? `Get feed from ${FARMER.name.split(" ")[0]}` : null, key: world.serverNow() });
     if (noFeed || !(hungry || collect)) return;
     const spot = penStand(at);
@@ -1088,7 +1095,7 @@ export const WorldScreen = ({
   }, [animalTrip]);
   useEffect(() => {
     if (yardCard === null) return;
-    const id = setTimeout(() => setYardCard(null), PLOT_CARD_MS);
+    const id = setTimeout(() => setYardCard(null), STATUS_CARD_MS);
     return () => clearTimeout(id);
   }, [yardCard]);
   const tapBuilding = (kind: BuildingId) => {
@@ -1104,6 +1111,7 @@ export const WorldScreen = ({
       setPenSheet(kind);
       return;
     }
+    setPlotCard(null);
     setYardCard({ at: kind, id: null, extra: null, key: world.serverNow() });
   };
   const yardCardData: FarmCardData | null = (() => {
@@ -1216,32 +1224,6 @@ export const WorldScreen = ({
     latest.walkTo(from.x + (there.x - from.x) * k, from.z + (there.z - from.z) * k);
     setNote(`Walking over to ${worldName(theirs.name)}…`);
   };
-  const walkOverRef = useRef(walkOver);
-  useEffect(() => {
-    walkOverRef.current = walkOver;
-  });
-  const [following, setFollowing] = useState<{ memberId: string; since: number } | null>(null);
-  const follow = (to: Place, memberId: string) => {
-    if (world.people.some((p) => p.memberId === memberId)) return walkOver(memberId);
-    setFollowing({ memberId, since: Date.now() });
-    go(to, memberId as Id<"worldMembers">);
-  };
-  useEffect(() => {
-    if (!following) return;
-    const id = setInterval(() => {
-      const { world: latest } = live.current;
-      const arrived =
-        latest.status === "in" &&
-        latest.people.some((p) => p.isMe && p.walk) &&
-        latest.people.some((p) => p.memberId === following.memberId && p.walk);
-      if (arrived) {
-        setFollowing(null);
-        walkOverRef.current(following.memberId);
-      } else if (Date.now() - following.since > FOLLOW_MS) setFollowing(null);
-    }, 300);
-    return () => clearInterval(id);
-  }, [following]);
-
   const gameAction: HudAction[] = !selected
     ? []
     : selectedGame
@@ -1421,10 +1403,6 @@ export const WorldScreen = ({
         top={insets.top + TOP_BAR_GAP}
         balance={wallet?.balance}
         onClose={() => setCoinsOpen(false)}
-        onBackyard={() => {
-          setCoinsOpen(false);
-          if (world.place !== "backyard" || farm.view?.mine === false) go("backyard");
-        }}
       />
       <PersonSheet
         // A report started for one person never carries over to another.
@@ -1460,7 +1438,6 @@ export const WorldScreen = ({
         }}
         place={world.place}
         onWalkOver={walkOver}
-        onFollow={follow}
         onInvite={invitePerson}
         playing={playingNow.lines}
         onClose={() => setPeopleOpen(false)}
@@ -1546,6 +1523,17 @@ export const WorldScreen = ({
             onPress: goHome,
           },
         ]),
+    ...(world.place === WORLD_PLACE
+      ? []
+      : [
+          {
+            id: "garden",
+            label: "Garden",
+            icon: "leaf" as const,
+            accessibilityLabel: "Go to the Garden",
+            onPress: () => go(WORLD_PLACE),
+          },
+        ]),
     {
       id: "settings",
       label: "Settings",
@@ -1576,7 +1564,7 @@ export const WorldScreen = ({
       look={invite.look}
       onGo={() => {
         const shown = `${invite.id}:${invite.at}`;
-        go("home", undefined, invite.id, () => setDismissedInvites((set) => new Set(set).add(shown)));
+        go("home", invite.id, () => setDismissedInvites((set) => new Set(set).add(shown)));
       }}
       onLater={() => setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`))}
     />
@@ -1619,6 +1607,8 @@ export const WorldScreen = ({
         onHoldStart={(x, z) => {
           setTray(false);
           setPerson(null);
+          setPlotCard(null);
+          setYardCard(null);
           setApproach(null);
           setPropTrip(null);
           setPlotTrip(null);
@@ -1640,6 +1630,8 @@ export const WorldScreen = ({
           setPlotTrip(null);
           setAnimalTrip(null);
           setSeatTrip(null);
+          setPlotCard(null);
+          setYardCard(null);
           setPerson((current) => (current === memberId ? null : memberId));
         }}
         selected={person}
@@ -1661,6 +1653,7 @@ export const WorldScreen = ({
         declined={declined}
         home={world.home}
         homeExit={world.place === "home" ? exitOf(world.home) : undefined}
+        cardTop={logBottom + CARD_GAP}
         onTapNpc={() => {
           setPerson(null);
           setTray(false);
@@ -1826,7 +1819,6 @@ const latestYardTime = (animals: readonly { feedings: readonly { at: number }[];
   (animals ?? []).reduce((latest, a) => Math.max(latest, a.collectedAt ?? 0, ...a.feedings.map((f) => f.at)), 0);
 
 const PAD_SETTLE_MS = 150;
-const PLOT_CARD_MS = 4000;
 const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;

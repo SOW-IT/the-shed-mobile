@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.22] - 2026-11-26
+## [2.13.23] - 2026-11-26
 
 ### Added
 - **Hold a finger on a Café board to see where your move will go.** In
@@ -38,6 +38,52 @@ All notable changes to **The SHED** mobile app. This project follows
   of waiting forever. If they leave before you ask, the Rematch button
   goes and the card says they left. This comes from the server, so it
   works even when their app was closed.
+
+## [2.13.22] - 2026-11-26
+
+### Added
+- **The Library, a quiet room off the Garden.** Walk through the new pad on
+  the Garden's left to bookshelves, a reading table with a green lamp, a
+  globe and four armchairs by floor lamps. Sit in an armchair or at the
+  table. Its only way out is back to the Garden.
+- **Garden in the World's menu.** Next to Your home, the menu now takes you
+  straight back to the Garden from anywhere.
+- **People at their own home show in the online list.** Someone in their
+  home or backyard is listed under Elsewhere as "At home", like anyone in
+  another place, without saying whose home or what they are doing there.
+
+### Changed
+- **New ways between places.** The Garden leads to the Beach, the Café
+  (where the Campfire pad was), the Chapel and the Library. The Café leads
+  to the Garden and the Campfire, the Chapel to the Garden and the
+  Campfire, the Campfire to the Chapel and the Café, and the Beach only back
+  to the Garden. Every exit goes both ways, and the server now refuses a
+  trip between places with no pad between them; the Garden and your home
+  are the only jumps.
+- **Sitting on a pew faces the front of the Chapel again**, the back of your
+  head to the camera, for you and everyone watching, and **asks whether to
+  open your devotionals**, as it did before 2.13.17.
+- **Mouths move for as long as the chat bubble is up**, and stop closed the
+  moment it goes. A new line keeps them talking until its own bubble ends.
+- **Farm status cards show for 3 seconds**, go away when you tap somewhere
+  else, and start again when you tap the same thing.
+- **New wallets start with 100 coins**, up from 50.
+
+### Removed
+- **Going to a friend from the People list.** The Elsewhere rows no longer
+  take you to where someone is; you can still invite them to your home.
+- **The coins panel's shortcut to your backyard.** It still explains how to
+  farm for coins; you walk there through your home.
+
+### Fixed
+- **The hoodie looks like a hoodie, and its hood no longer sits in front of
+  the shoulders.** From the front the hood shows behind the head with a rim
+  at the neck, two drawstrings and a pocket; from the side it curves behind
+  the head and neck; from behind, and sitting on a pew, it lies on the upper
+  back.
+- **A tapped hen, cow, coop, barn or plant's card no longer hides under the
+  chat log.** The card keeps below the log however many lines it shows, on
+  small phones too.
 
 ## [2.13.21] - 2026-11-26
 
