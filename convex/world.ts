@@ -235,7 +235,7 @@ const throttleOf = (ctx: Ctx, email: string) =>
     .withIndex("by_email", (q) => q.eq("email", email))
     .unique();
 
-type ChatLine = { text: string; kind?: "join" | "leave" };
+type ChatLine = { text: string; kind?: "join" | "leave"; toWorld?: boolean };
 
 type Speaker = { memberId: Id<"worldMembers">; roomId: Id<"worldRooms">; place: Place; email: string; name: string };
 
@@ -530,7 +530,7 @@ const FRESH_IN_ROOM = {
 };
 
 export const join = mutation({
-  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()) },
+  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()), rejoin: v.optional(v.id("worldMembers")) },
   returns: v.object({
     roomId: v.id("worldRooms"),
     memberId: v.id("worldMembers"),
@@ -595,7 +595,10 @@ export const join = mutation({
       if (!quietReturn) await addChatLine(ctx, speakerOf(member), joinedLine(member), now);
     } else {
       // Another tab or device joining the same member: count the visit.
-      await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
+      // A recovery rejoin belongs to an existing visit, so it keeps the count as is.
+      if (args.rejoin !== member._id) {
+        await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
+      }
       const asked = await askedFor();
       const there = asked && (await arrivalRoom(ctx, asked, room));
       if (asked && there) {
@@ -996,8 +999,9 @@ export const say = mutation({
     const token = spend("say", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await ctx.db.patch("worldState", state._id, { say: { text, at: now }, typing: undefined, sayBucket: token.bucket });
-    // Keep the room within CHAT_ROOM_CAP lines as each one arrives.
-    await addChatLine(ctx, speakerOf(member), { text }, now);
+    // Keep the room within CHAT_ROOM_CAP lines as each one arrives. What's
+    // said in a backyard reaches the whole World; at home it stays in.
+    await addChatLine(ctx, speakerOf(member), placeOf(member) === BACKYARD ? { text, toWorld: true } : { text }, now);
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
   },
@@ -1152,7 +1156,7 @@ export const duelPick = mutation({
   args: { duelId: v.id("worldDuels"), round: v.number(), pick: v.string() },
   returns: v.union(v.object({ ok: v.literal(true) }), v.object({ ok: v.literal(false), reason: v.string() })),
   handler: async (ctx, { duelId, round, pick }) => {
-    if (!isDuelPick(pick)) throw new ConvexError("Pick rock, paper or scissors.");
+    if (!isDuelPick(pick)) throw new ConvexError("Pick scissors, paper or rock.");
     const { member } = await requireMe(ctx);
     const duel = await ctx.db.get("worldDuels", duelId);
     const now = Date.now();
@@ -1446,7 +1450,7 @@ export const chatLog = query({
     let scanned = 0;
     for await (const row of rows) {
       if (lines.length === cap || scanned++ === CHAT_SCAN) break;
-      if (isPrivatePlace(row.place) && row.roomId !== roomId) continue;
+      if (isPrivatePlace(row.place) && row.toWorld !== true && row.roomId !== roomId) continue;
       if (!hidden.has(row.email)) hidden.set(row.email, await isBlocked(row.email));
       if (hidden.get(row.email)) continue;
       lines.push({

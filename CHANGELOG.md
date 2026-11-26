@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.28] - 2026-11-27
+## [2.13.34] - 2026-11-27
 
 ### Fixed
 - **Verify's arcade check closes the Arcade before the next check runs, for
@@ -15,6 +15,37 @@ All notable changes to **The SHED** mobile app. This project follows
   branch touches both the games and the World, could start under that panel
   and fail. The check now taps the panel's close button at the end and waits
   until only the World is showing. Nothing in the app changes.
+
+## [2.13.31] - 2026-11-27
+
+### Changed
+- **The World's chat reaches your backyard, both ways.** What you say in a
+  backyard now goes to everyone in the World, as in any other place, and
+  shows to them tagged [Backyard] (not whose backyard). You already saw the
+  World's chat there; now you can answer it. Lines said in a backyard used
+  to stay in that backyard, which no one else could hear, even though the
+  chat box says "Talk to everyone in the World". Home is unchanged: what's
+  said at home stays in that home, and so do who came into a backyard and
+  anything said there before this update.
+- **Your backyard lines are still there after you leave and come back.**
+  An empty backyard closes when you leave, so your earlier lines used to
+  vanish with it. They now stay in the chat for the hour, like the rest.
+
+## [2.13.30] - 2026-11-27
+
+### Changed
+- **Scissors, paper, rock, in that order.** The duel's pick buttons now run
+  Scissors, Paper, Rock, the same order as the chant, and the game is called
+  "Scissors paper rock" on the person card, the ask and what VoiceOver reads.
+- **Accepting a scissors paper rock ask is a ✊ button.** The yes button on
+  the ask card was too narrow for "Rock paper scissors!". It now shows the
+  game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
+  their name. High five keeps its words.
+
+## [2.13.28] - 2026-11-26
+
+### Fixed
+- **Returning to the World after backgrounding no longer rubber-bands or empties the room.** Replies that sat queued while offline or paused no longer skew the World clock ahead, the first frame after resuming draws at the current time instead of snapping from where everyone stood before, and coming back after a long background recovers cleanly in a single rejoin without flashing everyone away or dropping an immediate tap.
 
 ## [2.13.27] - 2026-11-26
 
