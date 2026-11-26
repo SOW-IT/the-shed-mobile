@@ -58,3 +58,13 @@ appId: au.org.sow.theshed
       id: world-arcade
     timeout: 20000
 - takeScreenshot: "${OUT}/check-arcade-after-leaderboard"
+# Close the panel, so the next check (chapel-pews) starts on a bare World.
+- tapOn:
+    id: world-arcade-close
+- extendedWaitUntil:
+    notVisible:
+      id: world-arcade
+    timeout: 10000
+- assertVisible:
+    id: world-stage
+- takeScreenshot: "${OUT}/check-arcade-closed"
