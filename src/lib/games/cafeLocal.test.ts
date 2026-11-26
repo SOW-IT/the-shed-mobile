@@ -14,7 +14,7 @@ import {
 
 const play = (game: LocalCafeGame, moves: number[]) => moves.reduce(playLocal, game);
 
-const offlineSources = import.meta.glob(["./cafeLocal.ts", "../../components/games/CafeTableGames.tsx", "../../components/games/cafe/CafeParts.tsx", "../../components/games/cafe/CafeBoards.tsx"], {
+const offlineSources = import.meta.glob(["./cafeLocal.ts", "../../components/games/CafeTableGames.tsx", "../../components/games/cafe/CafeParts.tsx", "../../components/games/cafe/CafeBoards.tsx", "../../components/games/cafe/BoardTouch.tsx", "./cafePick.ts"], {
   query: "?raw",
   import: "default",
   eager: true,
@@ -68,7 +68,7 @@ describe("a pass-and-play game", () => {
   });
 
   test("offline play never touches Convex or the network", () => {
-    expect(Object.keys(offlineSources)).toHaveLength(4);
+    expect(Object.keys(offlineSources)).toHaveLength(6);
     for (const source of Object.values(offlineSources)) {
       expect(source).not.toMatch(/from "convex\/|_generated\/api|useQuery|useMutation|fetch\(/);
     }

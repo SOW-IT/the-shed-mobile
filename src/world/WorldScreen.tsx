@@ -68,7 +68,7 @@ import { ArcadePanel } from "./ArcadePanel";
 import { arcadeStep } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
-import { InviteCard } from "./InviteCard";
+import { InviteCard, KnockCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import type { Keeper } from "./shopTabs";
 import { api } from "../../convex/_generated/api";
@@ -292,6 +292,9 @@ export const WorldScreen = ({
   const [watching, setWatching] = useState<Id<"cafeGames"> | null>(null);
   const invites = useQuery(api.world.invites, world.status === "in" ? {} : "skip");
   const [dismissedInvites, setDismissedInvites] = useState<ReadonlySet<string>>(new Set());
+  const knocks = useQuery(api.world.knocks, world.status === "in" ? {} : "skip");
+  const [dismissedKnocks, setDismissedKnocks] = useState<ReadonlySet<string>>(new Set());
+  const [knockTries, setKnockTries] = useState(0);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopKeeper, setShopKeeper] = useState<Keeper>("sijin");
   const [coinsOpen, setCoinsOpen] = useState(false);
@@ -672,6 +675,8 @@ export const WorldScreen = ({
   const goHome = () => go("home");
   const invitePerson = (memberId: Id<"worldMembers">, name: string) =>
     void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${worldName(name)} home.`));
+  const askToVisit = (memberId: Id<"worldMembers">, name: string) =>
+    void world.knock(memberId).then((problem) => setNote(problem ?? `Asked to visit ${worldName(name)}'s home.`));
 
   const said = (e: unknown, otherwise: string) => (e instanceof ConvexError ? String(e.data) : otherwise);
   const decorate = (change: () => Promise<{ ok: boolean; retryInMs?: number }>) =>
@@ -719,13 +724,16 @@ export const WorldScreen = ({
     : [];
   const nowForInvites = world.serverNow();
   const invite = (invites ?? []).find((row) => nowForInvites - row.at < INVITE_CARD_MS && !dismissedInvites.has(`${row.id}:${row.at}`));
+  const knock = (knocks ?? []).find((row) => nowForInvites < row.expiresAt && !dismissedKnocks.has(`${row.id}:${row.at}`));
   const [, setInviteExpired] = useState(0);
   const inviteEnds = invite ? invite.at + INVITE_CARD_MS : null;
+  const knockEnds = knock ? knock.expiresAt : null;
+  const cardEnds = inviteEnds !== null && knockEnds !== null ? Math.min(inviteEnds, knockEnds) : (inviteEnds ?? knockEnds);
   useEffect(() => {
-    if (inviteEnds === null) return;
-    const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, inviteEnds - live.current.world.serverNow()) + 1);
+    if (cardEnds === null) return;
+    const id = setTimeout(() => setInviteExpired((n) => n + 1), Math.max(0, cardEnds - live.current.world.serverNow()) + 1);
     return () => clearTimeout(id);
-  }, [inviteEnds]);
+  }, [cardEnds]);
   const farmView = farm.view;
   const placeTitle =
     world.place === "home"
@@ -1461,6 +1469,7 @@ export const WorldScreen = ({
         place={world.place}
         onWalkOver={walkOver}
         onInvite={invitePerson}
+        onAskToVisit={askToVisit}
         playing={playingNow.lines}
         onClose={() => setPeopleOpen(false)}
         pokeListOpen={opening === "poke"}
@@ -1589,6 +1598,33 @@ export const WorldScreen = ({
         go("home", invite.id, () => setDismissedInvites((set) => new Set(set).add(shown)));
       }}
       onLater={() => setDismissedInvites((set) => new Set(set).add(`${invite.id}:${invite.at}`))}
+    />
+  ) : null;
+
+  const knockCard = knock ? (
+    <KnockCard
+      key={`${knock.id}:${knock.at}:${knockTries}`}
+      name={knock.guestName}
+      look={knock.look}
+      onAnswer={(allow) => {
+        const shown = `${knock.id}:${knock.at}`;
+        const guestName = knock.guestName;
+        void world.answerKnock(knock.id, allow).then((problem) => {
+          if (problem) {
+            setDismissedKnocks((set) => {
+              const next = new Set(set);
+              next.delete(shown);
+              return next;
+            });
+            setKnockTries((n) => n + 1);
+            setNote(problem);
+          } else if (allow) setNote(`Invited ${worldName(guestName)} home.`);
+        });
+      }}
+      onGone={() => {
+        const shown = `${knock.id}:${knock.at}`;
+        setDismissedKnocks((set) => new Set(set).add(shown));
+      }}
     />
   ) : null;
 
@@ -1767,6 +1803,7 @@ export const WorldScreen = ({
           </Text>
         ) : null}
         {inviteCard}
+        {knockCard}
       </View>
       {keyboard.open ? (
         <Pressable

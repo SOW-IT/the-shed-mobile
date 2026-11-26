@@ -1,7 +1,9 @@
-import { boxEdges, DOTS_BOXES, DOTS_LINES, dotLine, dropRow, gridOf, type CafeBoard, type CafeGameKind, type Side, type Winner } from "@shared/cafeGames";
+import { boxEdges, DOTS_BOXES, DOTS_LINES, dotLine, dropRow, type CafeBoard, type CafeGameKind, type Side, type Winner } from "@shared/cafeGames";
+import { crossOf, dotsLayout, fiveLayout, fourLayout, layoutFor, moveAt, ticTacToeLayout, TRAY_BORDER } from "@/lib/games/cafePick";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from "react-native-reanimated";
+import { BoardTouch } from "./BoardTouch";
 import { useCafeTheme } from "./cafeTheme";
 
 type BoardProps = {
@@ -140,17 +142,41 @@ const Wood = ({ radius, top, base }: { radius: number; top: string; base: string
   </View>
 );
 
-const FourInARow = ({ board, canMove, onMove, size, calm }: BoardProps) => {
+const pickerFor = (kind: CafeGameKind, board: CafeBoard, size: number) => {
+  const shape = layoutFor(kind, size);
+  return (x: number, y: number) => moveAt(shape, board, x, y);
+};
+
+const Ghost = ({ left, top, size, children }: { left: number; top: number; size: number; children: ReactNode }) => (
+  <View style={[styles.ghost, { left: left - size / 2, top: top - size / 2, width: size, height: size }]}>{children}</View>
+);
+
+const FourInARow = ({ board, side, canMove, onMove, size, calm }: BoardProps) => {
   const c = useCafeTheme();
-  const { width, height } = gridOf("fourInARow");
-  const pad = 12;
-  const cell = Math.min(46, Math.floor((size - pad * 2 - 2) / width));
-  const disc = Math.round(cell * 0.79);
+  const { pad, cell, disc, width, height } = fourLayout(size);
+  const pick = pickerFor("fourInARow", board, size);
   const won = board.line ?? [];
   const over = won.length > 0;
   const centre = (index: number) => ({ x: pad + (index % width) * cell + cell / 2, z: pad + Math.floor(index / width) * cell + cell / 2 });
   return (
-    <View style={[styles.tray, styles.row, { padding: pad, borderColor: c.rim }]} testID="cafe-board-fourInARow">
+    <BoardTouch
+      enabled={canMove}
+      pick={pick}
+      onMove={onMove}
+      style={[styles.tray, styles.row, { padding: pad, borderColor: c.rim }]}
+      testID="cafe-board-fourInARow"
+      preview={(col) => {
+        const landing = (dropRow(board.cells, col) ?? 0) * width + col;
+        return (
+          <>
+            <View style={[styles.lane, { left: pad + col * cell, top: pad, width: cell, height: height * cell, backgroundColor: c[side].fill }]} />
+            <Ghost left={centre(landing).x} top={centre(landing).z} size={disc}>
+              <CafePiece side={side} size={disc} />
+            </Ghost>
+          </>
+        );
+      }}
+    >
       <Wood radius={16} top={c.woodTop} base={c.wood} />
       {winStroke(board.line, centre, calm, 10)}
       {Array.from({ length: width }, (_, col) => {
@@ -192,7 +218,7 @@ const FourInARow = ({ board, canMove, onMove, size, calm }: BoardProps) => {
           <LastRing size={disc + 5} />
         </View>
       ) : null}
-    </View>
+    </BoardTouch>
   );
 };
 
@@ -222,14 +248,26 @@ const TTT_GAP = 10;
 
 const TicTacToe = ({ board, side, canMove, onMove, size, calm, names }: BoardProps) => {
   const c = useCafeTheme();
-  const pad = 12;
-  const cell = Math.min(84, Math.floor((size - pad * 2 - TTT_GAP * 2 - 5) / 3));
-  const pitch = cell + TTT_GAP;
+  const { pad, cell, pitch } = ticTacToeLayout(size);
+  const pick = pickerFor("ticTacToe", board, size);
   const won = board.line ?? [];
   const over = won.length > 0;
   const centre = (index: number) => ({ x: pad + (index % 3) * pitch + cell / 2, z: pad + Math.floor(index / 3) * pitch + cell / 2 });
   return (
-    <View style={[styles.tray, { padding: pad, backgroundColor: c.tttBoard, borderColor: c.rim }]} testID="cafe-board-ticTacToe">
+    <BoardTouch
+      enabled={canMove}
+      pick={pick}
+      onMove={onMove}
+      style={[styles.tray, { padding: pad, backgroundColor: c.tttBoard, borderColor: c.rim }]}
+      testID="cafe-board-ticTacToe"
+      preview={(index) => (
+        <View style={[styles.square, styles.tttHover, { left: pad + (index % 3) * pitch, top: pad + Math.floor(index / 3) * pitch, width: cell, height: cell, borderColor: c[side].fill }]}>
+          <View style={styles.ghostMark}>
+            <MarkGlyph side={side} size={cell * 0.46} />
+          </View>
+        </View>
+      )}
+    >
       <View style={[styles.grid, { width: cell * 3 + TTT_GAP * 2, gap: TTT_GAP }]}>
         {spots(board.cells).map(({ mark, index }) => {
           const who = sideOfMark(mark);
@@ -265,13 +303,14 @@ const TicTacToe = ({ board, side, canMove, onMove, size, calm, names }: BoardPro
         </View>
       ))}
       {winStroke(board.line, centre, calm, 6)}
-    </View>
+    </BoardTouch>
   );
 };
 
 const PEG = 10.8;
 const HIT = 28;
 const BAR = 5.5;
+const GHOST_BAR = BAR + 1.5;
 
 const Line = ({ side, across, length, play, calm }: { side: Side; across: boolean; length: number; play: boolean; calm: boolean }) => {
   const c = useCafeTheme();
@@ -312,14 +351,28 @@ const boxesTouching = (line: number) => {
 
 const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner, names }: BoardProps) => {
   const c = useCafeTheme();
-  const pad = 26;
-  const step = Math.min(62, Math.floor((size - pad * 2 - 2) / DOTS_BOXES));
-  const span = step * DOTS_BOXES + pad * 2;
+  const { pad, step, span } = dotsLayout(size);
+  const pick = pickerFor("dotsAndBoxes", board, size);
   const justClosed = board.last === undefined ? [] : boxesTouching(board.last);
   const winMark = winner === "a" ? 1 : winner === "b" ? 2 : 0;
   let goldOrder = 0;
   return (
-    <View style={[styles.tray, { width: span + 5, height: span + 5, backgroundColor: c.linen, borderColor: c.rim }]} testID="cafe-board-dotsAndBoxes">
+    <BoardTouch
+      enabled={canMove}
+      pick={pick}
+      onMove={onMove}
+      style={[styles.tray, { width: span + TRAY_BORDER * 2, height: span + TRAY_BORDER * 2, backgroundColor: c.linen, borderColor: c.rim }]}
+      testID="cafe-board-dotsAndBoxes"
+      preview={(index) => {
+        const { dir, row, col } = dotLine(index);
+        const length = step - PEG;
+        const frame =
+          dir === "h"
+            ? { left: pad + col * step + PEG / 2, top: pad + row * step - GHOST_BAR / 2, width: length, height: GHOST_BAR }
+            : { left: pad + col * step - GHOST_BAR / 2, top: pad + row * step + PEG / 2, width: GHOST_BAR, height: length };
+        return <View style={[styles.ghostBar, frame, { backgroundColor: c[side].fill }]} />;
+      }}
+    >
       {spots(board.boxes).map(({ mark, index: box }) => {
         const who = sideOfMark(mark);
         if (!who) return null;
@@ -370,7 +423,7 @@ const DotsAndBoxes = ({ board, side, canMove, onMove, size, calm, winner, names 
           <View style={[styles.glint, { backgroundColor: c.glint }]} />
         </View>
       ))}
-    </View>
+    </BoardTouch>
   );
 };
 
@@ -384,16 +437,31 @@ const STAR_POINTS = [
 
 const FiveInARow = ({ board, side, canMove, onMove, size, calm, names }: BoardProps) => {
   const c = useCafeTheme();
-  const { width: n } = gridOf("fiveInARow");
-  const pad = 14;
-  const cell = Math.floor((size - pad * 2 - 2) / n);
-  const span = cell * n;
-  const stone = Math.round(cell * 0.84);
+  const { pad, cell, n, span, stone } = fiveLayout(size);
+  const pick = pickerFor("fiveInARow", board, size);
   const won = board.line ?? [];
   const over = won.length > 0;
   const centre = (index: number) => ({ x: pad + (index % n) * cell + cell / 2, z: pad + Math.floor(index / n) * cell + cell / 2 });
   return (
-    <View style={[styles.tray, { padding: pad, backgroundColor: c.rim, borderColor: c.rim }]} testID="cafe-board-fiveInARow">
+    <BoardTouch
+      enabled={canMove}
+      pick={pick}
+      onMove={onMove}
+      style={[styles.tray, { padding: pad, backgroundColor: c.rim, borderColor: c.rim }]}
+      testID="cafe-board-fiveInARow"
+      preview={(index) => {
+        const { row, col } = crossOf(index, n);
+        return (
+          <>
+            <View style={[styles.lane, styles.fiveLane, { left: pad, top: pad + row * cell, width: span, height: cell, backgroundColor: c[side].fill }]} />
+            <View style={[styles.lane, styles.fiveLane, { left: pad + col * cell, top: pad, width: cell, height: span, backgroundColor: c[side].fill }]} />
+            <Ghost left={centre(index).x} top={centre(index).z} size={stone}>
+              <CafePiece side={side} size={stone} />
+            </Ghost>
+          </>
+        );
+      }}
+    >
       <View pointerEvents="none" style={styles.fiveInset}>
         <Wood radius={15} top={c.fiveWoodTop} base={c.fiveWood} />
       </View>
@@ -441,7 +509,7 @@ const FiveInARow = ({ board, side, canMove, onMove, size, calm, names }: BoardPr
           <LastRing size={stone + 4} />
         </View>
       ) : null}
-    </View>
+    </BoardTouch>
   );
 };
 
@@ -458,7 +526,13 @@ export const CafeBoardView = ({ kind, ...props }: BoardProps & { kind: CafeGameK
 };
 
 const styles = StyleSheet.create({
-  tray: { alignSelf: "center", borderRadius: 18, borderWidth: 2.5, overflow: "hidden" },
+  tray: { alignSelf: "center", borderRadius: 18, borderWidth: TRAY_BORDER, overflow: "hidden" },
+  lane: { position: "absolute", borderRadius: 12, opacity: 0.2 },
+  fiveLane: { borderRadius: 4, opacity: 0.16 },
+  ghost: { position: "absolute", alignItems: "center", justifyContent: "center", opacity: 0.55 },
+  ghostMark: { opacity: 0.42 },
+  ghostBar: { position: "absolute", borderRadius: GHOST_BAR / 2, opacity: 0.5 },
+  tttHover: { position: "absolute", borderWidth: 3 },
   row: { flexDirection: "row" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   centre: { alignItems: "center", justifyContent: "center" },
