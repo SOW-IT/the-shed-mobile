@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.23] - 2026-11-26
+
+### Changed
+- **Walking away from the arcade closes its games.** With the arcade's games
+  list open in the World, stepping a couple of steps away from the arcade
+  (or being moved away) now closes the list, so it doesn't stay on screen
+  once you've left. Walk back and tap the arcade to open it again. Opened
+  from a link somewhere else in the Garden, the list stays until you've been
+  to the arcade and walked off.
+
 ## [2.13.22] - 2026-11-26
 
 ### Added
