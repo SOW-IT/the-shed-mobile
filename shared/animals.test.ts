@@ -26,13 +26,15 @@ import {
   randomName,
   stageLabel,
 } from "./animals";
-import { DAY_MS, PEN_OBSTACLES, PENS, penStand, PLOT_OBSTACLES, plotStand, PLOTS } from "./farm";
+import { DAY_MS, farmWindow, PEN_OBSTACLES, PENS, penStand, PLOT_OBSTACLES, plotStand, PLOTS, sydneyMidnight } from "./farm";
 import { arrivalSpot, clampTarget } from "./world";
 import { findPath } from "./worldPath";
 
+// 2026-11-25 13:00 AEDT (UTC+11)
 const AT = Date.UTC(2026, 10, 25, 2, 0);
+const MINUTE = 60_000;
 const HOUR = 60 * 60_000;
-const day = (n: number) => AT + n * DAY_MS;
+const day = (n: number) => farmWindow(AT, n).start;
 
 const cow = (feedings: number[], collectedAt?: number) => ({ kind: "cow", name: "Daisy", boughtAt: AT, feedings: feedings.map((at) => ({ at })), ...(collectedAt === undefined ? {} : { collectedAt }) });
 const hen = (feedings: number[], collectedAt?: number) => ({ ...cow(feedings, collectedAt), kind: "chicken", name: "Henrietta" });
@@ -101,6 +103,24 @@ describe("feeding windows", () => {
     const fed = cow([day(2) + 1, day(4) + 1, day(6) + 1]);
     expect(life(fed, day(6) + HOUR).mood).toBe("fed");
     expect(life(fed, day(7) + HOUR).mood).toBe("hungry");
+  });
+
+  test("resets at midnight Sydney time: buying at 11:58pm waits 2 min + 24h, feeding at 11:59pm resets at 12am", () => {
+    const mid26 = sydneyMidnight("2026-11-26");
+    const mid27 = sydneyMidnight("2026-11-27");
+    const mid28 = sydneyMidnight("2026-11-28");
+    const mid29 = sydneyMidnight("2026-11-29");
+    const calf = { kind: "cow", name: "Daisy", boughtAt: mid26 - 2 * MINUTE, feedings: [] as { at: number }[] };
+    expect(life(calf, mid26)).toMatchObject({ window: 0, mood: "fed", windowEndsAt: mid27 });
+    expect(life(calf, mid27 - 1)).toMatchObject({ window: 0, mood: "fed" });
+    expect(life(calf, mid27)).toMatchObject({ window: 1, mood: "hungry", windowEndsAt: mid28 });
+    const fedLate = { ...calf, feedings: [{ at: mid28 - MINUTE }] };
+    expect(life(fedLate, mid28 - 30_000)).toMatchObject({ window: 1, mood: "fed" });
+    expect(life(fedLate, mid28)).toMatchObject({ window: 2, mood: "hungry", windowEndsAt: mid29 });
+    const fedEarly = { ...calf, feedings: [{ at: mid28 - MINUTE }, { at: mid28 + MINUTE }] };
+    expect(life(fedEarly, mid28 + 2 * MINUTE)).toMatchObject({ window: 2, mood: "fed", windowEndsAt: mid29 });
+    expect(life(fedEarly, mid29 - 1)).toMatchObject({ window: 2, mood: "fed" });
+    expect(life(fedEarly, mid29)).toMatchObject({ window: 3, mood: "hungry" });
   });
 });
 
@@ -231,7 +251,7 @@ describe("names", () => {
 describe("reminders", () => {
   test("hungry and frail count as hungry; eggs and milk are counted; gone ones don't count", () => {
     const at = day(5) + 2 * HOUR;
-    const frail = { ...cow([]), boughtAt: day(3) };
+    const frail = { ...cow([]), boughtAt: day(2) };
     const gone = { ...cow([]), boughtAt: day(1) };
     const animals = [hen([...everyDay(1, 3), day(4) + HOUR]), cow([...everyDay(1, 4), day(5) + HOUR]), frail, gone];
     expect(animalNudge(animals, 0, at)).toEqual({ hungry: 2, eggs: 1, milk: 1, due: true });

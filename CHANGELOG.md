@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.20] - 2026-11-26
+## [2.13.21] - 2026-11-26
 
 ### Changed
 - **The arcade games are v2, and they never stop getting harder.** Each
@@ -70,6 +70,34 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Game over dims the whole screen**, the bands by the notch and the home
   bar too, and Sky Shooter and Mystic Man show a light clock on their dark
   screens.
+
+## [2.13.20] - 2026-11-26
+
+### Changed
+- **NPC name tags wear their own colour in the World.** Sijin Y. and
+  Josh K. now show warm gold name pills so you can tell NPCs apart from
+  other players at a glance.
+- **Backyard crops and animals reset at midnight Sydney time.** Planting a
+  crop or buying an animal covers the rest of that day plus the following
+  Sydney day (for example, planting lettuce at 11:58 pm waits 2 minutes
+  plus 24 hours; planting at 10:00 pm waits 2 hours plus 24 hours). Every
+  watering and feeding cycle after that resets at 12:00 am Sydney time, so
+  tending a plant or animal at 11:59 pm lets you tend it again after
+  midnight and then wait until the following midnight.
+- **Plant and animal status cards are styled farm cards, not plain text
+  boxes.** Tapping a plot or animal now shows its crop or animal artwork,
+  a colour-coded status pill (Ready, Needs water, Growing, Wilted, Died,
+  Fed, Hungry, Frail, Egg/Milk ready), a growth progress bar, and a
+  pointer down to the plot or pen.
+- **World chat messages are capped at 100 characters**, with a remaining
+  count shown in the chat bar once you are within 20 characters of the
+  limit.
+
+### Fixed
+- **Chat bubbles no longer stretch too wide when someone talks.** Speech
+  bubbles over characters now wrap long or unbroken words cleanly inside a
+  tighter width and clamp inside the screen edges, and the chat log wraps
+  long unbroken strings without pushing wide on web.
 
 ## [2.13.19] - 2026-11-26
 

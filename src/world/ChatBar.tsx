@@ -100,6 +100,9 @@ export const ChatBar = ({
     }
   };
 
+  const remaining = MAX_SAY_LENGTH - draft.length;
+  const showCount = remaining <= 20;
+
   return (
     <>
       <EmoteTray
@@ -149,6 +152,11 @@ export const ChatBar = ({
           accessibilityLabel="Talk to everyone in the World"
           testID="world-chat-input"
         />
+        {showCount ? (
+          <Text style={[styles.count, remaining <= 0 && styles.countAtLimit]} accessibilityLabel={`${Math.max(0, remaining)} characters left`}>
+            {Math.max(0, remaining)}
+          </Text>
+        ) : null}
         <Pressable
           onPress={() => void send()}
           accessibilityRole="button"
@@ -197,6 +205,8 @@ const styles = StyleSheet.create({
   emo: { width: 38, height: 38, borderRadius: 19, backgroundColor: hud.accentSoft, alignItems: "center", justifyContent: "center" },
   emoText: { fontSize: 20 },
   input: { flex: 1, fontSize: 15.5, color: hud.forest, paddingVertical: 8 },
+  count: { fontSize: 11.5, fontWeight: "700", color: hud.placeholder, fontVariant: ["tabular-nums"] },
+  countAtLimit: { color: hud.accent },
   send: {
     width: 40,
     height: 40,

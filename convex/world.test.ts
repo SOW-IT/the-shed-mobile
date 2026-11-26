@@ -238,6 +238,18 @@ describe("act and say", () => {
     expect(said((await rows(t)).chat)).toHaveLength(3);
   });
 
+  test("a line of exactly 100 characters is kept whole and a longer one is refused, not cut short", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.world.join, {});
+    const hundred = "a".repeat(99) + "z";
+    await anna.mutation(api.world.say, { text: hundred });
+    await expect(anna.mutation(api.world.say, { text: hundred + "!" })).rejects.toThrow(/Keep it to 100 characters/);
+    await expect(anna.mutation(api.world.say, { text: "b".repeat(120) })).rejects.toThrow(/Keep it to 100 characters/);
+    await anna.mutation(api.world.say, { text: `  ${"🌸".repeat(50)}\n${"c".repeat(49)}  ` });
+    expect(said((await rows(t)).chat).map((line) => Array.from(line.text).length)).toEqual([100, 100]);
+  });
+
   test("a heartbeat marks you present, or says you've been swept", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);

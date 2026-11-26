@@ -48,7 +48,7 @@ import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./sett
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
 import { CampfireFlames } from "./Campfire";
-import { CropThumb, FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, WateringCan } from "./Farm";
+import { CropThumb, FlyingCrop, PlantingPuff, PlantView, PlotCard, PlotNote, PriceTag, WateringCan, type FarmCardData } from "./Farm";
 import { BUILDING_IDS, FREE_PLOTS, PENS, PLOT_SIZE, PLOTS, plotPrice, type BuildingId, type CropId, type Stage } from "@shared/farm";
 import { animalFor, buildingFor, BUILDINGS } from "@shared/animals";
 import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
@@ -84,7 +84,7 @@ export type GardenFarm = {
   plots: number;
   mine: boolean;
   plants: readonly { plot: number; crop: string; stage: Stage; progress: number; wilted: boolean; thirsty: boolean; wet: boolean; note?: string }[];
-  card: { plot: number; text: string } | null;
+  card: { plot: number; data: FarmCardData } | null;
   watering: { plot: number; key: number } | null;
   flying: { plot: number; crop: CropId; key: number } | null;
   bagAt: { x: number; y: number };
@@ -101,7 +101,7 @@ export type GardenYard = {
   barn: boolean;
   mine: boolean;
   animals: readonly (PenAnimal & { label: string })[];
-  card: { at: BuildingId; text: string } | null;
+  card: { at: BuildingId; data: FarmCardData } | null;
   feeding: { id: string; key: number } | null;
   collecting: { id: string; good: "egg" | "milk"; key: number } | null;
   onTapAnimal: (id: string) => void;
@@ -612,13 +612,13 @@ export const Garden = ({
     const figure = figureFor(cam, NPC_POSE);
     actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
-    actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} emoteRise={0} /> });
+    actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} npc emoteRise={0} /> });
   }
   if (farmerHere) {
     const figure = figureFor(cam, FARMER_POSE);
     actors.push({ depth: figure.foot.depth, key: FARMER.id, node: <Avatar figure={figure} pose={FARMER_POSE} look={FARMER.look} t={0} seed={5} doing={FARMER_CHEER} /> });
     const head = cam.project([FARMER.x, headTop(FARMER.look), FARMER.z]);
-    actors.push({ depth: figure.foot.depth, key: `${FARMER.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={FARMER_TAG} me={false} emoteRise={0} /> });
+    actors.push({ depth: figure.foot.depth, key: `${FARMER.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={FARMER_TAG} me={false} npc emoteRise={0} /> });
   }
   if (place === "campfire") {
     const base = cam.project([FIRE.x, 0, FIRE.z]);
@@ -667,7 +667,7 @@ export const Garden = ({
     if (farm.card) {
       const spot = PLOTS[farm.card.plot];
       const top = cam.project([spot.x, 1.1, spot.z]);
-      farmLabels.push(<PlotCard key="card" x={top.x} y={top.y} text={farm.card.text} stageWidth={cam.width} />);
+      farmLabels.push(<PlotCard key="card" x={top.x} y={top.y} card={farm.card.data} stageWidth={cam.width} />);
     }
     if (farm.flying) {
       const spot = PLOTS[farm.flying.plot];
@@ -696,7 +696,7 @@ export const Garden = ({
     }
     if (yard.card) {
       const top = pens[yard.card.at].top;
-      farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} text={yard.card.text} stageWidth={cam.width} />);
+      farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} card={yard.card.data} stageWidth={cam.width} />);
     }
     if (yard.collecting) {
       const { id, good } = yard.collecting;
@@ -832,6 +832,7 @@ export const Garden = ({
           y={head.y}
           name={name}
           me={p.me}
+          stageWidth={cam.width}
           line={line ?? waiting}
           typing={typing === undefined ? undefined : saver ? 0 : t}
           emote={emote}

@@ -10,6 +10,8 @@ import {
   CHAT_TTL_MS,
   cleanLine,
   cleanPoke,
+  MAX_SAY_LENGTH,
+  sayTooLong,
   OFFLINE_LIST_SIZE,
   OFFLINE_ALL_MAX,
   POKE_EVERY_MS,
@@ -989,6 +991,7 @@ export const say = mutation({
   handler: async (ctx, args) => {
     const text = cleanLine(args.text);
     if (!text) throw new ConvexError("Write something first.");
+    if (sayTooLong(args.text)) throw new ConvexError(`Keep it to ${MAX_SAY_LENGTH} characters.`);
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
     // The same line again straight after is a double tap, not a new line.

@@ -1,4 +1,4 @@
-import { DAY_MS, isBuilding, type BuildingId } from "./farm";
+import { farmWindow, farmWindowIndex, isBuilding, type BuildingId } from "./farm";
 import { cleanLine } from "./world";
 
 export const BUILDINGS = {
@@ -108,13 +108,13 @@ export const life = (animal: AnimalTimes, at: number): Life => {
   const born = animal.boughtAt;
   const now = Math.max(at, born);
   const days = growDaysOf(animal.kind);
-  const windowOf = (t: number) => Math.floor((t - born) / DAY_MS);
   const fedIn = new Map<number, number>();
   for (const f of animal.feedings) {
-    const k = windowOf(f.at);
-    if (k >= 1 && f.at <= now && !fedIn.has(k)) fedIn.set(k, f.at);
+    if (f.at > now || f.at < born) continue;
+    const k = farmWindowIndex(born, f.at);
+    if (k >= 1 && !fedIn.has(k)) fedIn.set(k, f.at);
   }
-  const current = windowOf(now);
+  const current = farmWindowIndex(born, now);
   const fedWindows = [0, ...[...fedIn.keys()].filter((k) => k <= current).sort((x, y) => x - y)];
   const lastFed = fedWindows[fedWindows.length - 1];
   const goneWindow = current - lastFed >= WANDER_DAYS ? lastFed + WANDER_DAYS : null;
@@ -125,26 +125,26 @@ export const life = (animal: AnimalTimes, at: number): Life => {
     grown++;
     if (grown === days) adultWindow = k + 1;
   }
-  const start = born + current * DAY_MS;
+  const { start, end } = farmWindow(born, current);
   const fedNow = current === 0 || fedIn.has(current);
   const fedAt = current === 0 ? null : (fedIn.get(current) ?? null);
   const unfed = goneWindow !== null ? WANDER_DAYS : fedNow ? 0 : current - lastFed;
   const mood: Mood = goneWindow !== null ? "gone" : unfed === 0 ? "fed" : unfed === 1 ? "hungry" : "frail";
   const isGrown = adultWindow !== null;
-  const into = (now - start) / DAY_MS;
+  const into = Math.max(0, now - start) / Math.max(1, end - start);
   const progress = isGrown ? 1 : Math.min(1, (grown + (fedNow ? into : 0)) / days);
   const day = isGrown ? days : grown + 1;
   const stage: 0 | 1 | 2 = isGrown ? 2 : day <= days / 2 ? 0 : 1;
-  const adultAt = adultWindow === null ? null : born + adultWindow * DAY_MS;
+  const adultAt = adultWindow === null ? null : farmWindow(born, adultWindow).start;
   const latest = animal.feedings.reduce<number | null>((best, f) => (f.at <= now && (best === null || f.at > best) ? f.at : best), null);
   const readyAt = adultAt !== null && latest !== null && latest >= adultAt && latest > (animal.collectedAt ?? -Infinity) && goneWindow === null ? latest : null;
   return {
     window: current,
-    windowEndsAt: start + DAY_MS,
+    windowEndsAt: end,
     fedAt,
     mood,
     unfed,
-    goneAt: goneWindow === null ? null : born + goneWindow * DAY_MS,
+    goneAt: goneWindow === null ? null : farmWindow(born, goneWindow).start,
     grown: isGrown,
     progress,
     stage,
