@@ -4,6 +4,7 @@ import { KeyboardScrollView, useKeyboardInset } from "@/hooks/useKeyboardInset";
 import { useOffline } from "@/hooks/useOffline";
 import {
   getLocalDevotional,
+  holdDevotionalSync,
   keepLocalDevotional,
   markDevotionalConflict,
   markDevotionalSynced,
@@ -15,12 +16,12 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { parseBibleReference } from "@shared/bible";
+import { createDevotionalAutosave } from "@shared/devotionalAutosave";
 import {
   DEVOTIONAL_DEVICE_SAVE_FAILED_TEXT,
   DEVOTIONAL_SHARING_FAILED_TEXT,
   DEVOTIONAL_SHARING_OFFLINE_TEXT,
   devotionalContentChanged,
-  devotionalEditorDirty,
   devotionalSaveFeedback,
   pendingSharingLevel,
   savedSharingLevel,
@@ -39,11 +40,12 @@ import {
   todayDevotionalDate,
   validateDevotionalDate,
   validateDevotionalInput,
+  type DevotionalContent,
 } from "@shared/devotionals";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
+import { AppState, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { PassagePicker } from "./PassagePicker";
@@ -91,8 +93,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const [toast, setToast] = useState<ToastState>(null);
   const [error, setError] = useState<string | null>(null);
   const [chosenSharing, setChosenSharing] = useState<DevotionalSharingLevel | null>(null);
+  const [typed, setTyped] = useState<DevotionalContent | null>(null);
 
-  const { passage, notes, prayerPoints } = pickDisplayDevotional(localDraft, remote);
+  const { passage, notes, prayerPoints } = typed ?? pickDisplayDevotional(localDraft, remote);
 
   const canEdit = Boolean(email) && (remote !== undefined || offline);
   const baseIfNew =
@@ -101,8 +104,6 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
 
   const savedSharing = sharingCtx ? savedSharingLevel(sharingCtx.personalLevel, sharingCtx.defaultGroupLevel) : null;
   const pendingSharing = pendingSharingLevel(chosenSharing, savedSharing);
-  const contentChanged = devotionalContentChanged(localDraft, remote);
-  const dirty = devotionalEditorDirty({ localDraft, remote, pendingSharing });
 
   const latestRef = useRef({
     passage,
@@ -112,7 +113,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     validDate,
     offline,
     baseIfNew,
-    contentChanged,
+    remote,
     pendingSharing,
   });
   useEffect(() => {
@@ -124,10 +125,16 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
       validDate,
       offline,
       baseIfNew,
-      contentChanged,
+      remote,
       pendingSharing,
     };
   });
+
+  const [autosave] = useState(() =>
+    createDevotionalAutosave<{ email: string; date: string; content: DevotionalContent; base: number | null }>({
+      writeLocal: (local) => saveLocalDevotional(local.email, local.date, local.content, local.base),
+    })
+  );
 
   const parsedPassage = passage.trim().length > 0 ? parseBibleReference(passage) : null;
   const passageError = parsedPassage && !parsedPassage.ok ? parsedPassage.error : null;
@@ -136,7 +143,9 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const updateContent = (next: { passage: string; notes: string; prayerPoints: string }) => {
     if (!validDate || !email || !canEdit) return;
     setError(null);
-    void saveLocalDevotional(email, validDate, next, baseIfNew);
+    setTyped(next);
+    latestRef.current = { ...latestRef.current, ...next };
+    autosave.edit({ email, date: validDate, content: next, base: baseIfNew });
   };
 
   const syncContent = useCallback(async (): Promise<DevotionalSaveOutcome> => {
@@ -184,11 +193,16 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
   const leaving = useRef(false);
   const runSync = useCallback(
     async (showFeedback: boolean): Promise<boolean> => {
+      await autosave.flushLocal();
       const {
-        contentChanged: contentNeedsSave,
+        email: owner,
+        validDate: day,
+        remote: cloud,
         pendingSharing: sharingToSave,
         offline: isOffline,
       } = latestRef.current;
+      const contentNeedsSave =
+        owner && day ? devotionalContentChanged(getLocalDevotional(owner, day), cloud) : false;
       if (!contentNeedsSave && !sharingToSave) return true;
       if (showFeedback) {
         setSaving(true);
@@ -221,7 +235,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
         if (showFeedback) setSaving(false);
       }
     },
-    [setPersonalSharing, syncContent]
+    [autosave, setPersonalSharing, syncContent]
   );
 
   const syncToServer = useCallback(
@@ -241,12 +255,38 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
     syncRef.current = syncToServer;
   }, [syncToServer]);
 
-  useEffect(
-    () => () => {
-      if (!leaving.current) void syncRef.current(false);
-    },
-    []
-  );
+  const syncLatest = useCallback((): Promise<boolean> => {
+    void autosave.flushLocal();
+    const running = inFlight.current ?? Promise.resolve(true);
+    return running.catch(() => false).then(() => syncRef.current(false));
+  }, [autosave]);
+
+  useEffect(() => {
+    if (!email || !validDate) return;
+    const release = holdDevotionalSync(email, validDate);
+    return () => {
+      void autosave.flushLocal();
+      const settled = leaving.current
+        ? (inFlight.current ?? Promise.resolve(true)).catch(() => false)
+        : syncLatest().catch(() => false);
+      void settled.finally(release);
+    };
+  }, [autosave, email, validDate, syncLatest]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "background") void syncLatest();
+      else if (state !== "active") void autosave.flushLocal();
+    });
+    return () => subscription.remove();
+  }, [autosave, syncLatest]);
+
+  const retriedOnOpen = useRef(false);
+  useEffect(() => {
+    if (retriedOnOpen.current || remote === undefined || !email || !validDate) return;
+    retriedOnOpen.current = true;
+    if (!offline && localDraft?.dirty && !localDraft.conflict) void syncToServer(false);
+  }, [remote, email, validDate, offline, localDraft, syncToServer]);
 
   const handleBack = async () => {
     const running = inFlight.current;
@@ -302,11 +342,6 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
             {formatHeadingDate(validDate, today)}
           </Text>
         </View>
-        <Btn
-          title={saving ? "Saving…" : "Save"}
-          onPress={() => void syncToServer(true)}
-          disabled={!dirty || Boolean(passageError) || saving || !canEdit}
-        />
       </View>
 
       <KeyboardScrollView
@@ -375,6 +410,8 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                 variant="tonal"
                 onPress={() => {
                   setError(null);
+                  autosave.cancel();
+                  setTyped(null);
                   void takeServerDevotional(email, validDate, conflict.theirs);
                 }}
               />
