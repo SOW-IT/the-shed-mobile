@@ -9,7 +9,7 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.13.24] - 2026-11-26
 
 ### Changed
-- **Mouths talk for as long as the line takes to say, not the whole bubble.** In the World a "hi" is a quick flap, an everyday line moves the mouth for about half the time its bubble is up, and only a long line talks until the bubble goes. The mouth always finishes closed.
+- **Mouths talk for as long as the line takes to say, not the whole bubble.** In the World a one-word "hi" talks for a quarter of the time its bubble is up, longer lines talk for longer, and only a long line talks until the bubble goes. The mouth always finishes closed.
 
 ### Fixed
 - **Outfits now wrap around the body cleanly from every angle.** Overalls keep their front bib and crossed back braces in place as you turn; collared shirts show a full neckband, shifting collar points and front buttons; open jackets and flannels shift their inner tee and lapels to the facing side while keeping full plaid across the back; jumpers show neckline ribbing from every heading; polka dots and tie-dye prints wrap all the way around the torso with edge foreshortening and hide the tank scoop from behind.

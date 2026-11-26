@@ -61,17 +61,20 @@ describe("a mouth that moves while the line is being said", () => {
 
 describe("how long a line takes to say", () => {
   const FLAP_PAIR = 260;
+  const QUARTER = BUBBLE_MS / 4;
 
-  test("a short word still gives a few visible flaps", () => {
-    expect(talkMs("hi")).toBe(780);
-    expect(talkMs("ok")).toBe(talkMs("hi"));
+  test("a one-word line talks for exactly a quarter of the bubble", () => {
+    expect(talkMs("hi")).toBe(QUARTER);
+    expect(talkMs("hello")).toBe(QUARTER);
+    expect(mouthAt(QUARTER - 1, FACING_US)).toBe(false);
   });
 
-  test("a typical short line talks for about half the bubble", () => {
+  test("an everyday line talks for longer than a quarter and less than the whole bubble", () => {
     expect(talkMs("want to play a game?")).toBe(3380);
-    const typical = talkMs("hey how are you going today");
-    expect(typical).toBeGreaterThan(BUBBLE_MS * 0.4);
-    expect(typical).toBeLessThan(BUBBLE_MS * 0.6);
+    expect(talkMs("do you want to play tag?")).toBe(3640);
+    const mid = talkMs("hey everyone, who wants to come down to the farm with me?");
+    expect(mid).toBeGreaterThan(QUARTER);
+    expect(mid).toBeLessThan(BUBBLE_MS);
   });
 
   test("grows with the length of the line", () => {
@@ -79,24 +82,25 @@ describe("how long a line takes to say", () => {
     expect(talkMs("hello there everyone")).toBeGreaterThan(talkMs("hello there"));
   });
 
-  test("a long line is capped at the bubble", () => {
-    expect(talkMs("x".repeat(50))).toBe(BUBBLE_MS);
+  test("only a long line talks for the whole bubble", () => {
+    expect(talkMs("x".repeat(82))).toBeLessThan(BUBBLE_MS);
+    expect(talkMs("x".repeat(83))).toBe(BUBBLE_MS);
     expect(talkMs("x".repeat(100))).toBe(BUBBLE_MS);
   });
 
   test("ends after a closed flap, so the mouth finishes shut", () => {
-    for (const text of ["hi", "want to play a game?", "hello there everyone"]) {
+    for (const text of ["hi", "want to play a game?", "hello there everyone", "x".repeat(100)]) {
       const ms = talkMs(text);
-      expect(ms % FLAP_PAIR).toBe(0);
+      expect(ms === QUARTER || ms === BUBBLE_MS || ms % FLAP_PAIR === 0).toBe(true);
       expect(mouthAt(ms - 1, FACING_US)).toBe(false);
     }
   });
 
-  test("an empty line says nothing and an emoji gets a short flap", () => {
+  test("an empty line says nothing and an emoji talks for the shortest time", () => {
     expect(talkMs("")).toBe(0);
     expect(talkMs("   ")).toBe(0);
     expect(talkAge({ text: "", at: 0 }, 0)).toBeNull();
-    expect(talkMs("👋")).toBe(780);
-    expect(talkMs("👍🏽")).toBe(780);
+    expect(talkMs("👋")).toBe(QUARTER);
+    expect(talkMs("👍🏽")).toBe(QUARTER);
   });
 });

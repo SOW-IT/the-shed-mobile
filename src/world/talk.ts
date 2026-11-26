@@ -1,15 +1,17 @@
 import { BUBBLE_MS } from "../../shared/world";
 
 const FLAP_MS = 130;
-const TALK_MS_PER_CHAR = 160;
-const TALK_MIN_MS = 650;
+const TALK_SHORTEST_MS = BUBBLE_MS / 4;
+const TALK_FREE_CHARS = 5;
+const TALK_MS_PER_CHAR = 75;
 export const FACE_MIN = 0.15;
 
 export const talkMs = (text: string) => {
   const chars = Array.from(text.trim()).length;
   if (chars === 0) return 0;
+  const wanted = TALK_SHORTEST_MS + Math.max(0, chars - TALK_FREE_CHARS) * TALK_MS_PER_CHAR;
+  if (wanted <= TALK_SHORTEST_MS) return TALK_SHORTEST_MS;
   const pair = FLAP_MS * 2;
-  const wanted = Math.max(TALK_MIN_MS, chars * TALK_MS_PER_CHAR);
   return Math.min(BUBBLE_MS, Math.ceil(wanted / pair) * pair);
 };
 
