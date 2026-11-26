@@ -17,6 +17,17 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Accessories and glasses now follow head and body turns.** All five glasses styles foreshorten their lenses side-on, align the bridge between inner rims and add 3D temple arms that hook behind the ears; backpacks narrow side-on, sit flush behind the torso with wrapping straps and show a back pocket from behind; scarves keep a full wrap with a tail that moves behind on turns; bow ties shift to the facing edge and hide from behind; pearl necklaces wrap all the way around the neck with a front pendant; ear flowers stay on the left ear and hide behind the head when turned away.
 - **Hair styles now read consistently from every side and from behind.** Long hair, bobs, mullets and wavy hair flow smoothly down the back of the head without a harsh outline seam, and wavy hair keeps its hem curls tucked along the back edge; ponytails, buns, space buns, pigtails, curls, mohawks, spikes and side braids project in 3D with proper front/back layering; side-swept fringes and parted curtains foreshorten and hide smoothly when facing away.
 
+## [2.13.23] - 2026-11-26
+
+### Added
+- **A Go back button on every game-over card.** When a run ends in Sky
+  Shooter, Mystic Man, Flap or Swoop, the card now has Go back under Play
+  again and Leaderboard. It takes you straight back to the Games list, or to
+  the arcade over the World if that's where you opened the game. Each game
+  colours it its own way: night sky and laser blue in Sky Shooter, purple
+  hills and gold in Mystic Man, a green pipe in Flap, and the bird's teal and
+  cream in Swoop.
+
 ## [2.13.22] - 2026-11-26
 
 ### Added
