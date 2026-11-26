@@ -38,7 +38,7 @@ import { api } from "../../convex/_generated/api";
 import { useHeldValue } from "@/hooks/useHeldValue";
 import { fillLoading, useDormant } from "./dormant";
 import { blendIn, headFor, type LocalWalk } from "./blend";
-import { nextClockOffset } from "./clockSync";
+import { nextClockOffset, type ClockOffset } from "./clockSync";
 import { restingGait, type Gait } from "./gait";
 import { canRecover, keepWalkOnRejoin, shouldAdoptServerWalk } from "./resumeRecovery";
 import { isAppActive, subscribeForeground } from "./useForeground";
@@ -246,7 +246,7 @@ export const useWorld = (
   const acceptM = useMutation(api.world.accept).withOptimisticUpdate(showAccept);
   const saveLookM = useMutation(api.world.saveLook).withOptimisticUpdate(showLook);
   // Server time minus this phone's, smoothed over replies.
-  const offset = useRef<number | null>(null);
+  const offset = useRef<ClockOffset | null>(null);
 
   const [session, setSession] = useState<Session | null>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -303,7 +303,7 @@ export const useWorld = (
   // The finger's latest spot, for the send that ends a throttle window.
   const fingerAt = useRef<{ x: number; z: number } | null>(null);
 
-  const serverNow = useCallback(() => Date.now() + (offset.current ?? 0), []);
+  const serverNow = useCallback(() => Date.now() + (offset.current?.offset ?? 0), []);
   const [pingReading, setPingReading] = useState<PingReading | null>(null);
   const pingVisit = useRef<{ key: string } | null>(null);
   const pingSamples = useRef<number[]>([]);
@@ -316,7 +316,7 @@ export const useWorld = (
     const next = nextClockOffset(offset.current, serverTime, sentAt, received);
     if (next !== null) {
       offset.current = next;
-      serverOffset = next;
+      serverOffset = next.offset;
     }
     lastAction.current = received;
   }, []);
@@ -393,9 +393,10 @@ export const useWorld = (
       joining.current = true;
       const sentIn = visit.current;
       const sentAt = Date.now();
+      const lastMemberId = sessionRef.current?.memberId ?? forMemberId;
       stats.current.join++;
       lastAction.current = sentAt;
-      joinM({ backyard: true, rejoin: true })
+      joinM({ backyard: true, ...(lastMemberId ? { rejoin: lastMemberId } : {}) })
         .then((joined) => {
           if (sentIn !== visit.current) return;
           joining.current = false;

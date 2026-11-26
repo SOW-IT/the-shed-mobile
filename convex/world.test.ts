@@ -119,7 +119,7 @@ describe("join and leave", () => {
     const anna = asUser(t, ANNA);
     const first = await anna.mutation(api.world.join, {});
     // Calling join with rejoin:true while still present keeps visits at 1, so one leave removes them.
-    const same = await anna.mutation(api.world.join, { rejoin: true });
+    const same = await anna.mutation(api.world.join, { rejoin: first.memberId });
     expect(same.memberId).toBe(first.memberId);
     expect((await rows(t)).members[0].visits).toBeUndefined();
     await anna.mutation(api.world.leave, {});
@@ -130,10 +130,28 @@ describe("join and leave", () => {
     later(PRESENCE_TTL_MS + 1000);
     await t.mutation(internal.world.sweep, {});
     expect((await rows(t)).members).toHaveLength(0);
-    const recovered = await anna.mutation(api.world.join, { rejoin: true });
+    const recovered = await anna.mutation(api.world.join, { rejoin: second.memberId });
     expect(recovered.memberId).not.toBe(second.memberId);
     expect((await rows(t)).members).toHaveLength(1);
     expect((await rows(t)).members[0].visits).toBeUndefined();
+  });
+
+  test("a recovery rejoin counts its visit when another device joined after the sweep", async () => {
+    const t = newConvex();
+    const phone = asUser(t, ANNA);
+    const laptop = asUser(t, ANNA);
+    const swept = await phone.mutation(api.world.join, {});
+    later(PRESENCE_TTL_MS + 1000);
+    await t.mutation(internal.world.sweep, {});
+    expect((await rows(t)).members).toHaveLength(0);
+    const fresh = await laptop.mutation(api.world.join, {});
+    const recovered = await phone.mutation(api.world.join, { rejoin: swept.memberId });
+    expect(recovered.memberId).toBe(fresh.memberId);
+    expect((await rows(t)).members[0].visits).toBe(2);
+    await laptop.mutation(api.world.leave, {});
+    expect((await rows(t)).members).toHaveLength(1);
+    await phone.mutation(api.world.leave, {});
+    expect((await rows(t)).members).toHaveLength(0);
   });
 
   test("names come from the user record when there's no profile", async () => {

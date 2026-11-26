@@ -529,7 +529,7 @@ const FRESH_IN_ROOM = {
 };
 
 export const join = mutation({
-  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()), rejoin: v.optional(v.boolean()) },
+  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()), rejoin: v.optional(v.id("worldMembers")) },
   returns: v.object({
     roomId: v.id("worldRooms"),
     memberId: v.id("worldMembers"),
@@ -595,7 +595,7 @@ export const join = mutation({
     } else {
       // Another tab or device joining the same member: count the visit.
       // A recovery rejoin belongs to an existing visit, so it keeps the count as is.
-      if (args.rejoin !== true) {
+      if (args.rejoin !== member._id) {
         await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
       }
       const asked = await askedFor();

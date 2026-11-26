@@ -6,14 +6,23 @@ export const MAX_CLOCK_RTT_MS = 2000;
  * Replies with a high or negative round-trip time are ignored so a mutation
  * queued while offline or backgrounded cannot pull the client clock ahead.
  */
+export type ClockOffset = { offset: number; rtt: number };
+
+const isSlow = (rtt: number) => rtt > MAX_CLOCK_RTT_MS;
+
 export const nextClockOffset = (
-  current: number | null,
+  current: ClockOffset | null,
   serverTime: number,
   sentAt: number,
   receivedAt: number
-): number | null => {
+): ClockOffset | null => {
   const rtt = receivedAt - sentAt;
-  if (!Number.isFinite(rtt) || rtt < 0 || rtt > MAX_CLOCK_RTT_MS) return current;
+  if (!Number.isFinite(rtt) || rtt < 0) return current;
   const sample = serverTime - (sentAt + receivedAt) / 2;
-  return current === null ? sample : current * 0.8 + sample * 0.2;
+  if (!isSlow(rtt)) {
+    if (current === null || isSlow(current.rtt)) return { offset: sample, rtt };
+    return { offset: current.offset * 0.8 + sample * 0.2, rtt };
+  }
+  if (current === null || (isSlow(current.rtt) && rtt < current.rtt)) return { offset: sample, rtt };
+  return current;
 };
