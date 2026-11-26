@@ -54,7 +54,7 @@ export const DuelCard = ({
     return () => run.stop();
   }, [live, startsAt, endsAt, round, bar, serverNow]);
   useEffect(() => {
-    if (live) announce(round > 1 ? "Draw. Pick again." : `Rock paper scissors with ${opponentName}. Pick one.`);
+    if (live) announce(round > 1 ? "Draw. Pick again." : `Scissors paper rock with ${opponentName}. Pick one.`);
   }, [live, round, opponentName]);
   const shown = duel?.shown;
   const revealed = showResult && !live && shown !== undefined && now >= shown.at;
