@@ -1,6 +1,7 @@
 import { File, Paths } from "expo-file-system";
 import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
+import { createDevotionalSyncHolds, devotionalSyncHoldKey } from "../../shared/devotionalAutosave";
 import type { LocalDevotionalDraft } from "../../shared/devotionals";
 import {
   createDevotionalStore,
@@ -73,3 +74,11 @@ export const useDirtyDevotionals = (email: string | null | undefined): readonly 
     () => store.getDirty(email),
     () => EMPTY_DIRTY_DEVOTIONALS
   );
+
+const syncHolds = createDevotionalSyncHolds();
+const NO_HOLDS: ReadonlySet<string> = new Set();
+
+export const holdDevotionalSync = (email: string, date: string) => syncHolds.hold(devotionalSyncHoldKey(email, date));
+
+export const useHeldDevotionalSyncs = (): ReadonlySet<string> =>
+  useSyncExternalStore(syncHolds.subscribe, syncHolds.held, () => NO_HOLDS);

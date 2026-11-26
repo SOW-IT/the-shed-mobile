@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.25] - 2026-11-26
+## [2.13.26] - 2026-11-27
 
 ### Changed
 - **Scissors, paper, rock, in that order.** The duel's pick buttons now run
@@ -16,6 +16,16 @@ All notable changes to **The SHED** mobile app. This project follows
   the ask card was too narrow for "Rock paper scissors!". It now shows the
   game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
   their name. High five keeps its words.
+
+## [2.13.25] - 2026-11-26
+
+### Changed
+- **Devotionals save as you go.** The Save button is gone. What you type is
+  kept on your phone half a second after you stop typing, and saved to your
+  account when you go back, or when you switch away from the app. If you are
+  offline it stays on your phone and is saved the next time you open that
+  day. Typing no longer makes the header flicker or calls the server on
+  every keystroke.
 
 ## [2.13.24] - 2026-11-26
 

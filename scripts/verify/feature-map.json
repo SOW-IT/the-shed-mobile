@@ -284,7 +284,7 @@
         "src/components/devotionals/**",
         "src/lib/devotionalStorage.ts",
         "convex/{devotionals,devotionalGroups,devotionalGroupData}.ts",
-        "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor}.ts"
+        "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor,devotionalAutosave}.ts"
       ],
       "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"],
       "checks": ["passage-picker-close"]
