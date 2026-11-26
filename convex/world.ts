@@ -1718,6 +1718,7 @@ export const knocks = query({
   ),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
+    const now = Date.now();
     const rows = await ctx.db
       .query("worldKnocks")
       .withIndex("by_owner_and_at", (q) => q.eq("owner", email))
@@ -1726,6 +1727,7 @@ export const knocks = query({
     const isBlocked = rows.length > 0 ? await loadBlockFilter(ctx, email) : null;
     const out = [];
     for (const row of rows) {
+      if (row.expiresAt <= now) continue;
       if (isBlocked !== null && (await isBlocked(row.guest))) continue;
       const look = withHeight((await savedLook(ctx, row.guest))?.look ?? lookFor(row.guest), row.guest);
       out.push({ id: row._id, guestName: row.guestName, look, at: row.at, expiresAt: row.expiresAt });

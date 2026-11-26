@@ -413,6 +413,16 @@ describe("rematch and clean-up", () => {
     await second.anna.who.mutation(api.cafeGames.rematch, { gameId: second.gameId });
     await second.ben.who.mutation(api.world.leave, {});
     expect((await second.anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ rematch: "a", left: true });
+
+    // Walking out of the Café and coming straight back still counts as having left the finished game.
+    const third = await startGame();
+    await third.anna.who.mutation(api.cafeGames.giveUp, { gameId: third.gameId });
+    await third.anna.who.mutation(api.cafeGames.rematch, { gameId: third.gameId });
+    await third.ben.who.mutation(api.world.travel, { to: "garden" });
+    later(5000);
+    await third.ben.who.mutation(api.world.travel, { to: "cafe" });
+    expect((await third.anna.who.query(api.cafeGames.mine, {}))?.game).toMatchObject({ rematch: "a", left: true });
+    expect((await third.ben.who.query(api.cafeGames.mine, {}))?.game).toBeNull();
   });
 
   test("both closing clears the game for both, and an offer from someone who closed is gone", async () => {

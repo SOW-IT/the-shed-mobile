@@ -183,6 +183,15 @@ export const endLiveGameOf = async (ctx: MutationCtx, email: string, now: number
 };
 
 export const cafeMoved = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms"> | null, now: number) => {
+  for (const ended of await gamesOf(ctx, email)) {
+    if (ended.endedAt === undefined || ended.next !== undefined || roomId === ended.roomId) continue;
+    const side = sideOf(ended, email);
+    if (!side) continue;
+    const field = side === "a" ? "closedA" : "closedB";
+    if (ended[field] !== true) {
+      await ctx.db.patch("cafeGames", ended._id, { [field]: true, ...(ended.rematch === side ? { rematch: undefined } : {}) });
+    }
+  }
   const game = await liveGameOf(ctx, email);
   if (!game) return;
   const field = sideOf(game, email) === "a" ? "awayA" : "awayB";

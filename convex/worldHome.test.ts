@@ -581,10 +581,11 @@ describe("asking to visit someone's home", () => {
     expect(await anna.query(api.world.knocks, {})).toEqual([]);
     expect(await ben.mutation(api.world.knock, { memberId: annaId })).toMatchObject({ ok: false, reason: "They've left the World." });
 
-    // Expired requests can't be allowed and get cleaned up by sweep.
+    // Expired requests are hidden from knocks, can't be allowed, and get cleaned up by sweep.
     await cara.mutation(api.world.knock, { memberId: annaId });
     const [caras] = await anna.query(api.world.knocks, {});
     later(KNOCK_MS + 1);
+    expect(await anna.query(api.world.knocks, {})).toEqual([]);
     expect(await anna.mutation(api.world.answerKnock, { knockId: caras.id, allow: true })).toMatchObject({ ok: false, reason: "That request has run out." });
     await t.mutation(internal.world.sweep, {});
     expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toEqual([]);

@@ -859,12 +859,14 @@ export const CafeLayer = ({
   const game = latest && latest.id !== closedGame && !leftWaiting ? latest : null;
   const leftId = leftWaiting ? latest.id : null;
   const leftName = latest ? worldName(latest.opponentName) : "";
+  const { close } = games;
   const noted = useRef<string | null>(null);
   useEffect(() => {
     if (leftId === null || noted.current === leftId) return;
     noted.current = leftId;
+    void close(leftId);
     onNote(`${leftName} left`);
-  }, [leftId, leftName, onNote]);
+  }, [leftId, leftName, close, onNote]);
   const stopWatching = useCallback(
     (note: string) => {
       onStopWatching();
@@ -877,7 +879,6 @@ export const CafeLayer = ({
     if (game && watch) onStopWatching();
   }, [game, watch, onStopWatching]);
   const now = useClock(serverNow, games.challenges.length > 0 || game !== null || watched !== null);
-  const { close } = games;
   const seen = useCallback((gameId: Id<"cafeGames">) => void close(gameId), [close]);
   const saidBy = (memberId: string | null) => {
     const person = memberId === null || muted.has(memberId) ? undefined : people.find((p) => p.memberId === memberId);
