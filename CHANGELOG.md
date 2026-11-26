@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.28] - 2026-11-27
+## [2.13.31] - 2026-11-27
 
 ### Changed
 - **Walking away from the arcade closes its games.** With the arcade's games
@@ -15,6 +15,11 @@ All notable changes to **The SHED** mobile app. This project follows
   once you've left. Walk back and tap the arcade to open it again. Opened
   from a link somewhere else in the Garden, the list stays until you've been
   to the arcade and walked off.
+
+## [2.13.28] - 2026-11-26
+
+### Fixed
+- **Returning to the World after backgrounding no longer rubber-bands or empties the room.** Replies that sat queued while offline or paused no longer skew the World clock ahead, the first frame after resuming draws at the current time instead of snapping from where everyone stood before, and coming back after a long background recovers cleanly in a single rejoin without flashing everyone away or dropping an immediate tap.
 
 ## [2.13.27] - 2026-11-26
 
