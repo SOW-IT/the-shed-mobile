@@ -129,3 +129,13 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "${OUT}/check-backyard-chat-back"
+# Back to the Garden, where the checks after this one expect to start.
+- tapOn:
+    id: world-title
+- tapOn:
+    id: world-menu-garden
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: ".*Garden.*"
+    timeout: 30000

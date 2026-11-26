@@ -141,6 +141,13 @@ try {
   if (owner) await shot(owner, "failed").catch(() => {});
   if (neighbour) await shot(neighbour, "failed").catch(() => {});
 } finally {
+  // Back to the Garden: the checks after this one (and the iOS ones, on the
+  // same account) start from wherever you were left.
+  const where = owner ? await owner.page.getByTestId("world-title").textContent({ timeout: 5_000 }).catch(() => null) : null;
+  if (owner && !/Garden/.test(where ?? "")) {
+    await toGarden(owner).catch(() => {});
+    await owner.page.waitForTimeout(1500);
+  }
   await browser.close();
 }
 
