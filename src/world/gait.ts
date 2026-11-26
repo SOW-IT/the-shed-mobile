@@ -15,6 +15,8 @@ export type DrawnPose = Pose & {
 
 export const TURN_MS = 180;
 export const STOP_MS = 220;
+/** A stride grows in over this long, so arms and feet don't snap into a step. */
+export const START_MS = 120;
 const STILL = 0.05;
 
 const clamp01 = (k: number) => Math.min(1, Math.max(0, k));
@@ -24,6 +26,8 @@ const turnToward = (from: number, to: number, k: number) =>
   from + Math.atan2(Math.sin(to - from), Math.cos(to - from)) * k;
 
 const length = (walk: Walk) => walkLength(walk);
+
+const settingOff = (gait: Gait, now: number) => clamp01((now - gait.movingSince) / START_MS);
 
 export const restingGait = (walk: Walk): Gait => {
   const heading = length(walk) < STILL ? (walk.heading ?? 0) : posAt(walk, walk.startedAt).heading;
@@ -40,7 +44,7 @@ export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
       ...pose,
       heading: turnToward(last, walk.heading, easeOut(settling)),
       stridePhase: Math.max(0, now - gait.movingSince) / 1000,
-      strideAmp: clamp01(1 - (now - pose.arrivesAt) / STOP_MS),
+      strideAmp: Math.min(settingOff(gait, now), clamp01(1 - (now - pose.arrivesAt) / STOP_MS)),
       turning: settling < 1 && last !== walk.heading,
     };
   }
@@ -51,7 +55,7 @@ export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
     ...pose,
     heading: turnToward(gait.turnFrom, targetHeading, easeOut(turned)),
     stridePhase: Math.max(0, now - gait.movingSince) / 1000,
-    strideAmp: pose.walking ? 1 : clamp01(1 - (now - pose.arrivesAt) / STOP_MS),
+    strideAmp: Math.min(settingOff(gait, now), pose.walking ? 1 : clamp01(1 - (now - pose.arrivesAt) / STOP_MS)),
     turning: turned < 1 && gait.turnFrom !== targetHeading,
   };
 };
@@ -68,7 +72,7 @@ export const carryGait = (before: { walk: Walk; gait: Gait } | null, walk: Walk,
   };
 };
 
-const STRIDE_RATE = 12;
+export const STRIDE_RATE = 12;
 export const strideBob = (pose: { stridePhase: number; strideAmp: number }) =>
   Math.abs(Math.sin(pose.stridePhase * STRIDE_RATE)) * 0.14 * pose.strideAmp;
 export const strideSwing = (pose: { stridePhase: number; strideAmp: number }) =>

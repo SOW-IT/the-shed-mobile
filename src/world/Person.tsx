@@ -52,6 +52,7 @@ import {
 import { FACE_MIN } from "./talk";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
+import { limbsFor } from "./limbs";
 import { seatedFoot } from "./sitFoot";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -155,6 +156,10 @@ const SWIM_SINK = 0.4;
 const LAP_HEIGHT = 0.24;
 const SHOULDER_HEIGHT = 0.6;
 const ARM_RAISED = 0.85;
+/** How much a hand or foot moving forward (toward the camera, facing it) drops on screen. */
+const FORESHORTEN = 0.5;
+/** How much of a hand's forward swing shows across the screen, seen side on. */
+const SWING_ACROSS = 0.3;
 
 export const sitRise = (seatHeight: number | undefined, look: Look) =>
   seatHeight === undefined
@@ -468,6 +473,7 @@ const AvatarView = ({
   shadow = true,
   swim = false,
   talk,
+  sway = false,
 }: {
   figure: Figure;
   pose: Pose;
@@ -480,9 +486,14 @@ const AvatarView = ({
   shadow?: boolean;
   swim?: boolean;
   talk?: boolean;
+  /** Breathe and sway gently while standing still (t keeps ticking). */
+  sway?: boolean;
 }) => {
   const { foot, s, up } = figure;
   const move = motion(doing, t);
+  // Arms and feet move with the body: they swing and step on the stride
+  // that bobs it, and follow its sway standing still.
+  const limbs = limbsFor(swim ? undefined : stride, sway && !swim && !doing ? { t, seed } : null);
   if (swim && !move.hands.l && !move.hands.r) {
     const reach = pose.walking ? 1 : 0.3;
     for (const e of [-1, 1] as const) {
@@ -493,9 +504,9 @@ const AvatarView = ({
     }
     move.hands.front = true;
   }
-  const bob = figure.bob + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
+  const bob = figure.bob + limbs.breath + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
   const ink = Math.max(1.2, 0.035 * s);
-  const dx = move.shake + move.lean;
+  const dx = move.shake + move.lean + limbs.sway;
   // Height and build stretch the body; the head stays the same size.
   const body = bodyScale(look);
   const at = (x: number, y: number) => ({
@@ -708,8 +719,10 @@ const AvatarView = ({
   const seated = sit !== undefined;
   const feet = () => {
     for (const e of [-1, 1] as const) {
+      const step = limbs.feet[e < 0 ? 0 : 1];
       const p = !seated
-        ? { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up }
+        ? // Side on, the feet close up so a step crosses one past the other.
+          { x: foot.x + (0.12 * e * (0.5 + 0.5 * Math.abs(facing)) + side * step.fwd) * s, y: foot.y - (0.08 + move.lift + step.up - facing * step.fwd * FORESHORTEN) * up }
         : seatedFoot({ foot, s, up, sit, facing, side, e });
       parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.favourites[favourite]} ink={ink * 0.8} inkColour={garden.ink} />);
     }
@@ -786,7 +799,9 @@ const AvatarView = ({
       const rest = at(hand[0], hand[1]);
       return [shoulder, { x: rest.x + (doing.reach.x - rest.x) * k, y: rest.y + (doing.reach.y - rest.y) * k }] as const;
     }
-    return [shoulder, hand ? at(hand[0], hand[1]) : at(0.4 * e, 0.34 + swing * e)] as const;
+    if (hand) return [shoulder, at(hand[0], hand[1])] as const;
+    const { fwd, up: rise } = limbs.hands[e < 0 ? 0 : 1];
+    return [shoulder, at(0.4 * e + limbs.handsAcross + side * fwd * SWING_ACROSS, 0.34 + rise - facing * fwd * FORESHORTEN)] as const;
   };
   const arms = (layer: "back" | "front" | "over") => {
     for (const e of [-1, 1]) {
@@ -1875,6 +1890,7 @@ export const Avatar = memo(
     a.shadow === b.shadow &&
     a.swim === b.swim &&
     a.talk === b.talk &&
+    a.sway === b.sway &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
 

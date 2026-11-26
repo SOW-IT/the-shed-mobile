@@ -428,6 +428,9 @@ export const Garden = ({
     const pose = poses[i];
     return pose ? !sitting[i] && !p.away && inWater(place, pose) : false;
   });
+  // Everyone standing about breathes and sways a little, at the gentle
+  // ambient rate; not on battery saver.
+  const swaying = !saver && !paused && (npcHere || people.some((p, i) => !p.away && Boolean(poses[i])));
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
     swimmers.some((swimming, i) => swimming && poses[i]?.walking === true) ||
@@ -441,7 +444,7 @@ export const Garden = ({
   useFrameTicks(
     planClock({
       moving: animating,
-      ambient: swimmers.some(Boolean),
+      ambient: swimmers.some(Boolean) || swaying,
       paused,
       now,
       saver,
@@ -634,7 +637,7 @@ export const Garden = ({
   const actors: { depth: number; key: string; node: ReactNode; tag?: boolean }[] = [...propActors];
   if (npcHere) {
     const figure = figureFor(cam, NPC_POSE);
-    actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
+    actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={swaying ? t : 0} seed={3} sway={swaying} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} npc emoteRise={0} /> });
   }
@@ -820,7 +823,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || (swimming && !saver) ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || swaying || (swimming && !saver) ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} sway={swaying} />
       ),
     });
     const duelLook = duelLooks[i];

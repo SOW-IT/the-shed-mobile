@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { WALK_SPEED, type Walk } from "../../shared/world";
-import { carryGait, drawnPose, restingGait, STOP_MS, strideBob, strideSwing, TURN_MS } from "./gait";
+import { carryGait, drawnPose, restingGait, START_MS, STOP_MS, strideBob, strideSwing, TURN_MS } from "./gait";
 
 const east: Walk = { fromX: 0, fromZ: 0, toX: WALK_SPEED * 2, toZ: 0, startedAt: 1000 };
 const arrives = 3000;
@@ -11,6 +11,13 @@ describe("drawnPose", () => {
     expect(pose.walking).toBe(true);
     expect(strideBob(pose)).toBe(0);
     expect(strideSwing(pose)).toBe(0);
+  });
+
+  test("the stride grows in over START_MS, so arms and feet don't snap into a step", () => {
+    const gait = restingGait(east);
+    expect(drawnPose(east, gait, east.startedAt).strideAmp).toBe(0);
+    expect(drawnPose(east, gait, east.startedAt + START_MS / 2).strideAmp).toBeCloseTo(0.5);
+    expect(drawnPose(east, gait, east.startedAt + START_MS).strideAmp).toBe(1);
   });
 
   test("the stride fades out after arriving instead of stopping dead", () => {
