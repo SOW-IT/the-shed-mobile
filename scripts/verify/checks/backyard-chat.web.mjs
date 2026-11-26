@@ -62,7 +62,8 @@ const clickMiddle = async (page, locator) => {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 };
 const intoBackyard = async (who) => {
-  if (await titled(who, /backyard/i)) return true;
+  const here = await who.page.getByTestId("world-title").textContent();
+  if (/backyard/i.test(here ?? "")) return true;
   await menu(who, "home");
   await titled(who, /home/i);
   const pad = who.page.getByLabel("Go to Backyard");
