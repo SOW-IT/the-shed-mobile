@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Walk } from "../../shared/world";
-import { blendIn, headFor } from "./blend";
+import { blendIn, CLOCK_REBASE_MS, headFor, rebaseLocalWalk } from "./blend";
 import { drawnPose, TURN_MS } from "./gait";
 
 const NOW = 10_000;
@@ -59,5 +59,25 @@ describe("blending the server's walk into this phone's", () => {
     expect(drawnPose(blended, blended.gait, NOW + TURN_MS + 1).heading).toBeCloseTo(0.5);
     const fresh = blendIn(null, { fromX: 3, fromZ: 3, toX: 3, toZ: 3, startedAt: NOW, heading: 1 }, NOW);
     expect(drawnPose(fresh, fresh.gait, NOW).heading).toBeCloseTo(1);
+  });
+});
+
+describe("moving a predicted walk onto a corrected clock", () => {
+  test("a walk predicted on a clock 45 s ahead moves back by the correction, gait and all", () => {
+    const predicted = headFor(headFor(null, { x: 0, z: 0 }, NOW - 1000), { x: 3, z: 0 }, NOW + 45_000);
+    const rebased = rebaseLocalWalk(predicted, null, -45_000);
+    expect(rebased?.startedAt).toBe(predicted.startedAt - 45_000);
+    expect(rebased?.gait.movingSince).toBe(predicted.gait.movingSince - 45_000);
+    expect(rebased?.gait.turnAt).toBe(predicted.gait.turnAt - 45_000);
+    expect(rebased).toMatchObject({ fromX: predicted.fromX, toX: 3 });
+  });
+
+  test("leaves the server's own walk, small corrections, and no walk alone", () => {
+    const fromServer: Walk = { fromX: 0, fromZ: 0, toX: 3, toZ: 0, startedAt: NOW };
+    const adopted = blendIn(null, fromServer, NOW);
+    expect(rebaseLocalWalk(adopted, fromServer, -45_000)).toBeNull();
+    const predicted = headFor(null, { x: 3, z: 0 }, NOW);
+    expect(rebaseLocalWalk(predicted, fromServer, CLOCK_REBASE_MS - 1)).toBeNull();
+    expect(rebaseLocalWalk(null, fromServer, -45_000)).toBeNull();
   });
 });

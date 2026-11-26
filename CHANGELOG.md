@@ -19,6 +19,11 @@ All notable changes to **The SHED** mobile app. This project follows
   and Boxes game; the game ends when the last line is drawn, as usual. The
   other Café games still pass the turn, and lose on a second miss in a row.
 
+## [2.13.28] - 2026-11-26
+
+### Fixed
+- **Returning to the World after backgrounding no longer rubber-bands or empties the room.** Replies that sat queued while offline or paused no longer skew the World clock ahead, the first frame after resuming draws at the current time instead of snapping from where everyone stood before, and coming back after a long background recovers cleanly in a single rejoin without flashing everyone away or dropping an immediate tap.
+
 ## [2.13.27] - 2026-11-26
 
 ### Added
