@@ -295,7 +295,7 @@ export const DevotionalGroupScreen = ({
   };
 
   const handlePoke = async (message?: string) => {
-    const result = await pokeGroup({ groupId, today, message });
+    const result = await pokeGroup({ groupId, today: todayDevotionalDate(), message });
     if (result.ok) {
       setToast({
         text: `Poked ${result.pokedCount} ${result.pokedCount === 1 ? "member" : "members"}`,
