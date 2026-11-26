@@ -21,6 +21,17 @@ export const headFor = (walk: LocalWalk | null, to: { x: number; z: number }, no
   return { ...next, gait: carryGait(walk ? { walk, gait: walk.gait } : null, next, now) };
 };
 
+export const CLOCK_REBASE_MS = 100;
+
+export const rebaseLocalWalk = (walk: LocalWalk | null, serverWalk: Walk | null, shift: number): LocalWalk | null => {
+  if (!walk || Math.abs(shift) < CLOCK_REBASE_MS || walk.startedAt === serverWalk?.startedAt) return null;
+  return {
+    ...walk,
+    startedAt: walk.startedAt + shift,
+    gait: { ...walk.gait, movingSince: walk.gait.movingSince + shift, turnAt: walk.gait.turnAt + shift },
+  };
+};
+
 export const blendIn = (walk: LocalWalk | null, server: Walk, now: number): LocalWalk => {
   const { fromX, fromZ, toX, toZ, startedAt, path, heading } = server;
   const theirs: Walk = { fromX, fromZ, toX, toZ, startedAt, ...(path && path.length > 0 ? { path } : {}), ...(heading === undefined ? {} : { heading }) };
