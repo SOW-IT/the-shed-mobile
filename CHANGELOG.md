@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.26] - 2026-11-27
+## [2.13.27] - 2026-11-27
 
 ### Changed
 - **Scissors, paper, rock, in that order.** The duel's pick buttons now run
@@ -16,6 +16,16 @@ All notable changes to **The SHED** mobile app. This project follows
   the ask card was too narrow for "Rock paper scissors!". It now shows the
   game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
   their name. High five keeps its words.
+
+## [2.13.26] - 2026-11-26
+
+### Added
+- **Poke your devotional group.** Once you have finished today's devotional,
+  tap **Poke group** on an active group to send a push and in-app notification
+  to everyone in the group who hasn't done today's devotional yet. You can add
+  an optional custom message (up to 160 characters) or leave it blank to send
+  a default nudge. Tapping the notification opens today's devotional, and a
+  group can be poked at most once an hour.
 
 ## [2.13.25] - 2026-11-26
 
