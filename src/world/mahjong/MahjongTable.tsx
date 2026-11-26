@@ -1,6 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CLAIM_MS, TURN_MS } from "@shared/mahjong/game";
+import { CLAIM_MS, INTRO_MS, TURN_MS } from "@shared/mahjong/game";
 import { isMahjongTable, MAHJONG_TABLE_NAMES } from "@shared/mahjong/table";
 import { BUBBLE_MS, EMOTE_MS, EMOTES, isEmote, type Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
@@ -12,6 +12,9 @@ import { mahjong as m } from "../palette";
 import { SeatFace } from "./Faces";
 import { claimChoices, coinsWords, faanLine, resultTitle, roundWords, secondsLeft, sideOf, windBadge, windWords, type Side } from "./tableWords";
 import { Tile, TILE_RATIO } from "./Tile";
+import { Arrive, Punch } from "./Motion";
+import { dealtCount, INTRO, Intro } from "./Intro";
+import { useBatterySaver } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
 
 type Person = { memberId: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
@@ -107,16 +110,23 @@ const Plate = ({
   );
 };
 
-const Melds = ({ melds, flowers, width, vertical = false, testID }: { melds: readonly MeldView[]; flowers: readonly number[]; width: number; vertical?: boolean; testID: string }) => {
+/** Which way the middle of the table is from a seat, for things that fly between them. */
+const TOWARD_MIDDLE: Record<Side, { x: number; y: number }> = { bottom: { x: 0, y: -1 }, top: { x: 0, y: 1 }, left: { x: 1, y: 0 }, right: { x: -1, y: 0 } };
+const fromMiddle = (side: Side, distance: number) => ({ x: TOWARD_MIDDLE[side].x * distance, y: TOWARD_MIDDLE[side].y * distance });
+
+const Melds = ({ melds, flowers, width, side, calm, vertical = false, testID }: { melds: readonly MeldView[]; flowers: readonly number[]; width: number; side: Side; calm: boolean; vertical?: boolean; testID: string }) => {
   if (melds.length === 0 && flowers.length === 0) return null;
   return (
     <View style={[styles.melds, vertical && styles.meldsColumn]} testID={testID}>
       {melds.map((meld) => (
-        <View key={meld.tiles.map(String).join("-") + meld.type} style={styles.meld} accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}`}>
-          {keyedTiles(meld.tiles).map(({ tile, key, end }) => (
-            <Tile key={key} tile={tile} width={width} back={meld.concealed && end && tile >= 0} lit={tile === meld.claimed} />
-          ))}
-        </View>
+        // A claimed tile moves out of the river into the meld: the meld comes in from the middle.
+        <Arrive key={meld.tiles.map(String).join("-") + meld.type} from={fromMiddle(side, 70)} scale={1.3} calm={calm}>
+          <View style={styles.meld} accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}`}>
+            {keyedTiles(meld.tiles).map(({ tile, key, end }) => (
+              <Tile key={key} tile={tile} width={width} back={meld.concealed && end && tile >= 0} lit={tile === meld.claimed} />
+            ))}
+          </View>
+        </Arrive>
       ))}
       {flowers.length > 0 ? (
         <View style={styles.meld}>
@@ -145,13 +155,39 @@ const Backs = ({ count, width, vertical }: { count: number; width: number; verti
 );
 
 /** A seat's discards in the order they were let go, the newest lit. */
-const River = ({ seat, last, width, columns, side }: { seat: HandSeat; last: number | null; width: number; columns: number; side: Side }) => {
+const River = ({ seat, last, width, columns, side, calm }: { seat: HandSeat; last: number | null; width: number; columns: number; side: Side; calm: boolean }) => {
   const shown = seat.discards.filter((d) => !d.taken);
   return (
     <View style={[styles.river, { width: columns * (width + 2) }]} testID={`mahjong-river-${side}`}>
-      {shown.map((d) => (
-        <Tile key={d.tile} tile={d.tile} width={width} lit={d.tile === last} testID={d.tile === last ? "mahjong-last-discard" : undefined} />
-      ))}
+      {shown.map((d) =>
+        d.tile === last ? (
+          // Thrown in from the discarder's side, on a little arc, landing lit.
+          <Arrive key={d.tile} from={fromMiddle(side, -110)} scale={1.8} arc={28} duration={340} calm={calm}>
+            <Tile tile={d.tile} width={width} lit testID="mahjong-last-discard" />
+          </Arrive>
+        ) : (
+          <Tile key={d.tile} tile={d.tile} width={width} />
+        )
+      )}
+    </View>
+  );
+};
+
+/** PONG!, KONG!, CHOW! and HU!, shouted from the seat that claimed. */
+const CALLOUTS = { chow: "CHOW!", pong: "PONG!", kong: "KONG!", hu: "HU!" } as const;
+const Callout = ({ hand, viewer, calm }: { hand: HandView; viewer: number; calm: boolean }) => {
+  const last = hand.last;
+  if (!last || !(last.kind in CALLOUTS)) return null;
+  // A concealed kong (no tile) still shouts, from the seat that made it.
+  const word = CALLOUTS[last.kind as keyof typeof CALLOUTS];
+  const side = sideOf(last.seat, viewer);
+  return (
+    <View style={[styles.calloutWrap, styles[`callout_${side}`]]} pointerEvents="none">
+      <Punch key={last.step} calm={calm}>
+        <Text style={[styles.callout, last.kind === "hu" && styles.calloutHu]} testID="mahjong-callout" accessibilityLiveRegion="assertive">
+          {word}
+        </Text>
+      </Punch>
     </View>
   );
 };
@@ -337,6 +373,7 @@ const freshAct = (act: Person["act"], now: number) => (act && now - act.at < EMO
  */
 export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, people, muted, now, nameOf, top, bottom, busy, onMove, onAgain, onLeave }: TableProps) => {
   const { width } = useWindowDimensions();
+  const calm = useBatterySaver();
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
   const stage = hand.stage;
@@ -352,7 +389,13 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const lastDiscard = hand.last?.kind === "discard" ? (hand.last.tile ?? null) : null;
   const myHand = mySeat === null ? null : hand.seats[mySeat].hand;
   const drawn = hand.mine?.drawn ?? null;
-  const handTiles = myHand ? [...myHand.filter((t) => t !== drawn), ...(drawn !== null && myHand.includes(drawn) ? [drawn] : [])] : [];
+  const sorted = myHand ? [...myHand.filter((t) => t !== drawn), ...(drawn !== null && myHand.includes(drawn) ? [drawn] : [])] : [];
+  // During the deal the hand fills in fours, in the order dealt, then sorts itself.
+  const intro = stage.kind === "intro" ? INTRO_MS - Math.max(0, stage.until - now) : null;
+  const dealing = intro !== null && !calm && intro < INTRO.dealt;
+  const handTiles = dealing ? [...sorted].sort((a, b) => ((a * 37) % 144) - ((b * 37) % 144)).slice(0, dealtCount(intro, sorted.length, calm)) : sorted;
+  const concealedOf = (seat: number) => (intro === null ? hand.seats[seat].concealed : dealtCount(intro, hand.seats[seat].concealed, calm));
+  const dealerName = seatName(seats[hand.dealer], nameOf);
   const tileWidth = Math.min(32, Math.floor((width - 28) / 14.8));
   const small = Math.max(13, Math.min(18, Math.floor(width / 26)));
   const side = Math.max(11, Math.floor(small * 0.8));
@@ -399,48 +442,54 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       </View>
       <View style={styles.topSeat}>
         {plate(topSeat, "top", true)}
-        <Backs count={hand.seats[topSeat].concealed} width={side} />
-        <Melds melds={hand.seats[topSeat].melds} flowers={hand.seats[topSeat].flowers} width={side} testID="mahjong-melds-top" />
+        <Backs count={concealedOf(topSeat)} width={side} />
+        <Melds melds={hand.seats[topSeat].melds} flowers={hand.seats[topSeat].flowers} width={side} side="top" calm={calm} testID="mahjong-melds-top" />
       </View>
       <View style={styles.middle}>
         <View style={styles.sideSeat}>
           {plate(leftSeat, "left")}
-          <Backs count={hand.seats[leftSeat].concealed} width={side} vertical />
-          <Melds melds={hand.seats[leftSeat].melds} flowers={hand.seats[leftSeat].flowers} width={side} vertical testID="mahjong-melds-left" />
+          <Backs count={concealedOf(leftSeat)} width={side} vertical />
+          <Melds melds={hand.seats[leftSeat].melds} flowers={hand.seats[leftSeat].flowers} width={side} side="left" calm={calm} vertical testID="mahjong-melds-left" />
         </View>
         <View style={styles.centre}>
-          <River seat={hand.seats[topSeat]} last={lastDiscard} width={small} columns={6} side="top" />
+          <River seat={hand.seats[topSeat]} last={lastDiscard} width={small} columns={6} side="top" calm={calm} />
           <View style={styles.centreRow}>
-            <River seat={hand.seats[leftSeat]} last={lastDiscard} width={small} columns={3} side="left" />
-            <Compass hand={hand} viewer={viewer} now={now} />
-            <River seat={hand.seats[rightSeat]} last={lastDiscard} width={small} columns={3} side="right" />
+            <River seat={hand.seats[leftSeat]} last={lastDiscard} width={small} columns={3} side="left" calm={calm} />
+            {stage.kind === "intro" ? (
+              <Intro dice={hand.dice} breakAt={hand.breakAt} dealer={hand.dealer} dealerName={dealerName} until={stage.until} now={now} calm={calm} />
+            ) : (
+              <Compass hand={hand} viewer={viewer} now={now} />
+            )}
+            <River seat={hand.seats[rightSeat]} last={lastDiscard} width={small} columns={3} side="right" calm={calm} />
           </View>
-          <River seat={hand.seats[viewer]} last={lastDiscard} width={small} columns={6} side="bottom" />
+          <River seat={hand.seats[viewer]} last={lastDiscard} width={small} columns={6} side="bottom" calm={calm} />
         </View>
         <View style={styles.sideSeat}>
           {plate(rightSeat, "right")}
-          <Backs count={hand.seats[rightSeat].concealed} width={side} vertical />
-          <Melds melds={hand.seats[rightSeat].melds} flowers={hand.seats[rightSeat].flowers} width={side} vertical testID="mahjong-melds-right" />
+          <Backs count={concealedOf(rightSeat)} width={side} vertical />
+          <Melds melds={hand.seats[rightSeat].melds} flowers={hand.seats[rightSeat].flowers} width={side} side="right" calm={calm} vertical testID="mahjong-melds-right" />
         </View>
       </View>
       <View style={[styles.mine, { paddingBottom: bottom }]}>
         <View style={styles.mineTop}>
           {plate(viewer, "bottom", true)}
-          <Melds melds={hand.seats[viewer].melds} flowers={hand.seats[viewer].flowers} width={Math.round(tileWidth * 0.75)} testID="mahjong-melds-bottom" />
+          <Melds melds={hand.seats[viewer].melds} flowers={hand.seats[viewer].flowers} width={Math.round(tileWidth * 0.75)} side="bottom" calm={calm} testID="mahjong-melds-bottom" />
         </View>
         {mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} now={now} busy={busy} onMove={onMove} /> : null}
         <View style={[styles.hand, { minHeight: tileWidth * TILE_RATIO + tileWidth * 0.4 }]} testID="mahjong-hand">
           {mySeat === null ? (
-            <Backs count={hand.seats[viewer].concealed} width={tileWidth * 0.8} />
+            <Backs count={concealedOf(viewer)} width={tileWidth * 0.8} />
           ) : (
             handTiles.map((tile) => (
-              <View key={tile} style={tile === drawn ? styles.drawn : null}>
+              // A tile drawn from the wall slides in on the right, a little apart; dealt tiles drop in from the middle.
+              <Arrive key={tile} from={tile === drawn ? { x: 60, y: -70 } : dealing ? { x: 0, y: -90 } : { x: 0, y: 0 }} scale={tile === drawn ? 1.25 : 1} duration={tile === drawn ? 360 : 240} calm={calm || (tile !== drawn && !dealing)} style={tile === drawn ? styles.drawn : undefined}>
                 <Tile tile={tile} width={tileWidth} lifted={selected === tile} onPress={myTurn ? () => pick(tile) : undefined} testID={`mahjong-tile-${tile}`} />
-              </View>
+              </Arrive>
             ))
           )}
         </View>
       </View>
+      <Callout hand={hand} viewer={viewer} calm={calm} />
       <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
     </View>
   );
@@ -508,6 +557,21 @@ const styles = StyleSheet.create({
   hint: { fontSize: 12.5, fontWeight: "700", color: m.muted },
   track: { height: 5, borderRadius: 3, backgroundColor: m.chip, overflow: "hidden" },
   fill: { height: 5, borderRadius: 3, backgroundColor: m.lit },
+  calloutWrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  callout_bottom: { bottom: "30%" },
+  callout_top: { top: "22%" },
+  callout_left: { top: "45%", alignItems: "flex-start", paddingLeft: 40 },
+  callout_right: { top: "45%", alignItems: "flex-end", paddingRight: 40 },
+  callout: {
+    fontFamily: fonts.display,
+    fontSize: 44,
+    color: m.shout,
+    textShadowColor: m.shoutEdge,
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 0,
+    letterSpacing: 1,
+  },
+  calloutHu: { fontSize: 60, color: m.win },
   resultWrap: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", padding: 16 },
   result: { flexGrow: 0, width: "100%", maxWidth: 400, maxHeight: "80%", borderRadius: 22, backgroundColor: m.feltDark, borderWidth: 2, borderColor: m.lit },
   resultBody: { padding: 16, gap: 12 },

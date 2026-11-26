@@ -383,6 +383,8 @@ describe("what each person sees", () => {
   it("shows the result to everyone when the hand is over", () => {
     const hand = rig({ hands: ["1111p 23p RG", "1m", "2m", "3m"], wall: "" });
     const over = ok(discard(hand, 0, tileIn(hand, 0, "R"), NOW));
+    expect(timeOut(over, NOW)).toEqual({ ok: false, reason: "The hand is over." });
+    expect(deadlineOf(over)).toBeNull();
     expect(viewHand(over, null).stage).toEqual({ kind: "over", result: { kind: "draw" } });
     expect(viewHand(over, null).mine).toBeNull();
   });

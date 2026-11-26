@@ -511,6 +511,18 @@ describe("walking away and coming back", () => {
     void t;
   });
 
+  test("coming back to the World mid-hand lands in the table's Café room", async () => {
+    const { anna, ben } = await twoAndTwoBots();
+    later(REFILL);
+    await ben.who.mutation(api.world.leave, {});
+    later(REFILL);
+    const back = await ben.who.mutation(api.world.join, {});
+    expect(back).toMatchObject({ roomId: anna.roomId, place: "cafe" });
+    later(REFILL);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
+    expect((await ben.who.query(api.mahjong.mine, {}))?.seats[1]).toMatchObject({ isMe: true, away: false });
+  });
+
   test("the hand waits when everyone has gone, and is given up if nobody comes back", async () => {
     const { t, anna, ben } = await twoAndTwoBots();
     later(REFILL);

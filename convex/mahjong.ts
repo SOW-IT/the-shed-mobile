@@ -58,7 +58,8 @@ const playerOf = (ctx: Ctx, email: string) =>
 export const heldSeatOf = async (ctx: Ctx, email: string) => {
   const player = await playerOf(ctx, email);
   const table = player && (await ctx.db.get("mahjongTables", player.tableId));
-  if (!player || !table || table.seats[player.seat]?.kind !== "human") return null;
+  const seat = player && table ? table.seats[player.seat] : undefined;
+  if (!player || !table || seat?.kind !== "human" || seat.email !== email) return null;
   return { table, seat: player.seat };
 };
 
@@ -373,9 +374,7 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
 /** Called when someone stands up, or leaves the Café room their table is in. */
 export const mahjongStood = async (ctx: MutationCtx, email: string, now: number) => {
   const held = await heldSeatOf(ctx, email);
-  if (!held) return await dropPlayer(ctx, email);
-  const s = held.table.seats[held.seat];
-  if (s.kind === "human" && s.email === email) await leaveSeat(ctx, held.table, held.seat, now);
+  if (held) await leaveSeat(ctx, held.table, held.seat, now);
   else await dropPlayer(ctx, email);
 };
 
