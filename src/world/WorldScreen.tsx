@@ -64,6 +64,7 @@ import { CoinsPanel, useCoins } from "./Coins";
 import { CoinCounter } from "@/components/games/CoinCounter";
 import type { GamesTarget } from "@/components/games/GamesMenu";
 import { ArcadePanel } from "./ArcadePanel";
+import { arcadeStep } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
 import { InviteCard, KnockCard } from "./InviteCard";
@@ -561,6 +562,27 @@ export const WorldScreen = ({
     }, 120);
     return () => clearInterval(id);
   }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
+
+  // Walking away from the arcade closes its games. A walk is a line in time,
+  // not a stream of updates, so it checks as you go. Whether you've stood by
+  // the arcade lasts while its games are open, through a trip to the
+  // leaderboard, and starts again when they close.
+  const arcadeNear = useRef(false);
+  useEffect(() => {
+    if (!arcadeOpen) arcadeNear.current = false;
+  }, [arcadeOpen]);
+  const watchArcade = arcadeOpen && !away && world.status === "in" && world.place === "garden";
+  useEffect(() => {
+    if (!watchArcade) return;
+    const id = setInterval(() => {
+      const { world: latest } = live.current;
+      const mine = latest.people.find((p) => p.isMe);
+      const step = arcadeStep(arcadeNear.current, mine?.walk ? posAt(mine.walk, latest.serverNow()) : null, OBJECT_SPOTS.arcade);
+      arcadeNear.current = step.near;
+      if (step.leave) setArcadeOpen(false);
+    }, 150);
+    return () => clearInterval(id);
+  }, [watchArcade]);
 
   useEffect(() => {
     if (seatTrip === null) return;

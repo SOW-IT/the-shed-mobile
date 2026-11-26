@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.39] - 2026-11-27
+## [2.13.38] - 2026-11-27
 
 ### Changed
 - **Running out of time in Dots and Boxes draws a line for you.** When a
@@ -18,6 +18,16 @@ All notable changes to **The SHED** mobile app. This project follows
   same board. Running out of time no longer skips the turn or loses a Dots
   and Boxes game; the game ends when the last line is drawn, as usual. The
   other Café games still pass the turn, and lose on a second miss in a row.
+
+## [2.13.37] - 2026-11-27
+
+### Changed
+- **Walking away from the arcade closes its games.** With the arcade's games
+  list open in the World, stepping a couple of steps away from the arcade
+  (or being moved away) now closes the list, so it doesn't stay on screen
+  once you've left. Walk back and tap the arcade to open it again. Opened
+  from a link somewhere else in the Garden, the list stays until you've been
+  to the arcade and walked off.
 
 ## [2.13.36] - 2026-11-27
 
