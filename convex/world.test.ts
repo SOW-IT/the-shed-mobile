@@ -114,6 +114,28 @@ describe("join and leave", () => {
     expect((await rows(t)).members).toHaveLength(1);
   });
 
+  test("a recovery rejoin does not double-count an active visit, and restores a swept visitor", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const first = await anna.mutation(api.world.join, {});
+    // Calling join with rejoin:true while still present keeps visits at 1, so one leave removes them.
+    const same = await anna.mutation(api.world.join, { rejoin: true });
+    expect(same.memberId).toBe(first.memberId);
+    expect((await rows(t)).members[0].visits).toBeUndefined();
+    await anna.mutation(api.world.leave, {});
+    expect((await rows(t)).members).toHaveLength(0);
+
+    // Swept away, then recovering with rejoin:true puts them back cleanly.
+    const second = await anna.mutation(api.world.join, {});
+    later(PRESENCE_TTL_MS + 1000);
+    await t.mutation(internal.world.sweep, {});
+    expect((await rows(t)).members).toHaveLength(0);
+    const recovered = await anna.mutation(api.world.join, { rejoin: true });
+    expect(recovered.memberId).not.toBe(second.memberId);
+    expect((await rows(t)).members).toHaveLength(1);
+    expect((await rows(t)).members[0].visits).toBeUndefined();
+  });
+
   test("names come from the user record when there's no profile", async () => {
     const t = newConvex();
     await t.run((ctx) => ctx.db.insert("users", { email: BEN, name: " Ben Ng " }));

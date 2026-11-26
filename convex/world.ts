@@ -529,7 +529,7 @@ const FRESH_IN_ROOM = {
 };
 
 export const join = mutation({
-  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()) },
+  args: { poke: v.optional(v.string()), invite: v.optional(v.string()), backyard: v.optional(v.boolean()), rejoin: v.optional(v.boolean()) },
   returns: v.object({
     roomId: v.id("worldRooms"),
     memberId: v.id("worldMembers"),
@@ -594,7 +594,10 @@ export const join = mutation({
       if (!quietReturn) await addChatLine(ctx, speakerOf(member), joinedLine(member), now);
     } else {
       // Another tab or device joining the same member: count the visit.
-      await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
+      // A recovery rejoin belongs to an existing visit, so it keeps the count as is.
+      if (args.rejoin !== true) {
+        await ctx.db.patch("worldMembers", member._id, { visits: (member.visits ?? 1) + 1 });
+      }
       const asked = await askedFor();
       const there = asked && (await arrivalRoom(ctx, asked, room));
       if (asked && there) {
