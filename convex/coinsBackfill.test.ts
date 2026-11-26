@@ -104,7 +104,7 @@ describe("paying the standing top 3", () => {
     await t.run(async (ctx) => {
       const cara = await ctx.db
         .query("gameScores")
-        .withIndex("by_email_and_game", (q) => q.eq("email", CARA).eq("game", "flappy"))
+        .withIndex("by_email_and_game_and_version", (q) => q.eq("email", CARA).eq("game", "flappy"))
         .unique();
       await ctx.db.delete("gameScores", cara!._id);
     });

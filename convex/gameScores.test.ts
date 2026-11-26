@@ -3,8 +3,9 @@ import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
+import { boardOf, PAYOUT_MIN_ENTRIES } from "../shared/coins";
 import type { Beaten } from "../shared/leaderboard";
-import { withHeight } from "../shared/world";
+import { lookFor, withHeight } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -24,6 +25,91 @@ const bests = (t: T) =>
   t.run(async (ctx) =>
     (await ctx.db.query("gameScores").collect()).map((row) => [row.email, row.game, row.score, row.runId])
   );
+
+const v2 = (runId: string, score: number, game: GameId = "runner") => ({ ...run(runId, score, game), version: 2 });
+
+const player = (i: number) => `player${i}@sow.org.au`;
+
+const paidRows = (t: T) =>
+  t.run(async (ctx) =>
+    (await ctx.db.query("coinLedger").collect())
+      .filter((row) => row.kind === "game")
+      .map((row) => [row.email, row.delta, row.place, row.board])
+  );
+
+describe("versions", () => {
+  test("a run with no version lands on the v1 board, as older apps send it, and a v2 run on the v2 board", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const result = await anna.mutation(api.gameScores.submitScores, {
+      scores: [run("run-anna-old", 9_000), v2("run-anna-new", 400), { ...run("run-anna-v3", 600), version: 3 }],
+    });
+    expect(result.accepted).toEqual(["run-anna-old", "run-anna-new"]);
+    expect(result.rejected).toEqual([{ runId: "run-anna-v3", reason: "That isn't a version of the game." }]);
+    const v1 = await anna.query(api.gameScores.leaderboard, { game: "runner" });
+    expect(v1.top.map((row) => row.score)).toEqual([9_000]);
+    expect(v1.me).toEqual({ score: 9_000, rank: 1 });
+    expect(await anna.query(api.gameScores.leaderboard, { game: "runner", version: 1 })).toEqual(v1);
+    const second = await anna.query(api.gameScores.leaderboard, { game: "runner", version: 2 });
+    expect(second.top.map((row) => row.score)).toEqual([400]);
+    expect(await anna.query(api.gameScores.myLeaderboardPlace, { game: "runner", version: 2 })).toEqual({ score: 400, rank: 1 });
+    const page = await t.query(api.gameScores.leaderboardPage, { game: "runner", version: 2, paginationOpts: { numItems: 10, cursor: null } });
+    expect(page.page.map((row) => row.score)).toEqual([400]);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-old2", 100), v2("run-anna-new2", 500)] });
+    expect(await bests(t)).toEqual([
+      [ANNA, "runner", 9_000, "run-anna-old"],
+      [ANNA, "runner", 500, "run-anna-new2"],
+    ]);
+  });
+
+  test("v1 boards still pay their top 3 from the first score, as before", async () => {
+    const t = newConvex();
+    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 30, "flappy")] });
+    expect(result.coins).toEqual([{ runId: "run-anna-old", coins: 50, place: 1 }]);
+    expect(await paidRows(t)).toEqual([[ANNA, 50, 1, boardOf("flappy")]]);
+  });
+
+  test(`a v2 board pays nothing until ${PAYOUT_MIN_ENTRIES} people are on it, then pays whoever is top 3 then, and later climbs pay as usual`, async () => {
+    const t = newConvex();
+    expect(PAYOUT_MIN_ENTRIES).toBe(10);
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES; i++) {
+      const result = await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-player-${i}`, i * 100)] });
+      expect(result.coins).toEqual([]);
+    }
+    const better = await asUser(t, player(9)).mutation(api.gameScores.submitScores, { scores: [v2("run-player-9b", 2_000)] });
+    expect(better.coins).toEqual([]);
+    expect(await paidRows(t)).toEqual([]);
+    const tenth = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-1", 750)] });
+    expect(tenth.coins).toEqual([{ runId: "run-anna-1", coins: 10, place: 3 }]);
+    const board = boardOf("runner", 2);
+    expect((await paidRows(t)).sort()).toEqual(
+      [
+        [player(9), 50, 1, board],
+        [player(8), 25, 2, board],
+        [ANNA, 10, 3, board],
+      ].sort()
+    );
+    const resent = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-1", 750)] });
+    expect(resent.coins).toEqual([{ runId: "run-anna-1", coins: 10, place: 3 }]);
+    const eleventh = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-1", 5)] });
+    expect(eleventh.coins).toEqual([]);
+    const climb = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-2", 3_000)] });
+    expect(climb.coins).toEqual([{ runId: "run-ben-2", coins: 50, place: 1 }]);
+    const anna = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-2", 2_500)] });
+    expect(anna.coins).toEqual([{ runId: "run-anna-2", coins: 15, place: 2 }]);
+    expect((await paidRows(t)).filter(([, , , paidBoard]) => paidBoard !== board)).toEqual([]);
+  });
+
+  test("a v2 board's payouts don't count what a v1 board paid", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 30, "flappy")] });
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES; i++) {
+      await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-player-${i}`, i, "flappy")] });
+    }
+    const result = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-new", 50, "flappy")] });
+    expect(result.coins).toEqual([{ runId: "run-anna-new", coins: 50, place: 1 }]);
+  });
+});
 
 describe("submitScores", () => {
   test("only a signed-in person can publish scores", async () => {
@@ -269,11 +355,21 @@ describe("podium", () => {
     });
     const top = await asUser(t, ANNA).query(api.gameScores.podium, { game: "runner" });
     expect(top.map((row) => [row.score, row.isMe, row.look])).toEqual([
-      [900, false, null],
-      [500, false, null],
+      [900, false, withHeight(lookFor(BEN), BEN)],
+      [500, false, withHeight(lookFor(CARA), CARA)],
       [300, true, withHeight(look, ANNA)],
     ]);
     expect((await t.query(api.gameScores.podium, { game: "runner" })).every((row) => !row.isMe)).toBe(true);
+  });
+
+  test("shows one version's board, never mixing v1 and v2; no version is v1, as older apps ask", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 9_000), v2("run-anna-new", 40)] });
+    await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-new", 70)] });
+    const scores = async (version?: number) => (await t.query(api.gameScores.podium, { game: "runner", version })).map((row) => row.score);
+    expect(await scores()).toEqual([9_000]);
+    expect(await scores(1)).toEqual([9_000]);
+    expect(await scores(2)).toEqual([70, 40]);
   });
 });
 
@@ -437,6 +533,18 @@ describe("myBests", () => {
       ])
     );
     expect(mine?.bests).toHaveLength(2);
+  });
+
+  test("bests are per version: v2 asks for its own, and no version is v1, as older apps ask", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 9_000), v2("run-anna-new", 400), v2("run-anna-flap", 12, "flappy")] });
+    expect((await anna.query(api.gameScores.myBests, {}))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
+    expect((await anna.query(api.gameScores.myBests, { version: 1 }))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
+    expect((await anna.query(api.gameScores.myBests, { version: 2 }))?.bests).toEqual([
+      { game: "runner", score: 400 },
+      { game: "flappy", score: 12 },
+    ]);
   });
 
   test("a higher best from another device goes up through submitScores and shows everywhere", async () => {

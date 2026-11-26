@@ -3,23 +3,23 @@ import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
-import type { Look } from "@shared/world";
+import { lookFor, withHeight, type Look } from "@shared/world";
 import { api } from "../../../convex/_generated/api";
-import type { GameId } from "../../../shared/games";
+import { GAME_VERSION, type GameId, type GameVersion } from "../../../shared/games";
 import { podiumSteps, type PodiumStep } from "@/lib/games/podium";
 import { useAvatarArt, type AvatarArt } from "./GameCharacter";
 import { useSavedNames } from "./useSavedNames";
 
 const p = fixedColours.games.podium;
-const FIGURE = { width: 64, height: 76 };
+const FIGURE = { width: 76, height: 94 };
 const STEP_MAX = 64;
 const BOUNCE_MS = 520;
 /** Each place starts its bounce a little after the last, so they don't move as one. */
 const STAGGER_MS = 170;
 const SPARKS = [
-  { x: -30, y: 6, size: 12, at: 0 },
-  { x: 28, y: -2, size: 10, at: 0.4 },
-  { x: 18, y: 30, size: 9, at: 0.7 },
+  { x: -34, y: 8, size: 12, at: 0 },
+  { x: 32, y: 0, size: 10, at: 0.4 },
+  { x: 22, y: 34, size: 9, at: 0.7 },
 ];
 
 /**
@@ -44,14 +44,9 @@ const useCheer = (order: number, calm: boolean) => {
   return clock;
 };
 
-const Figure = ({ look, name, art }: { look: Look | null; name: string; art: AvatarArt | null }) => {
-  if (look && art) return <art.CheeringCharacter look={look} width={FIGURE.width} height={FIGURE.height} />;
-  return (
-    <View style={styles.faceSlot}>
-      {/* A face still loading is blank; someone with no World character gets their initial. */}
-      <View style={styles.face}>{look ? null : <Text style={styles.initial}>{Array.from(name)[0] ?? "?"}</Text>}</View>
-    </View>
-  );
+const Figure = ({ look, art }: { look: Look; art: AvatarArt | null }) => {
+  if (art) return <art.CheeringCharacter look={look} width={FIGURE.width} height={FIGURE.height} />;
+  return <View style={styles.loadingSlot} />;
 };
 
 const Step = ({
@@ -70,14 +65,25 @@ const Step = ({
   const entry = step.entry;
   const shade = step.order - 1;
   const name = entry ? nameOf(entry.name) : "";
-  const lift = clock.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
+  const look = entry ? (entry.look ?? withHeight(lookFor(entry.id), entry.id)) : null;
+  const lift = clock.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+  const shadowScale = clock.interpolate({ inputRange: [0, 1], outputRange: [1, 0.78] });
   return (
     <View style={styles.column} testID={`podium-step-${step.order}`}>
-      {entry ? (
+      {entry && look ? (
         <>
+          <View style={styles.header}>
+            <Text style={[typography.label, styles.name, { color: t.text }, entry.isMe && styles.me]} numberOfLines={1}>
+              {entry.isMe ? `${name} (you)` : name}
+            </Text>
+            <Text style={[typography.caption, styles.score, { color: t.muted }]} numberOfLines={1}>
+              {entry.score.toLocaleString()}
+            </Text>
+          </View>
           <View style={styles.stage}>
+            <Animated.View style={[styles.shadow, { transform: [{ scaleX: shadowScale }] }]} pointerEvents="none" />
             <Animated.View style={{ transform: [{ translateY: lift }] }}>
-              <Figure look={entry.look} name={name} art={art} />
+              <Figure look={look} art={art} />
             </Animated.View>
             {calm ? null : (
               // Decoration: hidden from screen readers, which read the step instead.
@@ -100,10 +106,6 @@ const Step = ({
               </View>
             )}
           </View>
-          <Text style={[typography.label, styles.name, { color: t.text }, entry.isMe && styles.me]} numberOfLines={1}>
-            {entry.isMe ? `${name} (you)` : name}
-          </Text>
-          <Text style={[typography.caption, styles.score, { color: t.muted }]}>{entry.score.toLocaleString()}</Text>
         </>
       ) : null}
       <View
@@ -123,13 +125,14 @@ type PodiumRow = { id: string; name: string; score: number; isMe: boolean; look:
 
 /**
  * The top three of a game's leaderboard on a podium, cheering: 1st in the
- * middle and highest, 2nd on the left, 3rd on the right, each as their World
- * character. Nothing shows until someone has a score.
+ * middle and highest, 2nd on the left, 3rd on the right, each standing on
+ * top of their step as their full Garden character. Nothing shows until
+ * someone has a score.
  */
-export const Podium = ({ game }: { game: GameId }) => {
-  const rows = useQuery(api.gameScores.podium, { game });
+export const Podium = ({ game, version = GAME_VERSION }: { game: GameId; version?: GameVersion }) => {
+  const rows = useQuery(api.gameScores.podium, { game, version });
   const nameOf = useSavedNames();
-  const art = useAvatarArt(rows?.some((row) => row.look !== null) ?? false);
+  const art = useAvatarArt((rows?.length ?? 0) > 0);
   const calm = useReducedMotion();
   const steps = rows ? podiumSteps(rows) : null;
   if (!steps) return null;
@@ -144,16 +147,16 @@ export const Podium = ({ game }: { game: GameId }) => {
 
 const styles = StyleSheet.create({
   podium: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: spacing.sm, paddingTop: spacing.md },
-  column: { flex: 1, maxWidth: 120, alignItems: "center" },
-  stage: { width: FIGURE.width, height: FIGURE.height, alignItems: "center", justifyContent: "flex-end" },
-  faceSlot: { width: FIGURE.width, height: FIGURE.height, alignItems: "center", justifyContent: "flex-end", paddingBottom: 6 },
-  face: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: p.face },
-  initial: { ...typography.headline, color: p.faceText },
+  column: { flex: 1, maxWidth: 124, alignItems: "center" },
+  header: { alignItems: "center", marginBottom: spacing.xs + 2, maxWidth: "100%" },
+  stage: { width: FIGURE.width, height: FIGURE.height, alignItems: "center", justifyContent: "flex-end", marginBottom: -4, zIndex: 1 },
+  loadingSlot: { width: FIGURE.width, height: FIGURE.height },
+  shadow: { position: "absolute", bottom: -1, width: 32, height: 8, borderRadius: 4, backgroundColor: p.shadow },
   sparks: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center" },
   spark: { position: "absolute", top: 4, color: p.spark },
-  name: { marginTop: spacing.xs, maxWidth: "100%" },
+  name: { maxWidth: "100%" },
+  score: { fontVariant: ["tabular-nums"] },
   me: { fontWeight: "800" },
-  score: { marginBottom: spacing.xs },
   step: {
     alignSelf: "stretch",
     alignItems: "center",

@@ -22,23 +22,42 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   },
   glider: {
     title: "Swoop",
-    blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each world before dark. Best sideways.",
+    blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each day before dark. Best sideways.",
   },
 };
+
+export const GAME_VERSIONS = [1, 2] as const;
+export type GameVersion = (typeof GAME_VERSIONS)[number];
+export const GAME_VERSION: GameVersion = 2;
+
+const isGameVersion = (value: unknown): value is GameVersion =>
+  (GAME_VERSIONS as readonly unknown[]).includes(value);
+
+export const VERSION_LABELS: Record<GameVersion, string> = { 1: "v1 (legacy)", 2: "v2" };
+
+export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
 
 /**
  * The most points a run can earn per second it lasted, with room to spare,
  * and the most a run can score at all. The server turns away a score above
  * either, so a typo'd or tampered score can't top the leaderboard.
  */
-export const SCORE_LIMITS: Record<GameId, { perSecond: number; max: number }> = {
-  shooter: { perSecond: 1000, max: 5_000_000 },
-  runner: { perSecond: 200, max: 2_000_000 },
-  flappy: { perSecond: 60, max: 1_000_000 },
-  // Swoop's own rules cap these: a run can't fly faster than the bird's top
-  // speed, or past the world where even that can't beat the sunset
-  // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
-  glider: { perSecond: 1000, max: 500_000 },
+export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: number; max: number }>> = {
+  1: {
+    shooter: { perSecond: 1000, max: 5_000_000 },
+    runner: { perSecond: 200, max: 2_000_000 },
+    flappy: { perSecond: 60, max: 1_000_000 },
+    // Swoop's own rules cap these: a run can't fly faster than the bird's top
+    // speed, or past the world where even that can't beat the sunset
+    // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
+    glider: { perSecond: 1000, max: 500_000 },
+  },
+  2: {
+    shooter: { perSecond: 1000, max: 5_000_000 },
+    runner: { perSecond: 250, max: 2_000_000 },
+    flappy: { perSecond: 3, max: 100_000 },
+    glider: { perSecond: 2100, max: 2_000_000 },
+  },
 };
 
 /**
@@ -65,6 +84,7 @@ export type QueuedScore = {
   /** Made on the phone when the run ends; retries send the same one. */
   runId: string;
   game: GameId;
+  version?: GameVersion;
   score: number;
   durationMs: number;
   playedAt: number;
@@ -82,11 +102,12 @@ export const submittableFor = (queue: readonly QueuedScore[], account: string): 
 export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
+  if (entry.version !== undefined && !isGameVersion(entry.version)) return "That isn't a version of the game.";
   if (!Number.isInteger(entry.score) || entry.score < 1) return "A score is a whole number above zero.";
   if (!Number.isFinite(entry.durationMs) || entry.durationMs <= 0 || entry.durationMs > MAX_RUN_MS) {
     return "That run's length isn't believable.";
   }
-  const limit = SCORE_LIMITS[entry.game];
+  const limit = SCORE_LIMITS[versionOf(entry.version)][entry.game];
   if (entry.score > limit.max) return "That score is over the game's limit.";
   if (entry.score > SCORE_SLACK + (limit.perSecond * entry.durationMs) / 1000) {
     return "That score is too high for how long the run lasted.";
@@ -112,8 +133,10 @@ export const enqueueScore = (queue: readonly QueuedScore[], entry: QueuedScore, 
   // has become unpublishable can't hold its place.
   const live = queue.filter((queued) => scoreProblem(queued, now) === null);
   if (scoreProblem(entry, now) !== null) return live;
-  if (live.some((queued) => queued.game === entry.game && sameOwner(queued, entry) && queued.score >= entry.score)) return live;
-  return [...live.filter((queued) => queued.game !== entry.game || !sameOwner(queued, entry)), entry];
+  const sameBoard = (queued: QueuedScore) =>
+    queued.game === entry.game && versionOf(queued.version) === versionOf(entry.version) && sameOwner(queued, entry);
+  if (live.some((queued) => sameBoard(queued) && queued.score >= entry.score)) return live;
+  return [...live.filter((queued) => !sameBoard(queued)), entry];
 };
 
 /**
@@ -130,6 +153,7 @@ const isQueuedScore = (value: unknown): value is QueuedScore => {
     typeof entry.runId === "string" &&
     typeof entry.game === "string" &&
     isGameId(entry.game) &&
+    (entry.version === undefined || isGameVersion(entry.version)) &&
     typeof entry.score === "number" &&
     typeof entry.durationMs === "number" &&
     typeof entry.playedAt === "number" &&
@@ -283,5 +307,7 @@ export const bestsToSync = (
     const run = runs[game];
     const onServer = server.find((row) => row.game === game)?.score ?? 0;
     if (!run || run.score <= onServer || tried.has(run.runId) || !stillCounts(run, now)) return [];
-    return queue.some((queued) => queued.game === game && sameOwner(queued, run) && queued.score >= run.score) ? [] : [run];
+    const queuedBetter = (queued: QueuedScore) =>
+      queued.game === game && versionOf(queued.version) === versionOf(run.version) && sameOwner(queued, run) && queued.score >= run.score;
+    return queue.some(queuedBetter) ? [] : [run];
   });

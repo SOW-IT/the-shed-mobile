@@ -1,5 +1,17 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
-import { birdX, FLAPPY, flap, newFlappy, stepFlappy, type FlappyState } from "@/lib/games/flappy";
+import {
+  birdX,
+  FLAPPY,
+  flap,
+  flappyAt,
+  flappyColours,
+  newFlappy,
+  pipesFlown,
+  stepFlappy,
+  type FlappyPalette,
+  type FlappyState,
+} from "@/lib/games/flappy";
+import { FLAPPY_V2 } from "@/lib/games/flappyTuning";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours } from "@/theme";
 import { useMemo, useState } from "react";
@@ -13,6 +25,7 @@ import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./Ga
 import type { Look } from "@shared/world";
 
 const c = fixedColours.games.flappy;
+const g = fixedColours.games.glider;
 const PHONE_BOARD = { width: GAME_VIEWS.flappy.size, height: 700 };
 const GRASS_HEIGHT = 14;
 const FLAP_KEYS = new Set([" ", "ArrowUp", "w", "W"]);
@@ -23,6 +36,26 @@ const CLOUDS = [
 ];
 
 const HEAD = FLAPPY.radius * 2 + 8;
+
+const PALETTE: FlappyPalette = {
+  sky: g.sky,
+  sun: g.sun,
+  sunset: g.sunset,
+  cloud: c.cloud,
+  pipe: c.pipe,
+  pipeSunset: c.pipeSunset,
+  pipeNight: c.pipeNight,
+  pipeShadow: c.pipeShadow,
+  ground: c.ground,
+  groundSunset: c.groundSunset,
+  groundNight: c.groundNight,
+  grass: c.grass,
+  grassSunset: c.grassSunset,
+  grassNight: c.grassNight,
+  night: g.night,
+};
+
+const tones = (state: FlappyState) => flappyColours(pipesFlown(state), PALETTE);
 
 const BirdSprite = ({ flapping }: { flapping: boolean }) => (
   <View style={[styles.sprite, { backgroundColor: c.bird }]}>
@@ -73,14 +106,30 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
   const reach = useBoardReach();
   const floor = state.height - FLAPPY.groundHeight;
   const grassShift = -((state.time * 160) % 24);
+  const tone = tones(state);
+  const sunSize = state.width * FLAPPY_V2.sunSize;
   return (
     <>
+      <View
+        testID="flappy-sun"
+        style={[
+          styles.sun,
+          {
+            width: sunSize,
+            height: sunSize,
+            borderRadius: sunSize / 2,
+            backgroundColor: tone.sun,
+            left: tone.sunX * state.width - sunSize / 2,
+            top: tone.sunY * floor - sunSize / 2,
+          },
+        ]}
+      />
       {CLOUDS.map((cloud) => (
         <View
           key={cloud.id}
           style={[
             styles.cloud,
-            { backgroundColor: c.cloud, width: cloud.w, left: cloud.x * state.width, top: cloud.y * floor },
+            { backgroundColor: tone.cloud, width: cloud.w, left: cloud.x * state.width, top: cloud.y * floor },
           ]}
         />
       ))}
@@ -88,7 +137,7 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
       {state.pipes.map((pipe) => (
         <View key={pipe.id} style={[styles.pipeColumn, { transform: [{ translateX: pipe.x }] }]}>
           <View
-            style={[styles.pipe, { height: pipe.gapTop, backgroundColor: c.pipe, borderColor: c.pipeEdge }]}
+            style={[styles.pipe, { height: pipe.gapTop, backgroundColor: tone.pipe, borderColor: tone.outline }]}
           />
           <View
             style={[
@@ -96,19 +145,19 @@ const Scene = ({ state, look }: { state: FlappyState; look: Look | null }) => {
               {
                 top: pipe.gapTop + pipe.gapHeight,
                 height: Math.max(0, floor - pipe.gapTop - pipe.gapHeight),
-                backgroundColor: c.pipe,
-                borderColor: c.pipeEdge,
+                backgroundColor: tone.pipe,
+                borderColor: tone.outline,
               },
             ]}
           />
         </View>
       ))}
       </View>
-      <View style={[styles.ground, { top: floor, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: c.ground }]}>
-        <View style={[styles.grass, { backgroundColor: c.grass }]}>
+      <View style={[styles.ground, { top: floor, left: -reach.left, right: -reach.right, bottom: -reach.bottom, backgroundColor: tone.ground }]}>
+        <View style={[styles.grass, { backgroundColor: tone.grass }]}>
           <View style={[styles.tufts, { transform: [{ translateX: grassShift }] }]}>
             {Array.from({ length: Math.ceil((state.width + reach.left + reach.right) / 24) + 2 }, (_, i) => (
-              <View key={`tuft-${i}`} style={[styles.tuft, { backgroundColor: c.pipeEdge }]} />
+              <View key={`tuft-${i}`} style={[styles.tuft, { backgroundColor: tone.pipe }]} />
             ))}
           </View>
         </View>
@@ -124,11 +173,13 @@ export const FlappyGame = ({
   onLeaderboard,
   active = true,
   guard,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
   guard?: LeaveGuard;
+  startScore?: number;
 }) => {
   const session = useGameSession<FlappyState>("flappy");
   const look = useGameLook("flappy");
@@ -136,14 +187,15 @@ export const FlappyGame = ({
   const [board, setBoard] = useState<Size | null>(null);
   const { width, height } = board ?? PHONE_BOARD;
   const preview = useMemo(() => newFlappy(width, height, 1), [width, height]);
-  const latest = useLatest({ session, width, height });
+  const latest = useLatest({ session, width, height, startScore });
   const scene = run ?? preview;
+  const tone = tones(scene);
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => setRun((state) => state && advance(state, dt, stepFlappy)));
 
   const tap = () => {
-    const { session: current, width: w, height: h } = latest.current;
-    if (current.phase === "ready" && w > 0) current.begin(flap(newFlappy(w, h, newSeed())));
+    const { session: current, width: w, height: h, startScore: from } = latest.current;
+    if (current.phase === "ready" && w > 0) current.begin(flap(from ? flappyAt(w, h, newSeed(), from) : newFlappy(w, h, newSeed())), !!from);
     else current.setRun((state) => state && flap(state));
   };
 
@@ -166,8 +218,9 @@ export const FlappyGame = ({
   return (
     <GameFrame
       game="flappy"
-      background={c.sky}
-      ink={c.eye}
+      background={tone.sky}
+      ink={tone.dark ? c.eyeWhite : c.eye}
+      statusBar={tone.dark ? "light" : "dark"}
       session={session}
       score={run?.score ?? 0}
       world={run ? { width: run.width, height: run.height } : board}
@@ -192,6 +245,7 @@ export const FlappyGame = ({
 
 const styles = StyleSheet.create({
   cloud: { position: "absolute", height: 28, borderRadius: 14, opacity: 0.9 },
+  sun: { position: "absolute" },
   pipeColumn: { position: "absolute", left: 0, top: 0, bottom: 0, width: FLAPPY.pipeWidth },
   pipe: {
     position: "absolute",

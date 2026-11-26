@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -100,6 +100,10 @@ for (const game of ["shooter", "runner"]) {
   }
 }
 scores.push({ email: admin, game: "runner", score: 2050, runId: "seed-runner-admin" });
+const hasVersionedBoards = readFileSync("convex/schema.ts", "utf8").includes("by_game_and_version_and_score");
+if (hasVersionedBoards) {
+  scores.push(...scores.map((row) => ({ ...row, version: 2, runId: `${row.runId}-v2` })));
+}
 importRows(
   "gameScores",
   scores.map((row) => ({ ...row, durationMs: 60_000, playedAt: now - DAY, updatedAt: now - DAY }))

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { query, type MutationCtx } from "./_generated/server";
 import { boardOf, coinDay, PLACE_COINS, placePayout, START_COINS } from "../shared/coins";
-import type { GameId } from "../shared/games";
+import type { GameId, GameVersion } from "../shared/games";
 import { Ctx, optionalEmail } from "./model";
 
 export const walletOf = (ctx: Ctx, email: string) =>
@@ -41,11 +41,11 @@ export const paidForRun = async (ctx: MutationCtx, email: string, runId: string)
 export const awardPlace = async (
   ctx: MutationCtx,
   email: string,
-  run: { runId: string; game: GameId },
+  run: { runId: string; game: GameId; version?: GameVersion },
   place: number,
   now: number
 ): Promise<RunPayout | null> => {
-  const board = boardOf(run.game);
+  const board = boardOf(run.game, run.version);
   // Each payout climbs, so a board has paid someone at most once per place.
   const paid = await ctx.db
     .query("coinLedger")

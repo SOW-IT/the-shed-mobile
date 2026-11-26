@@ -9,6 +9,7 @@ import { api } from "../../../convex/_generated/api";
 import {
   bestsFromRuns,
   enqueueScore,
+  GAME_VERSION,
   NO_BESTS,
   parseBestRuns,
   parseBests,
@@ -34,9 +35,9 @@ import {
 } from "../../../shared/gameCharacters";
 import { persisted } from "./persisted";
 
-const bests = persisted<LocalBests>("games.bests", parseBests, NO_BESTS, stringifyBests);
+const bests = persisted<LocalBests>(`games.bests.v${GAME_VERSION}`, parseBests, NO_BESTS, stringifyBests);
 const queue = persisted<QueuedScore[]>("games.scoreQueue", parseQueue, []);
-const bestRuns = persisted<BestRunsByAccount>("games.bestRuns", (saved) => parseBestRuns(saved, Date.now()), {});
+const bestRuns = persisted<BestRunsByAccount>(`games.bestRuns.v${GAME_VERSION}`, (saved) => parseBestRuns(saved, Date.now()), {});
 
 const characters = persisted<CharacterChoices>("games.characters", parseCharacters, DEFAULT_CHARACTERS);
 
@@ -52,7 +53,7 @@ export const useBestRuns = () => useSyncExternalStore(bestRuns.subscribe, bestRu
 
 const useAccount = () => {
   const { isAuthenticated } = useConvexAuth();
-  const account = useQuery(api.gameScores.myBests, isAuthenticated ? {} : "skip");
+  const account = useQuery(api.gameScores.myBests, isAuthenticated ? { version: GAME_VERSION } : "skip");
   return isAuthenticated ? account : undefined;
 };
 
@@ -89,6 +90,7 @@ export const recordRun = (game: GameId, score: number, durationMs: number, accou
   const entry: QueuedScore = {
     runId: runId(),
     game,
+    version: GAME_VERSION,
     score,
     durationMs: Math.max(1, Math.round(durationMs)),
     playedAt: Date.now(),

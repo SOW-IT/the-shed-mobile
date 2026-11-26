@@ -5,18 +5,19 @@
 // Unlike the other games, y grows upward here: it's the height above the
 // bottom of the world. The scene turns it over when it draws.
 import { random } from "./random";
+import { GLIDER_V2, ramp } from "./gliderTuning";
 
 export const GLIDER = {
   /** Gravity while light (let go) and heavy (held), in world units a second squared. */
-  lightGravity: 480,
-  heavyGravity: 1850,
+  lightGravity: GLIDER_V2.speed.lightGravity,
+  heavyGravity: GLIDER_V2.speed.heavyGravity,
   /** Slowing on the ground and in the air, times the speed squared. */
-  groundDrag: 0.00012,
-  airDrag: 0.00006,
+  groundDrag: GLIDER_V2.speed.groundDrag,
+  airDrag: GLIDER_V2.speed.airDrag,
   /** The bird always waddles on at least this, so it can't get stuck in a valley. */
-  minSpeed: 120,
-  maxSpeed: 1500,
-  startSpeed: 220,
+  minSpeed: GLIDER_V2.speed.min,
+  maxSpeed: GLIDER_V2.speed.max,
+  startSpeed: GLIDER_V2.speed.start,
   /** The bird's size, for drawing. Its body sits on its lowest point. */
   radius: 16,
   /** Each world starts and ends on a hilltop this high. */
@@ -26,18 +27,18 @@ export const GLIDER = {
   /** Steepest slope a hill may have, rise over run. */
   maxSlope: 2.2,
   /** In the air at least this long before a landing can be perfect. */
-  perfectAir: 0.3,
+  perfectAir: GLIDER_V2.speed.perfectAir,
   /** A landing this much faster than the ground's own slope would give. */
-  perfectBoost: 0.06,
+  perfectBoost: GLIDER_V2.speed.perfectBoost,
   /** A rough landing keeps this share of its speed along the ground. */
   roughKeep: 0.85,
   /** Landing on an upslope while heavy keeps this share on top. */
   heavyUpslopeKeep: 0.8,
   /** Seconds of daylight a perfect landing and a long flight give back. */
-  perfectTime: 0.8,
-  flightTime: 0.6,
+  perfectTime: GLIDER_V2.speed.perfectTime,
+  flightTime: GLIDER_V2.speed.flightTime,
   /** A flight at least this long is a long one. */
-  longFlight: 1.4,
+  longFlight: GLIDER_V2.speed.longFlight,
   perfectPoints: 20,
   flightPoints: 30,
   /** The longest perfect streak that still raises its points. */
@@ -59,9 +60,21 @@ export const VIEW = {
   /** Room kept above the bird and below the lowest ground in view. */
   margin: 60,
   footing: 20,
-  minZoom: 0.16,
+  /** Only a numerical floor: real hills and flights never hit it, so the ground always stays in view. */
+  minZoom: 0.05,
   /** How quickly the camera catches up, each second. */
-  rate: 5,
+  rate: 4,
+  yCatchUpRate: 9,
+  zoomRate: 2,
+  catchUpRate: 6.5,
+  behind: 0.15,
+  ahead: 0.7,
+  planAhead: 1.3,
+  lookSeconds: 1.4,
+  holdWide: 1.8,
+  narrowing: 1.4,
+  holdLow: 1.2,
+  rising: 1.4,
 } as const;
 
 /** How hard world n is. Every world is longer, steeper, bumpier and has a shorter day. */
@@ -85,52 +98,52 @@ type WorldRules = {
   tolerance: number;
   oddity: number;
   steepest: number;
-  late: number;
+  roughKeep: number;
+  harsh: number;
 };
 
 const degrees = (d: number) => (d * Math.PI) / 180;
 
-const NARROWEST_SPAN = 240;
-const WIDEST_SPAN = 640;
-const NARROWING_WORLDS = 4;
-const LONGEST_WORLD = 7;
-const ROUGHENING_WORLDS = 5;
-const STEP_WORLDS = [7, 8];
-const STEP = 0.45;
-const GENTLE_SLOPE = 1.55;
-const EASY_PACE = 500;
-const ROUGH_PACE = 270;
+const V2 = GLIDER_V2;
+export const HARDEST_WORLD = V2.hardestWorld;
+export const FLOOR_DAY = V2.day.floorSeconds;
 
-const stepsTaken = (world: number) => STEP_WORLDS.filter((step) => world >= step).length;
+const wholeWorld = (world: number) => Math.max(1, Math.floor(world));
 
-export const roughness = (world: number) => {
-  const whole = Math.max(1, Math.floor(world));
-  const n = whole - 1;
-  return n < 2 ? 0 : 1 - Math.exp(-(n - 1) / ROUGHENING_WORLDS) + STEP * stepsTaken(whole);
+export const difficulty = (world: number) => V2.difficulty.a + V2.difficulty.b * wholeWorld(world);
+
+const steps = (world: number) => difficulty(world) - difficulty(1);
+
+export const harshness = (world: number) => steps(world) / steps(HARDEST_WORLD);
+
+export const dayLength = (world: number) => {
+  const left = Math.max(0, 1 - Math.log(wholeWorld(world)) / Math.log(V2.day.floorWorld));
+  return Math.round((FLOOR_DAY + (V2.day.firstSeconds - FLOOR_DAY) * left ** V2.day.curve) * 10) / 10;
+};
+
+export const worldLength = (world: number) => {
+  const n = wholeWorld(world) - 1;
+  return Math.round((dayLength(world) * Math.min(ramp(V2.pace, n), ramp(V2.latePace, n))) / 100) * 100;
 };
 
 export const worldRules = (world: number): WorldRules => {
-  const whole = Math.max(1, Math.floor(world));
-  const n = whole - 1;
-  const rough = roughness(whole);
-  const late = stepsTaken(whole) + Math.max(0, 1 - Math.exp(-(whole - STEP_WORLDS[1]) / ROUGHENING_WORLDS));
-  const length = 8000 + 1200 * Math.min(n, LONGEST_WORLD - 1);
-  const pace = EASY_PACE - ((EASY_PACE - ROUGH_PACE) * rough) / (1 + 2 * STEP);
-  const day = Math.max(34 - 2 * n, Math.round(length / pace));
-  const gentle = Math.min(n, 2);
+  const whole = wholeWorld(world);
+  const n = steps(whole);
+  const day = dayLength(whole);
   return {
-    world: n + 1,
-    length,
+    world: whole,
+    length: worldLength(whole),
     day,
     bonusCap: day * 0.35,
-    span: NARROWEST_SPAN + (WIDEST_SPAN - NARROWEST_SPAN) * Math.max(0, 1 - n / NARROWING_WORLDS) ** 1.25,
-    squeeze: 0.04 * gentle + 0.2 * rough,
-    drop: 200 + 20 * gentle + 160 * rough,
-    bumpiness: 0.12 + 0.05 * gentle + 0.28 * rough,
-    tolerance: degrees(Math.max(10, 30 - 2 * n)),
-    oddity: n < 2 ? 0 : 0.1 + 0.42 * rough,
-    steepest: GENTLE_SLOPE + ((GLIDER.maxSlope - GENTLE_SLOPE) * late) / 3,
-    late,
+    span: ramp(V2.span, n),
+    squeeze: ramp(V2.squeeze, n),
+    drop: ramp(V2.drop, n),
+    bumpiness: ramp(V2.bumpiness, n),
+    tolerance: degrees(ramp(V2.perfectLandingDegrees, n)),
+    oddity: oddShapeShare(whole),
+    steepest: Math.min(GLIDER.maxSlope, ramp(V2.steepest, n)),
+    roughKeep: ramp(V2.roughLandingKeep, n),
+    harsh: harshness(whole),
   };
 };
 
@@ -139,24 +152,64 @@ export type HillPoint = { x: number; y: number };
 
 const worldSeed = (seed: number, world: number) => (seed ^ Math.imul(world, 0x9e3779b1)) | 0;
 
-export const HILL_SHAPES = ["double", "cliff", "ramp", "plateau", "uneven"] as const;
+export const HILL_SHAPES = ["plateau", "double", "ramp", "cliff", "uneven", "gorge", "drop", "wall", "jagged"] as const;
 type HillShape = (typeof HILL_SHAPES)[number];
 type ShapedStretch = { shape: HillShape; from: number; to: number };
 
-const LATE_FAVOURS: Record<HillShape, number> = { double: 1, cliff: 1, ramp: -0.6, plateau: -0.8, uneven: 1 };
+export const FIRST_WORLD = Object.fromEntries(HILL_SHAPES.map((shape) => [shape, V2.features[shape].firstWorld])) as Record<HillShape, number>;
 
-const pickShape = (roll: number, late: number): HillShape => {
-  const weights = HILL_SHAPES.map((shape) => Math.max(0.1, 1 + LATE_FAVOURS[shape] * late));
+const EASY_SHAPES: readonly HillShape[] = ["ramp", "plateau"];
+
+export const shapeChance = (shape: HillShape, world: number) => {
+  const feature = V2.features[shape];
+  if (wholeWorld(world) < feature.firstWorld) return 0;
+  return ramp(feature.chance, difficulty(world) - difficulty(feature.firstWorld));
+};
+
+const oddShapeShare = (world: number) =>
+  Math.min(V2.oddShapeLimit, HILL_SHAPES.reduce((sum, shape) => sum + shapeChance(shape, world), 0));
+
+export const levelSwing = (world: number) => ramp(V2.levelSwing, steps(world));
+
+type Knot = { x: number; level: number };
+
+const levelKnots = (seed: number, world: number, start: number, length: number): Knot[] => {
+  const swing = levelSwing(world);
+  const rng = { seed: worldSeed(seed, world) ^ 0x5bd1e995 };
+  const settled = start + length * V2.levelSettle;
+  const knots: Knot[] = [{ x: start, level: 0 }];
+  let up = random(rng) < 0.75;
+  const wave = length * V2.levelWavelength;
+  for (let x = start + wave; x < settled - wave / 2; x += wave) {
+    const share = up ? V2.levelHigh + (1 - V2.levelHigh) * random(rng) : -V2.levelBelow * random(rng);
+    knots.push({ x, level: swing * share });
+    up = !up;
+  }
+  knots.push({ x: settled, level: 0 });
+  return knots;
+};
+
+const levelAt = (knots: readonly Knot[], x: number) => {
+  const next = knots.findIndex((knot) => knot.x >= x);
+  if (next <= 0) return next === 0 ? knots[0].level : 0;
+  const a = knots[next - 1];
+  const b = knots[next];
+  return a.level + ((b.level - a.level) * (1 - Math.cos((Math.PI * (x - a.x)) / (b.x - a.x)))) / 2;
+};
+
+const pickShape = (roll: number, world: number, hard = false): HillShape => {
+  const weights = HILL_SHAPES.map((shape) => (hard && EASY_SHAPES.includes(shape) ? 0 : shapeChance(shape, world)));
   let left = roll * weights.reduce((sum, weight) => sum + weight, 0);
   for (let i = 0; i < HILL_SHAPES.length; i++) {
     left -= weights[i];
     if (left < 0) return HILL_SHAPES[i];
   }
-  return HILL_SHAPES[HILL_SHAPES.length - 1];
+  return HILL_SHAPES[1];
 };
 
 const buildWorld = (seed: number, world: number, start: number) => {
   const rules = worldRules(world);
+  const n = steps(rules.world);
   const rng = { seed: worldSeed(seed, world) };
   const vary = (value: number) => value * (1 + (random(rng) * 2 - 1) * rules.bumpiness);
   const points: HillPoint[] = [{ x: start, y: GLIDER.peak }];
@@ -165,43 +218,62 @@ const buildWorld = (seed: number, world: number, start: number) => {
   let y: number = GLIDER.peak;
   let steepDown = false;
   let previousShape: HillShape | null = null;
-  const run = (rise: number) => slopeRun(rise, rules.steepest);
-  const recovery = 1 + rules.late;
+  let level = 0;
+  const knots = levelKnots(seed, world, start, rules.length);
+  const climbRoom = ramp(V2.longestClimb, n);
+  const run = (rise: number) => Math.max(slopeRun(rise, rules.steepest), bendRun(rise));
+  const flat = ramp(V2.landingZone, n);
+  const room = Math.max(0, ramp(V2.featureRoom, n));
+  const backToBack = ramp(V2.backToBackShare, n);
   const to = (nextX: number, nextY: number) => {
-    x = nextX;
+    const rise = nextY - y;
+    const room = V2.levelShare * Math.abs(rise);
+    const shift = rise === 0 ? 0 : Math.max(-room, Math.min(room, levelAt(knots, nextX) - level));
+    x = rise === 0 ? nextX : Math.max(nextX, x + run(rise + shift));
     y = nextY;
-    points.push({ x, y });
+    level += shift;
+    points.push({ x, y: y + level });
   };
-  // Valley and hilltop pairs until the world is long enough; the pair that
-  // gets there climbs back to the standard height.
+  const climb = (top: number, up: number, steps: number) => {
+    const dip = Math.min(ramp(V2.jaggedDip, n), (top - y) / (steps + 1));
+    const rise = (top - y + dip * (steps - 1)) / steps;
+    for (let i = 0; i < steps; i++) {
+      const crest = i === steps - 1 ? top : y + rise;
+      to(x + Math.max(up / steps, run(crest - y)), crest);
+      if (i < steps - 1) to(x + run(dip) * 1.1, y - dip);
+    }
+  };
   for (let last = false; !last; ) {
-    // A run down into a valley, then a climb out of it, shorter by the squeeze.
     const down = Math.max(120, vary(rules.span));
     const up = Math.max(100, vary(rules.span) * (1 - rules.squeeze));
-    last = x + down + up >= start + rules.length;
+    last = x + down + up >= start + rules.length && Math.abs(level) <= V2.levelLanding;
     const roomy = x + 3 * (down + up) < start + rules.length;
-    const again: boolean = previousShape === "uneven" && rules.late > 0 && roomy && random(rng) < Math.min(0.35, 0.15 * rules.late);
+    const again: boolean = previousShape !== null && roomy && random(rng) < backToBack;
     const shape: HillShape | null = again
-      ? "uneven"
+      ? pickShape(random(rng), rules.world, true)
       : roomy && rules.oddity > 0 && random(rng) < rules.oddity
-        ? pickShape(random(rng), rules.late)
+        ? pickShape(random(rng), rules.world)
         : null;
     previousShape = shape;
     const from = x;
-    const deepness = shape === "uneven" ? (random(rng) < 0.5 ? 0.45 : 1.6) : 1;
-    let valley = Math.max(GLIDER.floor, Math.min(y - 40, y - vary(rules.drop) * deepness));
+    const deep = ramp(V2.deepValley, n);
+    const deepness = shape === "uneven" ? (random(rng) < 0.5 ? 0.45 : deep) : shape === "gorge" || shape === "drop" ? deep : 1;
+    let valley = Math.max(GLIDER.floor - room, Math.min(y - 40, y - vary(rules.drop) * deepness));
     if (last) valley = Math.min(valley, GLIDER.peak - 60);
-    const steep = steepDown || shape === "cliff";
+    const steep = steepDown || shape === "cliff" || shape === "gorge" || shape === "drop";
     steepDown = false;
     to(x + (steep ? run(y - valley) * 1.05 : Math.max(down, run(y - valley))), valley);
-    if (shape === "cliff") to(x + (down * 1.2) / recovery, y);
-    const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling, Math.max(y + 40, y + vary(rules.drop)));
-    to(x + Math.max(shape === "ramp" ? up * 2.2 : up, run(top - y)), top);
+    if (shape === "cliff") to(x + down * 0.8 * flat, y);
+    const tall = shape === "wall" ? ramp(V2.wallHeight, n) : shape === "drop" ? 0.45 : 1;
+    const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling + room, y + climbRoom, Math.max(y + 40, y + vary(rules.drop) * tall));
+    if (shape === "jagged") climb(top, up, Math.floor(ramp(V2.jaggedSteps, n) + 1e-9));
+    else if (shape === "gorge" || shape === "wall") to(x + run(top - y) * 1.02, top);
+    else to(x + Math.max(shape === "ramp" ? up * 2.2 : up, run(top - y)), top);
     if (shape === "ramp") steepDown = true;
-    if (shape === "plateau") to(x + (up * 0.9) / recovery, y);
+    if (shape === "plateau") to(x + up * 0.9 * flat, y);
     if (shape === "double") {
-      const dip = Math.min(70 * recovery, (top - valley) * 0.35);
-      const hump = Math.max((up * 0.6) / Math.sqrt(recovery), run(dip), 90);
+      const dip = Math.min(ramp(V2.doubleDip, n), (top - valley) * ramp(V2.doubleDipShare, n));
+      const hump = Math.max(up * 0.6 * flat, run(dip), 90 * flat);
       to(x + hump, top - dip);
       to(x + hump, top);
     }
@@ -223,6 +295,8 @@ export const worldShapes = (seed: number, world: number, start: number): ShapedS
 
 /** The shortest run a half wave of this height can have and stay under the steepest slope. */
 const slopeRun = (rise: number, steepest: number) => (Math.abs(rise) * Math.PI) / (2 * steepest);
+
+const bendRun = (rise: number) => Math.sqrt((Math.abs(rise) * Math.PI * Math.PI) / (2 * V2.sharpestBend));
 
 /** The index of the point at or before x: the start of x's half wave. */
 const spanAt = (points: readonly HillPoint[], x: number) => {
@@ -288,7 +362,8 @@ export const land = (
   slope: number,
   heavy: boolean,
   tolerance: number,
-  airTime: number
+  airTime: number,
+  roughKeep: number = GLIDER.roughKeep
 ): { speed: number; landing: Landing } => {
   const length = Math.hypot(1, slope);
   const along = (vx + vy * slope) / length;
@@ -299,9 +374,9 @@ export const land = (
   if (angle <= tolerance && slope < -0.05 && airTime >= GLIDER.perfectAir) {
     landing = "perfect";
     speed *= 1 + GLIDER.perfectBoost;
-  } else if (angle > tolerance + ROUGH_MARGIN) {
+  } else if (slope >= -0.05 && angle > tolerance + ROUGH_MARGIN) {
     landing = "rough";
-    speed *= GLIDER.roughKeep;
+    speed *= roughKeep;
     if (heavy && slope > 0) speed *= GLIDER.heavyUpslopeKeep;
   }
   return { speed: clampSpeed(speed), landing };
@@ -322,7 +397,17 @@ export const leavesGround = (ground: Ground, speed: number, gravity: number): bo
 
 export type Popup = { id: number; text: string; born: number; kind: "perfect" | "flight" | "world" | "rough" };
 
-export type Camera = { x: number; y: number; zoom: number };
+export type Camera = {
+  x: number;
+  y: number;
+  zoom: number;
+  zoomSpeed?: number;
+  ySpeed?: number;
+  span?: number;
+  wideFor?: number;
+  low?: number;
+  lowFor?: number;
+};
 
 export type GliderState = {
   over: boolean;
@@ -357,6 +442,8 @@ export type GliderState = {
   perfects: number;
   popups: Popup[];
   nextPopup: number;
+  /** Smoothed body angle in radians, so touchdowns glide instead of snapping. */
+  tilt: number;
   camera: Camera;
   /** The board's width over its height, for the camera. */
   aspect: number;
@@ -374,12 +461,12 @@ export const viewSize = (aspect: number, zoom: number) => {
   return { width, height: width / Math.max(0.1, aspect) };
 };
 
-export const highestFlight = () => {
+export const highestFlight = (highestGround: number = GLIDER.ceiling) => {
   const climb = GLIDER.maxSpeed * Math.sin(Math.atan(GLIDER.maxSlope));
-  return GLIDER.ceiling + (climb * climb) / (2 * GLIDER.lightGravity);
+  return highestGround + (climb * climb) / (2 * GLIDER.lightGravity);
 };
 
-type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect">;
+type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vx" | "vy" | "grounded">>;
 
 const roomAbove = (state: Framed) => state.y + GLIDER.radius * 2 + VIEW.margin;
 
@@ -389,36 +476,102 @@ export const WIDEST_BOARD = 2.3;
 
 const steadyHeight = () => VIEW.width / WIDEST_BOARD;
 
-const fitZoom = (state: Framed) =>
-  Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - footing(state))));
+const visibleAhead = (zoom: number) => (VIEW.width / zoom) * (1 - VIEW.lead);
+
+const lowVisible = (state: Framed, zoom: number, extraAhead = 0) => {
+  const from = state.x - VIEW.width * VIEW.behind;
+  const to = state.x + visibleAhead(zoom) + extraAhead;
+  return Math.min(footing(state), lowestGround(state.hills, from, to) - VIEW.margin);
+};
+
+const fitFor = (state: Framed, top: number, extraAhead = 0, startZoom = 1) => {
+  let zoom = Math.max(VIEW.minZoom, Math.min(1, startZoom));
+  for (let i = 0; i < 12; i++) {
+    const low = lowVisible(state, zoom, extraAhead);
+    const next = Math.max(VIEW.minZoom, Math.min(zoom, steadyHeight() / Math.max(1, top - low)));
+    if (next >= zoom - 1e-6) return zoom;
+    zoom = next;
+  }
+  return zoom;
+};
+
+const highestGround = (points: readonly HillPoint[], from: number, to: number): number => {
+  let high = Math.max(groundAt(points, from).y, groundAt(points, to).y);
+  for (const point of points) if (point.x > from && point.x < to) high = Math.max(high, point.y);
+  return high;
+};
+
+const flightTop = (state: Framed) => {
+  const rising = state.grounded === false && (state.vy ?? 0) > 0 ? (state.vy ?? 0) ** 2 / (2 * GLIDER.lightGravity) : 0;
+  return state.y + rising;
+};
+
+const extraReach = (state: Framed) => Math.max(VIEW.width * VIEW.planAhead, Math.max(0, state.vx ?? 0) * VIEW.lookSeconds);
 
 /** Where the camera wants to be: the bird in from the left, the valleys and the bird both in view. */
 export const cameraTarget = (state: Framed): Camera => {
-  const near = viewSize(state.aspect, 1);
-  const from = state.x - near.width * VIEW.lead;
-  const low = lowestGround(state.hills, from, from + near.width) - VIEW.margin;
-  const zoom = Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - low)));
+  const from = state.x - VIEW.width * VIEW.behind;
+  const to = state.x + VIEW.width * VIEW.ahead;
+  const high = Math.max(flightTop(state), highestGround(state.hills, from, to)) + GLIDER.radius * 2 + VIEW.margin;
+  const zoom = fitFor(state, Math.max(high, roomAbove(state)), 0);
   const view = viewSize(state.aspect, zoom);
+  const low = lowVisible(state, zoom, 0);
   // Low ground at the bottom, unless the bird is higher than the view reaches.
   const bottom = Math.max(low, roomAbove(state) - view.height);
   return { x: state.x - view.width * VIEW.lead, y: bottom, zoom };
 };
 
-const ease = (from: number, to: number, dt: number) => from + (to - from) * (1 - Math.exp(-VIEW.rate * dt));
+const settle = (value: number, speed: number, target: number, rate: number, dt: number) => {
+  const off = value - target;
+  const lean = speed + rate * off;
+  const fade = Math.exp(-rate * dt);
+  return { value: target + (off + lean * dt) * fade, speed: (speed - rate * lean * dt) * fade };
+};
 
 /**
  * Moves the camera toward its target. Up, down and the zoom ease in; sideways
  * it keeps the bird exactly where it should be, so the bird never drifts.
  */
 const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
-  const target = cameraTarget(state);
-  const zoom = Math.min(ease(camera.zoom, target.zoom, dt), fitZoom(state));
+  const extra = extraReach(state);
+  const from = state.x - VIEW.width * VIEW.behind;
+  const high = Math.max(flightTop(state), highestGround(state.hills, from, state.x + VIEW.width * VIEW.ahead)) + GLIDER.radius * 2 + VIEW.margin;
+  const plan = fitFor(state, Math.max(high, roomAbove(state)), extra);
+  const needed = steadyHeight() / plan;
+  const before = camera.span ?? needed;
+  const wideFor = needed >= before ? 0 : (camera.wideFor ?? 0) + dt;
+  const span =
+    needed >= before || wideFor < VIEW.holdWide ? Math.max(needed, before) : needed + (before - needed) * Math.exp(-dt / VIEW.narrowing);
+  const strict = fitFor(state, roomAbove(state), 0);
+  const wanted = Math.min(strict, Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / span)));
+  const behind = Math.min(1, Math.max(0, (camera.zoom / (strict * 0.92) - 1) * 8));
+  const rate = VIEW.zoomRate + (VIEW.catchUpRate - VIEW.zoomRate) * behind;
+  const eased = settle(Math.log(camera.zoom), camera.zoomSpeed ?? 0, Math.log(wanted), rate, dt);
+  const rawZoom = Math.exp(eased.value);
+  const zoom = fitFor(state, roomAbove(state), 0, Math.min(rawZoom, strict));
+  const zoomSpeed = zoom === rawZoom ? eased.speed : Math.min(eased.speed, 0);
   const view = viewSize(state.aspect, zoom);
-  // However fast the bird climbs or drops, it stays inside the view.
+  const lowNow = lowVisible(state, zoom, 0);
+  const lowLook = lowVisible(state, zoom, extra);
+  // Hold the lowest valley floor smoothly and ease back up slowly once it passes,
+  // so the camera glides down early and never snaps when a valley enters or leaves.
+  const lowBefore = camera.low ?? lowLook;
+  const lowFor = lowLook <= lowBefore ? 0 : (camera.lowFor ?? 0) + dt;
+  const lowHeld =
+    lowLook <= lowBefore || lowFor < VIEW.holdLow
+      ? Math.min(lowLook, lowBefore)
+      : lowLook + (lowBefore - lowLook) * Math.exp(-dt / VIEW.rising);
+  // However fast the bird climbs or drops, both it and the lowest ground in view stay on screen.
   const lowest = roomAbove(state) - view.height;
-  const highest = footing(state);
-  const y = Math.max(lowest, Math.min(highest, ease(camera.y, target.y, dt)));
-  return { x: state.x - view.width * VIEW.lead, y, zoom };
+  const highest = lowNow;
+  const goal = Math.max(lowest, Math.min(highest, lowHeld));
+  const yGap = Math.max(0, camera.y - (highest - VIEW.margin * 0.5));
+  const yUrgency = Math.min(1, yGap / Math.max(1, VIEW.margin * 2));
+  const yRate = VIEW.rate + (VIEW.yCatchUpRate - VIEW.rate) * yUrgency;
+  const rise = settle(camera.y, camera.ySpeed ?? 0, goal, yRate, dt);
+  const y = Math.max(lowest, Math.min(highest, rise.value));
+  const ySpeed = y === rise.value ? rise.speed : dt > 0 ? (y - camera.y) / dt : 0;
+  return { x: state.x - view.width * VIEW.lead, y, zoom, zoomSpeed, ySpeed, span, wideFor, low: lowHeld, lowFor };
 };
 
 export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
@@ -454,6 +607,7 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     perfects: 0,
     popups: [],
     nextPopup: 1,
+    tilt: Math.max(-1.1, Math.min(1.1, Math.atan(start.slope))),
     camera: cameraTarget(base),
   };
 };
@@ -473,6 +627,30 @@ export const dayProgress = (state: Pick<GliderState, "daylight" | "world">) =>
 const PARALLAX = { far: 0.04, near: 0.09 } as const;
 
 export const parallaxShift = (cameraX: number, layer: keyof typeof PARALLAX) => cameraX * PARALLAX[layer];
+
+export const unitPixels = (board: { width: number; height: number }, zoom: number) =>
+  board.height / viewSize(board.width / board.height, zoom).height;
+
+export const birdPixels = (unit: number) => unit * GLIDER.radius * 2.4;
+
+const EARTH_DEPTH = 1400;
+
+export const earthFloor = (hills: readonly HillPoint[]) => {
+  let lowest = 0;
+  for (const point of hills) lowest = Math.min(lowest, point.y);
+  return Math.floor((lowest - EARTH_DEPTH) / 1000) * 1000;
+};
+
+export const parallaxAnchor = (state: Pick<GliderState, "x">) => state.x - VIEW.width * VIEW.lead;
+
+export const farHillTiles = (shift: number, width: number, gap: number) => {
+  const first = Math.floor(shift / gap) - 1;
+  return Array.from({ length: Math.ceil(width / gap) + 3 }, (_, i) => ({
+    tile: first + i,
+    left: (first + i) * gap - shift,
+    stagger: (((first + i) % 3) + 3) % 3,
+  }));
+};
 
 /** How far through the world the bird is, from 0 to 1. */
 export const worldProgress = (state: Pick<GliderState, "x" | "worldStart" | "worldEnd">) =>
@@ -496,7 +674,7 @@ const regain = (state: GliderState, seconds: number) => {
 
 const touchDown = (state: GliderState, ground: Ground) => {
   const rules = worldRules(state.world);
-  const { speed, landing } = land(state.vx, state.vy, ground.slope, state.heavy, rules.tolerance, state.air);
+  const { speed, landing } = land(state.vx, state.vy, ground.slope, state.heavy, rules.tolerance, state.air, rules.roughKeep);
   const air = state.air;
   state.grounded = true;
   state.speed = speed;
@@ -563,11 +741,14 @@ const nextWorld = (state: GliderState) => {
   state.worldEnd = end;
   // The old world's ground stays under the bird until it's out of view.
   const behind = state.hills.filter((point) => point.x < state.worldStart);
-  state.hills = [...behind.slice(-6), ...hills];
+  let first = Math.max(0, behind.length - 6);
+  const keepFrom = state.camera.x - 1000;
+  while (first > 0 && behind[first].x > keepFrom) first--;
+  state.hills = [...behind.slice(first), ...hills];
   state.daylight = worldRules(state.world).day;
   state.daySeen = 0;
   state.regained = 0;
-  popup(state, "world", `World ${rules.world} done +${earned.toLocaleString()}`);
+  popup(state, "world", `Day ${rules.world} done +${earned.toLocaleString()}`);
 };
 
 /** The longest piece a step is moved in. */
@@ -599,6 +780,9 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
     }
   }
   state.popups = state.popups.filter((p) => state.time - p.born < GLIDER.popupSeconds);
+  const rawAngle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
+  const targetTilt = Math.max(-1.1, Math.min(1.1, rawAngle));
+  state.tilt = previous.tilt + (targetTilt - previous.tilt) * (1 - Math.exp(-16 * dt));
   state.camera = followCamera(state.camera, state, dt);
   state.daySeen = Math.max(state.daySeen, dayProgress(state));
   state.score = gliderScore(state);
@@ -650,7 +834,7 @@ export const isGliderPreview = (value: string): value is GliderPreview =>
   (GLIDER_PREVIEWS as readonly string[]).includes(value);
 
 const previewDone: Record<GliderPreview, (state: GliderState, before: GliderState) => boolean> = {
-  dive: (state) => state.grounded && state.heavy && state.speed > 650 && groundAt(state.hills, state.x).slope < -0.6,
+  dive: (state) => state.grounded && state.heavy && state.speed > 650 && groundAt(state.hills, state.x).slope < -0.4,
   launch: (state, before) => before.grounded && !state.grounded && state.vy > 250,
   high: (state, before) => before.vy > 0 && state.vy <= 0,
   world: (state, before) => state.world > before.world,
@@ -659,7 +843,7 @@ const previewDone: Record<GliderPreview, (state: GliderState, before: GliderStat
   night: (state) => state.over,
 };
 
-const BIG_THROW = { vx: 800, vy: 900 } as const;
+const BIG_THROW = { vx: 1100, vy: 1300 } as const;
 
 /**
  * A still moment of a run played by `autoHold`, for screenshots: diving
@@ -674,8 +858,8 @@ export const previewGlider = (kind: GliderPreview, aspect = 2): GliderState => {
     state = stepGlider(before, 1 / 60);
     // A little after the moment, so the camera and the popups have caught up.
     if (done(state, before)) {
-      if (kind === "night") return state;
-      for (let j = 0; j < 12; j++) state = stepGlider(hold(state, kind === "dive"), 1 / 60);
+      if (kind === "night" || kind === "dive") return state;
+      for (let j = 0; j < 12; j++) state = stepGlider(hold(state, false), 1 / 60);
       return state;
     }
   }

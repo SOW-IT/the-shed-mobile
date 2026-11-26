@@ -46,6 +46,10 @@ type Phase = "ready" | "playing" | "over";
 /** A key press this soon after a crash doesn't restart: you were still mashing. */
 const RESTART_LOCK_MS = 700;
 
+const PRACTICE_NOTE = "Practice run. Not saved.";
+
+const SCREEN_REACH = 4000;
+
 type Run = { over: boolean; score: number; time: number };
 
 /**
@@ -62,6 +66,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const generation = useRef(0);
   const overAt = useRef(0);
   const practice = useRef(false);
+  const [practising, setPractising] = useState(false);
   const phase: Phase = run === null ? "ready" : run.over ? "over" : "playing";
   if (best > bestAtStart && (phase === "playing" || (phase === "over" && run !== null && best > run.score))) setBestAtStart(best);
   // An update waiting to install restarts the app when it comes back from
@@ -84,6 +89,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
     (state: S, practiceRun = false) => {
       generation.current++;
       practice.current = practiceRun;
+      setPractising(practiceRun);
       setBestAtStart(best);
       setRunId(null);
       setRun(state);
@@ -97,7 +103,7 @@ export const useGameSession = <S extends Run>(game: GameId) => {
   const askToLeave = useCallback(() => setAskingToLeave(true), []);
   const keepPlaying = useCallback(() => setAskingToLeave(false), []);
   const paused = askingToLeave && phase === "playing";
-  const result = run?.over ? { score: run.score, previousBest: bestAtStart, runId } : null;
+  const result = run?.over ? { score: run.score, previousBest: bestAtStart, runId, practice: practising } : null;
   return { run, setRun, phase, paused, result, best, begin, restart, canRestartByKey, askToLeave, keepPlaying };
 };
 
@@ -269,7 +275,7 @@ export const GameFrame = ({
         }
       : StyleSheet.absoluteFill;
   const info = GAME_INFO[game];
-  const newBest = result !== null && result.score > result.previousBest && result.score > 0;
+  const newBest = result !== null && !result.practice && result.score > result.previousBest && result.score > 0;
   const overCard = result ? (
     <View style={[styles.card, wide && styles.cardWide]}>
       <View style={[styles.cardMain, wide && styles.cardMainWide]}>
@@ -283,11 +289,11 @@ export const GameFrame = ({
           {result.score.toLocaleString()}
         </Text>
         <Text style={styles.cardBody}>
-          Best {Math.max(best, result.previousBest, result.score).toLocaleString()}
+          Best {(result.practice ? Math.max(best, result.previousBest) : Math.max(best, result.previousBest, result.score)).toLocaleString()}
         </Text>
-        {isAuthenticated ? <CoinGain runId={result.runId} game={game} /> : null}
+        {isAuthenticated && !result.practice ? <CoinGain runId={result.runId} game={game} /> : null}
         <Text style={styles.note} testID="game-saved-note">
-          {savedNote({ signedIn: isAuthenticated, offline })}
+          {result.practice ? PRACTICE_NOTE : savedNote({ signedIn: isAuthenticated, offline })}
         </Text>
       </View>
       <View style={[styles.actions, wide && styles.actionsWide]}>
@@ -314,7 +320,7 @@ export const GameFrame = ({
       >
       <View style={content}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
-      <StatusBar hidden={phase === "playing"} style={statusBar} animated />
+      <StatusBar hidden={phase === "playing"} style={phase === "over" ? "light" : statusBar} animated />
       <View onLayout={onChromeLayout}>
       <View style={styles.bar}>
         <Pressable
@@ -333,7 +339,7 @@ export const GameFrame = ({
           {titleExtra}
         </View>
         <Stat label="Score" value={score} ink={ink} />
-        <Stat label="Best" value={Math.max(best, result?.score ?? 0)} ink={ink} />
+        <Stat label="Best" value={result?.practice ? best : Math.max(best, result?.score ?? 0)} ink={ink} />
       </View>
       {underBar}
       </View>
@@ -363,10 +369,11 @@ export const GameFrame = ({
             </View>
           </View>
         ) : null}
+        {phase === "over" && result ? <View pointerEvents="none" style={[styles.screenDim, { backgroundColor: g.scrim }]} testID="game-over-dim" /> : null}
         {phase === "over" && result ? (
           short && !wide ? (
             <SharpScrollView
-              style={[StyleSheet.absoluteFill, { backgroundColor: g.scrim }]}
+              style={StyleSheet.absoluteFill}
               contentContainerStyle={styles.overlayScroll}
               testID="game-over"
             >
@@ -374,7 +381,7 @@ export const GameFrame = ({
             </SharpScrollView>
           ) : (
             <View
-              style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide, { backgroundColor: g.scrim }]}
+              style={[StyleSheet.absoluteFill, styles.overlay, wide && styles.overlayWide]}
               testID="game-over"
             >
               {overCard}
@@ -452,6 +459,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "web" ? { userSelect: "none", touchAction: "none", cursor: "pointer" } : null),
   },
   overlay: { alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  screenDim: { position: "absolute", top: -SCREEN_REACH, bottom: -SCREEN_REACH, left: -SCREEN_REACH, right: -SCREEN_REACH },
   overlayWide: { padding: spacing.md },
   overlayScroll: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: {

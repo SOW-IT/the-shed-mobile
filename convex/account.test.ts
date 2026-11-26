@@ -95,7 +95,7 @@ const counts = async (t: T, email: string) =>
       await ctx.db.query("savedBankAccounts").withIndex("by_email", (q) => q.eq("email", email)).take(10)
     ).length,
     gameScores: (
-      await ctx.db.query("gameScores").withIndex("by_email_and_game", (q) => q.eq("email", email)).take(10)
+      await ctx.db.query("gameScores").withIndex("by_email_and_game_and_version", (q) => q.eq("email", email)).take(10)
     ).length,
   }));
 

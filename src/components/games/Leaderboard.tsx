@@ -1,7 +1,7 @@
 import { useOffline } from "@/hooks/useOffline";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import type { PagerTab } from "@/components/PagerScreen";
-import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, styles as shared, TabBar } from "@/components/ui";
+import { Btn, Card, EmptyState, LoadingState, LoadMoreFooter, Segmented, styles as shared, TabBar } from "@/components/ui";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { leaderboardDate, leaderboardName, withRanks } from "@/lib/games/leaderboardRanks";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { Podium } from "./Podium";
-import { GAME_IDS, GAME_INFO, isGameId, type GameId } from "../../../shared/games";
+import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameId, type GameVersion } from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -24,13 +24,20 @@ const PAGE_SIZE = 25;
  */
 const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
 
-const Board = ({ game }: { game: GameId }) => {
+const versionSegments = (game: GameId) =>
+  ([GAME_VERSION, 1] as const).map((version) => ({
+    key: String(version),
+    label: VERSION_LABELS[version],
+    accessibilityLabel: `${GAME_INFO[game].title} ${VERSION_LABELS[version]} leaderboard`,
+  }));
+
+const Board = ({ game, version }: { game: GameId; version: GameVersion }) => {
   const t = useAppTheme();
   const { isAuthenticated } = useConvexAuth();
-  const me = useQuery(api.gameScores.myLeaderboardPlace, { game });
+  const me = useQuery(api.gameScores.myLeaderboardPlace, { game, version });
   const { rows, hasMore, loadMore, loadingFirstPage, loadingMore } = usePagedQuery(api.gameScores.leaderboardPage, {
-    scopeKey: `leaderboard:${game}:${isAuthenticated ? "signed-in" : "signed-out"}`,
-    args: (cursor) => ({ game, paginationOpts: { numItems: PAGE_SIZE, cursor } }),
+    scopeKey: `leaderboard:${game}:v${version}:${isAuthenticated ? "signed-in" : "signed-out"}`,
+    args: (cursor) => ({ game, version, paginationOpts: { numItems: PAGE_SIZE, cursor } }),
     rowsOf: (result) => result.page,
     keyOf: (row) => row.id,
   });
@@ -38,7 +45,7 @@ const Board = ({ game }: { game: GameId }) => {
   if (loadingFirstPage) return <LoadingState />;
   return (
     <View style={styles.boardGap}>
-      <Podium game={game} />
+      <Podium game={game} version={version} />
       {me ? (
         <Card style={styles.mine}>
           <Text style={[typography.label, { color: t.muted }]}>Your best</Text>
@@ -101,6 +108,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
+  const [version, setVersion] = useState<GameVersion>(GAME_VERSION);
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -109,6 +117,12 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
+      <Segmented
+        pill
+        segments={versionSegments(game)}
+        active={String(version)}
+        onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
+      />
       {/* Signed out, nothing else says why your scores aren't on the board. */}
       {!isAuthenticated && !isLoading ? (
         <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
@@ -124,7 +138,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
           message="Your scores are saved on this device until you're back online."
         />
       ) : (
-        <Board game={game} />
+        <Board key={version} game={game} version={version} />
       )}
     </ScrollView>
   );

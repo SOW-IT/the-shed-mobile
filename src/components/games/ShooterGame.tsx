@@ -1,6 +1,6 @@
 import { advance, useGameLoop, useWebKeys } from "@/components/games/useGameLoop";
 import { newSeed, random } from "@/lib/games/random";
-import { moveShooter, newShooter, SHOOTER, stepShooter, type ShooterState } from "@/lib/games/shooter";
+import { moveShooter, newShooter, SHOOTER, shooterAt, stepShooter, type ShooterState } from "@/lib/games/shooter";
 import { fixedColours } from "@/theme";
 import { memo, useMemo, useRef, useState } from "react";
 import { PanResponder, StyleSheet, View } from "react-native";
@@ -55,11 +55,32 @@ const Plane = ({ x, y }: { x: number; y: number }) => {
 
 const Scene = ({ state }: { state: ShooterState }) => (
   <>
-    {state.shots.map((shot) => (
-      <View key={shot.id} style={[styles.shot, { backgroundColor: c.shot }, at(shot.x, shot.y, 6)]} />
-    ))}
+    {state.shots.map((shot) => {
+      const tilt = shot.vx ? [{ rotate: `${Math.atan2(shot.vx, -shot.vy)}rad` }] : [];
+      return (
+        <View
+          key={shot.id}
+          style={[
+            styles.shot,
+            { backgroundColor: c.shot, transform: [{ translateX: shot.x - 3 }, { translateY: shot.y - 7 }, ...tilt] },
+          ]}
+        />
+      );
+    })}
     {state.enemies.map((enemy) => {
-      const size = (enemy.kind === "big" ? SHOOTER.bigRadius : SHOOTER.smallRadius) * 2;
+      const radius =
+        enemy.kind === "giant"
+          ? SHOOTER.giantRadius
+          : enemy.kind === "big"
+            ? SHOOTER.bigRadius
+            : enemy.kind === "fast"
+              ? SHOOTER.fastRadius
+              : SHOOTER.smallRadius;
+      const size = radius * 2;
+      const colour =
+        enemy.kind === "giant" ? c.enemyGiant : enemy.kind === "big" ? c.enemyBig : enemy.kind === "fast" ? c.enemyFast : c.enemy;
+      const shape = enemy.kind === "fast" ? [{ rotate: "45deg" }] : [];
+      const eyes = enemy.kind === "giant" ? 3 : enemy.kind === "big" ? 2 : 1;
       return (
         <View
           key={enemy.id}
@@ -68,14 +89,17 @@ const Scene = ({ state }: { state: ShooterState }) => (
             {
               width: size,
               height: size,
-              borderRadius: size / 3,
-              backgroundColor: enemy.kind === "big" ? c.enemyBig : c.enemy,
+              borderRadius: enemy.kind === "fast" ? 5 : size / 3,
+              backgroundColor: colour,
+              borderWidth: enemy.kind === "giant" ? 3 : 0,
+              borderColor: enemy.kind === "giant" ? c.enemyGiantRim : undefined,
+              transform: [{ translateX: enemy.x - size / 2 }, { translateY: enemy.y - size / 2 }, ...shape],
             },
-            at(enemy.x, enemy.y, size),
           ]}
         >
-          <View style={[styles.eye, { backgroundColor: c.enemyEye }]} />
-          {enemy.kind === "big" ? <View style={[styles.eye, { backgroundColor: c.enemyEye }]} /> : null}
+          {Array.from({ length: eyes }, (_, i) => (
+            <View key={i} style={[styles.eye, { backgroundColor: c.enemyEye }]} />
+          ))}
         </View>
       );
     })}
@@ -110,11 +134,13 @@ export const ShooterGame = ({
   onLeaderboard,
   active = true,
   guard,
+  startScore,
 }: {
   onExit: () => void;
   onLeaderboard?: () => void;
   active?: boolean;
   guard?: LeaveGuard;
+  startScore?: number;
 }) => {
   const session = useGameSession<ShooterState>("shooter");
   const { run, setRun, phase } = session;
@@ -123,7 +149,7 @@ export const ShooterGame = ({
   const world = run ? { width: run.width, height: run.height } : board;
   const preview = useMemo(() => newShooter(width, height, 1), [width, height]);
   const [scale, setScale] = useState(1);
-  const latest = useLatest({ session, width, height, scale });
+  const latest = useLatest({ session, width, height, scale, startScore });
   const keys = useRef(new Set<string>());
 
   useGameLoop(phase === "playing" && active && !session.paused, (dt) => {
@@ -138,8 +164,8 @@ export const ShooterGame = ({
   });
 
   const startIfReady = () => {
-    const { session: current, width: w, height: h } = latest.current;
-    if (current.phase === "ready" && w > 0) current.begin(newShooter(w, h, newSeed()));
+    const { session: current, width: w, height: h, startScore: from } = latest.current;
+    if (current.phase === "ready" && w > 0) current.begin(from ? shooterAt(w, h, newSeed(), from) : newShooter(w, h, newSeed()), !!from);
   };
 
   const [responder] = useState(() => {
@@ -176,6 +202,7 @@ export const ShooterGame = ({
     <GameFrame
       game="shooter"
       background={c.sky}
+      statusBar="light"
       session={session}
       score={run?.score ?? 0}
       world={world}
