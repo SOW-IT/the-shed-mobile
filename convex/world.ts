@@ -79,7 +79,8 @@ import { accountName, shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
-import { isGameId } from "../shared/games";
+import type { GameId } from "../shared/games";
+import { gameIdValidator } from "./gameScoreData";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
@@ -118,6 +119,19 @@ export const memberByEmail = (ctx: Ctx, email: string) =>
     .query("worldMembers")
     .withIndex("by_email", (q) => q.eq("email", email))
     .first();
+
+/**
+ * The game someone is in right now. The game screen keeps their gamePlayers
+ * row up to date (in, switching, out, or quiet too long), so this is the one
+ * place the People list, its "In the app" list and the arcade all read.
+ */
+export const gameOf = async (ctx: Ctx, email: string): Promise<GameId | undefined> =>
+  (
+    await ctx.db
+      .query("gamePlayers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first()
+  )?.game;
 
 const stateOf = (ctx: Ctx, memberId: Id<"worldMembers">) =>
   ctx.db
@@ -825,14 +839,16 @@ export const elsewhere = query({
       place: v.string(),
       count: v.number(),
       names: v.array(v.string()),
-      people: v.array(v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, ping: v.optional(v.number()) })),
+      people: v.array(
+        v.object({ memberId: v.id("worldMembers"), name: v.string(), look: worldLookValidator, ping: v.optional(v.number()), playing: v.optional(gameIdValidator) })
+      ),
     })
   ),
   handler: async (ctx) => {
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
     const isBlocked = await loadBlockFilter(ctx, email);
-    const found = new Map<Place, { place: Place; count: number; names: string[]; people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number }[] }>();
+    const found = new Map<Place, { place: Place; count: number; names: string[]; people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number; playing?: GameId }[] }>();
     for (const place of [...PLACES, HOME, BACKYARD] as const) {
       const listed = listedPlace(place);
       const spot = found.get(listed) ?? { place: listed, count: 0, names: [], people: [] };
@@ -851,7 +867,13 @@ export const elsewhere = query({
           spot.count++;
           if (spot.names.length < ELSEWHERE_NAMES) {
             spot.names.push(member.name);
-            spot.people.push({ memberId: member._id, name: member.name, look: withHeight(member.look, member.email), ping: (await pingOf(ctx, member._id))?.bars });
+            spot.people.push({
+              memberId: member._id,
+              name: member.name,
+              look: withHeight(member.look, member.email),
+              ping: (await pingOf(ctx, member._id))?.bars,
+              playing: await gameOf(ctx, member.email),
+            });
           }
         }
       }
@@ -896,19 +918,24 @@ export const places = query({
   },
 });
 
+/**
+ * Off at the arcade, or back. Which game they're in isn't kept here: it's
+ * read from gamePlayers (gameOf), which follows them from game to game.
+ * `game` is still accepted from older apps and ignored; `playing` is only
+ * ever cleared, so a value an older server wrote goes on the next trip.
+ */
 export const away = mutation({
   args: { at: v.union(v.literal("arcade"), v.null()), game: v.optional(v.string()) },
   returns: done,
-  handler: async (ctx, { at, game }) => {
+  handler: async (ctx, { at }) => {
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
-    const playing = at !== null && game !== undefined && isGameId(game) ? game : undefined;
-    if ((state.away ?? null) === at && state.playing === playing) return { ok: true as const, serverNow: now };
+    if ((state.away ?? null) === at && state.playing === undefined) return { ok: true as const, serverNow: now };
     if (at === null) await ctx.db.patch("worldState", state._id, { away: undefined, playing: undefined });
     else {
       const token = spend("act", state, now);
       if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-      await ctx.db.patch("worldState", state._id, { away: at, playing, actBucket: token.bucket });
+      await ctx.db.patch("worldState", state._id, { away: at, playing: undefined, actBucket: token.bucket });
     }
     await touchPresence(ctx, member._id, now);
     return { ok: true as const, serverNow: now };
@@ -1388,7 +1415,8 @@ export const state = query({
       // after the other person accepted someone else's too.
       answered: v.optional(v.array(worldReplyValidator)),
       away: v.optional(v.literal("arcade")),
-      playing: v.optional(v.string()),
+      // The game they're in, from gamePlayers (gameOf), not this row.
+      playing: v.optional(gameIdValidator),
       reading: v.optional(v.boolean()),
       seat: v.optional(v.string()),
       typing: v.optional(v.number()),
@@ -1400,8 +1428,9 @@ export const state = query({
     if (!member || !me || (member._id !== me._id && (await blockedEither(ctx, me.email, member.email)))) return null;
     const row = withoutOldSay(await stateOf(ctx, memberId));
     if (!row) return null;
-    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat } = row;
+    const { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, reading: readingFlag, seat } = row;
     const typingAt = row.typing?.on ? row.typing.at : undefined;
+    const playing = await gameOf(ctx, member.email);
     return { fromX, fromZ, toX, toZ, startedAt, path, heading, act, say, ask, reply, answered, away: awayAt, playing, reading: readingFlag, seat, typing: typingAt };
   },
 });
@@ -1840,7 +1869,7 @@ export const offlineRecent = query({
 export const inApp = query({
   args: { limit: v.number(), tick: v.number() },
   returns: v.object({
-    people: v.array(v.object({ id: v.id("staffProfiles"), name: v.string(), look: worldLookValidator })),
+    people: v.array(v.object({ id: v.id("staffProfiles"), name: v.string(), look: worldLookValidator, playing: v.optional(gameIdValidator) })),
     more: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -1848,17 +1877,18 @@ export const inApp = query({
     const isBlocked = await loadBlockFilter(ctx, email);
     const year = currentStaffYear();
     const limit = Math.min(OFFLINE_ALL_MAX, Math.max(1, Math.floor(args.limit)));
-    const found: Doc<"staffProfiles">[] = [];
+    // Each with the email they're signed in as, which their game is kept under.
+    const found: { profile: Doc<"staffProfiles">; signedIn: string }[] = [];
     for (const other of await inAppEmails(ctx, Date.now())) {
       if (other === email || (await memberByEmail(ctx, other)) || (await isBlocked(other))) continue;
       const profile = await getProfile(ctx, other, year);
-      if (profile) found.push(profile);
+      if (profile) found.push({ profile, signedIn: other });
     }
-    found.sort((a, b) => profileName(a).localeCompare(profileName(b)));
+    found.sort((a, b) => profileName(a.profile).localeCompare(profileName(b.profile)));
     const people = [];
-    for (const profile of found.slice(0, limit)) {
+    for (const { profile, signedIn } of found.slice(0, limit)) {
       const look = withHeight((await savedLook(ctx, profile.email))?.look ?? lookFor(profile.email), profile.email);
-      people.push({ id: profile._id, name: profileName(profile), look });
+      people.push({ id: profile._id, name: profileName(profile), look, playing: await gameOf(ctx, signedIn) });
     }
     return { people, more: found.length > limit };
   },

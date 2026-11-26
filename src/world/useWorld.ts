@@ -221,8 +221,7 @@ export const useWorld = (
   enabled: boolean,
   away = false,
   arrival?: { poke?: string; invite?: string },
-  reading = false,
-  game?: string
+  reading = false
 ) => {
   const convex = useConvex();
   const joinM = useMutation(api.world.join);
@@ -366,7 +365,7 @@ export const useWorld = (
     let stillWanted = true;
     let retry: ReturnType<typeof setTimeout> | null = null;
     const tell = () => {
-      awayM(away ? { at: "arcade", ...(game === undefined ? {} : { game }) } : { at: null })
+      awayM({ at: away ? "arcade" : null })
         .then((reply) => {
           if (stillWanted && !reply.ok) retry = setTimeout(tell, reply.retryInMs);
         })
@@ -377,7 +376,7 @@ export const useWorld = (
       stillWanted = false;
       if (retry) clearTimeout(retry);
     };
-  }, [session, away, game, awayM]);
+  }, [session, away, awayM]);
 
   const toldReading = useRef(false);
   useEffect(() => {

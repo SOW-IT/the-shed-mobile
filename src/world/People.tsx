@@ -64,6 +64,15 @@ const PersonRow = memo(function PersonRow({
 
 const Section = ({ children }: { children: string }) => <Text style={styles.section}>{children}</Text>;
 
+/**
+ * The game someone's in, the same in every section: the server reads it from
+ * the one place the arcade does, so the two never disagree.
+ */
+const gameWhere = (game: string | undefined) => {
+  const label = playingLabel(game);
+  return label === null ? null : `🕹️ ${label}`;
+};
+
 
 const useInAppTick = (active: boolean) => {
   const [tick, setTick] = useState(() => inAppTick(Date.now()));
@@ -256,7 +265,7 @@ const InAppList = ({ visible }: { visible: boolean }) => {
           status={
             <View style={styles.status}>
               <View style={styles.inAppDot} />
-              <Text style={styles.where}>In the app</Text>
+              <Text style={styles.where}>{gameWhere(p.playing) ?? "In the app"}</Text>
             </View>
           }
         />
@@ -399,7 +408,7 @@ export const PeoplePanel = ({
               <PersonRow
                 look={p.look}
                 name={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
-                where={p.away ? `🕹️ ${playingLabel(p.playing) ?? "At the arcade"}` : (playing?.get(p.memberId) ?? placeLabel(place))}
+                where={gameWhere(p.playing) ?? (p.away ? "🕹️ At the arcade" : (playing?.get(p.memberId) ?? placeLabel(place)))}
                 ping={p.isMe ? p.ping : barsOf.get(p.memberId)}
                 label={p.isMe ? `${worldName(p.name)} (you)` : worldName(p.name)}
                 onPress={p.isMe ? undefined : () => onPerson(p.memberId)}
@@ -433,7 +442,7 @@ export const PeoplePanel = ({
                 <PersonRow
                   look={row.look}
                   name={worldName(row.name)}
-                  where={row.at ? elsewhereLabel(row.at) : "Somewhere else"}
+                  where={gameWhere(row.playing) ?? (row.at ? elsewhereLabel(row.at) : "Somewhere else")}
                   ping={row.ping}
                   label={row.at ? `${worldName(row.name)}, ${whereIs(row.at)}` : worldName(row.name)}
                   action={

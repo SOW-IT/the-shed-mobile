@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.23] - 2026-11-26
+
+### Fixed
+- **The People list, its In the app list and the arcade agree on who's
+  playing what.** Going from one game to another through the leaderboard
+  used to leave the People list on the first game while the arcade showed
+  the new one, and someone playing outside the World showed only "In the
+  app". All three now read the game a player's phone reports from the game
+  itself, so they show the same game, follow a switch straight away, and
+  show nothing once the player leaves. People in another place show their
+  game under Elsewhere too.
+
 ## [2.13.22] - 2026-11-26
 
 ### Added
