@@ -193,15 +193,62 @@ describe("the backyard", () => {
     expect(posAt(ben.state!, Date.now())).toMatchObject(HOME_ARRIVAL);
   });
 
-  test("lines said in a backyard stay in that backyard", async () => {
+  test("lines said in a backyard reach the whole World, tagged as the backyard", async () => {
     const t = newConvex();
     await intoBackyard(t, ANNA);
     await asUser(t, ANNA).mutation(api.world.say, { text: "Weeding" });
     const { roomId } = await asUser(t, BEN).mutation(api.world.join, { backyard: true });
     const heard = await asUser(t, BEN).query(api.world.chatLog, { roomId });
-    expect(heard?.some((line) => line.text === "Weeding")).toBe(false);
+    expect(heard?.find((line) => line.text === "Weeding")).toMatchObject({ place: "backyard", here: false, isMe: false });
     const own = await asUser(t, ANNA).query(api.world.chatLog, { roomId: (await memberOf(t, ANNA)).room!._id });
-    expect(own?.find((line) => line.text === "Weeding")).toMatchObject({ here: true });
+    expect(own?.find((line) => line.text === "Weeding")).toMatchObject({ here: true, isMe: true });
+  });
+
+  test("in a backyard you read and answer the World's chat, and someone else's backyard hears it too", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await intoBackyard(t, CARA);
+    const { roomId } = await asUser(t, BEN).mutation(api.world.join, { backyard: true });
+    await asUser(t, BEN).mutation(api.world.say, { text: "Anyone about?" });
+    const annaRoom = (await memberOf(t, ANNA)).room!._id;
+    const inYard = await asUser(t, ANNA).query(api.world.chatLog, { roomId: annaRoom });
+    expect(inYard?.find((line) => line.text === "Anyone about?")).toMatchObject({ place: "garden", here: false });
+    await asUser(t, ANNA).mutation(api.world.say, { text: "In my backyard" });
+    const garden = await asUser(t, BEN).query(api.world.chatLog, { roomId });
+    expect(garden?.find((line) => line.text === "In my backyard")).toMatchObject({ place: "backyard", here: false });
+    const otherYard = await asUser(t, CARA).query(api.world.chatLog, { roomId: (await memberOf(t, CARA)).room!._id });
+    expect(otherYard?.find((line) => line.text === "In my backyard")).toMatchObject({ place: "backyard", here: false });
+  });
+
+  test("after leaving the backyard and coming back, the World's chat and your own lines are still there", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    await asUser(t, ANNA).mutation(api.world.say, { text: "Planting" });
+    await go(t, ANNA, "home", { door: true });
+    await go(t, ANNA, "garden");
+    const inGarden = await asUser(t, ANNA).query(api.world.chatLog, { roomId: (await memberOf(t, ANNA)).room!._id });
+    expect(inGarden?.find((line) => line.text === "Planting")).toMatchObject({ place: "backyard", here: false });
+    await go(t, ANNA, "home");
+    await go(t, ANNA, "backyard", { door: true });
+    // An empty backyard closes, so this is a new room: the line is back, tagged.
+    const back = await asUser(t, ANNA).query(api.world.chatLog, { roomId: (await memberOf(t, ANNA)).room!._id });
+    expect(back?.find((line) => line.text === "Planting")).toMatchObject({ place: "backyard", isMe: true });
+  });
+
+  test("who came into a backyard, and lines said there before backyards talked to the World, stay in that backyard", async () => {
+    const t = newConvex();
+    await intoBackyard(t, ANNA);
+    const yard = (await memberOf(t, ANNA)).room!;
+    const annaMember = (await memberOf(t, ANNA)).member!;
+    await t.run((ctx) =>
+      ctx.db.insert("worldChat", { roomId: yard._id, place: "backyard", memberId: annaMember._id, email: ANNA, name: "anna", text: "Said before", at: Date.now() })
+    );
+    const { roomId } = await asUser(t, BEN).mutation(api.world.join, { backyard: true });
+    const heard = (await asUser(t, BEN).query(api.world.chatLog, { roomId }))!;
+    expect(heard.some((line) => line.text === "Said before")).toBe(false);
+    expect(heard.some((line) => line.place === "backyard")).toBe(false);
+    const own = (await asUser(t, ANNA).query(api.world.chatLog, { roomId: yard._id }))!;
+    expect(own.find((line) => line.text === "Said before")).toMatchObject({ here: true });
   });
 });
 
