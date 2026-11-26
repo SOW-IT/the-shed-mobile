@@ -5,7 +5,7 @@ import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
 import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 import { boardOf, PAYOUT_MIN_ENTRIES } from "../shared/coins";
 import type { Beaten } from "../shared/leaderboard";
-import { withHeight } from "../shared/world";
+import { lookFor, withHeight } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -355,8 +355,8 @@ describe("podium", () => {
     });
     const top = await asUser(t, ANNA).query(api.gameScores.podium, { game: "runner" });
     expect(top.map((row) => [row.score, row.isMe, row.look])).toEqual([
-      [900, false, null],
-      [500, false, null],
+      [900, false, withHeight(lookFor(BEN), BEN)],
+      [500, false, withHeight(lookFor(CARA), CARA)],
       [300, true, withHeight(look, ANNA)],
     ]);
     expect((await t.query(api.gameScores.podium, { game: "runner" })).every((row) => !row.isMe)).toBe(true);

@@ -55,11 +55,32 @@ const Plane = ({ x, y }: { x: number; y: number }) => {
 
 const Scene = ({ state }: { state: ShooterState }) => (
   <>
-    {state.shots.map((shot) => (
-      <View key={shot.id} style={[styles.shot, { backgroundColor: c.shot }, at(shot.x, shot.y, 6)]} />
-    ))}
+    {state.shots.map((shot) => {
+      const tilt = shot.vx ? [{ rotate: `${Math.atan2(shot.vx, -shot.vy)}rad` }] : [];
+      return (
+        <View
+          key={shot.id}
+          style={[
+            styles.shot,
+            { backgroundColor: c.shot, transform: [{ translateX: shot.x - 3 }, { translateY: shot.y - 7 }, ...tilt] },
+          ]}
+        />
+      );
+    })}
     {state.enemies.map((enemy) => {
-      const size = (enemy.kind === "big" ? SHOOTER.bigRadius : SHOOTER.smallRadius) * 2;
+      const radius =
+        enemy.kind === "giant"
+          ? SHOOTER.giantRadius
+          : enemy.kind === "big"
+            ? SHOOTER.bigRadius
+            : enemy.kind === "fast"
+              ? SHOOTER.fastRadius
+              : SHOOTER.smallRadius;
+      const size = radius * 2;
+      const colour =
+        enemy.kind === "giant" ? c.enemyGiant : enemy.kind === "big" ? c.enemyBig : enemy.kind === "fast" ? c.enemyFast : c.enemy;
+      const shape = enemy.kind === "fast" ? [{ rotate: "45deg" }] : [];
+      const eyes = enemy.kind === "giant" ? 3 : enemy.kind === "big" ? 2 : 1;
       return (
         <View
           key={enemy.id}
@@ -68,14 +89,17 @@ const Scene = ({ state }: { state: ShooterState }) => (
             {
               width: size,
               height: size,
-              borderRadius: size / 3,
-              backgroundColor: enemy.kind === "big" ? c.enemyBig : c.enemy,
+              borderRadius: enemy.kind === "fast" ? 5 : size / 3,
+              backgroundColor: colour,
+              borderWidth: enemy.kind === "giant" ? 3 : 0,
+              borderColor: enemy.kind === "giant" ? c.enemyGiantRim : undefined,
+              transform: [{ translateX: enemy.x - size / 2 }, { translateY: enemy.y - size / 2 }, ...shape],
             },
-            at(enemy.x, enemy.y, size),
           ]}
         >
-          <View style={[styles.eye, { backgroundColor: c.enemyEye }]} />
-          {enemy.kind === "big" ? <View style={[styles.eye, { backgroundColor: c.enemyEye }]} /> : null}
+          {Array.from({ length: eyes }, (_, i) => (
+            <View key={i} style={[styles.eye, { backgroundColor: c.enemyEye }]} />
+          ))}
         </View>
       );
     })}

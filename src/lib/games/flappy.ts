@@ -55,11 +55,22 @@ export const birdX = (state: FlappyState) => state.width * FLAPPY.xShare;
 export const flap = (state: FlappyState): FlappyState =>
   state.over ? state : { ...state, vy: -FLAPPY.flapSpeed };
 
-export const pipeSpeed = (pipes: number) =>
-  Math.min(FLAPPY_V2.topSpeed, FLAPPY_V2.startSpeed + FLAPPY_V2.speedPerPipe * Math.max(0, pipes));
+export const pipeSpeed = (pipes: number) => {
+  const count = Math.max(0, pipes);
+  const early = Math.min(count, FLAPPY_V2.midPipe);
+  const late = Math.max(0, count - FLAPPY_V2.midPipe);
+  const earlyRate = (FLAPPY_V2.midSpeed - FLAPPY_V2.startSpeed) / FLAPPY_V2.midPipe;
+  return Math.min(FLAPPY_V2.topSpeed, FLAPPY_V2.startSpeed + early * earlyRate + late * FLAPPY_V2.lateSpeedPerPipe);
+};
 
-export const gapHeight = (pipes: number) =>
-  Math.max(FLAPPY_V2.minGap, FLAPPY_V2.startGap - FLAPPY_V2.gapShrinkPerPipe * Math.max(0, pipes));
+export const gapHeight = (pipes: number) => {
+  const count = Math.max(0, pipes);
+  const early = Math.min(count, FLAPPY_V2.midPipe);
+  const late = Math.max(0, count - FLAPPY_V2.midPipe);
+  const earlyShrink = (FLAPPY_V2.startGap - FLAPPY_V2.midGap) / FLAPPY_V2.midPipe;
+  const lateShrink = (FLAPPY_V2.midGap - FLAPPY_V2.minGap) / (FLAPPY_V2.minGapPipe - FLAPPY_V2.midPipe);
+  return Math.max(FLAPPY_V2.minGap, FLAPPY_V2.startGap - early * earlyShrink - late * lateShrink);
+};
 
 export const flappyScore = (pipes: number) => pipes * FLAPPY_V2.pointsPerPipe;
 
@@ -75,7 +86,7 @@ const reachShare = (speed: number) =>
 
 export const gapReach = (pipes: number) => {
   const reach = reachShare(pipeSpeed(pipes + 1));
-  return { rise: MAX_GAP_RISE * reach, drop: MAX_GAP_DROP * reach };
+  return { rise: MAX_GAP_RISE * reach, drop: MAX_GAP_DROP * reach * reach };
 };
 
 export const leastJump = (pipes: number) =>

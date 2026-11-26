@@ -65,15 +65,32 @@ const throughDay = (day: number) => {
 const birdOnScreen = (frame: GliderState) => birdPixels(unitPixels(BOARD, frame.camera.zoom));
 
 describe("Swoop's bird on screen", () => {
-  test.each([10, 20, 30])("stays readable, at least a third of its day 1 size, all through day %i, however the ground rises and falls", (day) => {
+  test.each([10, 20, 30])("scales proportionally with the world and stays readable all through day %i", (day) => {
     const dayOne = Math.max(...frames.filter((frame) => frame.world === 1).map(birdOnScreen));
     const run = throughDay(day);
     expect(run.at(-1)!.world).toBe(day + 1);
     for (const frame of run) {
       expect(frame.camera.zoom).toBeGreaterThanOrEqual(VIEW.minZoom * 0.98);
-      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(dayOne * 0.37);
-      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(10);
+      expect(birdOnScreen(frame)).toBeCloseTo(dayOne * frame.camera.zoom, 5);
+      expect(birdOnScreen(frame)).toBeGreaterThanOrEqual(4);
     }
+  });
+
+  test("zooms back in once the bird slows down and flies low after a wide view", () => {
+    let state = newGlider(4, ASPECT, 3);
+    let lowestZoom = 1;
+    for (let i = 0; i < 60 * 10; i++) {
+      state = stepGlider(hold({ ...state, daylight: Math.max(state.daylight, 5) }, autoHold(state)), FRAME);
+      lowestZoom = Math.min(lowestZoom, state.camera.zoom);
+    }
+    expect(lowestZoom).toBeLessThan(0.75);
+    const zoomedOut = state.camera.zoom;
+    let recovered = zoomedOut;
+    for (let i = 0; i < 60 * 8; i++) {
+      state = stepGlider(hold({ ...state, daylight: Math.max(state.daylight, 5) }, false), FRAME);
+      recovered = Math.max(recovered, state.camera.zoom);
+    }
+    expect(recovered).toBeGreaterThan(zoomedOut + 0.1);
   });
 });
 
@@ -179,17 +196,16 @@ describe("Swoop's earth", () => {
 });
 
 describe("Swoop's valleys on screen", () => {
-  test.each([1, 5, 10, 20])("the lowest ground ahead stays in view all through day %i, with the bird", (day) => {
-    let checked = 0;
-    for (const frame of throughDay(day)) {
+  test.each([1, 5, 10, 20, 30])("the ground below and the lowest ground anywhere ahead on screen stay in view every frame of day %i, with the bird", (day) => {
+    const run = throughDay(day);
+    expect(run.length).toBeGreaterThan(100);
+    for (const frame of run) {
       const view = viewSize(frame.aspect, frame.camera.zoom);
-      const low = lowestGround(frame.hills, frame.x, frame.x + VIEW.width * VIEW.ahead);
-      const fits = frame.y + GLIDER.radius * 2 + VIEW.margin - (low - VIEW.margin) <= viewSize(frame.aspect, VIEW.minZoom).height;
+      const here = groundAt(frame.hills, frame.x).y;
+      const low = lowestGround(frame.hills, frame.x, frame.camera.x + view.width);
       expect(frame.y).toBeLessThanOrEqual(frame.camera.y + view.height);
-      if (!fits) continue;
-      checked++;
-      expect(low + 2, `day ${day} at ${Math.round(frame.x)}`).toBeGreaterThanOrEqual(frame.camera.y);
+      expect(here, `ground under bird day ${day} at ${Math.round(frame.x)}`).toBeGreaterThanOrEqual(frame.camera.y);
+      expect(low + 1, `lowest ground ahead day ${day} at ${Math.round(frame.x)}`).toBeGreaterThanOrEqual(frame.camera.y);
     }
-    expect(checked).toBeGreaterThan(100);
   });
 });

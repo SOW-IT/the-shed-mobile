@@ -104,8 +104,8 @@ describe("shooter", () => {
 
   test("enemies come in from outside the edges, faster as time goes on", () => {
     expect(spawnInterval(0)).toBeGreaterThan(spawnInterval(60));
-    expect(spawnInterval(70)).toBe(0.3);
-    expect(spawnInterval(1000)).toBeLessThan(0.3);
+    expect(spawnInterval(70)).toBe(0.45);
+    expect(spawnInterval(1000)).toBeLessThan(0.45);
     expect(spawnInterval(1000)).toBeGreaterThan(SHOOTER.spawnFloor);
     let state = newShooter(360, 640, 3);
     const seen: { x: number; y: number }[] = [];
@@ -118,9 +118,9 @@ describe("shooter", () => {
     expect(seen.every((e) => e.x < 0 || e.x > 360 || e.y < 0)).toBe(true);
   });
 
-  test("dragging moves the plane but keeps it on the board", () => {
+  test("dragging moves the plane anywhere inside the board, all the way to the top", () => {
     const state = newShooter(360, 640, 1);
-    expect(moveShooter(state, -1000, -1000).player).toEqual({ x: SHOOTER.planeSize / 2, y: 640 * 0.3 });
+    expect(moveShooter(state, -1000, -1000).player).toEqual({ x: SHOOTER.planeSize / 2, y: SHOOTER.planeSize / 2 });
     expect(moveShooter(state, 1000, 1000).player).toEqual({ x: 360 - SHOOTER.planeSize / 2, y: 640 - SHOOTER.planeSize / 2 });
   });
 });
@@ -392,10 +392,12 @@ describe("flappy", () => {
 
   test("the pipes speed up and the gaps narrow pipe by pipe, then hold at their cap and minimum", () => {
     expect(pipeSpeed(0)).toBe(FLAPPY_V2.startSpeed);
-    expect(pipeSpeed(50)).toBeCloseTo(FLAPPY_V2.startSpeed + 50 * FLAPPY_V2.speedPerPipe, 9);
+    expect(pipeSpeed(FLAPPY_V2.midPipe)).toBe(FLAPPY_V2.midSpeed);
+    expect(pipeSpeed(FLAPPY_V2.midPipe + 100)).toBeCloseTo(FLAPPY_V2.midSpeed + 10, 9);
     expect(pipeSpeed(1_000_000)).toBe(FLAPPY_V2.topSpeed);
     expect(gapHeight(0)).toBe(FLAPPY_V2.startGap);
-    expect(gapHeight(50)).toBeCloseTo(FLAPPY_V2.startGap - 50 * FLAPPY_V2.gapShrinkPerPipe, 9);
+    expect(gapHeight(FLAPPY_V2.midPipe)).toBe(FLAPPY_V2.midGap);
+    expect(gapHeight(FLAPPY_V2.minGapPipe)).toBe(FLAPPY_V2.minGap);
     expect(gapHeight(1_000_000)).toBe(FLAPPY_V2.minGap);
   });
 
@@ -414,8 +416,8 @@ describe("flappy", () => {
     // Gaps as far apart as they may be, with the score far past where the speed
     // levels off, flown by a player whose taps only land every 0.15 seconds.
     // Before 2.12.44 (240 a second, gaps of 130) the run of drops couldn't be.
-    const gap = gapHeight(1000);
-    const { rise, drop } = gapReach(1000);
+    const gap = gapHeight(2000);
+    const { rise, drop } = gapReach(2000);
     expect(rise).toBeLessThanOrEqual(MAX_GAP_RISE);
     expect(drop).toBeLessThanOrEqual(MAX_GAP_DROP);
     const runs = [
@@ -443,9 +445,9 @@ describe("flappy", () => {
     };
     for (const tops of runs) {
       const pipes = tops.map((gapTop, i) => ({ id: i + 1, x: 300 + i * FLAPPY_V2.spacing, gapTop, gapHeight: gap, passed: false }));
-      const state: FlappyState = { ...newFlappy(720, 1000, 1), gaps: 1000, y: tops[0] + gap / 2, nextIn: 1e9, pipes };
+      const state: FlappyState = { ...newFlappy(720, 1000, 1), gaps: 2000, y: tops[0] + gap / 2, nextIn: 1e9, pipes };
       expect(pipeSpeed(state.gaps)).toBe(FLAPPY_V2.topSpeed);
-      expect(through(state, 1000 + tops.length), tops.join(",")).toBe(true);
+      expect(through(state, 2000 + tops.length), tops.join(",")).toBe(true);
     }
   });
 

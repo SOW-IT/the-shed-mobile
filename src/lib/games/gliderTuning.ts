@@ -6,11 +6,25 @@ export const ramp = (setting: Ramp, steps: number): number => {
 };
 
 export const GLIDER_V2 = {
+  speed: {
+    start: 270,
+    min: 145,
+    max: 2600,
+    lightGravity: 540,
+    heavyGravity: 2150,
+    groundDrag: 0.00004,
+    airDrag: 0.00002,
+    perfectBoost: 0.1,
+    perfectAir: 0.28,
+    longFlight: 1.3,
+    perfectTime: 0.65,
+    flightTime: 0.48,
+  },
   difficulty: { a: 0, b: 1 },
   hardestWorld: 10,
-  day: { firstSeconds: 45, floorSeconds: 25, floorWorld: 20, curve: 1 },
-  pace: { first: 300, perWorld: 32, limit: Infinity },
-  latePace: { first: 750, perWorld: -26, limit: 255 },
+  day: { firstSeconds: 30, floorSeconds: 15, floorWorld: 20, curve: 1 },
+  pace: { first: 360, perWorld: 60, limit: Infinity },
+  latePace: { first: 1100, perWorld: -40, limit: 380 },
   span: { first: 360, perWorld: -20, limit: 160 },
   drop: { first: 160, perWorld: 44, limit: 600 },
   featureRoom: { first: -400, perWorld: 40, limit: Infinity },

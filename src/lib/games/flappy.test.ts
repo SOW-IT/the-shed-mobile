@@ -30,8 +30,8 @@ const BOARDS = [
   [390, 700],
   [390, 900],
 ];
-const LAST_SHRINK = Math.ceil((FLAPPY_V2.startGap - FLAPPY_V2.minGap) / FLAPPY_V2.gapShrinkPerPipe);
-const LAST_SPEED_UP = Math.ceil((FLAPPY_V2.topSpeed - FLAPPY_V2.startSpeed) / FLAPPY_V2.speedPerPipe);
+const LAST_SHRINK = FLAPPY_V2.minGapPipe;
+const LAST_SPEED_UP = FLAPPY_V2.midPipe + Math.ceil((FLAPPY_V2.topSpeed - FLAPPY_V2.midSpeed) / FLAPPY_V2.lateSpeedPerPipe);
 
 type Spawned = { gapTop: number; gapHeight: number; space: number };
 
@@ -109,8 +109,10 @@ describe("Flap v2 scoring", () => {
 });
 
 describe("Flap v2 pipes", () => {
-  test("the gap starts comfortable, shrinks a little every pipe, then holds at its minimum for good", () => {
-    expect(gapHeight(0)).toBe(FLAPPY_V2.startGap);
+  test("the gap starts at 190, narrows to 140 by pipe 100 and 130 by pipe 200, then holds at its minimum", () => {
+    expect(gapHeight(0)).toBe(190);
+    expect(gapHeight(100)).toBe(140);
+    expect(gapHeight(200)).toBe(130);
     for (let pipes = 1; pipes <= LAST_SHRINK; pipes++) expect(gapHeight(pipes)).toBeLessThan(gapHeight(pipes - 1));
     expect(gapHeight(LAST_SHRINK)).toBe(FLAPPY_V2.minGap);
     for (const pipes of [LAST_SHRINK + 1, 500, 5000, 1_000_000]) expect(gapHeight(pipes)).toBe(FLAPPY_V2.minGap);
@@ -119,11 +121,14 @@ describe("Flap v2 pipes", () => {
     expect(FLAPPY_V2.minGap).toBeGreaterThan(hitbox + flapRise + 20);
   });
 
-  test("the speed rises with every pipe up to its cap, and stays there", () => {
-    expect(pipeSpeed(0)).toBe(FLAPPY_V2.startSpeed);
+  test("the speed rises from 150 to 200 by pipe 100, then by 10 every 100 pipes up to its cap", () => {
+    expect(pipeSpeed(0)).toBe(150);
+    expect(pipeSpeed(100)).toBe(200);
+    expect(pipeSpeed(200)).toBe(210);
+    expect(pipeSpeed(300)).toBe(220);
     for (let pipes = 1; pipes <= LAST_SPEED_UP; pipes++) expect(pipeSpeed(pipes)).toBeGreaterThan(pipeSpeed(pipes - 1));
     expect(pipeSpeed(LAST_SPEED_UP)).toBe(FLAPPY_V2.topSpeed);
-    for (const pipes of [LAST_SPEED_UP + 1, 1000, 1_000_000]) expect(pipeSpeed(pipes)).toBe(FLAPPY_V2.topSpeed);
+    for (const pipes of [LAST_SPEED_UP + 1, 2000, 1_000_000]) expect(pipeSpeed(pipes)).toBe(FLAPPY_V2.topSpeed);
   });
 
   test("pipes come the same distance apart, every time", () => {

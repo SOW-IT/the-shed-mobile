@@ -9,15 +9,15 @@ import { GLIDER_V2, ramp } from "./gliderTuning";
 
 export const GLIDER = {
   /** Gravity while light (let go) and heavy (held), in world units a second squared. */
-  lightGravity: 480,
-  heavyGravity: 1850,
+  lightGravity: GLIDER_V2.speed.lightGravity,
+  heavyGravity: GLIDER_V2.speed.heavyGravity,
   /** Slowing on the ground and in the air, times the speed squared. */
-  groundDrag: 0.00012,
-  airDrag: 0.00006,
+  groundDrag: GLIDER_V2.speed.groundDrag,
+  airDrag: GLIDER_V2.speed.airDrag,
   /** The bird always waddles on at least this, so it can't get stuck in a valley. */
-  minSpeed: 120,
-  maxSpeed: 1500,
-  startSpeed: 220,
+  minSpeed: GLIDER_V2.speed.min,
+  maxSpeed: GLIDER_V2.speed.max,
+  startSpeed: GLIDER_V2.speed.start,
   /** The bird's size, for drawing. Its body sits on its lowest point. */
   radius: 16,
   /** Each world starts and ends on a hilltop this high. */
@@ -27,18 +27,18 @@ export const GLIDER = {
   /** Steepest slope a hill may have, rise over run. */
   maxSlope: 2.2,
   /** In the air at least this long before a landing can be perfect. */
-  perfectAir: 0.3,
+  perfectAir: GLIDER_V2.speed.perfectAir,
   /** A landing this much faster than the ground's own slope would give. */
-  perfectBoost: 0.06,
+  perfectBoost: GLIDER_V2.speed.perfectBoost,
   /** A rough landing keeps this share of its speed along the ground. */
   roughKeep: 0.85,
   /** Landing on an upslope while heavy keeps this share on top. */
   heavyUpslopeKeep: 0.8,
   /** Seconds of daylight a perfect landing and a long flight give back. */
-  perfectTime: 0.8,
-  flightTime: 0.6,
+  perfectTime: GLIDER_V2.speed.perfectTime,
+  flightTime: GLIDER_V2.speed.flightTime,
   /** A flight at least this long is a long one. */
-  longFlight: 1.4,
+  longFlight: GLIDER_V2.speed.longFlight,
   perfectPoints: 20,
   flightPoints: 30,
   /** The longest perfect streak that still raises its points. */
@@ -60,16 +60,21 @@ export const VIEW = {
   /** Room kept above the bird and below the lowest ground in view. */
   margin: 60,
   footing: 20,
-  minZoom: 0.38,
+  /** Only a numerical floor: real hills and flights never hit it, so the ground always stays in view. */
+  minZoom: 0.05,
   /** How quickly the camera catches up, each second. */
-  rate: 5,
-  zoomRate: 2.5,
-  catchUpRate: 6,
+  rate: 4,
+  yCatchUpRate: 9,
+  zoomRate: 2,
+  catchUpRate: 6.5,
   behind: 0.15,
   ahead: 0.7,
-  planAhead: 1.5,
-  holdWide: 3,
-  narrowing: 2,
+  planAhead: 1.3,
+  lookSeconds: 1.4,
+  holdWide: 1.8,
+  narrowing: 1.4,
+  holdLow: 1.2,
+  rising: 1.4,
 } as const;
 
 /** How hard world n is. Every world is longer, steeper, bumpier and has a shorter day. */
@@ -369,7 +374,7 @@ export const land = (
   if (angle <= tolerance && slope < -0.05 && airTime >= GLIDER.perfectAir) {
     landing = "perfect";
     speed *= 1 + GLIDER.perfectBoost;
-  } else if (angle > tolerance + ROUGH_MARGIN) {
+  } else if (slope >= -0.05 && angle > tolerance + ROUGH_MARGIN) {
     landing = "rough";
     speed *= roughKeep;
     if (heavy && slope > 0) speed *= GLIDER.heavyUpslopeKeep;
@@ -392,7 +397,17 @@ export const leavesGround = (ground: Ground, speed: number, gravity: number): bo
 
 export type Popup = { id: number; text: string; born: number; kind: "perfect" | "flight" | "world" | "rough" };
 
-export type Camera = { x: number; y: number; zoom: number; zoomSpeed?: number; ySpeed?: number; span?: number; wideFor?: number };
+export type Camera = {
+  x: number;
+  y: number;
+  zoom: number;
+  zoomSpeed?: number;
+  ySpeed?: number;
+  span?: number;
+  wideFor?: number;
+  low?: number;
+  lowFor?: number;
+};
 
 export type GliderState = {
   over: boolean;
@@ -427,6 +442,8 @@ export type GliderState = {
   perfects: number;
   popups: Popup[];
   nextPopup: number;
+  /** Smoothed body angle in radians, so touchdowns glide instead of snapping. */
+  tilt: number;
   camera: Camera;
   /** The board's width over its height, for the camera. */
   aspect: number;
@@ -449,7 +466,7 @@ export const highestFlight = (highestGround: number = GLIDER.ceiling) => {
   return highestGround + (climb * climb) / (2 * GLIDER.lightGravity);
 };
 
-type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vy" | "grounded">>;
+type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vx" | "vy" | "grounded">>;
 
 const roomAbove = (state: Framed) => state.y + GLIDER.radius * 2 + VIEW.margin;
 
@@ -459,11 +476,24 @@ export const WIDEST_BOARD = 2.3;
 
 const steadyHeight = () => VIEW.width / WIDEST_BOARD;
 
-const lowAhead = (state: Framed, reach: number = VIEW.ahead) =>
-  Math.min(footing(state), lowestGround(state.hills, state.x, state.x + VIEW.width * reach) - VIEW.margin);
+const visibleAhead = (zoom: number) => (VIEW.width / zoom) * (1 - VIEW.lead);
 
-const fitZoom = (state: Framed) =>
-  Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (roomAbove(state) - lowAhead(state, VIEW.planAhead))));
+const lowVisible = (state: Framed, zoom: number, extraAhead = 0) => {
+  const from = state.x - VIEW.width * VIEW.behind;
+  const to = state.x + visibleAhead(zoom) + extraAhead;
+  return Math.min(footing(state), lowestGround(state.hills, from, to) - VIEW.margin);
+};
+
+const fitFor = (state: Framed, top: number, extraAhead = 0, startZoom = 1) => {
+  let zoom = Math.max(VIEW.minZoom, Math.min(1, startZoom));
+  for (let i = 0; i < 12; i++) {
+    const low = lowVisible(state, zoom, extraAhead);
+    const next = Math.max(VIEW.minZoom, Math.min(zoom, steadyHeight() / Math.max(1, top - low)));
+    if (next >= zoom - 1e-6) return zoom;
+    zoom = next;
+  }
+  return zoom;
+};
 
 const highestGround = (points: readonly HillPoint[], from: number, to: number): number => {
   let high = Math.max(groundAt(points, from).y, groundAt(points, to).y);
@@ -476,18 +506,16 @@ const flightTop = (state: Framed) => {
   return state.y + rising;
 };
 
-const lookWindow = (state: Framed) => ({
-  from: state.x - VIEW.width * VIEW.behind,
-  to: state.x + VIEW.width * VIEW.ahead,
-});
+const extraReach = (state: Framed) => Math.max(VIEW.width * VIEW.planAhead, Math.max(0, state.vx ?? 0) * VIEW.lookSeconds);
 
 /** Where the camera wants to be: the bird in from the left, the valleys and the bird both in view. */
 export const cameraTarget = (state: Framed): Camera => {
-  const { from, to } = lookWindow(state);
-  const low = lowestGround(state.hills, from, to) - VIEW.margin;
+  const from = state.x - VIEW.width * VIEW.behind;
+  const to = state.x + VIEW.width * VIEW.ahead;
   const high = Math.max(flightTop(state), highestGround(state.hills, from, to)) + GLIDER.radius * 2 + VIEW.margin;
-  const zoom = Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / (Math.max(high, roomAbove(state)) - low)));
+  const zoom = fitFor(state, Math.max(high, roomAbove(state)), 0);
   const view = viewSize(state.aspect, zoom);
+  const low = lowVisible(state, zoom, 0);
   // Low ground at the bottom, unless the bird is higher than the view reaches.
   const bottom = Math.max(low, roomAbove(state) - view.height);
   return { x: state.x - view.width * VIEW.lead, y: bottom, zoom };
@@ -505,27 +533,45 @@ const settle = (value: number, speed: number, target: number, rate: number, dt: 
  * it keeps the bird exactly where it should be, so the bird never drifts.
  */
 const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
-  const target = cameraTarget(state);
-  const needed = steadyHeight() / target.zoom;
+  const extra = extraReach(state);
+  const from = state.x - VIEW.width * VIEW.behind;
+  const high = Math.max(flightTop(state), highestGround(state.hills, from, state.x + VIEW.width * VIEW.ahead)) + GLIDER.radius * 2 + VIEW.margin;
+  const plan = fitFor(state, Math.max(high, roomAbove(state)), extra);
+  const needed = steadyHeight() / plan;
   const before = camera.span ?? needed;
   const wideFor = needed >= before ? 0 : (camera.wideFor ?? 0) + dt;
   const span =
     needed >= before || wideFor < VIEW.holdWide ? Math.max(needed, before) : needed + (before - needed) * Math.exp(-dt / VIEW.narrowing);
-  const fit = fitZoom(state);
-  const wanted = Math.min(fit, Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / span)));
-  const behind = Math.min(1, Math.max(0, (camera.zoom / fit - 1) * 10));
+  const strict = fitFor(state, roomAbove(state), 0);
+  const wanted = Math.min(strict, Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / span)));
+  const behind = Math.min(1, Math.max(0, (camera.zoom / (strict * 0.92) - 1) * 8));
   const rate = VIEW.zoomRate + (VIEW.catchUpRate - VIEW.zoomRate) * behind;
   const eased = settle(Math.log(camera.zoom), camera.zoomSpeed ?? 0, Math.log(wanted), rate, dt);
-  const zoom = Math.exp(eased.value);
-  const zoomSpeed = eased.speed;
+  const rawZoom = Math.exp(eased.value);
+  const zoom = fitFor(state, roomAbove(state), 0, Math.min(rawZoom, strict));
+  const zoomSpeed = zoom === rawZoom ? eased.speed : Math.min(eased.speed, 0);
   const view = viewSize(state.aspect, zoom);
-  const goal = Math.max(Math.min(target.y, lowAhead(state)), roomAbove(state) - view.height);
-  const rise = settle(camera.y, camera.ySpeed ?? 0, goal, VIEW.rate, dt);
-  // However fast the bird climbs or drops, it stays inside the view.
+  const lowNow = lowVisible(state, zoom, 0);
+  const lowLook = lowVisible(state, zoom, extra);
+  // Hold the lowest valley floor smoothly and ease back up slowly once it passes,
+  // so the camera glides down early and never snaps when a valley enters or leaves.
+  const lowBefore = camera.low ?? lowLook;
+  const lowFor = lowLook <= lowBefore ? 0 : (camera.lowFor ?? 0) + dt;
+  const lowHeld =
+    lowLook <= lowBefore || lowFor < VIEW.holdLow
+      ? Math.min(lowLook, lowBefore)
+      : lowLook + (lowBefore - lowLook) * Math.exp(-dt / VIEW.rising);
+  // However fast the bird climbs or drops, both it and the lowest ground in view stay on screen.
   const lowest = roomAbove(state) - view.height;
-  const highest = lowAhead(state);
+  const highest = lowNow;
+  const goal = Math.max(lowest, Math.min(highest, lowHeld));
+  const yGap = Math.max(0, camera.y - (highest - VIEW.margin * 0.5));
+  const yUrgency = Math.min(1, yGap / Math.max(1, VIEW.margin * 2));
+  const yRate = VIEW.rate + (VIEW.yCatchUpRate - VIEW.rate) * yUrgency;
+  const rise = settle(camera.y, camera.ySpeed ?? 0, goal, yRate, dt);
   const y = Math.max(lowest, Math.min(highest, rise.value));
-  return { x: state.x - view.width * VIEW.lead, y, zoom, zoomSpeed, ySpeed: y === rise.value ? rise.speed : 0, span, wideFor };
+  const ySpeed = y === rise.value ? rise.speed : dt > 0 ? (y - camera.y) / dt : 0;
+  return { x: state.x - view.width * VIEW.lead, y, zoom, zoomSpeed, ySpeed, span, wideFor, low: lowHeld, lowFor };
 };
 
 export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
@@ -561,6 +607,7 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     perfects: 0,
     popups: [],
     nextPopup: 1,
+    tilt: Math.max(-1.1, Math.min(1.1, Math.atan(start.slope))),
     camera: cameraTarget(base),
   };
 };
@@ -694,7 +741,10 @@ const nextWorld = (state: GliderState) => {
   state.worldEnd = end;
   // The old world's ground stays under the bird until it's out of view.
   const behind = state.hills.filter((point) => point.x < state.worldStart);
-  state.hills = [...behind.slice(-6), ...hills];
+  let first = Math.max(0, behind.length - 6);
+  const keepFrom = state.camera.x - 1000;
+  while (first > 0 && behind[first].x > keepFrom) first--;
+  state.hills = [...behind.slice(first), ...hills];
   state.daylight = worldRules(state.world).day;
   state.daySeen = 0;
   state.regained = 0;
@@ -730,6 +780,9 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
     }
   }
   state.popups = state.popups.filter((p) => state.time - p.born < GLIDER.popupSeconds);
+  const rawAngle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
+  const targetTilt = Math.max(-1.1, Math.min(1.1, rawAngle));
+  state.tilt = previous.tilt + (targetTilt - previous.tilt) * (1 - Math.exp(-16 * dt));
   state.camera = followCamera(state.camera, state, dt);
   state.daySeen = Math.max(state.daySeen, dayProgress(state));
   state.score = gliderScore(state);
@@ -790,7 +843,7 @@ const previewDone: Record<GliderPreview, (state: GliderState, before: GliderStat
   night: (state) => state.over,
 };
 
-const BIG_THROW = { vx: 800, vy: 900 } as const;
+const BIG_THROW = { vx: 1100, vy: 1300 } as const;
 
 /**
  * A still moment of a run played by `autoHold`, for screenshots: diving

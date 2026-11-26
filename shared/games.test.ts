@@ -63,7 +63,7 @@ describe("scoreProblem", () => {
     ["a score over the cap", { score: SCORE_LIMITS[2].runner.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
     ["too many points for the time", { score: 50_000, durationMs: 10_000 }, /too high/],
     ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS[2].glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
-    ["a Swoop score too fast for its run", { game: "glider", score: 20_000, durationMs: 10_000 }, /too high/],
+    ["a Swoop score too fast for its run", { game: "glider", score: 25_000, durationMs: 10_000 }, /too high/],
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],

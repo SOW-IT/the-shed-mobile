@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { GAME_IDS, MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
-import { withHeight } from "../shared/world";
+import { lookFor, withHeight } from "../shared/world";
 import { worldLookValidator } from "./worldData";
 import { payoutMinEntries, PLACE_COINS } from "../shared/coins";
 import { awardPlace, paidForRun, type RunPayout } from "./coins";
@@ -237,7 +237,7 @@ export const leaderboardPage = query({
 
 /**
  * A game's top scores for the podium over its leaderboard: names, scores
- * and World looks (null for someone who never made a World character).
+ * and World looks (their saved look, or their default Garden look).
  */
 export const podium = query({
   args: { game: gameIdValidator, version: versionArg },
@@ -255,7 +255,7 @@ export const podium = query({
         name: await nameFor(ctx, row.email),
         score: row.score,
         isMe: email !== null && row.email === email,
-        look: saved ? withHeight(saved.look, row.email) : null,
+        look: withHeight(saved?.look ?? lookFor(row.email), row.email),
       });
     }
     return top;

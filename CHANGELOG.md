@@ -27,32 +27,45 @@ All notable changes to **The SHED** mobile app. This project follows
   tunnel and a gauntlet by 100,000. Two vines in a row from 10,000 and a
   rock step from 15,000.
 - **Flap.** A point for each pipe, and nothing for time. Pipes come at a
-  steady rhythm. The opening narrows a little with every pipe and the
-  pipes speed up, both until pipe 100, where the opening stays just wide
-  enough for a flap. The sky drifts from afternoon through sunset to night
-  by pipe 200 and stays dark, with the ground and clouds darkening along
-  with it. The board stays phone-shaped: on an iPad or a wide window it
-  gets black side borders instead of growing wider.
-- **Sky Shooter.** From 75 seconds a new wave every 30 seconds: more
-  enemies, faster bullets and enemies, more big ones, and new bullet
-  patterns: aimed doubles at 2 minutes, rings from big enemies at 2.5,
-  a wide fan at 4 and three-shot bursts at 6.
-- **Swoop** counts days, not worlds. Day 1 lasts 45 seconds and each day
-  is a little shorter, down to 25 seconds from day 20. The first two days
-  have narrower, steeper hills to launch from. From day 3 the ground gets
-  harder by the same step every day, with no end: deeper, steeper hills,
-  a smaller angle for a perfect landing, shorter flat ground, ground that
-  rises and falls across the day, and new shapes through day 8: double
-  humps, cliffs, deep gorges, uneven valleys, long drops, tall walls and
-  the odd jagged climb. A clean run just makes it and a few mistakes
-  don't.
+  steady rhythm. The opening starts at 190 and narrows to 140 by pipe 100,
+  then more slowly to 130 by pipe 200, where it stays just wide enough for
+  a flap. Speed rises from 150 to 200 by pipe 100, then by 10 every 100
+  pipes (210 at pipe 200). The sky drifts from afternoon through sunset to
+  night by pipe 200 and stays dark, with the ground and clouds darkening
+  along with it. The board stays phone-shaped: on an iPad or a wide window
+  it gets black side borders instead of growing wider.
+- **Sky Shooter.** You can now drag the plane all the way to the top of
+  the screen, and enemies wait half a second on screen before firing. The
+  plane upgrades to double shot at 3,000, double + diagonal cone at 6,000,
+  triple + diagonal cone at 10,000, and all-around 360° fire at 15,000.
+  Enemies ramp harder and harder as your score climbs toward 10,000 and
+  beyond—spawning faster, shooting faster, unlocking new bullet patterns
+  earlier, gaining more health, bringing faster golden enemies from 6,000,
+  and spawning giant, slow enemies from 10,000 that shoot 360° rings all
+  around them. From 75 seconds a new wave every 30 seconds keeps pushing
+  enemy count, speed and patterns even further.
+- **Swoop** counts days, not worlds. Day 1 lasts 30 seconds and each day
+  is a little shorter, down to 15 seconds from day 20. The bird starts
+  faster and builds much more speed purely from good swoops down steeper
+  hills. The first two days have narrower, steeper hills to launch from.
+  From day 3 the ground gets harder by the same step every day, with no
+  end: deeper, steeper hills, a smaller angle for a perfect landing,
+  shorter flat ground, ground that rises and falls across the day, and new
+  shapes through day 8: double humps, cliffs, deep gorges, uneven valleys,
+  long drops, tall walls and the odd jagged climb. A clean run just makes
+  it and a few mistakes don't.
 
 ### Fixed
 - **Swoop's background hills no longer jump**, and the view no longer
   breathes in and out over every hill: the zoom eases towards a steadier
-  target and holds after a big flight. The bird keeps its size against the
-  hills when the view zooms out, rather than shrinking faster than them,
-  and the view always shows the bottom of the valley ahead.
+  target and holds after a big flight. The camera zooms out as far as
+  needed so the bird, the ground below it and the lowest valley ahead on
+  screen always stay in view, zooms back in when the bird slows down, and
+  scales the bird proportionally with the hills.
+- **The leaderboard podium shows everyone as their full Garden person**
+  standing directly on top of their podium step and cheering (with a
+  grounded shadow, their name above them, and their rank and score on the
+  step), including people who haven't customized their World character yet.
 - **Game over dims the whole screen**, the bands by the notch and the home
   bar too, and Sky Shooter and Mystic Man show a light clock on their dark
   screens.

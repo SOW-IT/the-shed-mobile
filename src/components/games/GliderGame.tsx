@@ -283,8 +283,7 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const screenY = (y: number) => (top - y) * px;
   const birdScale = birdPixels(px) / BIRD;
   const floor = earthFloor(state.hills);
-  const angle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
-  const tilt = Math.max(-1.1, Math.min(1.1, angle));
+  const tilt = state.tilt;
   const birdX = screenX(state.x);
   const birdY = screenY(state.y);
   const sunSize = Math.max(34, height * 0.11);

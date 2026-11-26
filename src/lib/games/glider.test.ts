@@ -285,18 +285,18 @@ describe("each world is harder than the last", () => {
     expect(worldRules(0)).toEqual(worldRules(1));
   });
 
-  test("the day starts at 45 s and curves down, fastest at first, to 25 s at world 20, then stays there", () => {
+  test("the day starts at 30 s and curves down, fastest at first, to 15 s at world 20, then stays there", () => {
     const days = Array.from({ length: 60 }, (_, i) => dayLength(i + 1));
-    expect(days[0]).toBe(45);
-    expect(FLOOR_DAY).toBe(25);
+    expect(days[0]).toBe(30);
+    expect(FLOOR_DAY).toBe(15);
     expect(days[19]).toBe(FLOOR_DAY);
     expect(days[18]).toBeGreaterThan(FLOOR_DAY);
     expect(days.slice(19).every((day) => day === FLOOR_DAY)).toBe(true);
     for (let world = 2; world <= 20; world++) expect(days[world - 1]).toBeLessThan(days[world - 2]);
     expect(days[0] - days[1]).toBeGreaterThan(days[9] - days[10]);
-    expect(days[4]).toBeCloseTo(34.3, 1);
-    expect(days[9]).toBeCloseTo(29.6, 1);
-    expect(days[14]).toBeCloseTo(26.9, 1);
+    expect(days[4]).toBeCloseTo(21.9, 1);
+    expect(days[9]).toBeCloseTo(18.5, 1);
+    expect(days[14]).toBeCloseTo(16.4, 1);
     for (let world = 1; world <= 60; world++) expect(worldRules(world).day).toBe(dayLength(world));
   });
 
@@ -391,7 +391,7 @@ describe("momentum", () => {
     expect(highest - launched!.y).toBeLessThanOrEqual(launched!.vy ** 2 / (2 * GLIDER.lightGravity));
   });
 
-  const OVER = 360;
+  const OVER = 450;
   const crestSpeeds = (pilot: Pilot, seed: number, count: number) => {
     let state = newGlider(seed, 2);
     const crests = state.hills.filter((_, i) => i % 2 === 0).slice(1, count + 1);

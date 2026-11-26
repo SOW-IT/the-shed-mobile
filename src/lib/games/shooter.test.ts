@@ -3,12 +3,17 @@ import { SCORE_LIMITS } from "../../../shared/games";
 import {
   bigShare,
   bulletSpeed,
+  enemyFireInterval,
+  enemyHp,
   enemySpeedUp,
+  fastShare,
   fireInterval,
   moveShooter,
   newShooter,
   PATTERN_FROM,
   patternsAt,
+  playerVolley,
+  scoreDifficultyTime,
   SHOOTER,
   shooterAt,
   shooterWave,
@@ -36,7 +41,14 @@ const DIRECTIONS = [
   ...Array.from({ length: 16 }, (_, i) => ({ x: Math.cos((i * Math.PI) / 8), y: Math.sin((i * Math.PI) / 8) })),
 ];
 
-const radiusOf = (kind: string) => (kind === "big" ? SHOOTER.bigRadius : SHOOTER.smallRadius);
+const radiusOf = (kind: string) =>
+  kind === "giant"
+    ? SHOOTER.giantRadius
+    : kind === "big"
+      ? SHOOTER.bigRadius
+      : kind === "fast"
+        ? SHOOTER.fastRadius
+        : SHOOTER.smallRadius;
 
 const dodger = (state: ShooterState): ShooterState => {
   const half = SHOOTER.planeSize / 2;
@@ -54,7 +66,7 @@ const dodger = (state: ShooterState): ShooterState => {
           const t = frame * FRAME;
           const moved = Math.min(t, hold * HORIZON * FRAME) * DRAG_SPEED * pace;
           px = Math.min(state.width - half, Math.max(half, state.player.x + way.x * moved));
-          py = Math.min(state.height - half, Math.max(state.height * 0.3, state.player.y + way.y * moved));
+          py = Math.min(state.height - half, Math.max(half, state.player.y + way.y * moved));
           const weight = 1 + frame / HORIZON;
           for (const b of state.bullets) {
             const gap = Math.hypot(b.x + b.vx * t - px, b.y + b.vy * t - py) - SHOOTER.bulletRadius - SHOOTER.hitRadius;
@@ -93,12 +105,12 @@ const measure = (from: number, seconds: number) => {
   let bullets = 0;
   let speed = 0;
   for (const seed of [1, 2, 3, 4]) {
-    let state: ShooterState = shooterAt(BOARD.width, BOARD.height, seed, from * SHOOTER.pointsPerSecond);
-    for (let i = 0; i < 300; i++) state = { ...stepShooter(state, FRAME), over: false };
+    let state: ShooterState = { ...shooterAt(BOARD.width, BOARD.height, seed, from * SHOOTER.pointsPerSecond), fireIn: 1e9 };
+    for (let i = 0; i < 300; i++) state = { ...stepShooter({ ...state, fireIn: 1e9 }, FRAME), over: false };
     const seen = new Set<number>([...state.enemies, ...state.bullets].map((item) => item.id));
     const end = state.time + seconds;
     while (state.time < end) {
-      state = { ...stepShooter(state, FRAME), over: false };
+      state = { ...stepShooter({ ...state, fireIn: 1e9 }, FRAME), over: false };
       for (const enemy of state.enemies) {
         if (seen.has(enemy.id)) continue;
         seen.add(enemy.id);
@@ -118,8 +130,8 @@ const measure = (from: number, seconds: number) => {
 describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
   const TIMES = [75, 105, 135, 165, 195, 300, 600, 1200, 3600, 21_600];
 
-  test("below 75 s seeded runs bring exactly the enemies and bullets 2.13.6 brought", () => {
-    const runs = [1, 2, 3].map((seed) => {
+  test("below 75 s the wave stays at 0 with repeatable seeded runs and base rates", () => {
+    const run = (seed: number) => {
       let state = newShooter(BOARD.width, BOARD.height, seed);
       const seen = new Set<number>();
       const rows: string[] = [];
@@ -132,14 +144,15 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
         }
       }
       return `${rows.length}:${fingerprint(rows.join(";"))}`;
-    });
-    expect(runs).toEqual(["552:f1e5568", "521:f28d78ec", "653:f2564ce6"]);
+    };
+    expect(run(1)).toBe(run(1));
+    expect(run(1)).not.toBe(run(2));
     for (let time = 0; time < 75; time += 0.5) {
       expect(shooterWave(time)).toBe(0);
-      expect(spawnInterval(time)).toBe(Math.max(0.3, 1.1 - time * 0.012));
-      expect(fireInterval(time)).toBe(Math.max(0.75, 2.2 - time * 0.02));
-      expect(bulletSpeed(time)).toBe(Math.min(320, 170 + time * 2));
-      expect(enemySpeedUp(time)).toBe(Math.min(80, time * 1.2));
+      expect(spawnInterval(time)).toBe(Math.max(0.45, 1.2 - time * 0.011));
+      expect(fireInterval(time)).toBe(Math.max(1.0, 2.4 - time * 0.02));
+      expect(bulletSpeed(time)).toBe(Math.min(230, 130 + time * 1.4));
+      expect(enemySpeedUp(time)).toBe(Math.min(60, time * 0.9));
       expect(bigShare(time)).toBe(0.2);
     }
   });
@@ -180,7 +193,7 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
 
   test("a big enemy's ring goes all the way round, slower than its fan", () => {
     const start = { ...newShooter(BOARD.width, BOARD.height, 1), time: 200, spawnIn: 1e9 };
-    const enemy = { id: 900, kind: "big" as const, x: 200, y: 100, vx: 0, vy: 0, hp: 99, fireIn: 0.001, volleys: 1 };
+    const enemy = { id: 900, kind: "big" as const, x: 200, y: 100, vx: 0, vy: 0, hp: 99, fireIn: 0.001, shown: 1, volleys: 1 };
     const fired = stepShooter({ ...start, enemies: [enemy] }, FRAME).bullets;
     expect(fired).toHaveLength(SHOOTER.ringBullets);
     expect(fired.some((b) => b.vy < 0)).toBe(true);
@@ -188,6 +201,153 @@ describe("Sky Shooter v2: past 75 s a new wave every 30 s, without end", () => {
     for (const b of fired) expect(Math.hypot(b.vx, b.vy)).toBeCloseTo(bulletSpeed(200) * SHOOTER.ringSpeedShare, 6);
     const again = stepShooter({ ...start, enemies: [{ ...enemy, volleys: 2 }] }, FRAME).bullets;
     expect(again).toHaveLength(5);
+  });
+
+  test("enemies only shoot after 500 ms of showing on the screen", () => {
+    let state: ShooterState = {
+      ...newShooter(BOARD.width, BOARD.height, 1),
+      spawnIn: 1e9,
+      fireIn: 1e9,
+      enemies: [{ id: 1, kind: "small", x: 180, y: -15, vx: 0, vy: 100, hp: 99, fireIn: 0, shown: 0 }],
+    };
+    let onScreenFor = 0;
+    for (let i = 0; i < 60; i++) {
+      state = { ...stepShooter(state, FRAME), over: false };
+      const enemy = state.enemies[0];
+      if (enemy.y >= 0) onScreenFor += FRAME;
+      if (onScreenFor < SHOOTER.enemyFireDelay - 1e-6) {
+        expect(state.bullets).toHaveLength(0);
+      }
+    }
+    expect(state.bullets.length).toBeGreaterThan(0);
+  });
+
+  test("the plane shoots double at 3k, double + diagonal at 6k, triple + diagonal at 10k, all-around at 15k, and can fly to the top", () => {
+    expect(playerVolley(0)).toHaveLength(1);
+    expect(playerVolley(2999)).toHaveLength(1);
+    expect(playerVolley(3000)).toHaveLength(2);
+    expect(playerVolley(5999)).toHaveLength(2);
+    const doubleCone = playerVolley(6000);
+    expect(doubleCone).toHaveLength(4);
+    expect(doubleCone.filter((shot) => shot.angle === 0)).toHaveLength(2);
+    expect(doubleCone.some((shot) => shot.angle < 0)).toBe(true);
+    expect(doubleCone.some((shot) => shot.angle > 0)).toBe(true);
+    const tripleCone = playerVolley(10000);
+    expect(tripleCone).toHaveLength(5);
+    expect(tripleCone.filter((shot) => shot.angle === 0)).toHaveLength(3);
+    expect(tripleCone.some((shot) => shot.angle < 0)).toBe(true);
+    expect(tripleCone.some((shot) => shot.angle > 0)).toBe(true);
+    const ring = playerVolley(15000);
+    expect(ring).toHaveLength(10);
+    expect(ring.some((shot) => Math.abs(shot.angle) > Math.PI / 2)).toBe(true);
+    const doubleRun = stepShooter({ ...shooterAt(BOARD.width, BOARD.height, 1, 3000), fireIn: 0, spawnIn: 1e9 }, FRAME);
+    expect(doubleRun.shots).toHaveLength(2);
+    const doubleConeRun = stepShooter({ ...shooterAt(BOARD.width, BOARD.height, 1, 6000), fireIn: 0, spawnIn: 1e9 }, FRAME);
+    expect(doubleConeRun.shots).toHaveLength(4);
+    expect(doubleConeRun.shots.some((shot) => shot.vx < 0 && shot.vy < 0)).toBe(true);
+    expect(doubleConeRun.shots.some((shot) => shot.vx > 0 && shot.vy < 0)).toBe(true);
+    const tripleConeRun = stepShooter({ ...shooterAt(BOARD.width, BOARD.height, 1, 10000), fireIn: 0, spawnIn: 1e9 }, FRAME);
+    expect(tripleConeRun.shots).toHaveLength(5);
+    const ringRun = stepShooter({ ...shooterAt(BOARD.width, BOARD.height, 1, 15000), fireIn: 0, spawnIn: 1e9 }, FRAME);
+    expect(ringRun.shots).toHaveLength(10);
+    expect(ringRun.shots.some((shot) => shot.vy > 0)).toBe(true);
+    expect(ringRun.shots.some((shot) => shot.vx < 0 && shot.vy > 0)).toBe(true);
+    expect(ringRun.shots.some((shot) => shot.vx > 0 && shot.vy > 0)).toBe(true);
+    const top = moveShooter(newShooter(BOARD.width, BOARD.height, 1), 0, -2000);
+    expect(top.player.y).toBe(SHOOTER.planeSize / 2);
+  });
+
+  test("giant enemies spawn from 10,000, are bigger and slower than big enemies, and shoot all around", () => {
+    expect(SHOOTER.giantRadius).toBeGreaterThan(SHOOTER.bigRadius);
+    expect(enemyHp("giant", 10000)).toBeGreaterThan(enemyHp("big", 10000));
+    expect(volleyOf({ kind: "giant", volleys: 0 }, 600, 10000).ring).toBe(true);
+    expect(volleyOf({ kind: "giant", volleys: 1 }, 600, 10000).ring).toBe(true);
+    const seen = (score: number) => {
+      let state = { ...shooterAt(BOARD.width, BOARD.height, 4, score), fireIn: 1e9 };
+      const spawned: { kind: string; speed: number }[] = [];
+      const ids = new Set<number>();
+      for (let i = 0; i < 60 * 20; i++) {
+        state = { ...stepShooter({ ...state, fireIn: 1e9 }, FRAME), over: false };
+        for (const enemy of state.enemies) {
+          if (ids.has(enemy.id)) continue;
+          ids.add(enemy.id);
+          spawned.push({ kind: enemy.kind, speed: Math.hypot(enemy.vx, enemy.vy) });
+        }
+      }
+      return spawned;
+    };
+    expect(seen(9000).some((e) => e.kind === "giant")).toBe(false);
+    const atTenK = seen(10000);
+    const giants = atTenK.filter((e) => e.kind === "giant");
+    const bigs = atTenK.filter((e) => e.kind === "big");
+    expect(giants.length).toBeGreaterThan(0);
+    const avg = (list: { speed: number }[]) => list.reduce((sum, item) => sum + item.speed, 0) / list.length;
+    expect(avg(giants)).toBeLessThan(avg(bigs));
+    const ringFired = stepShooter(
+      {
+        ...shooterAt(BOARD.width, BOARD.height, 1, 10000),
+        spawnIn: 1e9,
+        fireIn: 1e9,
+        enemies: [{ id: 1, kind: "giant", x: 180, y: 140, vx: 0, vy: 0, hp: 99, fireIn: 0, shown: 1 }],
+      },
+      FRAME
+    ).bullets;
+    expect(ringFired).toHaveLength(SHOOTER.giantRingBullets);
+    expect(ringFired.some((b) => b.vy < 0)).toBe(true);
+    expect(ringFired.some((b) => b.vy > 0)).toBe(true);
+  });
+
+  test("enemies ramp harder and harder as the score approaches 10,000 and beyond", () => {
+    const scores = [1000, 3000, 5000, 7000, 9000, 10000, 15000];
+    for (let i = 1; i < scores.length; i++) {
+      expect(scoreDifficultyTime(scores[i])).toBeGreaterThan(scoreDifficultyTime(scores[i - 1]));
+      expect(spawnInterval(30, scores[i])).toBeLessThan(spawnInterval(30, scores[i - 1]));
+      expect(fireInterval(30, scores[i])).toBeLessThan(fireInterval(30, scores[i - 1]));
+      expect(bulletSpeed(30, scores[i])).toBeGreaterThan(bulletSpeed(30, scores[i - 1]));
+      expect(enemySpeedUp(30, scores[i])).toBeGreaterThan(enemySpeedUp(30, scores[i - 1]));
+    }
+    expect(patternsAt(40, 1000)).toEqual([]);
+    expect(patternsAt(40, 5000)).toEqual(["double", "ring"]);
+    expect(patternsAt(40, 7000)).toEqual(["double", "ring", "wideFan"]);
+    expect(patternsAt(40, 10000)).toEqual(["double", "ring", "wideFan", "burst"]);
+    expect(fastShare(5999)).toBe(0);
+    expect(fastShare(6000)).toBeGreaterThan(0);
+    expect(fastShare(10000)).toBeGreaterThan(fastShare(6000));
+    expect(enemyHp("small", 9000)).toBeGreaterThan(enemyHp("small", 0));
+    expect(enemyHp("fast", 9000)).toBeGreaterThan(enemyHp("fast", 6000));
+    expect(enemyHp("big", 9000)).toBeGreaterThan(enemyHp("big", 0));
+  });
+
+  test("faster enemies appear from 6,000 and shoot faster than normal enemies", () => {
+    expect(enemyFireInterval("fast", 600)).toBeLessThan(enemyFireInterval("small", 600));
+    const spawnKinds = (score: number) => {
+      let state = shooterAt(BOARD.width, BOARD.height, 4, score);
+      const kinds = new Set<string>();
+      for (let i = 0; i < 60 * 15; i++) {
+        state = { ...stepShooter(state, FRAME), over: false };
+        for (const enemy of state.enemies) kinds.add(enemy.kind);
+      }
+      return kinds;
+    };
+    expect(spawnKinds(3000).has("fast")).toBe(false);
+    expect(spawnKinds(6000).has("fast")).toBe(true);
+    const normalState: ShooterState = {
+      ...shooterAt(BOARD.width, BOARD.height, 1, 6000),
+      spawnIn: 1e9,
+      fireIn: 1e9,
+      enemies: [{ id: 1, kind: "small", x: 180, y: 120, vx: 0, vy: 0, hp: 99, fireIn: 0, shown: 1 }],
+    };
+    const fastState: ShooterState = {
+      ...normalState,
+      enemies: [{ id: 2, kind: "fast", x: 180, y: 120, vx: 0, vy: 0, hp: 99, fireIn: 0, shown: 1 }],
+    };
+    let n = normalState;
+    let f = fastState;
+    for (let i = 0; i < 60 * 5; i++) {
+      n = { ...stepShooter(n, FRAME), over: false };
+      f = { ...stepShooter(f, FRAME), over: false };
+    }
+    expect(f.enemies[0].volleys ?? 0).toBeGreaterThan(n.enemies[0].volleys ?? 0);
   });
 
   test("measured, more enemies, more bullets and faster aimed bullets come each minute, from 60 s to 10 minutes", () => {
