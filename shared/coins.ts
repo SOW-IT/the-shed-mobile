@@ -1,7 +1,7 @@
 import { sydneyYmd } from "./flow";
 import { SCORES_RESET_AT, type GameId } from "./games";
 
-export const START_COINS = 50;
+export const START_COINS = 100;
 
 /** What 1st, 2nd and 3rd on a game's leaderboard pay. No other place pays. */
 export const PLACE_COINS = [50, 25, 10] as const;

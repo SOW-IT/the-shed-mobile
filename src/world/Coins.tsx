@@ -34,13 +34,11 @@ export const CoinsPanel = ({
   top,
   balance,
   onClose,
-  onBackyard,
 }: {
   open: boolean;
   top: number;
   balance: number | undefined;
   onClose: () => void;
-  onBackyard: () => void;
 }) => {
   const reduce = useBatterySaver();
   const { width, height } = useWindowDimensions();
@@ -122,14 +120,13 @@ export const CoinsPanel = ({
           Each place pays once per game. Climb higher and you get the difference.
         </Text>
         <Text style={[styles.lead, styles.farmLead]}>Farm in your backyard:</Text>
-        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Grow crops in your backyard and sell them to ${JOSH}. Go to your backyard`} testID="world-coins-crops" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+        <View accessible accessibilityLabel={`Grow crops in your backyard and sell them to ${JOSH}`} testID="world-coins-crops" style={[styles.row, styles.farmRow]}>
           <View style={styles.goods}>
             <CropThumb crop="tomato" size={30} />
           </View>
           <Text style={styles.farmText}>Grow crops · sell to {JOSH}</Text>
-          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
-        </Pressable>
-        <Pressable onPress={onBackyard} accessibilityRole="button" accessibilityLabel={`Keep hens and cows and sell their eggs and milk to ${JOSH}. Go to your backyard`} testID="world-coins-animals" style={({ pressed }) => [styles.row, styles.farmRow, pressed && styles.pressed]}>
+        </View>
+        <View accessible accessibilityLabel={`Keep hens and cows and sell their eggs and milk to ${JOSH}`} testID="world-coins-animals" style={[styles.row, styles.farmRow]}>
           <View style={styles.goods}>
             <GoodThumb good="egg" size={30} />
             <View style={styles.second}>
@@ -137,8 +134,7 @@ export const CoinsPanel = ({
             </View>
           </View>
           <Text style={styles.farmText}>Hens and cows · sell eggs and milk</Text>
-          <Ionicons name="chevron-forward" size={16} color={hud.forest} />
-        </Pressable>
+        </View>
         <View style={styles.shop}>
           <Bust look={NPC.look} size={36} />
           <Text style={styles.shopText}>{NPC.name.split(" ")[0]} in the Café sells furniture for your home.</Text>

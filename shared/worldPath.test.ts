@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   OBSTACLES,
   PLACE_OBSTACLES,
+  PLACES,
+  PORTALS,
   pathAhead,
   posAt,
   SEATS,
@@ -88,6 +90,31 @@ describe("findPath", () => {
     expect(homePath.length).toBeGreaterThan(0);
     const homeWalk: Walk = { fromX: 0, fromZ: 3, toX: 0, toZ: -3, startedAt: 0, path: homePath };
     expect(hitsAny(homeWalk, [sofa])).toBeNull();
+  });
+
+  test("in every place, every pad can be walked to from every other pad, and every seat from the pads", () => {
+    for (const place of PLACES) {
+      for (const from of PORTALS[place]) {
+        for (const to of PORTALS[place]) {
+          if (from === to) continue;
+          const path = findPath(place, from, to);
+          const walk: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: 0, path };
+          expect(hitsAny(walk, PLACE_OBSTACLES[place]), `${place}: ${from.to} pad to ${to.to} pad`).toBeNull();
+        }
+        for (const seat of SEATS[place]) {
+          expect(findMaybe(place, from, seat, [], { allowGoalInside: true }), `${place}: ${from.to} pad to ${seat.id}`).not.toBeNull();
+        }
+      }
+    }
+  });
+
+  test("routes around the Library's shelves, table and armchairs", () => {
+    const from = { x: 0, z: 0 };
+    const to = { x: 0, z: -8.5 };
+    const path = findPath("library", from, to);
+    expect(path.length).toBeGreaterThan(0);
+    const walk: Walk = { fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z, startedAt: 0, path };
+    expect(hitsAny(walk, PLACE_OBSTACLES.library)).toBeNull();
   });
 
   test("handles unreachable or fully blocked layouts safely", () => {

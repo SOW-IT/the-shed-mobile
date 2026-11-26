@@ -1,13 +1,15 @@
-const MS_PER_CHAR = 60;
-const SHORTEST_MS = 600;
-const LONGEST_MS = 4000;
+import { BUBBLE_MS } from "../../shared/world";
+
 const FLAP_MS = 130;
+export const FACE_MIN = 0.15;
 
-export const talkMs = (text: string) => Math.min(LONGEST_MS, Math.max(SHORTEST_MS, Array.from(text).length * MS_PER_CHAR));
-
-export const mouthAt = (say: { text: string; at: number } | undefined, now: number): boolean | undefined => {
-  if (!say) return undefined;
+export const bubbleAge = (say: { at: number } | undefined, now: number): number | null => {
+  if (!say) return null;
   const age = now - say.at;
-  if (age < 0 || age >= talkMs(say.text)) return undefined;
-  return Math.floor(age / FLAP_MS) % 2 === 0;
+  return age >= 0 && age < BUBBLE_MS ? age : null;
 };
+
+export const mouthAt = (bubble: number | null, heading: number): boolean | undefined =>
+  bubble === null || Math.cos(heading) <= FACE_MIN ? undefined : Math.floor(bubble / FLAP_MS) % 2 === 0;
+
+export const nextFlapAt = (saidAt: number, bubble: number) => saidAt + (Math.floor(bubble / FLAP_MS) + 1) * FLAP_MS;
