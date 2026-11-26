@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.39] - 2026-11-27
+
+### Fixed
+- **Verify's arcade check closes the Arcade before the next check runs, for
+  contributors.** The iOS simulator check `arcade-podium` ended with the
+  World's Arcade panel still open, so `chapel-pews`, which runs next when a
+  branch touches both the games and the World, could start under that panel
+  and fail. The check now taps the panel's close button at the end and waits
+  until only the World is showing. Nothing in the app changes.
+
 ## [2.13.38] - 2026-11-27
 
 ### Changed
