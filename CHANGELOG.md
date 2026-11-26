@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.38] - 2026-11-27
+
+### Changed
+- **Running out of time in Dots and Boxes draws a line for you.** When a
+  player's 60 seconds run out, the server draws a random line that nobody
+  has drawn yet, for them. It counts like any other line: a box it closes
+  is theirs and they go again, and otherwise it's the other player's turn
+  with a fresh 60 seconds. It happens on the server, so it still works if
+  their phone is late, in the background or gone, and both players see the
+  same board. Running out of time no longer skips the turn or loses a Dots
+  and Boxes game; the game ends when the last line is drawn, as usual. The
+  other Café games still pass the turn, and lose on a second miss in a row.
+
 ## [2.13.37] - 2026-11-27
 
 ### Changed

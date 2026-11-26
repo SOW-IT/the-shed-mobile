@@ -15,12 +15,12 @@ import {
   CAFE_WATCH_WRITE_MS,
   cafeTableOf,
   isCafeGameKind,
-  missTurn,
   newBoard,
   otherSide,
   pairKey,
   type CafeGameKind,
   type Side,
+  timeOut,
   type Winner,
 } from "../shared/cafeGames";
 import { DUEL_LOSER_EMOTE, DUEL_WINNER_EMOTE, ROOM_CAP, takeToken, type EmoteId } from "../shared/world";
@@ -423,16 +423,16 @@ export const timeout = internalMutation({
   handler: async (ctx, { gameId, moves }) => {
     const game = await ctx.db.get("cafeGames", gameId);
     const row = await boardOf(ctx, gameId);
-    if (!game || !row || game.endedAt !== undefined || row.moves !== moves) return null;
+    if (!game || !row || game.endedAt !== undefined || row.moves !== moves || !isCafeGameKind(game.kind)) return null;
     const now = Date.now();
-    const missed = missTurn(row.board);
-    if (missed.lost) {
-      await ctx.db.patch("cafeBoards", row._id, { board: missed.board });
-      await endGame(ctx, game, missed.board.turn, "timeout", now);
+    const timed = timeOut(game.kind, row.board);
+    if (timed.winner !== undefined) {
+      await ctx.db.patch("cafeBoards", row._id, { board: timed.board, moves: moves + 1 });
+      await endGame(ctx, game, timed.winner, timed.why, now);
       return null;
     }
     const turnEndsAt = now + CAFE_TURN_MS;
-    await ctx.db.patch("cafeBoards", row._id, { board: missed.board, moves: moves + 1, turnEndsAt });
+    await ctx.db.patch("cafeBoards", row._id, { board: timed.board, moves: moves + 1, turnEndsAt });
     await ctx.scheduler.runAt(turnEndsAt, internal.cafeGames.timeout, { gameId, moves: moves + 1 });
     return null;
   },

@@ -134,6 +134,12 @@ const placeOnGrid = (kind: Exclude<CafeGameKind, "dotsAndBoxes">, board: CafeBoa
 
 export const boxesWon = (boxes: readonly number[], side: Side) => boxes.filter((box) => box === markOf(side)).length;
 
+const boxesWinner = (boxes: readonly number[]): Winner => {
+  const a = boxesWon(boxes, "a");
+  const b = boxesWon(boxes, "b");
+  return a > b ? "a" : b > a ? "b" : "draw";
+};
+
 const drawLine = (board: CafeBoard, side: Side, index: number): Moved => {
   const cells = [...board.cells];
   cells[index] = markOf(side);
@@ -147,9 +153,7 @@ const drawLine = (board: CafeBoard, side: Side, index: number): Moved => {
   }
   const next = { ...fresh(board, side), cells, boxes, last: index, turn: claimed > 0 ? side : otherSide(side) };
   if (!full(cells)) return { ok: true, board: next };
-  const a = boxesWon(boxes, "a");
-  const b = boxesWon(boxes, "b");
-  return { ok: true, board: next, winner: a > b ? "a" : b > a ? "b" : "draw" };
+  return { ok: true, board: next, winner: boxesWinner(boxes) };
 };
 
 export const applyMove = (kind: CafeGameKind, board: CafeBoard, side: Side, move: number): MoveResult => {
@@ -170,6 +174,25 @@ export const missTurn = (board: CafeBoard): { board: CafeBoard; lost: boolean } 
   const side = board.turn;
   const missed = { ...board.missed, [side]: board.missed[side] + 1 };
   return { board: { ...board, missed, turn: otherSide(side) }, lost: missed[side] >= CAFE_MISSES_TO_LOSE };
+};
+
+const openLines = (board: CafeBoard) => board.cells.flatMap((cell, index) => (cell === 0 ? [index] : []));
+
+type TimedOut = { board: CafeBoard; winner?: Winner; why: "played" | "timeout" };
+
+// When the clock runs out, Dots and Boxes draws a random free line for that
+// player, and scores it like any other line; the other games pass the turn.
+export const timeOut = (kind: CafeGameKind, board: CafeBoard, random: () => number = Math.random): TimedOut => {
+  if (kind !== "dotsAndBoxes") {
+    const missed = missTurn(board);
+    return missed.lost ? { board: missed.board, winner: missed.board.turn, why: "timeout" } : { board: missed.board, why: "timeout" };
+  }
+  const open = openLines(board);
+  if (open.length === 0) return { board, winner: boxesWinner(board.boxes), why: "played" };
+  const side = board.turn;
+  const pick = open[Math.min(open.length - 1, Math.floor(random() * open.length))];
+  const drawn = drawLine(board, side, pick);
+  return { board: { ...drawn.board, missed: { ...board.missed, [side]: board.missed[side] + 1 } }, winner: drawn.winner, why: "played" };
 };
 
 export const CAFE_TABLES: Readonly<Record<string, readonly string[]>> = SEATS.cafe.reduce<Record<string, string[]>>((tables, seat) => {
