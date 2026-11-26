@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.23] - 2026-11-26
+## [2.13.26] - 2026-11-26
 
 ### Fixed
 - **The People list, its In the app list and the arcade agree on who's
@@ -17,6 +17,28 @@ All notable changes to **The SHED** mobile app. This project follows
   itself, so they show the same game, follow a switch straight away, and
   show nothing once the player leaves. People in another place show their
   game under Elsewhere too.
+
+## [2.13.24] - 2026-11-26
+
+### Changed
+- **Mouths talk for as long as the line takes to say, not the whole bubble.** In the World a one-word "hi" talks for a quarter of the time its bubble is up, longer lines talk for longer, and only a long line talks until the bubble goes. The mouth always finishes closed.
+
+### Fixed
+- **Outfits now wrap around the body cleanly from every angle.** Overalls keep their front bib and crossed back braces in place as you turn; collared shirts show a full neckband, shifting collar points and front buttons; open jackets and flannels shift their inner tee and lapels to the facing side while keeping full plaid across the back; jumpers show neckline ribbing from every heading; polka dots and tie-dye prints wrap all the way around the torso with edge foreshortening and hide the tank scoop from behind.
+- **Hats now match from the front, both sides, behind and seated on a Chapel pew.** Caps keep their top button visible when facing away; beanies wrap with a 3D cuff rim and tilted pompom; flower crowns form a full ring around the head; berets flip their tilt and stalk cleanly across turns; bows move around the crown and tuck behind on the far side; headbands curve flush around the head from every angle; royal crowns show five depth-sorted tines with a front jewel that hides from behind.
+- **Accessories and glasses now follow head and body turns.** All five glasses styles foreshorten their lenses side-on, align the bridge between inner rims and add 3D temple arms that hook behind the ears; backpacks narrow side-on, sit flush behind the torso with wrapping straps and show a back pocket from behind; scarves keep a full wrap with a tail that moves behind on turns; bow ties shift to the facing edge and hide from behind; pearl necklaces wrap all the way around the neck with a front pendant; ear flowers stay on the left ear and hide behind the head when turned away.
+- **Hair styles now read consistently from every side and from behind.** Long hair, bobs, mullets and wavy hair flow smoothly down the back of the head without a harsh outline seam, and wavy hair keeps its hem curls tucked along the back edge; ponytails, buns, space buns, pigtails, curls, mohawks, spikes and side braids project in 3D with proper front/back layering; side-swept fringes and parted curtains foreshorten and hide smoothly when facing away.
+
+## [2.13.23] - 2026-11-26
+
+### Added
+- **A Go back button on every game-over card.** When a run ends in Sky
+  Shooter, Mystic Man, Flap or Swoop, the card now has Go back under Play
+  again and Leaderboard. It takes you straight back to the Games list, or to
+  the arcade over the World if that's where you opened the game. Each game
+  colours it its own way: night sky and laser blue in Sky Shooter, purple
+  hills and gold in Mystic Man, a green pipe in Flap, and the bird's teal and
+  cream in Swoop.
 
 ## [2.13.22] - 2026-11-26
 
