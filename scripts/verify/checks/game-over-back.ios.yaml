@@ -1,0 +1,116 @@
+appId: au.org.sow.theshed
+---
+# Every arcade game's game-over card: start a run, leave it alone until it
+# ends, then the card's Go back button comes back to the Games list. A
+# practice start (?start=) makes Sky Shooter and Swoop end sooner.
+# flappy
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-flappy
+    timeout: 30000
+- tapOn:
+    id: games-open-flappy
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-flappy-game-over"
+- tapOn:
+    id: game-over-back
+- extendedWaitUntil:
+    visible:
+      id: games-open-flappy
+    timeout: 20000
+- assertNotVisible:
+    id: game-over
+# runner
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-runner
+    timeout: 30000
+- tapOn:
+    id: games-open-runner
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-runner-game-over"
+- tapOn:
+    id: game-over-back
+- extendedWaitUntil:
+    visible:
+      id: games-open-runner
+    timeout: 20000
+- assertNotVisible:
+    id: game-over
+# shooter
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-shooter
+    timeout: 30000
+- openLink: "theshedmobile://games/shooter?start=20000"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-shooter-game-over"
+- tapOn:
+    id: game-over-back
+- extendedWaitUntil:
+    visible:
+      id: games-open-shooter
+    timeout: 20000
+- assertNotVisible:
+    id: game-over
+# glider
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-glider
+    timeout: 30000
+- openLink: "theshedmobile://games/glider?start=200"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-glider-game-over"
+- tapOn:
+    id: game-over-back
+- extendedWaitUntil:
+    visible:
+      id: games-open-glider
+    timeout: 20000
+- assertNotVisible:
+    id: game-over
+- takeScreenshot: "${OUT}/check-games-after-go-back"
