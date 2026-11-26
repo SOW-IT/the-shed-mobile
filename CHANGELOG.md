@@ -43,9 +43,11 @@ All notable changes to **The SHED** mobile app. This project follows
   farm for coins; you walk there through your home.
 
 ### Fixed
-- **The hoodie's hood no longer sits in front of the shoulders.** From the
-  front it shows behind the head and the arms, from the side behind the
-  back, and from behind it lies on the upper back within the shoulders.
+- **The hoodie looks like a hoodie, and its hood no longer sits in front of
+  the shoulders.** From the front the hood shows behind the head with a rim
+  at the neck, two drawstrings and a pocket; from the side it curves behind
+  the head and neck; from behind, and sitting on a pew, it lies on the upper
+  back.
 - **A tapped hen, cow, coop, barn or plant's card no longer hides under the
   chat log.** The card keeps below the log however many lines it shows, on
   small phones too.
