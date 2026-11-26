@@ -598,7 +598,8 @@ describe("asking to visit someone's home", () => {
     await asUser(t, BEN).mutation(api.world.join, {});
     await goTo(t, ANNA, "home");
     await asUser(t, BEN).mutation(api.world.knock, { memberId: annaId });
-    for (let i = 0; i < 6; i++) {
+    // More than the query's 50-row scan, so only deleting on block keeps Ben's request visible.
+    for (let i = 0; i < 55; i++) {
       const guest = asUser(t, `guest${i}@sow.org.au`);
       later(1000);
       await guest.mutation(api.world.join, {});
@@ -607,7 +608,20 @@ describe("asking to visit someone's home", () => {
     }
     const knocks = await anna.query(api.world.knocks, {});
     expect(knocks).toHaveLength(1);
-    expect(knocks[0].at).toBeLessThan(Date.now() - 5000);
+    expect(knocks[0].at).toBeLessThan(Date.now() - 50_000);
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toHaveLength(1);
+  });
+
+  test("blocking drops pending requests in both directions", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const ben = asUser(t, BEN);
+    const { memberId: annaId } = await anna.mutation(api.world.join, {});
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await goTo(t, ANNA, "home");
+    await ben.mutation(api.world.knock, { memberId: annaId });
+    await anna.mutation(api.world.block, { memberId: benId });
+    expect(await t.run((ctx) => ctx.db.query("worldKnocks").collect())).toEqual([]);
   });
 
   test("letting in someone who already left reports they left and clears the request", async () => {

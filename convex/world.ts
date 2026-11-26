@@ -1499,6 +1499,15 @@ export const block = mutation({
       if (mine.length >= MAX_BLOCKS) throw new ConvexError(`You've blocked ${MAX_BLOCKS} people. Unblock someone under People here first.`);
       await ctx.db.insert("worldBlocks", { email, blockedEmail: other.email, blockedName: other.name });
     }
+    // Drop pending requests to visit either home, so a blocked guest's row
+    // can't take one of the owner's few request slots until it expires.
+    for (const [owner, guest] of [[email, other.email], [other.email, email]]) {
+      const knock = await ctx.db
+        .query("worldKnocks")
+        .withIndex("by_owner_and_guest", (q) => q.eq("owner", owner).eq("guest", guest))
+        .first();
+      if (knock) await ctx.db.delete("worldKnocks", knock._id);
+    }
     return null;
   },
 });
