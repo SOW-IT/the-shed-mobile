@@ -2,8 +2,8 @@
 // The arcade over the World and the leaderboard's podium, driven: the panel
 // opens over the live World and stays while you walk, a game goes full screen
 // and leaving it comes back to the World, and the leaderboard from the panel
-// shows the podium and returns to the panel. Tapping the arcade walks you
-// there and opens it, and walking away closes it. Also the Games list's coins
+// shows the podium and returns to the panel. In the Garden, tapping the
+// arcade walks you there and opens it, and walking away closes it. Also the Games list's coins
 // and who's playing.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
@@ -87,9 +87,16 @@ try {
   await expect("back from the leaderboard, the arcade is still open", id("world-arcade").waitFor({ timeout: 10_000 }).then(() => true, () => false));
 
   // Tapping the arcade walks you to it and opens its games; walking away
-  // from it closes them, and tapping it again opens them again.
+  // from it closes them, and tapping it again opens them again. The Chapel
+  // check before this one leaves you in the Chapel, so go to the Garden first.
   await id("world-arcade-close").click();
   await id("world-arcade").waitFor({ state: "hidden" });
+  await id("world-title").click();
+  await id("world-menu").waitFor();
+  const toGarden = page.getByTestId("world-menu-garden");
+  if ((await toGarden.count()) > 0) await toGarden.click();
+  else await id("world-menu-close").click();
+  await page.waitForFunction(() => /garden/i.test(document.querySelector('[data-testid="world-title"]')?.textContent ?? ""), null, { timeout: 30_000 });
   const tapArcade = async () => {
     // The World's tap targets are labelled views over the stage, like the Chapel's lectern.
     const arcade = page.getByLabel("Arcade", { exact: true }).first();
@@ -111,6 +118,7 @@ try {
   await expect("back at the arcade, a tap opens its games again", tapArcade());
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
+  await page.screenshot({ path: `${OUT}/failed-error.png` }).catch(() => {});
 } finally {
   await browser.close();
 }
