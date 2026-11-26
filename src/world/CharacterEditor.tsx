@@ -62,12 +62,9 @@ const WIDE_COLUMN = 960;
 const SHORT_SCREEN = 600;
 const SIDE_BY_SIDE_WIDTH = 560;
 const SHORT_PREVIEW = 110;
-/** Preview scales at the base preview height, from full body down to close-up details. */
-const HEAD_SHOT = 112;
-const FACE_SHOT = 126;
-const EYE_SHOT = 190;
-const NOSE_SHOT = 205;
-const MOUTH_SHOT = 195;
+/** The preview's scale close up on the face, at the base preview height. */
+const CLOSE_UP = 140;
+const HEAD_SHOT = 118;
 
 type Shot = PreviewShot;
 
@@ -82,28 +79,15 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
     const s = Math.min(100 * zoom, (footY - 6) / figureTop(tallest, 0.86));
     return { s, y: footY };
   }
-  if (shot === "head") {
-    const middle = height * 0.6;
-    const above = Math.max(0.5, figureTop(look, 0.86) - neck);
-    const s = Math.min(HEAD_SHOT * zoom, (middle - 8) / above);
-    return { s, y: middle + neck * s };
-  }
   if (shot === "face") {
-    // Fit the whole face cleanly, with breathing room even for tall face shapes.
-    const s = FACE_SHOT * zoom;
-    return { s, y: height * 0.51 + neck * s };
+    // Close up on the face while you work on it, so a slider's step shows.
+    const s = CLOSE_UP * zoom;
+    return { s, y: height * 0.56 + neck * s };
   }
-  // Detail close-ups: zoom in on the area being edited so sliders and small parts show clearly.
-  const focus =
-    shot === "eyes"
-      ? { scale: EYE_SHOT, offset: 0.09 }
-      : shot === "brows"
-        ? { scale: EYE_SHOT, offset: 0.01 }
-        : shot === "nose"
-          ? { scale: NOSE_SHOT, offset: 0.19 }
-          : { scale: MOUTH_SHOT, offset: 0.22 };
-  const s = focus.scale * zoom;
-  return { s, y: height * 0.52 + (neck - focus.offset) * s };
+  const middle = height * 0.6;
+  const above = Math.max(0.5, figureTop(look, 0.86) - neck);
+  const s = Math.min(HEAD_SHOT * zoom, (middle - 8) / above);
+  return { s, y: middle + neck * s };
 };
 
 /** Turns per pixel dragged (radians). */
@@ -557,17 +541,7 @@ const NUDGE_ROWS = {
 const TABS = ["Face", "Eyes", "Brows", "Mouth", "Hair", "Body", "Outfit", "Extras"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Partial<Record<Tab, string>> = { Hair: "Hair & hat" };
-const SHOTS: Record<Tab, Shot> = {
-  Face: "face",
-  Eyes: "eyes",
-  Brows: "brows",
-  Mouth: "mouth",
-  Hair: "head",
-  Body: "full",
-  Outfit: "full",
-  Extras: "full",
-};
-const FACE_DETAIL_PARTS = new Set<LookPart>(["nose", "freckles", "mole"]);
+const SHOTS: Record<Tab, Shot> = { Face: "face", Eyes: "face", Brows: "face", Mouth: "face", Hair: "head", Body: "full", Outfit: "full", Extras: "full" };
 
 /** Glasses were one of the extras; the editor keeps them as their own part. */
 const withOwnGlasses = (look: Look): Look =>
@@ -604,8 +578,7 @@ export const CharacterEditor = ({
   const tile = tileFor(choicesWidth);
   const [draft, setDraft] = useState<Look>(() => withOwnGlasses(look));
   const [tab, setTab] = useState<Tab>("Face");
-  const [faceDetail, setFaceDetail] = useState(false);
-  const shot: Shot = tab === "Face" && faceDetail ? "nose" : SHOTS[tab];
+  const shot = SHOTS[tab];
   const [confirmingRandom, setConfirmingRandom] = useState(false);
   // Start from your current look each time the editor opens, so a cancelled
   // change doesn't come back.
@@ -614,18 +587,12 @@ export const CharacterEditor = ({
     setWasVisible(visible);
     if (visible) {
       setDraft(withOwnGlasses(look));
-      setFaceDetail(false);
     } else {
       setConfirmingRandom(false);
     }
   }
-  const set = (name: LookPart) => (value: number) => {
-    if (name === "skin") setFaceDetail(false);
-    setDraft((d) => ({ ...d, [name]: value }));
-  };
+  const set = (name: LookPart) => (value: number) => setDraft((d) => ({ ...d, [name]: value }));
   const pickPart = useCallback((name: LookPart, value: number) => {
-    if (FACE_DETAIL_PARTS.has(name)) setFaceDetail(true);
-    else if (name === "face" || name === "blush") setFaceDetail(false);
     setDraft((d) => ({ ...d, [name]: value }));
   }, []);
   const part = (name: LookPart) => lookPart(draft, name);
@@ -698,10 +665,7 @@ export const CharacterEditor = ({
       {TABS.map((name) => (
         <Pressable
           key={name}
-          onPress={() => {
-            setTab(name);
-            setFaceDetail(false);
-          }}
+          onPress={() => setTab(name)}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === name }}
           testID={`world-editor-tab-${name.toLowerCase()}`}
@@ -727,7 +691,7 @@ export const CharacterEditor = ({
           {section("Face shape")}
           <Choices names={FACES} part="face" framing="face" value={part("face")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-face" />
           {section("Nose")}
-          <Choices names={NOSES} part="nose" framing="zoom" value={part("nose")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-nose" />
+          <Choices names={NOSES} part="nose" framing="face" value={part("nose")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-nose" />
           {section("Blush")}
           <Choices names={BLUSH} part="blush" framing="face" value={part("blush")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-blush" />
           {section("Freckles")}

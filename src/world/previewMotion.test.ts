@@ -165,12 +165,6 @@ describe("previewMotion", () => {
     expect(previewRecenters("full", "head")).toBe(true);
     expect(previewRecenters("full", "face")).toBe(true);
     expect(previewRecenters("head", "face")).toBe(true);
-    expect(previewRecenters("face", "eyes")).toBe(true);
-    expect(previewRecenters("face", "nose")).toBe(true);
-    expect(previewRecenters("face", "brows")).toBe(true);
-    expect(previewRecenters("face", "mouth")).toBe(true);
-    expect(previewRecenters("eyes", "mouth")).toBe(false);
-    expect(previewRecenters("eyes", "face")).toBe(false);
     expect(previewRecenters("face", "face")).toBe(false);
     expect(previewRecenters("face", "head")).toBe(false);
     expect(previewRecenters("head", "full")).toBe(false);

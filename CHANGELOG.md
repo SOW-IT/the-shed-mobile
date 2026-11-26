@@ -9,7 +9,6 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [2.13.24] - 2026-11-26
 
 ### Changed
-- **Character editor preview zooms to match what you're editing.** Eyes, brows, mouth and facial details (nose, freckles, mole) zoom in closer on that area; Face zooms out slightly to fit the whole face cleanly; Hair & hat frames the full head and hat; Body, Outfit and Extras zoom out to fit the full character.
 
 ### Fixed
 - **Outfits now wrap around the body cleanly from every angle.** Overalls keep their front bib and crossed back braces in place as you turn; collared shirts show a full neckband, shifting collar points and front buttons; open jackets and flannels shift their inner tee and lapels to the facing side while keeping full plaid across the back; jumpers show neckline ribbing from every heading; polka dots and tie-dye prints wrap all the way around the torso with edge foreshortening and hide the tank scoop from behind.
