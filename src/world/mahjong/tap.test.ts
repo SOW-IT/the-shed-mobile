@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botSeatUnder, mahjongTap, tableToWatch, type TableSummary } from "./tap";
+import { botSeatUnder, mahjongTags, mahjongTap, tableToWatch, type TableSummary } from "./tap";
 
 const seat = (kind: "empty" | "human" | "bot", member: string | null = null, name = "") => ({ kind, member, name, away: false });
 const table = (phase: TableSummary["phase"], seats: TableSummary["seats"]): TableSummary => ({ id: "t1", table: "mahjong-a", phase, seats });
@@ -34,5 +34,15 @@ describe("tapping a mahjong seat", () => {
     expect(botSeatUnder([playing], "mahjong-a-0")).toBeNull();
     expect(botSeatUnder([playing], "mahjong-b-1")).toBeNull();
     expect(botSeatUnder([table("lobby", playing.seats)], "mahjong-a-1")).toBeNull();
+  });
+});
+
+describe("the World's tags for mahjong players", () => {
+  it("tags people playing a hand, not the lobby, bots or anyone away", () => {
+    const playing = table("playing", [seat("human", "ann"), seat("bot"), { ...seat("human", "cal"), away: true }, seat("human", "ben")]);
+    const tags = mahjongTags([playing, { ...table("lobby", [seat("human", "dee"), seat("empty"), seat("empty"), seat("empty")]), id: "t2", table: "mahjong-b" }]);
+    expect([...tags.keys()]).toEqual(["ann", "ben"]);
+    expect(tags.get("ann")).toEqual({ tag: "🀄 Mahjong", icon: "🀄", with: "ben" });
+    expect(mahjongTags([table("playing", [seat("human", "ann"), seat("bot"), seat("bot"), seat("bot")])]).get("ann")?.with).toBe("");
   });
 });

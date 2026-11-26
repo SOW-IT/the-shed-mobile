@@ -76,7 +76,7 @@ import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
 import { MahjongLayer } from "./mahjong/MahjongLayer";
-import { mahjongTap, tableToWatch } from "./mahjong/tap";
+import { mahjongTags, mahjongTap, tableToWatch } from "./mahjong/tap";
 import { useMahjong } from "./mahjong/useMahjong";
 
 const KEYBOARD_GAP = 8;
@@ -468,6 +468,7 @@ export const WorldScreen = ({
   };
 
   const playingNow = playingByPerson(cafe.playing, nameOf);
+  const mahjongTagged = mahjongTags(mahjong.tables);
   const challengeTo = (to: Id<"worldMembers">, kind: string) => {
     setPicking(null);
     void cafe.challenge(to, kind).then((problem) => setNote(problem ?? `Asked ${nameOf(to)} to play ${gameLabel(kind)}.`));
@@ -1674,7 +1675,7 @@ export const WorldScreen = ({
           reading: p.reading === true,
           seat: p.seat,
           typing: p.isMe ? (typingAt ?? undefined) : p.typing,
-          playing: playingNow.tags.get(p.memberId),
+          playing: playingNow.tags.get(p.memberId) ?? mahjongTagged.get(p.memberId),
         }))}
         serverNow={world.serverNow}
         target={world.target}

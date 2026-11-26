@@ -1,6 +1,6 @@
-import { FAAN, type FaanId } from "@shared/mahjong/faan";
-import type { Answer, Offer } from "@shared/mahjong/game";
-import { kindOf, tileName, WIND_CHARS, WIND_NAMES } from "@shared/mahjong/tiles";
+import { FAAN, type FaanId } from "../../../shared/mahjong/faan";
+import type { Answer, Offer } from "../../../shared/mahjong/game";
+import { kindOf, tileName, WIND_CHARS, WIND_NAMES } from "../../../shared/mahjong/tiles";
 
 /** Where a seat sits on screen for someone at `viewer`: you at the bottom, the next seat on your right. */
 export type Side = "bottom" | "right" | "top" | "left";

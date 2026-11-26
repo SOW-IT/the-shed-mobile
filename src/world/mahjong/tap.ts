@@ -1,4 +1,4 @@
-import { mahjongSeatId, mahjongSeatOf, type MahjongTableId } from "@shared/mahjong/table";
+import { mahjongSeatId, mahjongSeatOf, type MahjongTableId } from "../../../shared/mahjong/table";
 
 type SeatSummary = { kind: "empty" | "human" | "bot"; name: string; away: boolean; member: string | null };
 export type TableSummary = { id: string; table: string; phase: "lobby" | "playing" | "ended"; seats: readonly SeatSummary[] };
@@ -38,4 +38,19 @@ export const botSeatUnder = <T extends TableSummary>(tables: readonly T[], seatI
   const table = at && tables.find((t) => t.table === at.table);
   if (!at || !table || !live(table) || table.seats[at.seat].kind !== "bot") return null;
   return { tableId: table.id, table: at.table, seat: at.seat, name: table.seats[at.seat].name };
+};
+
+/**
+ * The tag over each person playing a hand, in the World, like the 1v1
+ * games' "vs" tag: "🀄 Mahjong", or just 🀄 when someone else at the table
+ * sits beside them (`with`).
+ */
+export const mahjongTags = (tables: readonly TableSummary[]) => {
+  const tags = new Map<string, { tag: string; icon: string; with: string }>();
+  for (const table of tables) {
+    if (!live(table)) continue;
+    const players = table.seats.flatMap((s) => (s.kind === "human" && s.member !== null && !s.away ? [s.member] : []));
+    for (const member of players) tags.set(member, { tag: "🀄 Mahjong", icon: "🀄", with: players.find((other) => other !== member) ?? "" });
+  }
+  return tags;
 };
