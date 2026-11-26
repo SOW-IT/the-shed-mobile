@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.29] - 2026-11-27
+## [2.13.31] - 2026-11-27
 
 ### Changed
 - **Running out of time in Dots and Boxes draws a line for you.** When a
@@ -18,6 +18,17 @@ All notable changes to **The SHED** mobile app. This project follows
   same board. Running out of time no longer skips the turn or loses a Dots
   and Boxes game; the game ends when the last line is drawn, as usual. The
   other Café games still pass the turn, and lose on a second miss in a row.
+
+## [2.13.30] - 2026-11-27
+
+### Changed
+- **Scissors, paper, rock, in that order.** The duel's pick buttons now run
+  Scissors, Paper, Rock, the same order as the chant, and the game is called
+  "Scissors paper rock" on the person card, the ask and what VoiceOver reads.
+- **Accepting a scissors paper rock ask is a ✊ button.** The yes button on
+  the ask card was too narrow for "Rock paper scissors!". It now shows the
+  game's ✊, and VoiceOver still reads "Accept scissors paper rock with" and
+  their name. High five keeps its words.
 
 ## [2.13.28] - 2026-11-26
 

@@ -1905,7 +1905,7 @@ describe("rock paper scissors", () => {
     const cara = asUser(t, CARA);
     await cara.mutation(api.world.join, {});
     expect(await cara.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "rock" })).toMatchObject({ ok: false });
-    await expect(anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "lizard" })).rejects.toThrow(/rock, paper or scissors/);
+    await expect(anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: "lizard" })).rejects.toThrow(/scissors, paper or rock/);
     for (let i = 0; i < DUEL_PICK_CHANGES; i++) {
       await anna.mutation(api.world.duelPick, { duelId: duel._id, round: 1, pick: i % 2 ? "rock" : "paper" });
     }

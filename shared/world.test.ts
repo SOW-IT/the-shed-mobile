@@ -84,6 +84,8 @@ import {
   WALK_SPEED,
   askInfo,
   chantAt,
+  DUEL_PICK_ORDER,
+  DUEL_PICKS,
   DUEL_REVEAL_MS,
   duelWinner,
   inWater,
@@ -715,6 +717,11 @@ describe("rock paper scissors", () => {
     expect(isDuelPick(3)).toBe(false);
   });
 
+  test("the picks are shown scissors, paper, rock, the order of the chant", () => {
+    expect(DUEL_PICK_ORDER).toEqual(["scissors", "paper", "rock"]);
+    expect(Object.keys(DUEL_PICKS)).toEqual(DUEL_PICK_ORDER);
+  });
+
   test("the chant lands Rock! on the reveal and stops after it", () => {
     const end = 10_000;
     expect(chantAt(end, end - 3000)).toBeNull();
@@ -728,7 +735,8 @@ describe("rock paper scissors", () => {
   test("a duel is something you can ask for, but not a mutual animation", () => {
     expect(isAskKind("rps")).toBe(true);
     expect(isMutual("rps")).toBe(false);
-    expect(askInfo("rps")?.ask).toBe("Rock paper scissors?");
+    expect(askInfo("rps")?.ask).toBe("Scissors paper rock?");
+    expect(askInfo("rps")?.accept).toBe(askInfo("rps")?.icon);
     expect(askInfo("highFive")?.ask).toBe("High five?");
     expect(askInfo("nope")).toBeNull();
     expect(askInfo(undefined)).toBeNull();
