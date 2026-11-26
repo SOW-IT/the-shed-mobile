@@ -43,6 +43,7 @@ import {
   PREVIEW_SPIN_DECAY,
   PREVIEW_SPIN_STOP,
   previewAutoWaitMs,
+  previewCloseUp,
   previewEaseInOut,
   previewGoalMoved,
   previewNeedsFrame,
@@ -65,6 +66,19 @@ const SHORT_PREVIEW = 110;
 /** The preview's scale close up on the face, at the base preview height. */
 const CLOSE_UP = 140;
 const HEAD_SHOT = 118;
+/**
+ * Close on one part of the face: its scale at the base preview height, and
+ * how far its middle sits below the middle of the head (times the scale).
+ */
+const FEATURES = {
+  eyes: { s: 240, below: 0.11 },
+  brows: { s: 240, below: -0.05 },
+  mouth: { s: 220, below: 0.3 },
+} as const;
+const OUTFIT_SHOT = 200;
+const EXTRAS_SHOT = 170;
+/** How far below the feet the soles of the shoes reach (times the scale). */
+const SOLES = 0.06;
 
 type Shot = PreviewShot;
 
@@ -83,6 +97,26 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
     // Close up on the face while you work on it, so a slider's step shows.
     const s = CLOSE_UP * zoom;
     return { s, y: height * 0.56 + neck * s };
+  }
+  if (shot === "eyes" || shot === "brows" || shot === "mouth") {
+    // Closer still, on the one part. The camera stays put while a slider
+    // moves the part, so you see it move.
+    const part = FEATURES[shot];
+    const s = part.s * zoom;
+    return { s, y: height * 0.5 + (neck - part.below) * s };
+  }
+  if (shot === "outfit") {
+    // From the mouth down to the shoes: the top, the bottoms and the shoes.
+    const top = neck - 0.3;
+    const s = Math.min(OUTFIT_SHOT * zoom, (height - 16) / (top + SOLES));
+    return { s, y: height / 2 + ((top - SOLES) / 2) * s };
+  }
+  if (shot === "extras") {
+    // The head and shoulders, down to the chest: where the extras go.
+    const top = Math.min(figureTop(look, 0.86), neck + 0.5);
+    const bottom = neck * 0.5;
+    const s = Math.min(EXTRAS_SHOT * zoom, (height - 16) / (top - bottom));
+    return { s, y: height / 2 + ((top + bottom) / 2) * s };
   }
   const middle = height * 0.6;
   const above = Math.max(0.5, figureTop(look, 0.86) - neck);
@@ -109,7 +143,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const goal = shotFor(shot, look, height);
   const [frame, setFrame] = useState({ heading: 0, s: goal.s, y: goal.y });
   const spin = useRef<PreviewSpin>({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
-  const closeUpNow = useRef(shot !== "full");
+  const closeUpNow = useRef(previewCloseUp(shot));
   const shotNow = useRef(shot);
   const goalNow = useRef({ s: goal.s, y: goal.y, still: reduceMotion });
   const glideRef = useRef<PreviewGlide>({
@@ -224,7 +258,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   }, [running]);
 
   useEffect(() => {
-    closeUpNow.current = shot !== "full";
+    closeUpNow.current = previewCloseUp(shot);
     shotNow.current = shot;
     goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
     wakeRef.current();
@@ -541,7 +575,8 @@ const NUDGE_ROWS = {
 const TABS = ["Face", "Eyes", "Brows", "Mouth", "Hair", "Body", "Outfit", "Extras"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Partial<Record<Tab, string>> = { Hair: "Hair & hat" };
-const SHOTS: Record<Tab, Shot> = { Face: "face", Eyes: "face", Brows: "face", Mouth: "face", Hair: "head", Body: "full", Outfit: "full", Extras: "full" };
+/** Each tab's camera: close on the part it changes. */
+const SHOTS: Record<Tab, Shot> = { Face: "face", Eyes: "eyes", Brows: "brows", Mouth: "mouth", Hair: "head", Body: "full", Outfit: "outfit", Extras: "extras" };
 
 /** Glasses were one of the extras; the editor keeps them as their own part. */
 const withOwnGlasses = (look: Look): Look =>

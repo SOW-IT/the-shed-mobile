@@ -23,10 +23,26 @@ export type PreviewSpin = {
   touched: boolean;
 };
 
-export type PreviewShot = "full" | "head" | "face";
-const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, head: 1, face: 2 };
+/**
+ * What the preview frames: the whole character, the outfit (shoulders to
+ * feet), the head and shoulders for the extras, the head, the face, or close
+ * on the eyes, the brows or the mouth.
+ */
+export type PreviewShot = "full" | "outfit" | "extras" | "head" | "face" | "eyes" | "brows" | "mouth";
+const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, outfit: 0, extras: 0, head: 1, face: 2, eyes: 3, brows: 3, mouth: 3 };
 
-export const previewRecenters = (from: PreviewShot, to: PreviewShot) => SHOT_CLOSENESS[to] > SHOT_CLOSENESS[from];
+/**
+ * A close-up holds the character facing you; the wider shots (the whole body,
+ * the outfit and the extras) turn slowly, so you see the back too.
+ */
+export const previewCloseUp = (shot: PreviewShot) => SHOT_CLOSENESS[shot] > 0;
+
+/**
+ * The character turns back to face you on a move to a closer shot, or from
+ * one part of the face to another (the eyes to the mouth, say).
+ */
+export const previewRecenters = (from: PreviewShot, to: PreviewShot) =>
+  SHOT_CLOSENESS[to] > SHOT_CLOSENESS[from] || (from !== to && SHOT_CLOSENESS[to] === 3 && SHOT_CLOSENESS[from] === 3);
 
 export const previewEaseInOut = (p: number) =>
   p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;

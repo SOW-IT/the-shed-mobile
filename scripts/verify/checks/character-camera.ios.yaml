@@ -1,0 +1,51 @@
+appId: au.org.sow.theshed
+---
+# The character editor's preview frames the part each tab changes. A
+# screenshot on each tab; the web check compares them.
+- openLink: "theshedmobile://world?sheet=character"
+- extendedWaitUntil:
+    visible:
+      id: world-editor-preview
+    timeout: 60000
+- tapOn:
+    id: world-editor-tab-face
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-face"
+- tapOn:
+    id: world-editor-tab-eyes
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-eyes"
+- tapOn:
+    id: world-editor-tab-brows
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-brows"
+- tapOn:
+    id: world-editor-tab-mouth
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-mouth"
+- tapOn:
+    id: world-editor-tab-hair
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-hair"
+- tapOn:
+    id: world-editor-tab-body
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-body"
+- tapOn:
+    id: world-editor-tab-outfit
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-outfit"
+- tapOn:
+    id: world-editor-tab-extras
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-extras"
+- tapOn:
+    id: world-editor-close
