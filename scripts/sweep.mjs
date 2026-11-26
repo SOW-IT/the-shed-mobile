@@ -50,7 +50,12 @@ const hasSession = () =>
 
 const bundling = new Map();
 const BUNDLE_WAIT_MS = 60_000;
-let bundleBudgetMs = 120_000;
+// Metro builds each chunk the first time a page asks for it. Signed out never
+// loads the World's screen, so it's first built in the first signed-in pass
+// (13s on CI). One budget for the whole run was spent by the signed-out pass,
+// and that build then counted against the World's 15s. Each pass gets its own.
+const BUNDLE_BUDGET_MS = 120_000;
+let bundleBudgetMs = BUNDLE_BUDGET_MS;
 const isBundle = (request) => new URL(request.url()).pathname.endsWith(".bundle");
 const watchBundles = (page) => {
   page.on("request", (request) => isBundle(request) && bundling.set(request, Date.now()));
@@ -121,6 +126,7 @@ await page
 await waitUntilSettled();
 
 for (const [role, email] of roles) {
+  bundleBudgetMs = BUNDLE_BUDGET_MS;
   await openPage(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
   await settle(2500);
   if (email) {
