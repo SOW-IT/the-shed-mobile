@@ -131,26 +131,29 @@ export const isEmote = (value: string): value is EmoteId => Object.hasOwn(EMOTES
  * here plus its animation.
  */
 export const MUTUALS = {
-  highFive: { label: "High five", ask: "High five?", icon: "🙌" },
+  highFive: { label: "High five", ask: "High five?", icon: "🙌", accept: "High five!" },
 } as const;
 export type MutualKind = keyof typeof MUTUALS;
 export const isMutual = (value: string): value is MutualKind => Object.hasOwn(MUTUALS, value);
 
 export const ASKS = {
   ...MUTUALS,
-  rps: { label: "Rock paper scissors", ask: "Rock paper scissors?", icon: "✊" },
+  // The accept button is half an ask card, too narrow for the name, so it
+  // shows the game's icon and says the name to VoiceOver.
+  rps: { label: "Scissors paper rock", ask: "Scissors paper rock?", icon: "✊", accept: "✊" },
 } as const;
 export type AskKind = keyof typeof ASKS;
 export const isAskKind = (value: string): value is AskKind => Object.hasOwn(ASKS, value);
 export const askInfo = (kind: string | undefined) => (kind !== undefined && isAskKind(kind) ? ASKS[kind] : null);
 
 export const DUEL_PICKS = {
-  rock: { label: "Rock", icon: "✊" },
-  paper: { label: "Paper", icon: "✋" },
   scissors: { label: "Scissors", icon: "✌️" },
+  paper: { label: "Paper", icon: "✋" },
+  rock: { label: "Rock", icon: "✊" },
 } as const;
 export type DuelPick = keyof typeof DUEL_PICKS;
-export const DUEL_PICK_ORDER: readonly DuelPick[] = ["rock", "paper", "scissors"];
+/** The order the picks are shown in, the same as the chant. */
+export const DUEL_PICK_ORDER: readonly DuelPick[] = ["scissors", "paper", "rock"];
 export const isDuelPick = (value: unknown): value is DuelPick => typeof value === "string" && Object.hasOwn(DUEL_PICKS, value);
 
 export const DUEL_FIRST_MS = 5000;
@@ -991,6 +994,7 @@ export const OFFLINE_ALL_MAX = 200;
 export const POKE_ARRIVAL_MS = 24 * 60 * 60_000;
 export const INVITE_MS = 24 * 60 * 60_000;
 export const INVITE_CARD_MS = 2 * 60_000;
+export const KNOCK_MS = 2 * 60_000;
 export const ARRIVE_NEAR = 1.4;
 
 export const cleanPoke = (raw: string): string | null => {

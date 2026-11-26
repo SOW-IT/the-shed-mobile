@@ -112,7 +112,7 @@ export const PersonSheet = ({
               }}
             />
             <Btn
-              title="Rock paper scissors"
+              title="Scissors paper rock"
               icon="game-controller-outline"
               variant="tonal"
               onPress={() => {
