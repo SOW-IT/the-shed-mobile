@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.42] - 2026-11-27
+## [2.13.44] - 2026-11-27
 
 ### Changed
 - **The character editor's preview zooms to the part each tab changes.**
@@ -19,6 +19,37 @@ All notable changes to **The SHED** mobile app. This project follows
   like the whole body, so you see a backpack. Moving a part with its slider
   doesn't move the camera, so you still see the part move. Verify has a new
   check that screenshots the preview on every tab, on web and iOS.
+
+## [2.13.43] - 2026-11-27
+
+### Fixed
+- **Walking away from the arcade closes its games list as you set off.**
+  Since 2.13.37 the list closed once you were out of the arcade's reach,
+  about a second after the tap: 1.5 steps of walking (0.7s) plus a check
+  every 150ms. It now closes the moment your walk heads out of reach, from
+  the tap itself. A step that ends within reach, to one side of the
+  arcade, still keeps it open, and a list opened from a link elsewhere
+  still stays until you've been to the arcade and left. A walk already
+  under way that passes the arcade closes it once you're out of reach, as
+  before. Verify's arcade check now times the close from the tap.
+
+## [2.13.42] - 2026-11-27
+
+### Changed
+- **Café Games asks "Are you sure you want to leave?" before you go back.**
+  Two players sharing a phone could lose a game of Four in a Row to one
+  stray tap on the back arrow. Every way back out of Café Games now asks
+  first, with Leave and Stay, in all four games and in the picker, during a
+  game and after it: the back arrow, the swipe back from the left edge on
+  iOS, the browser's back button, and Escape on web. During a game the
+  dialog adds "This game ends if you leave." Stay keeps everything as it
+  was. Leave goes back one step, as the back arrow always has: from a game
+  to the picker, and from the picker to the Games list. Offline, Escape
+  used to close the whole offline games window from inside a Café game;
+  now it asks too, and while the question is up Escape answers Stay. On the
+  Café Games page, reloading or closing the browser tab now gets the
+  browser's own leave-page prompt. The online Café tables in the World
+  aren't changed.
 
 ## [2.13.41] - 2026-11-27
 
