@@ -65,7 +65,7 @@
     "convex/{environment,schema,auth,auth.config,http,crons,model,pagination,googleAuth,appleIdentity,appleRevoke,userLink,emails,comments,history,presence,actingAs,actingAsData,profile}.ts",
     "shared/{datetime,numbers,deepLinks,appLinks,typedConfirm,staffOnly,actingAs,appPresence}.ts"
   ],
-  "smoke": ["/", "/home"],
+  "smoke": ["/", "/org"],
   "areas": {
     "home": {
       "files": [
