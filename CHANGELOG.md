@@ -22,6 +22,22 @@ All notable changes to **The SHED** mobile app. This project follows
   backyard at 1280x800, 800x1200 and 1920x900 and checks the scene fills
   each one with the HUD inside it.
 
+## [2.13.56] - 2026-11-27
+
+### Fixed
+- **The status bar is readable on a screen opened over a game.** After any
+  game over, the card's Leaderboard button opened the Leaderboard with a
+  white status bar on its cream page, so the time and battery all but
+  disappeared. The same happened on any screen a link opened while a dark
+  game (Mystic Man, Sky Shooter, Swoop at night) was open. Status bars stack,
+  and the last one mounted wins: the game stayed mounted underneath, and its
+  light bar (light on the game-over card since 2.13.21, #569) stayed on top.
+  A game's status bar, and the Games list's, now only counts while its
+  screen is in front. Found by the iOS sweep, where every screen after the
+  games, signed in or out, had the white bar. A new
+  `status-bar-after-game` iOS check takes screenshots of both cases (the
+  Leaderboard after a game over, and Notifications opened over Mystic Man).
+
 ## [2.13.55] - 2026-11-27
 
 ### Fixed
