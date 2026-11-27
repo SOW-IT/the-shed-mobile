@@ -481,7 +481,7 @@ export const DevotionalEditor = ({ date, onBack }: { date: string; onBack: () =>
                   style={[typography.section, { color: t.text }]}
                   testID="devotional-passage-display"
                 >
-                  {formattedPassage}
+                  {formattedPassage.split("; ").join("\n")}
                 </Text>
               ) : (
                 <Text style={[typography.body, { color: t.faint }]}>Passage</Text>
