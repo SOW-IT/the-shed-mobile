@@ -1,7 +1,8 @@
 appId: au.org.sow.theshed
 ---
 # The character editor's preview frames the part each tab changes. A
-# screenshot on each tab; the web check compares them.
+# screenshot on each tab; the web check compares them. The seeded character
+# has no brows, mouth or extra, so it picks one of each; Close doesn't save.
 - openLink: "theshedmobile://world?sheet=character"
 - extendedWaitUntil:
     visible:
@@ -19,11 +20,15 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-camera-eyes"
 - tapOn:
     id: world-editor-tab-brows
+- tapOn:
+    id: world-editor-brows-3
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: "${OUT}/check-camera-brows"
 - tapOn:
     id: world-editor-tab-mouth
+- tapOn:
+    id: world-editor-mouth-1
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: "${OUT}/check-camera-mouth"
@@ -44,6 +49,8 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-camera-outfit"
 - tapOn:
     id: world-editor-tab-extras
+- tapOn:
+    id: world-editor-extra-6
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: "${OUT}/check-camera-extras"

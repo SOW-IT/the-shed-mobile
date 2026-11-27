@@ -19,6 +19,8 @@ const TIMEOUT_MS = 60_000;
 /** Longer than the preview's glide (PREVIEW_GLIDE_MS) and its turn to the front. */
 const SETTLE_MS = 1_500;
 const TABS = ["face", "eyes", "brows", "mouth", "hair", "body", "outfit", "extras"];
+/** The seeded character has no brows, mouth or extra; pick one so the shot shows it. Never saved. */
+const PICKS = { brows: "world-editor-brows-3", mouth: "world-editor-mouth-1", extras: "world-editor-extra-6" };
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
@@ -29,16 +31,20 @@ const failures = [];
 const shots = new Map();
 
 try {
-  await page.goto(`${BASE}/e2e-auth?email=${encodeURIComponent(seed.people.admin)}&secret=${encodeURIComponent(SECRET)}`);
+  await page.goto(`${BASE}/e2e-auth?email=${encodeURIComponent(seed.people.admin)}&secret=${encodeURIComponent(SECRET)}`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => Object.keys(localStorage).some((key) => key.startsWith("__convexAuthJWT_")));
-  await page.goto(`${BASE}/world?sheet=character`);
+  await page.goto(`${BASE}/world?sheet=character`, { waitUntil: "domcontentloaded" });
   const preview = page.getByTestId("world-editor-preview");
   await preview.waitFor();
   // The wide shots start turning after a few seconds; shoot them before then.
   for (const tab of TABS) {
     await page.getByTestId(`world-editor-tab-${tab}`).click();
+    if (PICKS[tab]) await page.getByTestId(PICKS[tab]).click();
     await page.waitForTimeout(SETTLE_MS);
-    shots.set(tab, await preview.screenshot({ path: `${OUT}/camera-${tab}.png` }));
+    // A clip of the page, not the element: an element screenshot waits for the
+    // preview to hold still, and the wide shots keep turning.
+    const clip = await preview.boundingBox();
+    shots.set(tab, await page.screenshot({ path: `${OUT}/camera-${tab}.png`, clip }));
     await page.screenshot({ path: `${OUT}/editor-${tab}.png` });
   }
   for (const [i, a] of TABS.entries()) {
@@ -46,6 +52,7 @@ try {
       if (shots.get(a).equals(shots.get(b))) failures.push(`the ${a} and ${b} tabs frame the character the same`);
     }
   }
+  await page.getByTestId("world-editor-close").click();
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
 } finally {
