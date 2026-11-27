@@ -5,7 +5,7 @@ import { mahjongSeatId, type MahjongTableId } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { blurBehind, popStyle, useOverlayClock } from "../Overlays";
@@ -106,6 +106,8 @@ export const MahjongLayer = ({
   onWatch,
   onStopWatching,
   onSitBack,
+  keyboardOpen,
+  chatLog,
 }: {
   mahjong: Mahjong;
   people: readonly Person[];
@@ -120,6 +122,8 @@ export const MahjongLayer = ({
   onWatch: (tableId: Id<"mahjongTables">) => void;
   onStopWatching: () => void;
   onSitBack: (seatId: string) => void;
+  keyboardOpen: boolean;
+  chatLog: React.ReactNode;
 }) => {
   const { mine, tables } = mahjong;
   const me = people.find((p) => p.isMe);
@@ -147,6 +151,11 @@ export const MahjongLayer = ({
     }
   }, [watch, watched, onStopWatching, onNote]);
   const now = useClock(serverNow, playing || watching !== null);
+  const stage = playing ? mine?.hand?.stage : undefined;
+  const needsMe = playing && mine !== null && ((stage?.kind === "turn" && stage.seat === mine.mySeat) || (stage?.kind === "claim" && mine.hand?.mine?.offer != null && !mine.hand.mine.answered));
+  useEffect(() => {
+    if (needsMe && keyboardOpen) Keyboard.dismiss();
+  }, [needsMe, keyboardOpen]);
   const bot = mine === null ? botSeatUnder(tables, me?.seat) : null;
   const [dismissed, setDismissed] = useState<string | null>(null);
   const botKey = bot ? `${bot.tableId}:${bot.seat}` : null;
@@ -230,6 +239,7 @@ export const MahjongLayer = ({
           forCoins={mine.settings.coins === true}
           stake={mine.settings.stake}
           giveUpCost={mine.giveUpCost}
+          chatLog={chatLog}
           onMove={move}
           onAgain={() =>
             void againM({})
@@ -256,6 +266,7 @@ export const MahjongLayer = ({
           forCoins={watching.settings.coins === true}
           stake={watching.settings.stake}
           giveUpCost={0}
+          chatLog={chatLog}
           onMove={() => undefined}
           onAgain={() => undefined}
           onLeave={onStopWatching}

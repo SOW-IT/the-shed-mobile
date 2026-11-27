@@ -36,5 +36,6 @@ export const tableLayout = (screenWidth: number) => {
   const zoom = clamp(Math.floor((Math.min(inner, 400) - 32 - 7 * RIVER_GAP) / 7), 30, 48);
   const acrossZone: Zone = { width: inner, columns: acrossColumns, rows: 2, tile: across, sideways: false };
   const sideZone: Zone = { width: sideWidth, columns: sideColumns, rows: 8, tile: side, sideways: true };
-  return { width, hand, across: acrossZone, side: sideZone, zoom, back: 8, meld: 12, myMeld: clamp(Math.round(hand * 0.8), 16, 30) };
+  const handTwo = clamp(Math.floor((inner - DRAWN_GAP - 7 * HAND_GAP) / 8), 18, 52);
+  return { width, hand, handTwo, across: acrossZone, side: sideZone, zoom, sideStack: 30, myMeld: clamp(Math.round(hand * 0.7), 14, 26) };
 };

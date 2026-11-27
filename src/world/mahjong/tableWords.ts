@@ -60,3 +60,15 @@ export const dealtCount = (elapsed: number, total: number, calm: boolean) => {
   return Math.min(total, rounds * 4);
 };
 
+
+const HONOUR_INDEX = ["E", "S", "W", "N", "C", "F", "P"] as const;
+
+export const tileIndex = (kind: number) => (kind < 27 ? String((kind % 9) + 1) : HONOUR_INDEX[kind - 27]);
+
+export const handRows = (tiles: readonly number[], drawn: number | null, twoRows: boolean): number[][] => {
+  if (!twoRows) return [[...tiles]];
+  const held = tiles.filter((t) => t !== drawn);
+  const top = Math.ceil(held.length / 2);
+  const bottom = [...held.slice(top), ...(drawn !== null && tiles.includes(drawn) ? [drawn] : [])];
+  return [held.slice(0, top), bottom];
+};

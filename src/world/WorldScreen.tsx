@@ -1865,7 +1865,10 @@ export const WorldScreen = ({
         onWatch={setMahjongWatch}
         onStopWatching={() => setMahjongWatch(null)}
         onSitBack={world.sitOn}
+        keyboardOpen={keyboard.open}
+        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={2} />}
       />
+      {keyboard.open && mahjongCovers ? <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessibilityRole="button" accessibilityLabel="Hide keyboard" testID="mahjong-keyboard-dismiss" /> : null}
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
         <DuelCard {...duelProps} />
         {myHome && !decorating ? (

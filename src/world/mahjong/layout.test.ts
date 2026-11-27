@@ -4,6 +4,12 @@ import { CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TAB
 const MOST_DISCARDS = 34;
 
 describe("the table's tile sizes", () => {
+  it.each([360, 375, 402, 430])("fits a two-row hand of 7 and 7 with the drawn tile apart, bigger than one row, across a %ipx phone", (width) => {
+    const { handTwo, hand } = tableLayout(width);
+    expect(PAD * 2 + 8 * handTwo + 7 * HAND_GAP + DRAWN_GAP).toBeLessThanOrEqual(width);
+    expect(handTwo).toBeGreaterThan(hand * 1.5);
+  });
+
   it.each([360, 375, 402, 430])("fits a full hand of 14, the drawn tile apart, across a %ipx phone", (width) => {
     const { hand } = tableLayout(width);
     expect(PAD * 2 + 14 * hand + 13 * HAND_GAP + DRAWN_GAP).toBeLessThanOrEqual(width);
@@ -15,8 +21,8 @@ describe("the table's tile sizes", () => {
     expect(l.hand).toBeGreaterThanOrEqual(26);
     expect(l.across.tile).toBeGreaterThanOrEqual(26);
     expect(l.side.tile).toBeGreaterThanOrEqual(22);
-    expect(Math.min(l.across.tile, l.side.tile)).toBeGreaterThan(l.meld);
-    expect(l.meld).toBeGreaterThan(l.back);
+    expect(Math.min(l.across.tile, l.side.tile)).toBeGreaterThan(14);
+    expect(l.handTwo).toBeGreaterThan(l.hand);
     expect(l.zoom).toBeGreaterThan(l.across.tile);
   });
 
@@ -24,7 +30,7 @@ describe("the table's tile sizes", () => {
     const l = tableLayout(402);
     expect(2 * SIDE_COLUMN + CENTRE + 4 * TABLE_GAP + 2 * l.side.width).toBeLessThanOrEqual(402 - PAD * 2);
     expect(l.side.columns * (l.side.tile * TILE_TALL + RIVER_GAP)).toBeLessThanOrEqual(l.side.width);
-    expect(4 * (l.meld + 1)).toBeLessThanOrEqual(SIDE_COLUMN);
+    expect(Math.round(l.sideStack * TILE_TALL)).toBeLessThanOrEqual(SIDE_COLUMN);
   });
 
   it("stops growing past a phone-sized column on a wide screen", () => {

@@ -20,13 +20,13 @@ const PAD = 2;
 const MOST = LINE_HEIGHT * SHOWN_LINES;
 const FADE_HEIGHT = 18;
 
-const fitWhole = (heights: readonly number[]) => {
+const fitWhole = (heights: readonly number[], most = MOST) => {
   let total = 0;
   for (let i = heights.length - 1; i >= 0; i--) {
-    if (total > 0 && total + heights[i] > MOST) break;
+    if (total > 0 && total + heights[i] > most) break;
     total += heights[i];
   }
-  return Math.min(MOST, total);
+  return Math.min(most, total);
 };
 
 const blocky = Platform.select({
@@ -43,7 +43,9 @@ export const ChatLog = ({
   serverNow,
   status,
   onLine,
+  lines: shownLines = SHOWN_LINES,
 }: {
+  lines?: number;
   roomId: Id<"worldRooms"> | null;
   onLine: (memberId: Id<"worldMembers">, name: string) => void;
   muted: ReadonlySet<string>;
@@ -86,7 +88,7 @@ export const ChatLog = ({
     });
   };
   if (!status && lines.length === 0) return null;
-  const shown = fitWhole([...(status ? [heights.status ?? LINE_HEIGHT] : []), ...lines.map((line) => heights[line.id] ?? LINE_HEIGHT)]);
+  const shown = fitWhole([...(status ? [heights.status ?? LINE_HEIGHT] : []), ...lines.map((line) => heights[line.id] ?? LINE_HEIGHT)], LINE_HEIGHT * shownLines);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     atEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - END_SLACK;

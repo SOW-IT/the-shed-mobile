@@ -1,11 +1,13 @@
 import { kindOf } from "@shared/mahjong/tiles";
-import { memo } from "react";
-import { Pressable, StyleSheet, View, type ViewStyle } from "react-native";
+import { createContext, memo, useContext } from "react";
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { mahjong as m } from "../palette";
-import { tileLabel } from "./tableWords";
+import { tileIndex, tileLabel } from "./tableWords";
 import { TileFace } from "./TileFace";
 
 export const TILE_RATIO = 1.36;
+
+export const TileLabels = createContext(false);
 
 /**
  * One tile, drawn: an ivory face with its rank over its suit (or its one
@@ -35,6 +37,7 @@ export const Tile = memo(function Tile({
 }) {
   const height = Math.round(width * TILE_RATIO);
   const hidden = back || tile < 0;
+  const labels = useContext(TileLabels);
   const radius = Math.max(2, width * 0.16);
   const side = Math.max(2, width * 0.13);
   const faceH = height - side - 2;
@@ -58,6 +61,11 @@ export const Tile = memo(function Tile({
       ]}
     >
       {hidden ? null : <TileFace kind={kindOf(tile)} w={width - 2} h={faceH} />}
+      {!hidden && labels && width >= 12 ? (
+        <Text style={[styles.index, { fontSize: Math.max(7, width * 0.27), lineHeight: Math.max(8, width * 0.3), left: width * 0.06, top: width * 0.02 }]} allowFontScaling={false}>
+          {tileIndex(kindOf(tile))}
+        </Text>
+      ) : null}
     </View>
   );
   if (!onPress) {
@@ -76,4 +84,5 @@ export const Tile = memo(function Tile({
 
 const styles = StyleSheet.create({
   tile: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  index: { position: "absolute", fontWeight: "900", color: m.honour },
 });

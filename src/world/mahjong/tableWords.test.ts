@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
+import { handRows, tileIndex, claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
 
 describe("the table's words", () => {
   it("puts you at the bottom and the next seat on your right", () => {
@@ -62,5 +62,32 @@ describe("the start of a hand", () => {
     expect(dealtCount(4499, 13, false)).toBe(13);
     expect(dealtCount(4500, 13, false)).toBe(13);
     expect(dealtCount(0, 13, true)).toBe(13);
+  });
+});
+
+describe("tile labels for people who don't read the characters", () => {
+  it("numbers the suits and letters the honours", () => {
+    expect([0, 8, 9, 17, 18, 26].map(tileIndex)).toEqual(["1", "9", "1", "9", "1", "9"]);
+    expect([27, 28, 29, 30].map(tileIndex)).toEqual(["E", "S", "W", "N"]);
+    expect([31, 32, 33].map(tileIndex)).toEqual(["C", "F", "P"]);
+  });
+});
+
+describe("a hand in two rows", () => {
+  const tiles = [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53];
+  it("keeps one row when it's off", () => {
+    expect(handRows(tiles, 53, false)).toEqual([tiles]);
+  });
+
+  it("splits the held tiles over two rows and ends the lower row with the drawn tile, every tile once", () => {
+    const [top, bottom] = handRows(tiles, 53, true);
+    expect(top).toHaveLength(7);
+    expect(bottom.at(-1)).toBe(53);
+    expect([...top, ...bottom].sort((a, b) => a - b)).toEqual(tiles);
+  });
+
+  it("splits a hand with no drawn tile, or one after melds, evenly", () => {
+    expect(handRows(tiles.slice(0, 13), null, true).map((r) => r.length)).toEqual([7, 6]);
+    expect(handRows([1, 5, 9, 13, 17], 17, true)).toEqual([[1, 5], [9, 13, 17]]);
   });
 });

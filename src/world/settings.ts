@@ -58,6 +58,8 @@ export const WORLD_SETTINGS = {
   motion: choice("worldMotion", ["auto", "full", "saver"] as const, "auto"),
   nameTags: choice("worldNameTags", ["all", "near"] as const, "all"),
   names: namesChoice(),
+  mahjongRows: choice("worldMahjongRows", ["one", "two"] as const, "one"),
+  mahjongLabels: choice("worldMahjongLabels", ["on", "off"] as const, "on"),
 };
 
 export type WorldSettingKey = keyof typeof WORLD_SETTINGS;
