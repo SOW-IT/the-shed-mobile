@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   canAddPassage,
+  passageEditFits,
   earliestTodayDevotionalDate,
   EMPTY_DEVOTIONAL,
   hasDevotionalContent,
@@ -75,6 +76,15 @@ describe("devotional validation and merging", () => {
     expect(
       validateDevotionalInput({ passage: "gen 1-3;ps 1", notes: "", prayerPoints: "" })
     ).toEqual({ ok: true, normalized: { passage: "Genesis 1-3; Psalm 1", notes: "", prayerPoints: "" } });
+  });
+
+  test("lets the pickers write a passage that fits, or one no longer than what's there", () => {
+    const full = "x".repeat(MAX_PASSAGE_LENGTH);
+    expect(passageEditFits("Genesis 1-3; Psalm 1", "Genesis 1-3")).toBe(true);
+    expect(passageEditFits(full, "Psalm 1")).toBe(true);
+    expect(passageEditFits(`${full}x`, full)).toBe(false);
+    expect(passageEditFits(`${full}x`, `${full}xx`)).toBe(true);
+    expect(passageEditFits(`${full}xx`, ` ${full}x `)).toBe(false);
   });
 
   test("offers another picked passage only while the longest one still fits", () => {

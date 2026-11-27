@@ -18,7 +18,7 @@ import {
   toEndsChapters,
   versesInChapter,
 } from "@shared/bible";
-import { canAddPassage, MAX_PASSAGE_LENGTH } from "@shared/devotionals";
+import { canAddPassage, MAX_PASSAGE_LENGTH, PASSAGE_TOO_LONG_TEXT, passageEditFits } from "@shared/devotionals";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -258,19 +258,32 @@ export const PassagePicker = ({
   const typing = typingChosen || read === "custom";
   const [open, setOpen] = useState<{ row: number; step: Step } | null>(null);
   const [query, setQuery] = useState("");
+  const [tooLong, setTooLong] = useState(false);
   const picks = read === "custom" ? [] : (read ?? []);
 
-  /** Sets the row's pick, or removes the row for `null`. A row past the end is a new one. */
-  const write = (row: number, next: PassagePick | null) => {
-    hapticSelect();
-    const nextPicks = [...picks];
-    if (next) nextPicks[row] = next;
-    else nextPicks.splice(row, 1);
-    onChange(passageFromPicks(nextPicks));
-  };
   const close = () => {
     setOpen(null);
     setQuery("");
+  };
+  /**
+   * Sets the row's pick, or removes the row for `null`. A row past the end is
+   * a new one. A change that would take the passage over the length limit is
+   * refused: the sheet closes and says why. Returns whether it was written.
+   */
+  const write = (row: number, next: PassagePick | null): boolean => {
+    const nextPicks = [...picks];
+    if (next) nextPicks[row] = next;
+    else nextPicks.splice(row, 1);
+    const nextPassage = passageFromPicks(nextPicks);
+    if (!passageEditFits(nextPassage, passage)) {
+      setTooLong(true);
+      close();
+      return false;
+    }
+    hapticSelect();
+    setTooLong(false);
+    onChange(nextPassage);
+    return true;
   };
 
   if (typing) {
@@ -359,6 +372,11 @@ export const PassagePicker = ({
           onRemove={() => write(index, null)}
         />
       ))}
+      {tooLong ? (
+        <Text style={[typography.caption, { color: t.danger }]} testID="devotional-passage-too-long">
+          {PASSAGE_TOO_LONG_TEXT}
+        </Text>
+      ) : null}
       {canAdd ? (
         <Pressable
           onPress={() => setOpen({ row: picks.length, step: "book" })}
@@ -402,7 +420,7 @@ export const PassagePicker = ({
               query={query}
               selected={current?.book ?? null}
               onPick={(book) => {
-                write(row, chooseBook(book));
+                if (!write(row, chooseBook(book))) return;
                 setQuery("");
                 setOpen(book.chapters.length === 1 ? null : { row, step: "chapter" });
               }}
@@ -435,7 +453,7 @@ export const PassagePicker = ({
               selected={current.fromVerse}
               noun="Verse"
               onPick={(verse) => {
-                write(row, chooseFromVerse(current, verse));
+                if (!write(row, chooseFromVerse(current, verse))) return;
                 setOpen(verse < verses ? { row, step: "to" } : null);
               }}
             />

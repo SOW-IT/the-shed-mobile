@@ -17,6 +17,16 @@ const LONGEST_PICKED_REFERENCE =
 export const canAddPassage = (passage: string): boolean =>
   passage.trim().length + LONGEST_PICKED_REFERENCE <= MAX_PASSAGE_LENGTH;
 
+/**
+ * Whether the pickers may write `next` over `current`: it fits under the
+ * length limit, or at least isn't longer than what's there (removing a row
+ * always is), so a passage over the limit can still be shortened.
+ */
+export const passageEditFits = (next: string, current: string): boolean =>
+  next.length <= MAX_PASSAGE_LENGTH || next.length <= current.trim().length;
+
+export const PASSAGE_TOO_LONG_TEXT = `That would make the passage longer than ${MAX_PASSAGE_LENGTH} characters. Choose a shorter one, or remove a passage.`;
+
 export type DevotionalContent = {
   passage: string;
   notes: string;
