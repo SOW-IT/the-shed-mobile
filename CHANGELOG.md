@@ -16,14 +16,25 @@ All notable changes to **The SHED** mobile app. This project follows
   tags it can't be tapped, and the sheet says that renaming uses a name tag
   from Josh. With a tag, it opens the name field as before, and saving still
   uses one tag. The server still refuses a rename without a tag.
-- **Buying an animal is two steps: Buy, then name it.** The coop or barn's
-  last row had a name field already filled in next to the price, so one tap
-  bought the animal under whatever name was there. The row now says "New
-  chick" (or calf) with its price. Tapping it opens a dialog that asks you
+- **Buying an animal is two steps: Buy, then name it, and it comes from
+  Josh Kim.** The coop or barn's last row had a name field already filled in
+  next to the price, so one tap bought the animal under whatever name was
+  there. The row now says "New chick" (or calf), "From Josh Kim", and its
+  price. Tapping it opens a dialog with Josh beside the chick that asks you
   to name your animal, with a suggested name filled in that you can change.
-  Only that dialog's Buy spends the coins. Cancel, or tapping outside,
-  buys nothing. Naming at purchase is free and needs no name tag, and the
-  name is checked the same way as a rename.
+  Only that dialog's Buy spends the coins: pressing Enter or Done in the
+  name field doesn't, and neither does Cancel or tapping outside, which are
+  also locked while a purchase is going through. A blank name, or a full
+  pen, greys Buy out. Naming at purchase is free and needs no name tag, and
+  the name is checked the same way as a rename. Afterwards a note says
+  "Josh Kim brought Pecky over."
+
+### Added
+- **The World's top-left menu has a "Your home" section with Home and
+  Backyard.** Each takes you straight to your own home or backyard in one
+  tap, and is left out while you're already there. The backyard's only way
+  in is still through your home, so from anywhere else Backyard goes home
+  and on through the back door without stopping.
 
 ## [2.13.56] - 2026-11-27
 

@@ -500,7 +500,7 @@ export const PenSheet = ({
   };
   const josh = FARMER.name.split(" ")[0];
   const young = animal.stages[0].toLowerCase();
-  const canBuy = !busy && !short && cleanName(name) !== null;
+  const canBuy = !busy && !short && space && cleanName(name) !== null;
   const buy = () =>
     void run(() => onBuy(animalKind, name)).then((problem) => {
       if (!problem) setNaming(false);
@@ -608,7 +608,7 @@ export const PenSheet = ({
                     New {young}
                   </Text>
                   <Text style={styles.muted} numberOfLines={1}>
-                    You name it next
+                    From {FARMER.name}
                   </Text>
                 </View>
                 <Pressable
@@ -636,7 +636,13 @@ export const PenSheet = ({
         open={kind !== null && naming}
         top={top}
         title={`Name your ${young}`}
-        art={<AnimalThumb kind={animalKind} stage={0} size={64} />}
+        text={`${FARMER.name} brings it over. Pick a name, or keep this one.`}
+        art={
+          <View style={styles.seller} accessible accessibilityLabel={`From ${FARMER.name}`}>
+            <Bust look={FARMER.look} size={48} />
+            <AnimalThumb kind={animalKind} stage={0} size={56} />
+          </View>
+        }
         name={name}
         maxLength={NAME_MAX}
         price={
@@ -645,7 +651,9 @@ export const PenSheet = ({
             <Text style={styles.buyText}>Buy · {animal.price}</Text>
           </>
         }
+        buyLabel={`Buy for ${animal.price} coins`}
         canBuy={canBuy}
+        busy={busy}
         error={naming ? error : null}
         onName={setName}
         onCancel={() => {
@@ -708,5 +716,6 @@ const styles = StyleSheet.create({
   tagButtonText: { color: hud.onAccent, fontWeight: "800", fontSize: 14 },
   renameButton: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 10, borderRadius: 15, backgroundColor: glass.rowPressed },
   renameText: { color: glass.text, fontWeight: "800", fontSize: 13 },
+  seller: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
   buySmall: { flexDirection: "row", alignItems: "center", gap: 5, height: 38, paddingHorizontal: 12, borderRadius: 19, backgroundColor: hud.accent },
 });

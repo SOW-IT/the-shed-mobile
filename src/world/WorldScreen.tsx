@@ -27,7 +27,7 @@ import {
 } from "@shared/world";
 import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
 import { CROPS, cropLabel, growth, isCrop, penStand, plantCard, plotPrice, plotStand, timeLeft, type BuildingId, type CropId } from "@shared/farm";
-import { ANIMALS, animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
+import { ANIMALS, animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, cleanName, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -687,6 +687,8 @@ export const WorldScreen = ({
     });
   };
   const goHome = () => go("home");
+  // The backyard's only door is in the home, so from anywhere else go home and straight on through.
+  const goBackyard = () => (world.place === "home" || world.place === "backyard" ? go("backyard") : go("home", undefined, () => go("backyard")));
   const invitePerson = (memberId: Id<"worldMembers">, name: string) =>
     void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${worldName(name)} home.`));
   const askToVisit = (memberId: Id<"worldMembers">, name: string) =>
@@ -1433,6 +1435,7 @@ export const WorldScreen = ({
           if (typeof reply === "string") return reply;
           setArrivals((was) => new Set([...was, reply.id]));
           setPenSheet(null);
+          setNote(`${FARMER.name} brought ${cleanName(name) ?? name} over.`);
           return null;
         }}
         onRename={(id, name) => animals.rename(id, name)}
@@ -1544,6 +1547,7 @@ export const WorldScreen = ({
   );
 
   // No trips from here: you walk to a place. Outfit sits above Your home.
+  const myBackyard = world.place === "backyard" && farmView?.mine === true;
   const menuEntries: MenuEntry[] = [
     {
       id: "outfit",
@@ -1572,10 +1576,23 @@ export const WorldScreen = ({
       : [
           {
             id: "home",
-            label: "Your home",
+            label: "Home",
             icon: "home" as const,
+            section: "Your home",
             accessibilityLabel: "Go to your home",
             onPress: goHome,
+          },
+        ]),
+    ...(myBackyard
+      ? []
+      : [
+          {
+            id: "backyard",
+            label: "Backyard",
+            icon: "flower-outline" as const,
+            section: "Your home",
+            accessibilityLabel: "Go to your backyard",
+            onPress: goBackyard,
           },
         ]),
     ...(world.place === WORLD_PLACE

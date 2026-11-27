@@ -168,6 +168,8 @@ export type MenuEntry = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   tone?: "leave";
+  /** A heading shown above the first entry of a run that shares it. */
+  section?: string;
   accessibilityLabel?: string;
   onPress: () => void;
 };
@@ -193,6 +195,11 @@ export const WorldMenu = ({
       <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(overlay)]} testID="world-menu">
         {entries.map((entry, i) => (
           <Animated.View key={entry.id} style={[itemStyle(overlay, i), entry.tone === "leave" && i > 0 && styles.leaveGap]}>
+            {entry.section && entry.section !== entries[i - 1]?.section ? (
+              <Text style={[styles.menuSection, i > 0 && styles.menuSectionGap]} accessibilityRole="header">
+                {entry.section}
+              </Text>
+            ) : null}
             <Pressable
               onPress={entry.onPress}
               accessibilityRole="button"
@@ -312,11 +319,14 @@ export const NameAnimalDialog = ({
   open,
   top,
   title,
+  text,
   art,
   name,
   maxLength,
   price,
+  buyLabel,
   canBuy,
+  busy,
   error,
   onName,
   onCancel,
@@ -325,11 +335,14 @@ export const NameAnimalDialog = ({
   open: boolean;
   top: number;
   title: string;
+  text: string;
   art: ReactNode;
   name: string;
   maxLength: number;
   price: ReactNode;
+  buyLabel: string;
   canBuy: boolean;
+  busy: boolean;
   error: string | null;
   onName: (name: string) => void;
   onCancel: () => void;
@@ -339,16 +352,16 @@ export const NameAnimalDialog = ({
   if (!overlay.mounted) return null;
   return (
     <View style={[StyleSheet.absoluteFill, styles.topDialog, { paddingTop: top + 24 }]} pointerEvents={open ? "box-none" : "none"}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel" testID="world-name-animal-scrim">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} disabled={busy} accessibilityRole="button" accessibilityLabel="Cancel" testID="world-name-animal-scrim">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" accessibilityViewIsModal>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" role="dialog" aria-modal aria-label={title}>
         <Animated.View style={itemStyle(overlay, 0)}>{art}</Animated.View>
         <Animated.View style={itemStyle(overlay, 1)}>
           <Text style={styles.dialogTitle} accessibilityRole="header">
             {title}
           </Text>
-          <Text style={styles.dialogText}>Pick a name, or keep this one.</Text>
+          <Text style={styles.dialogText}>{text}</Text>
         </Animated.View>
         <Animated.View style={[styles.nameField, itemStyle(overlay, 2)]}>
           <TextInput
@@ -357,7 +370,6 @@ export const NameAnimalDialog = ({
             maxLength={maxLength}
             autoFocus
             selectTextOnFocus
-            onSubmitEditing={() => canBuy && onBuy()}
             returnKeyType="done"
             accessibilityLabel="Name"
             style={styles.nameInput}
@@ -366,14 +378,20 @@ export const NameAnimalDialog = ({
           {error ? <Text style={styles.nameError}>{error}</Text> : null}
         </Animated.View>
         <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 3)]}>
-          <Pressable onPress={onCancel} accessibilityRole="button" testID="world-name-animal-cancel" style={({ pressed }) => [styles.dialogButton, pressed && styles.rowPressed]}>
+          <Pressable
+            onPress={onCancel}
+            disabled={busy}
+            accessibilityRole="button"
+            testID="world-name-animal-cancel"
+            style={({ pressed }) => [styles.dialogButton, busy && styles.dialogOff, pressed && styles.rowPressed]}
+          >
             <Text style={styles.dialogButtonText}>Cancel</Text>
           </Pressable>
           <Pressable
             onPress={onBuy}
             disabled={!canBuy}
             accessibilityRole="button"
-            accessibilityLabel="Buy"
+            accessibilityLabel={buyLabel}
             testID="world-name-animal-buy"
             style={({ pressed }) => [styles.dialogButton, styles.dialogLeave, !canBuy && styles.dialogOff, pressed && styles.rowPressed]}
           >
@@ -462,6 +480,8 @@ const styles = StyleSheet.create({
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { opacity: 0.7 },
   topDialog: { alignItems: "center" },
+  menuSection: { color: glass.muted, fontWeight: "800", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 8, paddingBottom: 6 },
+  menuSectionGap: { paddingTop: 4 },
   dialogOff: { opacity: 0.45 },
   nameField: { alignSelf: "stretch", gap: 6 },
   nameInput: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: glass.rowPressed, color: glass.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
