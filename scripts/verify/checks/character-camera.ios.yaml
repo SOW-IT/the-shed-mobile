@@ -37,6 +37,10 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: "${OUT}/check-camera-hair"
+# A tap on the preview stops the wide shots turning on their own, so they're
+# taken facing you.
+- tapOn:
+    id: world-editor-preview
 - tapOn:
     id: world-editor-tab-body
 - waitForAnimationToEnd:

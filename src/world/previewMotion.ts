@@ -24,9 +24,9 @@ export type PreviewSpin = {
 };
 
 /**
- * What the preview frames: the whole character, the outfit (shoulders to
- * feet), the head and shoulders for the extras, the head, the face, or close
- * on the eyes, the brows or the mouth.
+ * What the preview frames: the whole character, the outfit (the mouth down to
+ * the feet), the head down to the waist for the extras, the head, the face, or
+ * close on the eyes, the brows or the mouth.
  */
 export type PreviewShot = "full" | "outfit" | "extras" | "head" | "face" | "eyes" | "brows" | "mouth";
 const SHOT_CLOSENESS: Record<PreviewShot, number> = { full: 0, outfit: 0, extras: 0, head: 1, face: 2, eyes: 3, brows: 3, mouth: 3 };

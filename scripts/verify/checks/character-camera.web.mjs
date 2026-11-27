@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The character editor's preview frames the part each tab changes: the face,
 // close on the eyes, the brows and the mouth, the head for hair and hats, the
-// whole body, the outfit from the mouth down to the shoes, and the head and
-// shoulders for the extras. A screenshot of the preview on each tab, and each
+// whole body, the outfit from the mouth down to the shoes, and the head down
+// to the waist for the extras. A screenshot of the preview on each tab, and each
 // tab's framing must differ from the others'.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
@@ -36,8 +36,12 @@ try {
   await page.goto(`${BASE}/world?sheet=character`, { waitUntil: "domcontentloaded" });
   const preview = page.getByTestId("world-editor-preview");
   await preview.waitFor();
-  // The wide shots start turning after a few seconds; shoot them before then.
+  // The wide shots (Body, Outfit, Extras) turn on their own a few seconds
+  // after the editor opens. A tap on the preview while it faces you on Hair
+  // stops that, so each wide shot is taken facing you and the comparison
+  // below is of framing, not of how far it had turned.
   for (const tab of TABS) {
+    if (tab === "body") await preview.click();
     await page.getByTestId(`world-editor-tab-${tab}`).click();
     if (PICKS[tab]) await page.getByTestId(PICKS[tab]).click();
     await page.waitForTimeout(SETTLE_MS);

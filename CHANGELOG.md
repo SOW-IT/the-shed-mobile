@@ -13,7 +13,7 @@ All notable changes to **The SHED** mobile app. This project follows
   Before, the Face, Eyes, Brows and Mouth tabs all showed the same face
   close-up, and the Outfit and Extras tabs showed the whole body. Now the
   camera glides close on the eyes, the brows or the mouth, frames the outfit
-  from the mouth down to the shoes, and the head and shoulders for the
+  from the mouth down to the shoes, and the head down to the waist for the
   extras. The Face, Hair and Body tabs keep their framing (face, head, whole
   body). The close-ups face you; the outfit and extras shots turn slowly,
   like the whole body, so you see a backpack. Moving a part with its slider

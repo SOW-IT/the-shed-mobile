@@ -112,9 +112,11 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
     return { s, y: height / 2 + ((top - SOLES) / 2) * s };
   }
   if (shot === "extras") {
-    // The head and shoulders, down to the chest: where the extras go.
+    // The head down to the waist: where the extras go, from headphones and
+    // an ear flower to the bottom of a backpack. (`neck` is the middle of the
+    // head, so the chin is 0.42 below it.)
     const top = Math.min(figureTop(look, 0.86), neck + 0.5);
-    const bottom = neck * 0.5;
+    const bottom = neck * 0.2;
     const s = Math.min(EXTRAS_SHOT * zoom, (height - 16) / (top - bottom));
     return { s, y: height / 2 + ((top + bottom) / 2) * s };
   }
