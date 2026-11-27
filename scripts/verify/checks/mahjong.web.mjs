@@ -22,7 +22,8 @@ const OUT = arg("out") ?? "check-mahjong";
 const seed = JSON.parse(readFileSync(arg("seed") ?? "sweep-seed.json", "utf8"));
 const SECRET = process.env.SWEEP_E2E_SECRET ?? "sweep-only-secret";
 const TIMEOUT_MS = 60_000;
-const HAND_MS = 4 * 60_000;
+// Verify stops a check at 5 minutes; the hand gets what the setup leaves.
+const HAND_MS = 150_000;
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();

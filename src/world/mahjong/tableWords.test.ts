@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimChoices, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
+import { claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
 
 describe("the table's words", () => {
   it("puts you at the bottom and the next seat on your right", () => {
@@ -37,5 +37,30 @@ describe("the table's words", () => {
     expect(resultTitle({ kind: "win", winner: 2, from: 1 }, names, null)).toBe("Lucky Bot wins off Ben's discard");
     expect(faanLine("pureSuit")).toMatchObject({ zh: "清一色", faan: 7 });
     expect(faanLine("nope")).toEqual({ zh: "", en: "nope", faan: 0 });
+  });
+});
+
+describe("the start of a hand", () => {
+  it("counts time into the intro, never before it started or past its end", () => {
+    expect(introElapsed(10_000, 10_000)).toBe(5200);
+    expect(introElapsed(10_000, 9_000)).toBe(4200);
+    expect(introElapsed(10_000, 0)).toBe(0);
+    expect(introElapsed(10_000, 20_000)).toBe(5200);
+  });
+
+  it("only ever shows a die face from 1 to 6", () => {
+    for (const elapsed of [-5000, 0, 119, 120, 5000])
+      for (const value of [1, 6]) for (const i of [0, 2]) expect(tumblingFace(value, elapsed, i)).toBeGreaterThanOrEqual(1);
+    expect(tumblingFace(6, 0, 0)).toBe(6);
+    expect(tumblingFace(6, 120, 0)).toBe(1);
+    expect(tumblingFace(1, -120, 0)).toBe(6);
+  });
+
+  it("deals in fours", () => {
+    expect(dealtCount(0, 13, false)).toBe(0);
+    expect(dealtCount(2700, 13, false)).toBe(4);
+    expect(dealtCount(4499, 13, false)).toBe(13);
+    expect(dealtCount(4500, 13, false)).toBe(13);
+    expect(dealtCount(0, 13, true)).toBe(13);
   });
 });

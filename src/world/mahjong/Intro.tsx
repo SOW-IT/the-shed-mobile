@@ -1,12 +1,10 @@
 import { fonts } from "@/theme";
-import { INTRO_MS } from "@shared/mahjong/game";
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Reanimated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { mahjong as m } from "../palette";
+import { INTRO, introElapsed, tumblingFace } from "./tableWords";
 
-/** When each part of the intro plays, in ms from the start of the hand. */
-export const INTRO = { diceLand: 1300, wall: 1800, split: 2300, deal: 2700, dealt: 4500 } as const;
 
 const PIPS: Record<number, [number, number][]> = {
   1: [[1, 1]],
@@ -78,7 +76,7 @@ const Wall = ({ breakAt, dealer, split }: { breakAt: number; dealer: number; spl
  * (the hand fills in fours below; see `dealtCount`).
  */
 export const Intro = ({ dice, breakAt, dealer, dealerName, until, now, calm }: { dice: number[]; breakAt: number; dealer: number; dealerName: string; until: number; now: number; calm: boolean }) => {
-  const elapsed = INTRO_MS - Math.max(0, until - now);
+  const elapsed = introElapsed(until, now);
   const landed = calm || elapsed >= INTRO.diceLand;
   const total = dice.reduce((a, b) => a + b, 0);
   return (
@@ -88,7 +86,7 @@ export const Intro = ({ dice, breakAt, dealer, dealerName, until, now, calm }: {
         {dice.map((value, i) => (
           // The three dice never change places, so their order is their key.
           // eslint-disable-next-line react/no-array-index-key -- fixed positions, never reordered
-          <Tumbling key={i} value={landed ? value : ((value + Math.floor(elapsed / 120) + i) % 6) + 1} landed={landed} index={i} calm={calm} />
+          <Tumbling key={i} value={landed ? value : tumblingFace(value, elapsed, i)} landed={landed} index={i} calm={calm} />
         ))}
       </View>
       {landed ? (
@@ -98,14 +96,6 @@ export const Intro = ({ dice, breakAt, dealer, dealerName, until, now, calm }: {
       ) : null}
     </View>
   );
-};
-
-/** How many of your tiles are dealt so far: four at a time to each seat, then one more. */
-export const dealtCount = (elapsed: number, total: number, calm: boolean) => {
-  if (calm || elapsed >= INTRO.dealt) return total;
-  if (elapsed < INTRO.deal) return 0;
-  const rounds = Math.floor(((elapsed - INTRO.deal) / (INTRO.dealt - INTRO.deal)) * 4) + 1;
-  return Math.min(total, rounds * 4);
 };
 
 const STACK = { w: 8, h: 5 };

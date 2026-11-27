@@ -1,5 +1,5 @@
 import { FAAN, type FaanId } from "../../../shared/mahjong/faan";
-import type { Answer, Offer } from "../../../shared/mahjong/game";
+import { INTRO_MS, type Answer, type Offer } from "../../../shared/mahjong/game";
 import { kindOf, tileName, WIND_CHARS, WIND_NAMES } from "../../../shared/mahjong/tiles";
 
 /** Where a seat sits on screen for someone at `viewer`: you at the bottom, the next seat on your right. */
@@ -42,3 +42,21 @@ export const resultTitle = (result: { kind: "draw" } | { kind: "win"; winner: nu
 export const tileLabel = (tile: number) => (tile < 0 ? "Face down" : tileName(kindOf(tile)));
 
 export const secondsLeft = (deadline: number, now: number) => Math.max(0, Math.ceil((deadline - now) / 1000));
+
+/** When each part of the intro plays, in ms from the start of the hand. */
+export const INTRO = { diceLand: 1300, wall: 1800, split: 2300, deal: 2700, dealt: 4500 } as const;
+
+/** How far into the intro a hand is, never before its start (a phone's clock can run behind the server's). */
+export const introElapsed = (until: number, now: number) => Math.min(INTRO_MS, Math.max(0, INTRO_MS - (until - now)));
+
+/** The face a tumbling die shows: always 1 to 6. */
+export const tumblingFace = (value: number, elapsed: number, index: number) => ((((value - 1 + Math.floor(elapsed / 120) + index) % 6) + 6) % 6) + 1;
+
+/** How many of your tiles are dealt so far: four at a time to each seat, then one more. */
+export const dealtCount = (elapsed: number, total: number, calm: boolean) => {
+  if (calm || elapsed >= INTRO.dealt) return total;
+  if (elapsed < INTRO.deal) return 0;
+  const rounds = Math.floor(((elapsed - INTRO.deal) / (INTRO.dealt - INTRO.deal)) * 4) + 1;
+  return Math.min(total, rounds * 4);
+};
+

@@ -1,6 +1,6 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CLAIM_MS, INTRO_MS, TURN_MS } from "@shared/mahjong/game";
+import { CLAIM_MS, TURN_MS } from "@shared/mahjong/game";
 import { isMahjongTable, MAHJONG_TABLE_NAMES } from "@shared/mahjong/table";
 import { BUBBLE_MS, EMOTE_MS, EMOTES, isEmote, type Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
@@ -10,10 +10,10 @@ import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/v
 import { gradientStyle } from "@/components/ui/Grid";
 import { mahjong as m } from "../palette";
 import { SeatFace } from "./Faces";
-import { claimChoices, coinsWords, faanLine, resultTitle, roundWords, secondsLeft, sideOf, windBadge, windWords, type Side } from "./tableWords";
+import { claimChoices, coinsWords, dealtCount, INTRO, introElapsed, faanLine, resultTitle, roundWords, secondsLeft, sideOf, windBadge, windWords, type Side } from "./tableWords";
 import { Tile, TILE_RATIO } from "./Tile";
 import { Arrive, Punch } from "./Motion";
-import { dealtCount, INTRO, Intro } from "./Intro";
+import { Intro } from "./Intro";
 import { useBatterySaver } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
 
@@ -391,7 +391,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const drawn = hand.mine?.drawn ?? null;
   const sorted = myHand ? [...myHand.filter((t) => t !== drawn), ...(drawn !== null && myHand.includes(drawn) ? [drawn] : [])] : [];
   // During the deal the hand fills in fours, in the order dealt, then sorts itself.
-  const intro = stage.kind === "intro" ? INTRO_MS - Math.max(0, stage.until - now) : null;
+  const intro = stage.kind === "intro" ? introElapsed(stage.until, now) : null;
   const dealing = intro !== null && !calm && intro < INTRO.dealt;
   const handTiles = dealing ? [...sorted].sort((a, b) => ((a * 37) % 144) - ((b * 37) % 144)).slice(0, dealtCount(intro, sorted.length, calm)) : sorted;
   const concealedOf = (seat: number) => (intro === null ? hand.seats[seat].concealed : dealtCount(intro, hand.seats[seat].concealed, calm));
