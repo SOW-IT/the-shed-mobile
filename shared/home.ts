@@ -1,4 +1,4 @@
-import { halfWidthAt, WALK_BOUNDS } from "./world";
+import { along, ARMCHAIR_HEIGHT, CHAIR_HEIGHT, COUCH_HEIGHT, halfWidthAt, HOME, SEATS, towardCamera, WALK_BOUNDS, type Place, type Seat } from "./world";
 
 export const FURNITURE = {
   rug: { label: "Rug", price: 10, w: 2.4, d: 1.6, solid: false },
@@ -98,3 +98,44 @@ export const homeObstacles = (items: readonly Placed[]) =>
 
 export const ownedLeft = (owned: Record<string, number> | undefined, placed: readonly Placed[], item: string) =>
   (owned?.[item] ?? 0) - placed.filter((p) => p.item === item).length;
+
+/**
+ * Where you sit on the pieces that seat people, in the piece's own frame
+ * (facing +z, as `turn` 0 draws it), and how high the seat is. A sofa seats
+ * two side by side, and the bed two on the edge at its foot. A desk has no
+ * chair drawn at it, so it stays something you walk round.
+ */
+const SITS: Partial<Record<FurnitureId, { spots: [number, number][]; height: number }>> = {
+  chair: { spots: [[0, 0.02]], height: CHAIR_HEIGHT },
+  beanbag: { spots: [[0, 0.1]], height: ARMCHAIR_HEIGHT },
+  sofa: { spots: [[-0.42, 0.1], [0.42, 0.1]], height: COUCH_HEIGHT },
+  bed: { spots: [[-0.38, 0.8], [0.38, 0.8]], height: 0.46 },
+};
+
+export const isSittable = (item: string) => isFurniture(item) && SITS[item] !== undefined;
+
+/**
+ * The seats on a home's placed furniture, `<key>-<n>` like the café couch's,
+ * each facing the way its piece faces (turned toward the camera, as every
+ * seat outside the Chapel is).
+ */
+export const homeSeats = (items: readonly Placed[]): Seat[] =>
+  items.flatMap((p) => {
+    const sit = isFurniture(p.item) ? SITS[p.item] : undefined;
+    if (!sit || !isTurn(p.turn)) return [];
+    const a = (p.turn * Math.PI) / 2;
+    const c = Math.round(Math.cos(a));
+    const s = Math.round(Math.sin(a));
+    const spots = sit.spots.map(([lx, lz]): [number, number] => [p.x + lx * c + lz * s, p.z - lx * s + lz * c]);
+    return along(p.key, spots, towardCamera(a, p.x), sit.height);
+  });
+
+/** Every seat in a place: the fixed ones, or at a home, its furniture's. */
+export const seatsHere = (place: Place, items: readonly Placed[] | undefined): readonly Seat[] =>
+  place === HOME ? homeSeats(items ?? []) : SEATS[place];
+
+export const seatHere = (place: Place, id: string | undefined, items: readonly Placed[] | undefined): Seat | null =>
+  id === undefined ? null : (seatsHere(place, items).find((seat) => seat.id === id) ?? null);
+
+/** The placed piece a home seat is on (its key), so a tap on a full sofa never sits you on the chair beside it. */
+export const homeSeatPiece = (seatId: string) => seatId.slice(0, seatId.lastIndexOf("-"));

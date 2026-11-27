@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { BACK_DOOR, blocksBackDoor, DOOR_CLEAR, FURNITURE, FURNITURE_IDS, HOME_DOOR, fitInRoom, footprint, homeObstacles, ownedLeft, placementProblem, wallpaperOr } from "./home";
-import { halfWidthAt, WALK_BOUNDS } from "./world";
+import { BACK_DOOR, blocksBackDoor, DOOR_CLEAR, FURNITURE, FURNITURE_IDS, HOME_DOOR, fitInRoom, footprint, homeObstacles, homeSeatPiece, homeSeats, isSittable, ownedLeft, placementProblem, seatHere, seatsHere, wallpaperOr, type Placed } from "./home";
+import { halfWidthAt, SEAT_TURN, SEATS, WALK_BOUNDS } from "./world";
 
 describe("placing furniture", () => {
   test("a turn swaps how wide and deep it is", () => {
@@ -73,5 +73,58 @@ describe("placing furniture", () => {
     expect(wallpaperOr("mint")).toBe("mint");
     expect(wallpaperOr("tartan")).toBe("plain");
     expect(wallpaperOr(undefined)).toBe("plain");
+  });
+});
+
+describe("sitting on your furniture", () => {
+  const piece = (item: string, turn = 0, x = 0, z = -4): Placed => ({ key: `k${item}${turn}`, item, x, z, turn });
+
+  test("chairs, beanbags, sofas and the bed seat people; the rest don't", () => {
+    expect(FURNITURE_IDS.filter(isSittable)).toEqual(["chair", "beanbag", "sofa", "bed"]);
+    for (const item of ["rug", "plant", "lamp", "table", "bookshelf", "desk", "tv", "fireplace"]) expect(homeSeats([piece(item)])).toEqual([]);
+    expect(homeSeats([piece("chair")]).map((s) => s.id)).toEqual(["kchair0-0"]);
+    expect(homeSeats([piece("beanbag")])).toHaveLength(1);
+    expect(homeSeats([piece("sofa")]).map((s) => s.id)).toEqual(["ksofa0-0", "ksofa0-1"]);
+    expect(homeSeats([piece("bed")])).toHaveLength(2);
+  });
+
+  test("each seat is on its piece, people sharing one have room, and every seat is somewhere you can be", () => {
+    for (const item of FURNITURE_IDS.filter(isSittable)) {
+      for (const turn of [0, 1, 2, 3]) {
+        const p = piece(item, turn, 1.2, -5);
+        const [box] = homeObstacles([p]);
+        const seats = homeSeats([p]);
+        for (const seat of seats) {
+          expect(Math.abs(seat.x - p.x), `${item} ${turn}`).toBeLessThan(box.rx);
+          expect(Math.abs(seat.z - p.z), `${item} ${turn}`).toBeLessThan(box.rz);
+          expect(seat.height).toBeGreaterThan(0);
+          expect(homeSeatPiece(seat.id)).toBe(p.key);
+        }
+        for (const a of seats) for (const b of seats) if (a !== b) expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(0.7);
+      }
+    }
+  });
+
+  test("you sit facing the way the piece faces, turned toward the camera like every seat outside the Chapel", () => {
+    expect(homeSeats([piece("chair", 0)])[0].heading).toBe(0);
+    expect(homeSeats([piece("chair", 1)])[0].heading).toBeCloseTo(Math.PI / 2 - SEAT_TURN);
+    expect(homeSeats([piece("chair", 3)])[0].heading).toBeCloseTo(-Math.PI / 2 + SEAT_TURN);
+    expect(Math.abs(homeSeats([piece("chair", 2)])[0].heading)).toBeCloseTo(Math.PI - SEAT_TURN);
+    // A sofa turned to face right: its two seats run front to back, both facing right.
+    const [a, b] = homeSeats([piece("sofa", 1)]);
+    expect(Math.abs(a.x - b.x)).toBeLessThan(0.2);
+    expect(Math.abs(a.z - b.z)).toBeGreaterThan(0.7);
+    expect(Math.sin(a.heading)).toBeGreaterThan(0);
+  });
+
+  test("seats come from what's placed, only at home", () => {
+    const items = [piece("chair"), piece("table", 0, 2, -4)];
+    expect(seatsHere("home", items).map((s) => s.id)).toEqual(["kchair0-0"]);
+    expect(seatsHere("home", undefined)).toEqual([]);
+    expect(seatsHere("cafe", items)).toBe(SEATS.cafe);
+    expect(seatHere("home", "kchair0-0", items)).toMatchObject({ x: 0, height: expect.any(Number) });
+    expect(seatHere("home", "kchair0-0", [])).toBeNull();
+    expect(seatHere("home", undefined, items)).toBeNull();
+    expect(seatHere("home", "ktable00-0", items)).toBeNull();
   });
 });
