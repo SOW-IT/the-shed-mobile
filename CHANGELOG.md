@@ -64,6 +64,28 @@ All notable changes to **The SHED** mobile app. This project follows
   your seat until you sit back down, and the Café room keeps your table
   while you're away.
 
+## [2.13.49] - 2026-11-27
+
+### Changed
+- **The character editor's preview zooms to the part each tab changes.**
+  Before, the Face, Eyes, Brows and Mouth tabs all showed the same face
+  close-up, and the Outfit and Extras tabs showed the whole body. Now the
+  camera glides close on the eyes, the brows or the mouth, frames the outfit
+  from the mouth down to the shoes, and the head down to the waist for the
+  extras. The Face, Hair and Body tabs keep their framing (face, head, whole
+  body). The close-ups face you; the outfit and extras shots turn slowly,
+  like the whole body, so you see a backpack. Moving a part with its slider
+  doesn't move the camera, so you still see the part move. Verify has a new
+  check that screenshots the preview on every tab, on web and iOS.
+- **Zoom the character editor's preview yourself.** Pinch the preview with
+  two fingers, or drag the zoom slider on its right edge: from the whole
+  character up to closer than the eyes' close-up. The slider follows a pinch.
+  Zooming in keeps the part the tab is about in the middle; zooming all the
+  way out shows the whole character. Changing tabs zooms back to that tab's
+  own shot. A pinch doesn't turn the character. On the web the slider takes
+  the arrow keys, Page Up and Down, Home and End, and a trackpad pinch (or
+  ctrl and the scroll wheel) on the preview zooms too.
+
 ## [2.13.48] - 2026-11-27
 
 ### Added
