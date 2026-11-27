@@ -6,19 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.46] - 2026-11-27
+## [2.13.47] - 2026-11-27
 
 ### Added
 - **Eight more eye shapes for your World character.** The Eyes tab now has
   16 shapes. The new ones are Cat (a white almond tipped up at the outer
-  corner, round a slit pupil), Puppy (big and round under a drooping lid), Starry (a twinkle for a
-  pupil), Hearts, Tiny, Anime (a tall white eye with a big iris and a heavy
-  top lash), Wink (one eye closed in a smiling arc) and Sharp (a flat-topped
+  corner, round a slit pupil), Puppy (big and round under a drooping lid),
+  Starry (a twinkle for a pupil), Hearts, Tiny, Anime (a tall white eye with
+  a big iris and a heavy top lash), Wink (one eye closed in a smiling arc) and Sharp (a flat-topped
   half moon that slopes down to the nose). They take your eye colour, eye
   shadow and the eye sliders like the others, and smiles, surprise and the
   other expressions still change them. Saved characters keep their eyes.
   Someone on an older version of the app sees a new shape as plain dots
   until they update.
+
+## [2.13.46] - 2026-11-27
+
+### Added
+- **Sleeves, a tank top, five more outfits and more colours in the
+  character editor.** Under Outfit there's a new Sleeves choice (none,
+  short or long) for any top with sleeves. Tank tops, the sundress and the
+  hoodie don't have one. Until someone picks, every top stays sleeveless as
+  before. The new tops are a tank top, a sailor top, a sweater vest worn
+  over a white shirt, a sundress, a jumpsuit and a Hawaiian shirt, in the
+  style of Tomodachi Life, Miis and The Sims. The sundress and jumpsuit come
+  with their own bottoms. There are 14 more top colours, 8 more bottoms
+  colours and 6 more favourite colours. The top, bottoms and favourite
+  colour rows each end in an "any colour" swatch, which opens a picker
+  under the row: hue, strength and lightness sliders, and a box for a hex
+  code. Older looks draw as before. An app from before this update draws a
+  new top, colour or sleeves as its default. The saved look gets one new
+  optional field, `sleeves`.
 
 ## [2.13.45] - 2026-11-27
 

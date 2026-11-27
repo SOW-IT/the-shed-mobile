@@ -45,6 +45,8 @@ export const worldLookValidator = v.object({
   pantsColour: v.optional(v.number()),
   favourite: v.optional(v.number()),
   backdrop: v.optional(v.number()),
+  // The top's sleeves (none, short or long); optional, like the rest.
+  sleeves: v.optional(v.number()),
 });
 
 export const worldBucketValidator = v.object({ tokens: v.number(), at: v.number() });
