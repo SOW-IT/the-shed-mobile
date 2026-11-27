@@ -1,10 +1,6 @@
-# verify: web only (head 89db6999)
+# verify: web only (head 019cd0bb)
 
-Web-only verify per Daniel's 27 Nov rule for smaller changes; no iOS simulator run.
-Isolated local Convex (scripts/sweep-backend.sh) + expo web on :8195.
-
-- sweep, signed out and admin: /, /org, /world, /world?sheet=character, /world?sheet=poke, /world?sheet=arcade, /games, /world-calendar, /world-praise, /world-devotionals
-- check character-camera (web): every editor tab, preview screenshot per tab, all 8 framings differ
+Sweep signed out + admin on world and smoke routes (20 screens ok); character-camera check passed.
 
 ## Screenshots
 
