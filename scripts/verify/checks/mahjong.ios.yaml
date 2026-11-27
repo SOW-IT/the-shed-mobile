@@ -1,0 +1,97 @@
+appId: au.org.sow.theshed
+---
+# Mahjong on iOS, one person and three bots: to the Café, sit at Table 2's
+# East stool, the lobby opens (the arcade list's panel), the host adds a bot
+# to each other seat and starts, and the table opens full screen with the
+# dice, then the dealt hand. The web check (three people) runs first on this
+# backend and uses Table 1, so this one sits at Table 2.
+#
+# Each stool is a VoiceOver target: "Mahjong Table 2, East seat".
+- openLink: "theshedmobile://world"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    when:
+      notVisible:
+        id: world-title
+        text: "(?i).*caf.*"
+    commands:
+      - tapOn:
+          id: world-title
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-garden
+          commands:
+            - tapOn:
+                id: world-menu-garden
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-close
+          commands:
+            - tapOn:
+                id: world-menu-close
+      - extendedWaitUntil:
+          visible: "Go to The Café"
+          timeout: 30000
+      - waitForAnimationToEnd:
+          timeout: 3000
+      - tapOn: "Go to The Café"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+      text: "(?i).*caf.*"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-mahjong-cafe"
+- tapOn: "Mahjong Table 2, East seat"
+- extendedWaitUntil:
+    visible:
+      id: mahjong-lobby
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-mahjong-lobby"
+- tapOn:
+    id: mahjong-add-bot-1
+- tapOn:
+    id: mahjong-add-bot-2
+- tapOn:
+    id: mahjong-add-bot-3
+- extendedWaitUntil:
+    visible:
+      id: mahjong-remove-bot-3
+    timeout: 15000
+- takeScreenshot: "${OUT}/check-mahjong-lobby-full"
+- tapOn:
+    id: mahjong-start
+- extendedWaitUntil:
+    visible:
+      id: mahjong-table
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: "${OUT}/check-mahjong-dice"
+- extendedWaitUntil:
+    visible:
+      id: mahjong-compass
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${OUT}/check-mahjong-table"
+# Leave the table: a bot takes the seat, and the World is back.
+- tapOn:
+    id: mahjong-leave
+- extendedWaitUntil:
+    visible:
+      id: mahjong-sit-back
+    timeout: 15000
+- takeScreenshot: "${OUT}/check-mahjong-sit-back"

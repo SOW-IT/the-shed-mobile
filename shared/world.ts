@@ -415,6 +415,8 @@ export const PLACE_OBSTACLES: Record<Place, readonly Obstacle[]> = {
     { id: "couch", x: -2.4, z: 4.6, rx: 1.2, rz: 0.6 },
     { id: "plant", x: 3.3, z: -7.4, rx: 0.4, rz: 0.4 },
     { id: "sijin", x: -3.35, z: -9.7, rx: 0.4, rz: 0.3 },
+    { id: "mahjong-a", x: 2.5, z: 0.6, rx: 0.95, rz: 0.95 },
+    { id: "mahjong-b", x: 2.5, z: 4.1, rx: 0.95, rz: 0.95 },
   ],
   beach: [
     { id: "umbrella", x: -2.4, z: -0.8, rx: 0.3, rz: 0.3 },
@@ -518,6 +520,22 @@ const stools = (table: string): Seat[] => {
   ];
 };
 
+/**
+ * A mahjong table's four stools, in turn order: East on the near side (its
+ * back to the camera), South on the right, West on the far side, North on
+ * the left, each facing the table.
+ */
+const MAHJONG_REACH = 0.78;
+const mahjongStools = (table: string): Seat[] => {
+  const at = PLACE_OBSTACLES.cafe.find((o) => o.id === table)!;
+  return [
+    { id: `${table}-0`, x: at.x, z: at.z + MAHJONG_REACH, heading: FACING_AWAY, height: STOOL_HEIGHT },
+    { id: `${table}-1`, x: at.x + MAHJONG_REACH, z: at.z, heading: FACING_LEFT, height: STOOL_HEIGHT },
+    { id: `${table}-2`, x: at.x, z: at.z - MAHJONG_REACH, heading: FACING_CAMERA, height: STOOL_HEIGHT },
+    { id: `${table}-3`, x: at.x - MAHJONG_REACH, z: at.z, heading: FACING_RIGHT, height: STOOL_HEIGHT },
+  ];
+};
+
 const armchair = (id: string, heading: number): Seat => {
   const at = PLACE_OBSTACLES.library.find((o) => o.id === id)!;
   return { id, x: at.x, z: at.z, heading, height: ARMCHAIR_HEIGHT };
@@ -537,7 +555,14 @@ export const SEATS: Record<Place, readonly Seat[]> = {
     ...along("log-left", [[-2.6, -2.1], [-2.6, -1.1]], FACING_RIGHT, LOG_HEIGHT),
     ...along("log-right", [[2.6, -2.1], [2.6, -1.1]], FACING_LEFT, LOG_HEIGHT),
   ]),
-  cafe: faceTheCamera([...stools("table-a"), ...stools("table-b"), ...stools("table-c"), ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT)]),
+  cafe: faceTheCamera([
+    ...stools("table-a"),
+    ...stools("table-b"),
+    ...stools("table-c"),
+    ...along("couch", [[-2.9, 4.7], [-1.9, 4.7]], FACING_CAMERA, COUCH_HEIGHT),
+    ...mahjongStools("mahjong-a"),
+    ...mahjongStools("mahjong-b"),
+  ]),
   beach: faceTheCamera(along("towel", [[-1.34, -0.55], [-1.34, 0.2]], FACING_CAMERA, ON_THE_GROUND)),
   library: faceTheCamera([
     ...["chair-left", "chair-right"].map((id) => {

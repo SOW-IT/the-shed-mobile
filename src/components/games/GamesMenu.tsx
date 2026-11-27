@@ -106,10 +106,20 @@ export const GamesActions = ({
 };
 
 /** The top of a games panel: its name, with whatever goes on the right. */
-export const GamesPanelHeader = ({ title, children, style }: { title: string; children?: ReactNode; style?: object | null }) => (
+export const GamesPanelHeader = ({
+  title,
+  children,
+  style,
+  icon = "game-controller",
+}: {
+  title: string;
+  children?: ReactNode;
+  style?: object | null;
+  icon?: keyof typeof Ionicons.glyphMap;
+}) => (
   <Animated.View style={[styles.header, style]}>
     <View style={styles.badge}>
-      <Ionicons name="game-controller" size={18} color={hud.onAccent} />
+      <Ionicons name={icon} size={18} color={hud.onAccent} />
     </View>
     <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
       {title}
@@ -145,8 +155,12 @@ const PlayingNow = ({ entry, nameOf, testID }: { entry: NowPlaying; nameOf: (nam
   );
 };
 
-const MenuRow = ({
+/** One row of a games panel. The arcade's games, and the mahjong lobby's seats. */
+export const MenuRow = ({
   icon,
+  face,
+  trailing,
+  label,
   title,
   detail,
   meta,
@@ -158,7 +172,11 @@ const MenuRow = ({
   testID,
   style,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
+  /** In place of the icon: a face, say. */
+  face?: ReactNode;
+  /** In place of the chevron: a button or a chip. */
+  trailing?: ReactNode;
   title: string;
   detail: string;
   /** A short figure on the right, such as your best. */
@@ -169,43 +187,53 @@ const MenuRow = ({
   /** Who's playing it right now, and that said aloud. */
   playing?: ReactNode;
   playingLabel?: string;
-  onPress: () => void;
+  /** Left out for a row that's only a line of information. */
+  onPress?: () => void;
+  /** What VoiceOver says, when the title and figures aren't the whole of it. */
+  label?: string;
   testID: string;
   style?: object | null;
-}) => (
-  <Animated.View style={style}>
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={[title, meta, status, playingLabel].filter(Boolean).join(", ")}
-      testID={testID}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.icon}>
-        <Ionicons name={icon} size={19} color={glass.text} />
-      </View>
-      <View style={styles.text}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.rowNote}>{detail}</Text>
-        {playing}
-        {status ? (
-          <View style={styles.status}>
-            <View style={[styles.dot, !statusLive && styles.dotOff]} />
-            <Text style={styles.statusText}>{status}</Text>
+}) => {
+  const said = label ?? [title, meta, status, playingLabel].filter(Boolean).join(", ");
+  return (
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        // A row with nothing to press stays enabled, so buttons inside it (Add bot) aren't read as disabled on the web.
+        accessibilityRole={onPress ? "button" : undefined}
+        accessible={onPress !== undefined}
+        accessibilityLabel={onPress ? said : undefined}
+        testID={testID}
+        style={({ pressed }) => [styles.row, pressed && onPress && styles.rowPressed]}
+      >
+        {face ?? (
+          <View style={styles.icon}>
+            <Ionicons name={icon ?? "ellipse"} size={19} color={glass.text} />
+          </View>
+        )}
+        <View style={styles.text} accessible={onPress === undefined} accessibilityLabel={onPress ? undefined : said}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.rowNote}>{detail}</Text>
+          {playing}
+          {status ? (
+            <View style={styles.status}>
+              <View style={[styles.dot, !statusLive && styles.dotOff]} />
+              <Text style={styles.statusText}>{status}</Text>
+            </View>
+          ) : null}
+        </View>
+        {meta ? (
+          <View style={styles.meta}>
+            <Text style={styles.metaText}>{meta}</Text>
           </View>
         ) : null}
-      </View>
-      {meta ? (
-        <View style={styles.meta}>
-          <Text style={styles.metaText}>{meta}</Text>
-        </View>
-      ) : null}
-      <Ionicons name="chevron-forward" size={18} color={glass.muted} />
-    </Pressable>
-  </Animated.View>
-);
+        {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={glass.muted} /> : null)}
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 /**
  * The games, each with this device's best, as rows of a World panel. The

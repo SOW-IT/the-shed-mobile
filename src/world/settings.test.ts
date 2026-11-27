@@ -91,6 +91,22 @@ test("each choice is saved on this device and comes back next time", async () =>
   expect(next.WORLD_SETTINGS.names.get()).toBe("full");
 });
 
+test("the mahjong table starts with a one-row hand and labelled tiles, and each choice stays on this device only", async () => {
+  const first = await fresh();
+  expect(first.WORLD_SETTINGS.mahjongRows.get()).toBe("one");
+  expect(first.WORLD_SETTINGS.mahjongLabels.get()).toBe("on");
+  first.WORLD_SETTINGS.mahjongRows.set("two");
+  first.WORLD_SETTINGS.mahjongLabels.set("off");
+  await settle();
+  expect(Object.fromEntries(saved)).toEqual({ worldMahjongRows: "two", worldMahjongLabels: "off" });
+  const next = await fresh(Object.fromEntries(saved));
+  expect(next.WORLD_SETTINGS.mahjongRows.get()).toBe("two");
+  expect(next.WORLD_SETTINGS.mahjongLabels.get()).toBe("off");
+  const other = await fresh();
+  expect(other.WORLD_SETTINGS.mahjongRows.get()).toBe("one");
+  expect(other.WORLD_SETTINGS.mahjongLabels.get()).toBe("on");
+});
+
 test("anything else saved under a key is ignored", async () => {
   const { WORLD_SETTINGS } = await fresh({ worldNames: "nickname", worldPingMs: "maybe", worldMotion: "fast" });
   expect(WORLD_SETTINGS.names.get()).toBe("short");

@@ -80,6 +80,8 @@ import type * as history from "../history.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
 import type * as http from "../http.js";
+import type * as mahjong from "../mahjong.js";
+import type * as mahjongData from "../mahjongData.js";
 import type * as memberCount from "../memberCount.js";
 import type * as memberPairSuggestions from "../memberPairSuggestions.js";
 import type * as memberRoles from "../memberRoles.js";
@@ -201,6 +203,8 @@ declare const fullApi: ApiFromModules<{
   homeContent: typeof homeContent;
   homeData: typeof homeData;
   http: typeof http;
+  mahjong: typeof mahjong;
+  mahjongData: typeof mahjongData;
   memberCount: typeof memberCount;
   memberPairSuggestions: typeof memberPairSuggestions;
   memberRoles: typeof memberRoles;
