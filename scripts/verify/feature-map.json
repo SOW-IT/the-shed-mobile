@@ -258,7 +258,7 @@
         "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
       "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"],
-      "checks": ["arcade-podium", "game-over-back", "cafe-back-confirm", "swoop-letterbox"]
+      "checks": ["arcade-podium", "game-over-back", "cafe-back-confirm", "swoop-letterbox", "leaderboard-link-tab"]
     },
     "world": {
       "files": [
