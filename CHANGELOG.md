@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.43] - 2026-11-27
+## [2.13.45] - 2026-11-27
 
 ### Added
 - **Hong Kong mahjong at two tables in the online World's Café.** Sit at
@@ -41,6 +41,35 @@ All notable changes to **The SHED** mobile app. This project follows
   free; sitting in one during a hand asks whether to take it over, hand,
   melds, score and all. If you get up or drop out mid-hand, a bot plays
   your seat until you sit back down.
+
+## [2.13.44] - 2026-11-27
+
+### Fixed
+- **The hoodie is one hoodie from every side, and it turns with the body.**
+  The hood was three separate shapes that took turns: a head-sized ball
+  behind the head when facing the camera, a second lump at a fixed spot
+  side-on, and a smaller drape over the back when facing away. They were
+  different sizes in different places, so at some angles two or three
+  showed at once and the hood jumped as someone turned. The hood's edge,
+  the drawstrings and the pocket were drawn flat at the front whichever way
+  the person faced. Now the hood is one pouch on the upper back that
+  slides round as the body turns (like the backpack), and the edge round
+  the neck, the drawstrings and the pocket sit on the body like the
+  collared shirt's and the jacket's pieces: they turn with it, and hide
+  from behind. It leans, bobs and stretches with the body, not the head.
+
+## [2.13.43] - 2026-11-27
+
+### Fixed
+- **Walking away from the arcade closes its games list as you set off.**
+  Since 2.13.37 the list closed once you were out of the arcade's reach,
+  about a second after the tap: 1.5 steps of walking (0.7s) plus a check
+  every 150ms. It now closes the moment your walk heads out of reach, from
+  the tap itself. A step that ends within reach, to one side of the
+  arcade, still keeps it open, and a list opened from a link elsewhere
+  still stays until you've been to the arcade and left. A walk already
+  under way that passes the arcade closes it once you're out of reach, as
+  before. Verify's arcade check now times the close from the tap.
 
 ## [2.13.42] - 2026-11-27
 

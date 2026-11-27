@@ -64,7 +64,7 @@ import { CoinsPanel, useCoins } from "./Coins";
 import { CoinCounter } from "@/components/games/CoinCounter";
 import type { GamesTarget } from "@/components/games/GamesMenu";
 import { ArcadePanel } from "./ArcadePanel";
-import { arcadeStep } from "./arcadeReach";
+import { arcadeStep, AWAY_FROM_ARCADE } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
 import { InviteCard, KnockCard } from "./InviteCard";
@@ -575,26 +575,31 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [propTrip, openArcade, openBoard, onCalendar, onPraise]);
 
-  // Walking away from the arcade closes its games. A walk is a line in time,
-  // not a stream of updates, so it checks as you go. Whether you've stood by
-  // the arcade lasts while its games are open, through a trip to the
+  // Walking away from the arcade closes its games as you set off: a new walk
+  // checks straight away, and a walk is a line in time, not a stream of
+  // updates, so it also checks as you go. Whether you've stood by the arcade,
+  // and on which walk, lasts while its games are open, through a trip to the
   // leaderboard, and starts again when they close.
-  const arcadeNear = useRef(false);
+  const arcadeReach = useRef(AWAY_FROM_ARCADE);
   useEffect(() => {
-    if (!arcadeOpen) arcadeNear.current = false;
+    if (!arcadeOpen) arcadeReach.current = AWAY_FROM_ARCADE;
   }, [arcadeOpen]);
   const watchArcade = arcadeOpen && !away && world.status === "in" && world.place === "garden";
+  const myWalk = world.people.find((p) => p.isMe)?.walk;
+  const [headedX, headedZ] = [myWalk?.toX, myWalk?.toZ];
   useEffect(() => {
     if (!watchArcade) return;
-    const id = setInterval(() => {
+    const check = () => {
       const { world: latest } = live.current;
-      const mine = latest.people.find((p) => p.isMe);
-      const step = arcadeStep(arcadeNear.current, mine?.walk ? posAt(mine.walk, latest.serverNow()) : null, OBJECT_SPOTS.arcade);
-      arcadeNear.current = step.near;
+      const walk = latest.people.find((p) => p.isMe)?.walk;
+      const step = arcadeStep(arcadeReach.current, walk ? posAt(walk, latest.serverNow()) : null, walk ? { x: walk.toX, z: walk.toZ } : null, OBJECT_SPOTS.arcade);
+      arcadeReach.current = step.reach;
       if (step.leave) setArcadeOpen(false);
-    }, 150);
+    };
+    check();
+    const id = setInterval(check, 150);
     return () => clearInterval(id);
-  }, [watchArcade]);
+  }, [watchArcade, headedX, headedZ]);
 
   useEffect(() => {
     if (seatTrip === null) return;
