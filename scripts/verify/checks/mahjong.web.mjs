@@ -190,6 +190,14 @@ try {
   await host.page.waitForTimeout(1000);
   await shot(host, "cafe");
 
+  // The arcade, for the side-by-side, before anyone sits (seated in a lobby, the arcade stays shut).
+  await host.page.goto(`${BASE}/world?sheet=arcade`);
+  await id(host, "world-arcade").waitFor();
+  await host.page.waitForTimeout(1200);
+  await id(host, "world-arcade").screenshot({ path: `${OUT}/mahjong-arcade-panel.png` });
+  await id(host, "world-arcade-close").click();
+  await host.page.waitForTimeout(800);
+
   // The host sits: the lobby, built like the arcade's list.
   await sitAt(host, "East");
   await expect(host, "sitting at an empty table opens its lobby", appears(host, "mahjong-lobby"));
@@ -209,13 +217,11 @@ try {
   await shot(host, "lobby");
   await id(host, "mahjong-lobby").screenshot({ path: `${OUT}/mahjong-lobby-panel.png` });
 
-  // The arcade, for the side-by-side.
+  // The arcade can't cover the lobby (Table 2 is beside its cabinet): opening it while seated in the lobby closes it again.
   await host.page.goto(`${BASE}/world?sheet=arcade`);
-  await id(host, "world-arcade").waitFor();
-  await host.page.waitForTimeout(1200);
-  await id(host, "world-arcade").screenshot({ path: `${OUT}/mahjong-arcade-panel.png` });
-  await id(host, "world-arcade-close").click();
-  await host.page.waitForTimeout(800);
+  await appears(host, "mahjong-lobby");
+  await host.page.waitForTimeout(1500);
+  await expect(host, "the arcade's panel never covers the lobby", (async () => !(await shown(host, "world-arcade")) && (await shown(host, "mahjong-add-bot-1")))());
   if (!(await shown(host, "mahjong-lobby"))) {
     await sitAt(host, "East");
     await appears(host, "mahjong-lobby");
