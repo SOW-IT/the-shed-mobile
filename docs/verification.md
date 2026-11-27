@@ -70,6 +70,12 @@ Whenever screens are opened (the scoped and full tiers), the **smoke** routes
 run on web and iOS too: the app launches and the signed-out landing page
 (People, while Home is hidden) renders.
 
+CI's **Web sweep** job (`.github/workflows/ci.yml`) uses the same feature map
+on pull requests (`scripts/sweep-plan.mjs`): static-only PRs skip Playwright,
+local Convex and Expo (unless sweep or CI tooling itself changed), area PRs
+sweep smoke plus the matched area's routes across all four roles, and core or
+unmapped changes — as well as every push to `main` — sweep every screen.
+
 ## Setup and teardown
 
 Everything a run starts lives under `.verify/`, which ignores itself

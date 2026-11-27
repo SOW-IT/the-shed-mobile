@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { FRAME_GAP_MS, FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
 import { strayMaestro } from "./lib/strayMaestro.mjs";
 import { acquire, currentHolder, ownRecord, release } from "./lib/verifyLock.mjs";
-import { classify, planVerification, resolveRoutes, routeSlug } from "./lib/verifyPlan.mjs";
+import { classify, isVersionOnlyDiff, planVerification, resolveRoutes, routeSlug, VERSION_FILES } from "./lib/verifyPlan.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
 const STATE = join(ROOT, ".verify");
@@ -188,11 +188,7 @@ const requireFreePort = (port) => {
 
 // Every PR bumps the version in these three files, which would make each one a
 // full run. A change to nothing but `"version"` lines doesn't count.
-const VERSION_FILES = ["package.json", "package-lock.json", "app.json"];
-const versionOnly = (mergeBase, file) => {
-  const lines = git("diff", "-U0", mergeBase, "--", file).split("\n").filter((l) => /^[+-](?![+-])/.test(l));
-  return lines.length > 0 && lines.every((l) => /^[+-]\s*"version": "[^"]*",?$/.test(l));
-};
+const versionOnly = (mergeBase, file) => isVersionOnlyDiff(git("diff", "-U0", mergeBase, "--", file));
 
 const changedFiles = (base) => {
   const mergeBase = git("merge-base", base, "HEAD");
