@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #594: pinch or slide to zoom the character preview</title>
+<style>
+body { font: 18px/1.5 -apple-system, system-ui, sans-serif; margin: 0 auto; max-width: 860px; padding: 16px; color: #1e3230; background: #fbf8f1; }
+h1 { font-size: 26px; line-height: 1.25; }
+h2 { font-size: 21px; margin-top: 32px; }
+img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid #ddd6c8; background: #fff; }
+figure { margin: 16px 0 24px; }
+figcaption { font-size: 15px; color: #4f5f5c; margin-top: 4px; }
+a { color: #1d4a41; }
+ul { padding-left: 20px; }
+.narrow { max-width: 420px; }
+</style>
+</head>
+<body>
+<h1>PR #594: pinch or slide to zoom the character editor's preview</h1>
+<p><a href="https://github.com/SOW-IT/the-shed-mobile/pull/594">github.com/SOW-IT/the-shed-mobile/pull/594</a></p>
+
+<h2>What changed</h2>
+<ul>
+<li>Two fingers on the preview zoom in and out. A pinch never turns the character.</li>
+<li>A slider on the preview's right edge does the same: + at the top, - at the bottom. Its thumb follows a pinch.</li>
+<li>All the way out shows the whole character (the Body tab's shot). All the way in is closer than the Eyes tab's close-up.</li>
+<li>Zooming in keeps the tab's part in place (the eyes and nose on Face, the part on Eyes, Brows and Mouth).</li>
+<li>Changing tabs still glides to that tab's own shot, and the slider moves to match.</li>
+<li>Web: the slider takes the mouse, arrow keys, Page Up/Down, Home and End; ctrl-scroll or a trackpad pinch on the preview zooms.</li>
+</ul>
+
+<h2>iOS Simulator (iPhone 17, dev client)</h2>
+<figure class="narrow"><img src="shots/ios-zoom.gif" alt="Pinching the preview in and out, dragging the zoom slider, switching tabs and turning the character"><figcaption>Pinch out and in, slider drag, tab change, a pick, a one-finger turn, then a pinch on Body</figcaption></figure>
+<figure><img src="shots/ios-pinch-and-slider.png" alt="Face tab pinched in, pinched out to the whole character, then the slider dragged to the middle"><figcaption>Face tab: pinched in (slider at the top), pinched out (whole character, slider at the bottom), slider dragged with one finger</figcaption></figure>
+<figure><img src="shots/ios-tab-reset.png" alt="A manual zoom on Face, then the Mouth tab at its own zoom"><figcaption>Changing to Mouth drops the manual zoom and goes to the Mouth shot</figcaption></figure>
+<figure class="narrow"><img src="shots/ios-list-still-works.png" alt="Mouth picked and the list scrolled to Lipstick"><figcaption>The list below still scrolls and its taps still pick</figcaption></figure>
+<figure><img src="shots/ios-turn-then-pinch.png" alt="Body tab turned by a drag, then pinched in"><figcaption>One finger still turns it; a pinch after that zooms without turning it further</figcaption></figure>
+
+<h2>Web (Chromium, 430 x 900)</h2>
+<figure class="narrow"><img src="shots/web-zoom.gif" alt="Slider drag, keyboard, tab changes and ctrl-scroll on the web"><figcaption>Mouse drag past both ends, keyboard, tab changes, ctrl-scroll</figcaption></figure>
+<figure><img src="shots/web-slider-drag.png" alt="Eyes tab default, dragged to the bottom, dragged to the top"><figcaption>Eyes tab: its own shot, dragged out to the whole character, dragged in to the closest</figcaption></figure>
+<figure><img src="shots/web-keyboard-and-tabs.png" alt="Home key, End key, then the Mouth tab"><figcaption>Home and End, then Mouth back at its own zoom</figcaption></figure>
+<figure><img src="shots/web-touch-pinch.png" alt="Touch pinch out and in on a touch-screen browser"><figcaption>A two-finger touch pinch on a touch-screen browser, through the same code as iOS</figcaption></figure>
+
+<h2>Verification</h2>
+<ul>
+<li>Unit tests for the zoom math: limits and clamping, pinch spread to zoom, slider position to zoom, keys, ctrl-scroll, the tab's own shot at its own zoom, focus kept when zooming in, tab change reset.</li>
+<li>Web (local isolated backend, sweep accounts only): role slider, label Zoom, value 0 to 100; mouse drag clamps at 0 and 100 with no text selected and nothing scrolled; keys step 5, page 20; tab changes reset; ctrl-scroll zooms and a plain scroll doesn't; one-finger drag still turns; picks still work; touch pinch zooms; no page errors.</li>
+<li>Web checks: character-camera (with new zoom steps), outfits, chapel-pews, arcade-podium, rps-ask, backyard-chat all pass.</li>
+<li>iOS: pinch out and in, slider drag, slider follows pinch, tab reset, list scroll and taps, one-finger turn, nothing clipped at the right edge or under the safe area.</li>
+<li>Not checked: VoiceOver reading the slider, Android, Safari's own trackpad pinch (it sends gesture events, not ctrl-scroll).</li>
+</ul>
+</body>
+</html>
