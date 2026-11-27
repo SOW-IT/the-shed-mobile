@@ -10,8 +10,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Added
 - **Eight more eye shapes for your World character.** The Eyes tab now has
-  16 shapes. The new ones are Cat (tipped up at the outer corner, with a slit
-  pupil), Puppy (big and round under a drooping lid), Starry (a twinkle for a
+  16 shapes. The new ones are Cat (a white almond tipped up at the outer
+  corner, round a slit pupil), Puppy (big and round under a drooping lid), Starry (a twinkle for a
   pupil), Hearts, Tiny, Anime (a tall white eye with a big iris and a heavy
   top lash), Wink (one eye closed in a smiling arc) and Sharp (a flat-topped
   half moon that slopes down to the nose). They take your eye colour, eye
