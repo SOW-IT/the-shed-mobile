@@ -80,6 +80,19 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "${OUT}/check-mahjong-cafe"
+# Standing by the café's arcade cabinet opens its panel, which covers Table 2's stools; shut it first.
+- runFlow:
+    when:
+      visible:
+        id: world-arcade-close
+    commands:
+      - tapOn:
+          id: world-arcade-close
+          waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          notVisible:
+            id: world-arcade-close
+          timeout: 5000
 - tapOn: "Mahjong Table 2, East seat"
 - extendedWaitUntil:
     visible:
