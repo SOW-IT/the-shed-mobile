@@ -1,0 +1,46 @@
+appId: au.org.sow.theshed
+---
+# The status bar on a screen opened over a game. A game stays mounted under
+# what opens on top of it, and its light status bar (game over, or a dark
+# game) stayed light over the cream screen in front. Screenshots only: read
+# the status bar in each one, it should be dark.
+# Flap, game over, then its Leaderboard button.
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-flappy
+    timeout: 30000
+- tapOn:
+    id: games-open-flappy
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-flappy-game-over"
+- tapOn: "Leaderboard"
+- extendedWaitUntil:
+    visible: "Play Flap"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-leaderboard-over-game"
+# Mystic Man (a dark game, light bar), then a link opens People on top.
+- openLink: "theshedmobile://games/runner"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- openLink: "theshedmobile://org"
+- extendedWaitUntil:
+    visible: "People"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-people-over-game"

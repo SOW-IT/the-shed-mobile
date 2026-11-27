@@ -5,7 +5,6 @@ import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
-import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +15,7 @@ import { useSavedNames } from "./useSavedNames";
 import { CoinCounter } from "./CoinCounter";
 import { GoldCoin } from "./GoldCoin";
 import { useAvatarArt, usePreloadAvatarArt } from "./GameCharacter";
+import { FocusedStatusBar } from "./FocusedStatusBar";
 import { OnlineBanner } from "./OnlineBanner";
 import { useNowPlaying, type NowPlaying } from "./usePlayingNow";
 
@@ -316,7 +316,7 @@ export const GamesMenu = ({
   return (
     <View style={styles.screen} testID="games-menu">
       {/* The page is daylight in both themes, like the World. */}
-      <StatusBar style="dark" />
+      <FocusedStatusBar style="dark" />
       <View style={styles.lawn} pointerEvents="none">
         <View style={styles.stripe} />
       </View>
