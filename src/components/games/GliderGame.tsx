@@ -27,7 +27,7 @@ import {
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
 import type { Look } from "@shared/world";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { PanResponder, Platform, StyleSheet, Text, View } from "react-native";
 import { CharacterPicker, useAvatarArt, useGameLook, type AvatarArt } from "./GameCharacter";
 import { GameFrame, useGameSession, useLatest } from "./GameFrame";
@@ -265,6 +265,21 @@ const FarHills = ({ shift, width, colour, size, top }: { shift: number; width: n
   );
 };
 
+/**
+ * The board, cut off where the scenery stops. The earth runs down to the
+ * world's floor and the far hills hang below the board, so unclipped they
+ * covered the bottom border of a screen outside Swoop's shapes (a tall
+ * browser window), and only a black band was left above.
+ */
+const BoardClip = ({ children }: { children: ReactNode }) => {
+  const reach = useBoardReach();
+  return (
+    <View style={[styles.boardClip, { left: -reach.left, top: -reach.top, right: -reach.right, bottom: -reach.bottom }]} pointerEvents="none">
+      <View style={[styles.board, { left: reach.left, top: reach.top, right: reach.right, bottom: reach.bottom }]}>{children}</View>
+    </View>
+  );
+};
+
 const Scene = ({ state, width, height, look }: { state: GliderState; width: number; height: number; look: Look | null }) => {
   const reach = useBoardReach();
   const progress = state.daySeen;
@@ -483,7 +498,9 @@ export const GliderGame = ({
       onLeaderboard={onLeaderboard}
       insets={insets}
     >
-      <Scene state={shown} width={BOARD_WIDTH} height={BOARD_WIDTH / shown.aspect} look={look} />
+      <BoardClip>
+        <Scene state={shown} width={BOARD_WIDTH} height={BOARD_WIDTH / shown.aspect} look={look} />
+      </BoardClip>
     </GameFrame>
   );
   return (
@@ -517,6 +534,8 @@ const styles = StyleSheet.create({
   farHill: { position: "absolute" },
   reach: { position: "absolute", top: 0 },
   flagClip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
+  boardClip: { position: "absolute", overflow: "hidden" },
+  board: { position: "absolute" },
   bird: { position: "absolute", left: 0, top: 0, width: BIRD, height: BIRD, transformOrigin: "bottom center" },
   birdBox: { width: BIRD, height: BIRD, alignItems: "center", justifyContent: "flex-end" },
   squash: { transform: [{ scaleX: 1.12 }, { scaleY: 0.86 }], transformOrigin: "bottom center" },
