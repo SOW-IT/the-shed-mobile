@@ -16,6 +16,7 @@ import {
   ASK_MS,
   OBSTACLES,
   PLACE_OBSTACLES,
+  SEATS,
   PLACE_TITLES,
   PORTAL_RADIUS,
   PORTALS,
@@ -55,6 +56,7 @@ import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
 import { penPoint, phaseFor, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
+import { MAHJONG_TABLE_NAMES, mahjongSeatOf, seatPlace } from "@shared/mahjong/table";
 import { myPoseLabel } from "./myPose";
 import { bubbleAge, mouthAt, nextFlapAt, talkAge } from "./talk";
 import { BALL_PLACE, BALL_RADIUS, ballAt, KICK_GAP_MS, KICK_TAP_REACH, KICK_TOUCH, kickDirection, restingBall, type Ball, type RollingBall } from "@shared/ball";
@@ -931,6 +933,13 @@ export const Garden = ({
     if (!obs || !onActivate) continue;
     const at = cam.project([obs.x, 0.6, obs.z]);
     targets.push({ key: `a11y-${id}`, label, x: at.x, y: at.y, onActivate });
+  }
+  // The mahjong tables' stools, by table and seat, for VoiceOver (a tap there sits you, or opens the game to watch).
+  for (const seat of SEATS[place]) {
+    const at = mahjongSeatOf(seat.id);
+    if (!at) continue;
+    const point = cam.project([seat.x, seat.height + 0.2, seat.z]);
+    targets.push({ key: `a11y-${seat.id}`, label: `Mahjong ${MAHJONG_TABLE_NAMES[at.table]}, ${seatPlace(at.seat)} seat`, x: point.x, y: point.y, onActivate: () => onTapSeat(seat.id) });
   }
   if (yard && pens && place === BACKYARD) {
     for (const id of BUILDING_IDS) {
