@@ -5,7 +5,9 @@ import { Avatar, figureTop, type Doing } from "./Person";
 
 const STILL = { x: 0, z: 0, walking: false, arrivesAt: 0 } as const;
 const RUNNING_HEADING = 1.15;
-const STRIDE_PHASES = [Math.PI / 24, (3 * Math.PI) / 24];
+// Two running frames a half stride apart, each mid-swing: arms and feet
+// apart, one foot coming up.
+const STRIDE_PHASES = [Math.PI / 48, (5 * Math.PI) / 48];
 const UP = 0.86;
 
 const fitScale = (look: Look, height: number) => height / figureTop(look, UP);

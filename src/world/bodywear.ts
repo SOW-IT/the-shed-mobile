@@ -1,4 +1,4 @@
-import type { Point } from "./headwear";
+import { hoodLayer, type Point } from "./headwear";
 
 export type BodyView = {
   footX: number;
@@ -266,3 +266,61 @@ export const necklacePose = (v: BodyView, chin: number) => {
     pendantDepth,
   };
 };
+
+/**
+ * A hoodie's hood, down on the upper back: one pouch that turns with the
+ * body. It sits just below the neck (round the back of the body), so it slides
+ * across as someone turns, narrows to its depth side-on, and is drawn behind
+ * the head and body until it's on the near side (seen from behind), then over
+ * them. Seen from behind, its opening shows at the top and a seam runs down it.
+ */
+export const HOOD = { drop: 0.05, across: 0.3, depth: 0.2, tall: 0.17, out: 0.09 } as const;
+
+export const hoodPose = (v: BodyView, chin: number) => {
+  const y = Math.min(0.66, chin - HOOD.drop);
+  // Straight back from the spine (theta = pi), a little off the body.
+  const back = bodyHalfWidth(y) + HOOD.out;
+  const centre = bodyAt(v, -v.side * back, y);
+  const rx = Math.hypot(HOOD.across * v.facing, HOOD.depth * v.side) * v.width * v.s;
+  const ry = HOOD.tall * v.height * v.up;
+  const open = -v.facing;
+  return {
+    centre,
+    rx,
+    ry,
+    layer: hoodLayer(v.facing),
+    opening:
+      open > 0.2
+        ? { centre: { x: centre.x, y: centre.y - ry * 0.42 }, rx: HOOD.across * 0.6 * open * v.width * v.s, ry: ry * 0.32 }
+        : null,
+    seam: open > 0.35 ? { a: { x: centre.x, y: centre.y - ry * 0.1 }, b: { x: centre.x, y: centre.y + ry * 0.75 } } : null,
+  };
+};
+
+/** Where the hood's edge crosses the neck: low at the front, up at the sides. */
+const rimY = (chin: number, theta: number) => chin + 0.01 - 0.05 * Math.max(0, Math.cos(theta));
+
+const RIM_THETAS = [-1.5, -1.1, -0.7, -0.35, 0, 0.35, 0.7, 1.1, 1.5] as const;
+
+/**
+ * The hood's edge round the front of the neck, as short pieces on the body
+ * surface (hidden ones left out), and the two drawstrings hanging from it.
+ */
+export const hoodRim = (v: BodyView, chin: number) => {
+  const rim: { a: Point; b: Point }[] = [];
+  for (let i = 0; i + 1 < RIM_THETAS.length; i++) {
+    const t0 = RIM_THETAS[i];
+    const t1 = RIM_THETAS[i + 1];
+    const seg = surfaceSegment(v, t0, rimY(chin, t0), t1, rimY(chin, t1), -0.02, 1);
+    if (seg) rim.push(seg);
+  }
+  const strings: { side: -1 | 1; a: Point; b: Point }[] = [];
+  for (const side of [-1, 1] as const) {
+    const seg = surfaceSegment(v, 0.22 * side, rimY(chin, 0.22) - 0.01, 0.26 * side, chin - 0.15, 0.2, 0.98);
+    if (seg) strings.push({ side, a: seg.a, b: seg.b });
+  }
+  return { rim, strings };
+};
+
+/** The front pocket's span round the body, top and bottom (it hides from behind). */
+export const HOODIE_POCKET = { top: [-0.96, 0.96], bottom: [-1.05, 1.05] } as const;
