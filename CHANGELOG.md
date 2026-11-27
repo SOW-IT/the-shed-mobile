@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.44] - 2026-11-27
+## [2.13.46] - 2026-11-27
 
 ### Changed
 - **The character editor's preview zooms to the part each tab changes.**
@@ -19,6 +19,39 @@ All notable changes to **The SHED** mobile app. This project follows
   like the whole body, so you see a backpack. Moving a part with its slider
   doesn't move the camera, so you still see the part move. Verify has a new
   check that screenshots the preview on every tab, on web and iOS.
+
+## [2.13.45] - 2026-11-27
+
+### Changed
+- **In the World, arms and feet now move with the head and body.** Walking,
+  each arm swings forward with the opposite foot. Each foot lifts and steps
+  forward, at its highest as the body bobs highest, so it never drops away
+  from the body. Seen side on, the feet cross past each other. The stride
+  grows in over 120 ms when someone sets off and fades out when they stop,
+  so the limbs never snap into place. Standing still, everyone breathes and
+  sways a little and their arms follow a beat behind, while their feet stay
+  planted. Seated people sway too. Swimming and emotes keep their own arm
+  movements. The idle sway keeps the World's clock running at the gentle
+  15 frames a second already used for swimmers. It is off on battery saver
+  (or with the system's Reduce Motion) and while the World is in the
+  background. The Runner game's two running frames now show arms and feet
+  mid-stride.
+
+## [2.13.44] - 2026-11-27
+
+### Fixed
+- **The hoodie is one hoodie from every side, and it turns with the body.**
+  The hood was three separate shapes that took turns: a head-sized ball
+  behind the head when facing the camera, a second lump at a fixed spot
+  side-on, and a smaller drape over the back when facing away. They were
+  different sizes in different places, so at some angles two or three
+  showed at once and the hood jumped as someone turned. The hood's edge,
+  the drawstrings and the pocket were drawn flat at the front whichever way
+  the person faced. Now the hood is one pouch on the upper back that
+  slides round as the body turns (like the backpack), and the edge round
+  the neck, the drawstrings and the pocket sit on the body like the
+  collared shirt's and the jacket's pieces: they turn with it, and hide
+  from behind. It leans, bobs and stretches with the body, not the head.
 
 ## [2.13.43] - 2026-11-27
 
