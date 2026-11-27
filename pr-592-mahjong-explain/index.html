@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #592: Hong Kong mahjong at two Café tables</title>
+<style>
+body { font: 18px/1.5 -apple-system, system-ui, sans-serif; margin: 0 auto; max-width: 760px; padding: 16px; color: #1e3230; background: #fbf8f1; }
+h1 { font-size: 26px; line-height: 1.25; }
+h2 { font-size: 21px; margin-top: 32px; }
+img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid #ddd6c8; background: #fff; }
+figure { margin: 16px 0 24px; }
+figcaption { font-size: 15px; color: #4f5f5c; margin-top: 4px; }
+a { color: #1d4a41; }
+ul { padding-left: 20px; }
+.narrow { max-width: 360px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row figure { flex: 1 1 220px; max-width: 360px; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>PR #592: Hong Kong mahjong at two Café tables, with bots, coins and spectating (2.13.47)</h1>
+<p><a href="https://github.com/SOW-IT/the-shed-mobile/pull/592">github.com/SOW-IT/the-shed-mobile/pull/592</a></p>
+<p>Everything here was taken on the iOS Simulator (iPhone 17, 402 x 874 points) and headless Chromium, against an isolated local Convex backend with the seeded sweep accounts only. iOS media is from commit <code>57160b80</code> unless a caption says otherwise.</p>
+
+<h2>What it does</h2>
+<ul>
+<li>Two mahjong tables in the online World's Café. Sit at an empty one and you host its lobby: four seats, Add bot and Remove, the rules, Start game.</li>
+<li>A full hand of Hong Kong rules, full screen: dice, deal, draw and discard, pong, kong and chow claims with a 5 second bar, self-drawn and discard wins with a faan breakdown.</li>
+<li>Points are SOW coins, worked out on the server. Bots play for the bank, which pays a person at most 200 coins a day.</li>
+<li>Anyone in the Café can watch a hand without seeing concealed tiles. Getting up mid-hand hands your seat to a bot until you sit back down.</li>
+</ul>
+
+<h2>Sitting down, the lobby and bots</h2>
+<figure class="narrow"><img src="shots/1-sit-lobby-bots.gif" alt="Tapping the East stool of Table 1 opens the lobby; the host adds three bots"><figcaption>Tap Table 1's East stool, the lobby opens, Add bot three times, Start game lights up. <a href="shots/1-sit-lobby-bots.mp4">mp4</a></figcaption></figure>
+<div class="row">
+<figure><img src="shots/ios-02-lobby.png" alt="Lobby with one person"><figcaption>The lobby as host, three empty seats</figcaption></figure>
+<figure><img src="shots/ios-03-lobby-bots.png" alt="Lobby with three bots"><figcaption>Three bots seated, Start game enabled</figcaption></figure>
+</div>
+
+<h2>Dice and deal</h2>
+<figure class="narrow"><img src="shots/2-dice-deal.gif" alt="Dice roll, the wall breaks, tiles are dealt and sorted"><figcaption>The dice pick the dealer and the break, the hand fills in fours and sorts itself. <a href="shots/2-dice-deal.mp4">mp4</a></figcaption></figure>
+
+<h2>A turn and a claim</h2>
+<figure class="narrow"><img src="shots/3-discard-claim.gif" alt="A discard, then a Chow and Pass prompt, then the chow is laid down"><figcaption>Tap a tile twice to discard; a bot's discard opens Chow and Pass for 5 seconds; the chow is laid down and it's your turn to discard. <a href="shots/3-discard-claim.mp4">mp4</a></figcaption></figure>
+<div class="row">
+<figure><img src="shots/ios-06-turn-picked.png" alt="A tile lifted on your turn"><figcaption>Your turn, a tile picked ("Tap it again to discard")</figcaption></figure>
+<figure><img src="shots/ios-07-claim.png" alt="Chow prompt"><figcaption>The claim bar: Chow with the two tiles it uses, and Pass</figcaption></figure>
+<figure><img src="shots/ios-08-claimed.png" alt="Chow laid down"><figcaption>The chow beside your plate</figcaption></figure>
+</div>
+
+<h2>The end of a hand: faan and coins</h2>
+<figure class="narrow"><img src="shots/4-win-coins.gif" alt="A bot wins self-drawn; the breakdown shows faan and coins"><figcaption>Dragon Bot wins self-drawn: HU!, the winning hand, each faan line, 5 faan for 24 points, and the coins (each other seat pays 12). <a href="shots/4-win-coins.mp4">mp4</a></figcaption></figure>
+<figure class="narrow"><img src="shots/ios-09-result.png" alt="Result card"><figcaption>The breakdown, with Play another round and Leave table</figcaption></figure>
+
+<h2>Getting up mid-hand</h2>
+<div class="row">
+<figure><img src="shots/ios-10-stood-up.png" alt="A bot is playing your seat card"><figcaption>Hand 2: after the X, a bot plays the seat and a card offers Sit back down. Coins show 88 after paying 12.</figcaption></figure>
+<figure><img src="shots/ios-11-sat-back.png" alt="Back at the table"><figcaption>Sat back down: the same hand, now as East (the dealer moved on)</figcaption></figure>
+</div>
+
+<h2>Watching, taking over a bot, and the World tag</h2>
+<div class="row">
+<figure><img src="shots/web-watching.png" alt="Watching view with every hand face down"><figcaption>Web, the leader watching Table 1 (57160b80): every hand face down, no tile can be tapped</figcaption></figure>
+<figure><img src="shots/web-cafe-mahjong-tag.png" alt="Cafe with a Mahjong tag over the player"><figcaption>Web (57160b80): the 🀄 Mahjong tag over Sweep S. at Table 1</figcaption></figure>
+<figure><img src="shots/ios-mahjong-tag.png" alt="iOS cafe with a Mahjong tag"><figcaption>iOS (058c5125): the tag over Sweep L. at Table 2, seen while Sweep S. is up from the table</figcaption></figure>
+<figure><img src="shots/web-takeover-card-again.png" alt="Take over card shown a second time"><figcaption>Web (058c5125): sitting in a bot's stool asks to take over, and asks again after Get up</figcaption></figure>
+<figure><img src="shots/web-took-over.png" alt="Playing a bot's hand"><figcaption>Web (058c5125): after Take over, the bot's hand is yours</figcaption></figure>
+</div>
+
+<h2>Verification</h2>
+<ul>
+<li>Verified on iOS: sitting and the lobby, Add bot, start, dice and deal, discarding, a pong and a chow prompt (pong and chow taken), one drawn hand (058c5125) and one self-drawn win with the coin breakdown (57160b80), getting up and sitting back, Play another round.</li>
+<li>Verified on web: watching without concealed tiles, the 🀄 tag, taking over a bot (the card returns after Get up).</li>
+<li>The repo's <code>mahjong.ios.yaml</code> check passes on 058c5125.</li>
+<li>Not verified: a person's own Hu (the hands played ended in a draw and a bot's win), a kong, VoiceOver for the lobby change, and the Reduce Motion callout fix.</li>
+</ul>
+</body>
+</html>
