@@ -16,7 +16,7 @@ import { Arrive, Punch } from "./Motion";
 import { Intro } from "./Intro";
 import { useBatterySaver, useWorldSetting } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
-import { ACROSS_SEAT_HEIGHT, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TABLE_GAP, tableLayout, zoneHeight, type Zone } from "./layout";
+import { ACROSS_SEAT_HEIGHT, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TABLE_GAP, tableLayout, zoneHeight, zonesFor, type Zone } from "./layout";
 import { isSlideUp, startsSlideUp } from "./tap";
 
 type Person = { memberId: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
@@ -499,6 +499,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const twoRows = rows === "two";
   const layout = tableLayout(screenWidth);
   const handSize = rows === "two" ? layout.handTwo : layout.hand;
+  const [tableHeight, setTableHeight] = useState(0);
+  const zones = zonesFor(layout.across, layout.side, tableHeight);
   const calm = useBatterySaver();
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
@@ -603,19 +605,19 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
         <View style={styles.chatLog} pointerEvents="box-none">
           {chatLog}
         </View>
-        <View style={styles.table}>
+        <View style={styles.table} onLayout={(e) => setTableHeight(Math.floor(e.nativeEvent.layout.height))}>
           <View style={{ height: ACROSS_SEAT_HEIGHT }}>{seatBlock(across, false)}</View>
-          {river(across, layout.across)}
+          {river(across, zones.across)}
           <View style={styles.middle}>
             {seatBlock(left, true, 90)}
-            {river(left, layout.side)}
+            {river(left, zones.side)}
             <View style={[styles.centreBox, { width: CENTRE }]}>
               {stage.kind === "intro" ? null : <Centre hand={hand} now={now} forCoins={forCoins} stake={stake} />}
             </View>
-            {river(right, layout.side)}
+            {river(right, zones.side)}
             {seatBlock(right, true, -90)}
           </View>
-          {river(viewer, layout.across)}
+          {river(viewer, zones.across)}
           {stage.kind === "intro" ? (
             <View style={styles.introOver} pointerEvents="none">
               <Intro dice={hand.dice} breakAt={hand.breakAt} dealer={hand.dealer} dealerName={names[hand.dealer]} until={stage.until} now={now} calm={calm} />

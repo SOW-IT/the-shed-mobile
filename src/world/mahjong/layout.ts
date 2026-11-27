@@ -39,3 +39,15 @@ export const tableLayout = (screenWidth: number) => {
   const handTwo = clamp(Math.floor((inner - DRAWN_GAP - 7 * HAND_GAP) / 8), 18, 52);
   return { width, hand, handTwo, across: acrossZone, side: sideZone, zoom, sideStack: 30, myMeld: clamp(Math.round(hand * 0.7), 14, 26) };
 };
+
+const SIDE_SEAT_MIN = 150;
+
+export const zonesFor = (across: Zone, side: Zone, height: number) => {
+  const fits = (zones: { across: Zone; side: Zone }) => ACROSS_SEAT_HEIGHT + 2 * zoneHeight(zones.across) + Math.max(zoneHeight(zones.side), SIDE_SEAT_MIN) + 4 * TABLE_GAP <= height;
+  let zones = { across, side };
+  if (height <= 0) return zones;
+  for (let step = 0; step < 40 && !fits(zones) && (zones.across.tile > 10 || zones.side.tile > 10); step++) {
+    zones = { across: { ...zones.across, tile: Math.max(10, zones.across.tile - 1) }, side: { ...zones.side, tile: Math.max(10, zones.side.tile - 1) } };
+  }
+  return zones;
+};

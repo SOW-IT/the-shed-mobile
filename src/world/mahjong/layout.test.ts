@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL, zoneHeight } from "./layout";
+import { ACROSS_SEAT_HEIGHT, zonesFor, CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL, zoneHeight } from "./layout";
 
 const MOST_DISCARDS = 34;
 
@@ -59,5 +59,20 @@ describe("the discard zones", () => {
     expect(riverFit(26, across).tile).toBe(across.tile);
     expect(riverFit(24, side).tile).toBe(side.tile);
     expect(riverFit(MOST_DISCARDS, across).tile).toBeLessThan(across.tile);
+  });
+});
+
+describe("fitting the zones to the table's height", () => {
+  const { across, side } = tableLayout(402);
+  const tableFor = (zones: ReturnType<typeof zonesFor>) => ACROSS_SEAT_HEIGHT + 2 * zoneHeight(zones.across) + Math.max(zoneHeight(zones.side), 150) + 4 * TABLE_GAP;
+
+  it("keeps full-size zones when the table is tall enough", () => {
+    expect(zonesFor(across, side, 2000)).toEqual({ across, side });
+  });
+
+  it.each([420, 360, 300])("shrinks every zone together to fit a %ipx table, so they never overlap", (height) => {
+    const zones = zonesFor(across, side, height);
+    expect(tableFor(zones)).toBeLessThanOrEqual(height);
+    expect(zones.across.tile).toBeLessThan(across.tile);
   });
 });
