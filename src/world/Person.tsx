@@ -157,6 +157,7 @@ const SWIM_SINK = 0.4;
 const LAP_HEIGHT = 0.24;
 const SHOULDER_HEIGHT = 0.6;
 const ARM_RAISED = 0.85;
+const MIN_COLLAR = 0.02;
 
 export const sitRise = (seatHeight: number | undefined, look: Look) =>
   seatHeight === undefined
@@ -992,6 +993,7 @@ const AvatarView = ({
     const collarTop = Math.min(0.71, chin + 0.03);
     const vBottom = Math.max(hem + 0.1, chin - 0.2);
     const strip = (key: string, top: number, bottom: number, topSpan: readonly [number, number], botSpan: readonly [number, number]) => {
+      if (top - bottom < MIN_COLLAR) return;
       const sInk = surfaceStrip(bodyView, top, bottom, topSpan, botSpan, ink * 0.8);
       const sFill = surfaceStrip(bodyView, top, bottom, topSpan, botSpan, 0);
       const sLine = surfaceStrip(bodyView, bottom + 0.035, bottom + 0.015, botSpan, botSpan, 0);
@@ -1052,12 +1054,15 @@ const AvatarView = ({
     const placket = surfaceSegment(bodyView, 0.05, chin - 0.08, 0.05, hem + 0.03, 0.2, 0.96);
     if (placket) parts.push(capsule(placket.a, placket.b, 0.02 * s, shade(shirt, -0.25), "placket"));
     const lapelBot = Math.max(hem + 0.08, chin - 0.12);
-    for (const e of [-1, 1] as const) {
-      const lInk = surfaceStrip(bodyView, Math.min(0.71, chin + 0.03), lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], ink * 0.8);
-      const lFill = surfaceStrip(bodyView, Math.min(0.71, chin + 0.03), lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], 0);
-      if (lInk && lFill) {
-        parts.push(quad(lInk, garden.ink, `campCollarInk${e}`, 2));
-        parts.push(quad(lFill, shade(shirt, 0.12), `campCollar${e}`, 2));
+    const lapelTop = Math.min(0.71, chin + 0.03);
+    if (lapelTop - lapelBot >= MIN_COLLAR) {
+      for (const e of [-1, 1] as const) {
+        const lInk = surfaceStrip(bodyView, lapelTop, lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], ink * 0.8);
+        const lFill = surfaceStrip(bodyView, lapelTop, lapelBot, e > 0 ? [0.04, 0.7] : [-0.7, -0.04], e > 0 ? [0.02, 0.2] : [-0.2, -0.02], 0);
+        if (lInk && lFill) {
+          parts.push(quad(lInk, garden.ink, `campCollarInk${e}`, 2));
+          parts.push(quad(lFill, shade(shirt, 0.12), `campCollar${e}`, 2));
+        }
       }
     }
   }

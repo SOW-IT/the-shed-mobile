@@ -36,7 +36,7 @@ import {
   type LookPart,
   type NudgePart,
 } from "@shared/world";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ColourPicker } from "./ColourPicker";
@@ -663,6 +663,8 @@ export const CharacterEditor = ({
   );
   // The sleeves' choices, on the top you're wearing.
   const sleevesBlank = useMemo(() => ({ ...blank, outfit }), [blank, outfit]);
+  const choiceBlank = useDeferredValue(blank);
+  const choiceSleevesBlank = useDeferredValue(sleevesBlank);
   const section = (title: string) => <Text style={[typography.label, { color: t.muted }]}>{title}</Text>;
   const nudges = (group: keyof typeof NUDGE_ROWS) => (
     <>
@@ -726,6 +728,8 @@ export const CharacterEditor = ({
     <SharpScrollView
       style={styles.grow}
       contentContainerStyle={styles.stack}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
       onLayout={(e) => setChoicesWidth(e.nativeEvent.layout.width)}
     >
       {tab === "Face" ? (
@@ -733,34 +737,34 @@ export const CharacterEditor = ({
           {section("Skin")}
           <Swatches colours={people.skins} value={draft.skin} onPick={set("skin")} label="Skin" order={SKINS_LIGHT_TO_DARK} />
           {section("Face shape")}
-          <Choices names={FACES} part="face" framing="face" value={part("face")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-face" />
+          <Choices names={FACES} part="face" framing="face" value={part("face")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-face" />
           {section("Nose")}
-          <Choices names={NOSES} part="nose" framing="face" value={part("nose")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-nose" />
+          <Choices names={NOSES} part="nose" framing="face" value={part("nose")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-nose" />
           {section("Blush")}
-          <Choices names={BLUSH} part="blush" framing="face" value={part("blush")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-blush" />
+          <Choices names={BLUSH} part="blush" framing="face" value={part("blush")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-blush" />
           {section("Freckles")}
-          <Choices names={FRECKLES} part="freckles" framing="zoom" value={part("freckles")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-freckles" />
+          <Choices names={FRECKLES} part="freckles" framing="zoom" value={part("freckles")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-freckles" />
           {section("Mole")}
-          <Choices names={MOLES} part="mole" framing="zoom" value={part("mole")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-mole" />
+          <Choices names={MOLES} part="mole" framing="zoom" value={part("mole")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-mole" />
         </>
       ) : null}
       {tab === "Eyes" ? (
         <>
           {section("Eyes")}
-          <Choices names={EYES} part="eyes" framing="face" value={part("eyes")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-eyes" />
+          <Choices names={EYES} part="eyes" framing="face" value={part("eyes")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-eyes" />
           {section("Eye colour")}
           <Swatches colours={people.eyeColours} value={part("eyeColour")} onPick={set("eyeColour")} label="Eye colour" />
           {nudges("Eyes")}
           {section("Eyeshadow")}
-          <Choices names={EYESHADOW} part="eyeshadow" framing="zoom" value={part("eyeshadow")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-eyeshadow" />
+          <Choices names={EYESHADOW} part="eyeshadow" framing="zoom" value={part("eyeshadow")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-eyeshadow" />
           {section("Glasses")}
-          <Choices names={GLASSES} part="glasses" framing="face" value={part("glasses")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-glasses" />
+          <Choices names={GLASSES} part="glasses" framing="face" value={part("glasses")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-glasses" />
         </>
       ) : null}
       {tab === "Brows" ? (
         <>
           {section("Eyebrows")}
-          <Choices names={BROWS} part="brows" framing="face" value={part("brows")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-brows" />
+          <Choices names={BROWS} part="brows" framing="face" value={part("brows")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-brows" />
           {section("Brow colour")}
           <Swatches
             colours={[shade(people.hairColours[draft.hairColour] ?? people.hairColours[0], -0.3), ...people.hairColours.map((c) => shade(c, -0.3))]}
@@ -777,22 +781,22 @@ export const CharacterEditor = ({
       {tab === "Mouth" ? (
         <>
           {section("Mouth")}
-          <Choices names={MOUTHS} part="mouth" framing="face" value={part("mouth")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-mouth" />
+          <Choices names={MOUTHS} part="mouth" framing="face" value={part("mouth")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-mouth" />
           {nudges("Mouth")}
           {section("Lipstick")}
-          <Choices names={LIPSTICK} part="lipstick" framing="zoom" value={part("lipstick")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-lipstick" />
+          <Choices names={LIPSTICK} part="lipstick" framing="zoom" value={part("lipstick")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-lipstick" />
           {section("Facial hair")}
-          <Choices names={BEARDS} part="beard" framing="face" value={part("beard")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-beard" />
+          <Choices names={BEARDS} part="beard" framing="face" value={part("beard")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-beard" />
         </>
       ) : null}
       {tab === "Hair" ? (
         <>
           {section("Hairstyle")}
-          <Choices names={HAIR_STYLES} part="hair" framing="hair" value={part("hair")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-hair" />
+          <Choices names={HAIR_STYLES} part="hair" framing="hair" value={part("hair")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-hair" />
           {section("Hair colour")}
           <Swatches colours={people.hairColours} value={draft.hairColour} onPick={set("hairColour")} label="Hair colour" />
           {section("Hat")}
-          <Choices names={HATS} part="hat" framing="hat" value={part("hat")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-hat" />
+          <Choices names={HATS} part="hat" framing="hat" value={part("hat")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-hat" />
         </>
       ) : null}
       {tab === "Body" ? (
@@ -815,12 +819,12 @@ export const CharacterEditor = ({
       {tab === "Outfit" ? (
         <>
           {section("Top")}
-          <Choices names={OUTFITS} part="outfit" framing="outfit" value={outfit} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-outfit" />
+          <Choices names={OUTFITS} part="outfit" framing="outfit" value={outfit} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-outfit" />
           {section("Sleeves")}
           {SLEEVELESS.includes(outfit) ? (
             <Text style={[typography.caption, { color: t.muted }]}>The tanks, sundress and hoodie have no sleeves choice.</Text>
           ) : (
-            <Choices names={SLEEVES} part="sleeves" framing="outfit" value={part("sleeves")} blank={sleevesBlank} onPick={pickPart} tile={tile} testID="world-editor-sleeves" />
+            <Choices names={SLEEVES} part="sleeves" framing="outfit" value={part("sleeves")} blank={choiceSleevesBlank} onPick={pickPart} tile={tile} testID="world-editor-sleeves" />
           )}
           {section("Colour")}
           <Swatches colours={people.shirts} value={draft.shirt} onPick={set("shirt")} label="Shirt" custom />
@@ -829,7 +833,7 @@ export const CharacterEditor = ({
             <Text style={[typography.caption, { color: t.muted }]}>A dress, skirt, overalls, sundress or jumpsuit comes with its own bottoms.</Text>
           ) : (
             <>
-              <Choices names={PANTS} part="pants" framing="outfit" value={part("pants")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-pants" />
+              <Choices names={PANTS} part="pants" framing="outfit" value={part("pants")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-pants" />
               {section("Bottoms colour")}
               <Swatches colours={people.pants} value={draft.pantsColour ?? 0} onPick={set("pantsColour")} label="Bottoms colour" custom />
             </>
@@ -839,7 +843,7 @@ export const CharacterEditor = ({
       {tab === "Extras" ? (
         <>
           {section("Extra")}
-          <Choices names={ACCESSORIES} part="accessory" framing="body" value={part("accessory")} blank={blank} onPick={pickPart} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
+          <Choices names={ACCESSORIES} part="accessory" framing="body" value={part("accessory")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
         </>
       ) : null}
     </SharpScrollView>

@@ -1,10 +1,11 @@
 import { typography, useAppTheme } from "@/theme";
 import { useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
 import { hslToRgb, parseHex, rgbToHsl, sliderColour, type Hsl } from "./colourPick";
 import { hud, rgbHex } from "./palette";
 
 const SEGMENTS = 24;
+const noBrowserGestures = (Platform.OS === "web" ? { touchAction: "none", userSelect: "none" } : {}) as unknown as ViewStyle;
 const THUMB = 26;
 const ROWS = [
   { key: "h", name: "Hue" },
@@ -49,7 +50,7 @@ const ColourSlider = ({
       : {};
   return (
     <View
-      style={styles.track}
+      style={[styles.track, noBrowserGestures]}
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       accessible
       accessibilityRole="adjustable"
