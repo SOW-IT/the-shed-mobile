@@ -251,31 +251,40 @@ export const searchBibleBooks = (query: string): readonly BibleBook[] => {
 };
 
 /**
- * One book, one chapter and an optional verse range: what the devotional
- * pickers can show. A one-chapter book (Jude) always has chapter 1.
+ * One book, then one chapter with an optional verse range, or a run of
+ * whole chapters: what a row of the devotional pickers can show. A
+ * one-chapter book (Jude) always has chapter 1.
  */
 export type PassagePick = {
   book: BibleBook;
   chapter: number | null;
+  /** The last chapter of a run of whole chapters, like the 3 of Genesis 1-3. */
+  toChapter: number | null;
   fromVerse: number | null;
   toVerse: number | null;
 };
 
 const isOneChapter = (book: BibleBook) => book.chapters.length === 1;
 
+const emptyPick = (book: BibleBook): PassagePick => ({
+  book,
+  chapter: isOneChapter(book) ? 1 : null,
+  toChapter: null,
+  fromVerse: null,
+  toVerse: null,
+});
+
 /**
- * Reads a stored passage back into the pickers. `null` is an empty passage;
- * "custom" is one the pickers can't show (several passages, a range across
- * chapters, or text that isn't a reference yet), which stays as typed text.
- * A multi-chapter book on its own ("John") is a pick still waiting for a chapter.
+ * Reads one reference back into a row of the pickers, or "custom" for one a
+ * row can't show (a verse range across chapters, or text that isn't a
+ * reference yet). A multi-chapter book on its own ("John") is a pick still
+ * waiting for a chapter.
  */
-export const pickFromPassage = (passage: string): PassagePick | "custom" | null => {
-  const trimmed = passage.trim();
-  if (!trimmed) return null;
-  const parsed = parseBibleReference(trimmed);
+const pickFromReference = (reference: string): PassagePick | "custom" => {
+  const parsed = parseBibleReference(reference);
   if (!parsed.ok) {
-    const book = findBibleBook(trimmed);
-    return book ? { book, chapter: null, fromVerse: null, toVerse: null } : "custom";
+    const book = findBibleBook(reference);
+    return book ? { ...emptyPick(book), chapter: null } : "custom";
   }
   const match = parsed.formatted.match(/^(.+?)(?: (\d+)(?::(\d+))?(?:-(\d+))?)?$/);
   const book = match ? findBibleBook(match[1]) : null;
@@ -283,49 +292,77 @@ export const pickFromPassage = (passage: string): PassagePick | "custom" | null 
   const [first, verse, last] = [match[2], match[3], match[4]].map((n) =>
     n === undefined ? null : Number(n)
   );
+  const pick = emptyPick(book);
   if (isOneChapter(book)) {
     return verse === null
-      ? { book, chapter: 1, fromVerse: first, toVerse: last }
-      : { book, chapter: 1, fromVerse: verse, toVerse: last };
+      ? { ...pick, fromVerse: first, toVerse: last }
+      : { ...pick, fromVerse: verse, toVerse: last };
   }
   if (first === null) return "custom";
-  if (verse === null) {
-    return last === null ? { book, chapter: first, fromVerse: null, toVerse: null } : "custom";
+  if (verse === null) return { ...pick, chapter: first, toChapter: last };
+  return { ...pick, chapter: first, fromVerse: verse, toVerse: last };
+};
+
+/**
+ * Reads a stored passage back into the pickers, one row per reference
+ * ("Genesis 1-3; Psalm 1" is two). `null` is an empty passage; "custom" is
+ * one the rows can't show, which stays as typed text.
+ */
+export const picksFromPassage = (passage: string): PassagePick[] | "custom" | null => {
+  if (!passage.trim()) return null;
+  const picks: PassagePick[] = [];
+  for (const reference of passage.split(";")) {
+    const pick = reference.trim() ? pickFromReference(reference.trim()) : "custom";
+    if (pick === "custom") return "custom";
+    picks.push(pick);
   }
-  return { book, chapter: first, fromVerse: verse, toVerse: last };
+  return picks;
 };
 
 /** The stored text for a pick, formatted the same way a typed reference is saved. */
-export const passageFromPick = ({ book, chapter, fromVerse, toVerse }: PassagePick): string => {
+export const passageFromPick = ({ book, chapter, toChapter, fromVerse, toVerse }: PassagePick): string => {
   let raw = book.name;
   if (isOneChapter(book)) {
     if (fromVerse !== null) raw += ` ${fromVerse}`;
   } else if (chapter !== null) {
     raw += ` ${chapter}`;
     if (fromVerse !== null) raw += `:${fromVerse}`;
+    else if (toChapter !== null && toChapter > chapter) raw += `-${toChapter}`;
   }
   if (fromVerse !== null && toVerse !== null && toVerse > fromVerse) raw += `-${toVerse}`;
   const parsed = parseBibleReference(raw);
   return parsed.ok ? parsed.formatted : raw;
 };
 
-export const chooseBook = (book: BibleBook): PassagePick => ({
-  book,
-  chapter: isOneChapter(book) ? 1 : null,
-  fromVerse: null,
-  toVerse: null,
-});
+/** The stored text for several rows of picks, in order. */
+export const passageFromPicks = (picks: readonly PassagePick[]): string =>
+  picks.map(passageFromPick).join("; ");
+
+export const chooseBook = (book: BibleBook): PassagePick => emptyPick(book);
 
 export const chooseChapter = (pick: PassagePick, chapter: number): PassagePick => ({
   ...pick,
   chapter,
+  toChapter: null,
   fromVerse: null,
   toVerse: null,
 });
 
-/** `null` means the whole chapter. A later end verse is kept; one at or before the new start is dropped. */
+/** `null`, or a chapter at or before the first, means just the one chapter. */
+export const chooseToChapter = (pick: PassagePick, chapter: number | null): PassagePick => ({
+  ...pick,
+  toChapter: chapter !== null && pick.chapter !== null && chapter > pick.chapter ? chapter : null,
+  fromVerse: null,
+  toVerse: null,
+});
+
+/**
+ * `null` means the whole chapter. A later end verse is kept; one at or before
+ * the new start is dropped. A start verse ends a run of chapters.
+ */
 export const chooseFromVerse = (pick: PassagePick, verse: number | null): PassagePick => ({
   ...pick,
+  toChapter: verse === null ? pick.toChapter : null,
   fromVerse: verse,
   toVerse: verse !== null && pick.toVerse !== null && pick.toVerse > verse ? pick.toVerse : null,
 });
@@ -339,3 +376,10 @@ export const chooseToVerse = (pick: PassagePick, verse: number | null): PassageP
 /** How many verses the pick's chapter has, or 0 before a chapter is chosen. */
 export const versesInChapter = (pick: PassagePick): number =>
   pick.chapter === null ? 0 : (pick.book.chapters[pick.chapter - 1] ?? 0);
+
+/**
+ * Whether the pick's "To" box ends a run of chapters rather than a verse
+ * range: a chapter is chosen, no start verse is, and later chapters exist.
+ */
+export const toEndsChapters = (pick: PassagePick): boolean =>
+  pick.fromVerse === null && pick.chapter !== null && pick.chapter < pick.book.chapters.length;
