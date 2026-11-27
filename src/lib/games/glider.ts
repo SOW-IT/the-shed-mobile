@@ -5,42 +5,58 @@
 // Unlike the other games, y grows upward here: it's the height above the
 // bottom of the world. The scene turns it over when it draws.
 import { random } from "./random";
-import { GLIDER_V2, ramp } from "./gliderTuning";
+import { GLIDER_V3, ramp } from "./gliderTuning";
 
 export const GLIDER = {
   /** Gravity while light (let go) and heavy (held), in world units a second squared. */
-  lightGravity: GLIDER_V2.speed.lightGravity,
-  heavyGravity: GLIDER_V2.speed.heavyGravity,
+  lightGravity: GLIDER_V3.speed.lightGravity,
+  heavyGravity: GLIDER_V3.speed.heavyGravity,
   /** Slowing on the ground and in the air, times the speed squared. */
-  groundDrag: GLIDER_V2.speed.groundDrag,
-  airDrag: GLIDER_V2.speed.airDrag,
+  groundDrag: GLIDER_V3.speed.groundDrag,
+  airDrag: GLIDER_V3.speed.airDrag,
   /** The bird always waddles on at least this, so it can't get stuck in a valley. */
-  minSpeed: GLIDER_V2.speed.min,
-  maxSpeed: GLIDER_V2.speed.max,
-  startSpeed: GLIDER_V2.speed.start,
+  minSpeed: GLIDER_V3.speed.min,
+  maxSpeed: GLIDER_V3.speed.max,
+  /** Top speed during Fever (3 swoops) and Double Fever (3 consecutive Fevers = 6 swoops). */
+  feverMaxSpeed: GLIDER_V3.speed.feverMax,
+  doubleFeverMaxSpeed: GLIDER_V3.speed.doubleFeverMax,
+  feverStreak: GLIDER_V3.speed.feverStreak,
+  doubleFeverStreak: GLIDER_V3.speed.doubleFeverStreak,
+  feverBoost: GLIDER_V3.speed.feverBoost,
+  doubleFeverBoost: GLIDER_V3.speed.doubleFeverBoost,
+  feverDragScale: GLIDER_V3.speed.feverDragScale,
+  doubleFeverDragScale: GLIDER_V3.speed.doubleFeverDragScale,
+  feverMultiplier: 2,
+  doubleFeverMultiplier: 3,
+  startSpeed: GLIDER_V3.speed.start,
   /** The bird's size, for drawing. Its body sits on its lowest point. */
   radius: 16,
   /** Each world starts and ends on a hilltop this high. */
   peak: 280,
   floor: 20,
   ceiling: 560,
+  /** Height above nearby mountain peaks where the cloud band starts and tops out. */
+  cloudAbovePeaks: GLIDER_V3.speed.cloudAbovePeaks,
+  maxAbovePeaks: GLIDER_V3.speed.maxAbovePeaks,
   /** Steepest slope a hill may have, rise over run. */
-  maxSlope: 2.2,
+  maxSlope: 2.03,
   /** In the air at least this long before a landing can be perfect. */
-  perfectAir: GLIDER_V2.speed.perfectAir,
+  perfectAir: GLIDER_V3.speed.perfectAir,
   /** A landing this much faster than the ground's own slope would give. */
-  perfectBoost: GLIDER_V2.speed.perfectBoost,
+  perfectBoost: GLIDER_V3.speed.perfectBoost,
   /** A rough landing keeps this share of its speed along the ground. */
-  roughKeep: 0.85,
+  roughKeep: 0.72,
   /** Landing on an upslope while heavy keeps this share on top. */
-  heavyUpslopeKeep: 0.8,
-  /** Seconds of daylight a perfect landing and a long flight give back. */
-  perfectTime: GLIDER_V2.speed.perfectTime,
-  flightTime: GLIDER_V2.speed.flightTime,
+  heavyUpslopeKeep: 0.75,
+  /** Seconds of daylight a perfect landing, long flight, and cloudtouch give back. */
+  perfectTime: GLIDER_V3.speed.perfectTime,
+  flightTime: GLIDER_V3.speed.flightTime,
+  cloudTime: GLIDER_V3.speed.cloudTime,
   /** A flight at least this long is a long one. */
-  longFlight: GLIDER_V2.speed.longFlight,
+  longFlight: GLIDER_V3.speed.longFlight,
   perfectPoints: 20,
   flightPoints: 30,
+  cloudPoints: 50,
   /** The longest perfect streak that still raises its points. */
   maxStreak: 5,
   worldPoints: 250,
@@ -65,12 +81,12 @@ export const VIEW = {
   /** How quickly the camera catches up, each second. */
   rate: 4,
   yCatchUpRate: 9,
-  zoomRate: 2,
-  catchUpRate: 6.5,
+  zoomRate: 3.5,
+  catchUpRate: 6.2,
   behind: 0.15,
   ahead: 0.7,
   planAhead: 1.3,
-  lookSeconds: 1.4,
+  lookSeconds: 1.5,
   holdWide: 1.8,
   narrowing: 1.4,
   holdLow: 1.2,
@@ -104,13 +120,23 @@ type WorldRules = {
 
 const degrees = (d: number) => (d * Math.PI) / 180;
 
-const V2 = GLIDER_V2;
+const V2 = GLIDER_V3;
 export const HARDEST_WORLD = V2.hardestWorld;
 export const FLOOR_DAY = V2.day.floorSeconds;
 
 const wholeWorld = (world: number) => Math.max(1, Math.floor(world));
 
-export const difficulty = (world: number) => V2.difficulty.a + V2.difficulty.b * wholeWorld(world);
+/**
+ * Pure logarithmic terrain difficulty curve:
+ * - Day 1: 0 steps (gentle warmup).
+ * - Day 8: 9 steps (1× old Day 10 difficulty).
+ * - Day 32: 27 steps (3× old Day 10 difficulty), plateauing cleanly for Day 32+.
+ */
+export const difficulty = (world: number) => {
+  const w = Math.min(wholeWorld(world), V2.difficulty.plateauEnd);
+  const { a, scale, logScale } = V2.difficulty;
+  return a + scale * Math.log(1 + (w - 1) / logScale);
+};
 
 const steps = (world: number) => difficulty(world) - difficulty(1);
 
@@ -152,13 +178,11 @@ export type HillPoint = { x: number; y: number };
 
 const worldSeed = (seed: number, world: number) => (seed ^ Math.imul(world, 0x9e3779b1)) | 0;
 
-export const HILL_SHAPES = ["plateau", "double", "ramp", "cliff", "uneven", "gorge", "drop", "wall", "jagged"] as const;
+export const HILL_SHAPES = ["uneven", "double", "plateau", "ramp", "gorge", "wall", "drop", "cliff", "jagged"] as const;
 type HillShape = (typeof HILL_SHAPES)[number];
 type ShapedStretch = { shape: HillShape; from: number; to: number };
 
 export const FIRST_WORLD = Object.fromEntries(HILL_SHAPES.map((shape) => [shape, V2.features[shape].firstWorld])) as Record<HillShape, number>;
-
-const EASY_SHAPES: readonly HillShape[] = ["ramp", "plateau"];
 
 export const shapeChance = (shape: HillShape, world: number) => {
   const feature = V2.features[shape];
@@ -197,14 +221,14 @@ const levelAt = (knots: readonly Knot[], x: number) => {
   return a.level + ((b.level - a.level) * (1 - Math.cos((Math.PI * (x - a.x)) / (b.x - a.x)))) / 2;
 };
 
-const pickShape = (roll: number, world: number, hard = false): HillShape => {
-  const weights = HILL_SHAPES.map((shape) => (hard && EASY_SHAPES.includes(shape) ? 0 : shapeChance(shape, world)));
+const pickShape = (roll: number, world: number): HillShape => {
+  const weights = HILL_SHAPES.map((shape) => shapeChance(shape, world));
   let left = roll * weights.reduce((sum, weight) => sum + weight, 0);
   for (let i = 0; i < HILL_SHAPES.length; i++) {
     left -= weights[i];
     if (left < 0) return HILL_SHAPES[i];
   }
-  return HILL_SHAPES[1];
+  return HILL_SHAPES[0];
 };
 
 const buildWorld = (seed: number, world: number, start: number) => {
@@ -216,8 +240,8 @@ const buildWorld = (seed: number, world: number, start: number) => {
   const shapes: ShapedStretch[] = [];
   let x: number = start;
   let y: number = GLIDER.peak;
-  let steepDown = false;
   let previousShape: HillShape | null = null;
+  let steepDown = false;
   let level = 0;
   const knots = levelKnots(seed, world, start, rules.length);
   const climbRoom = ramp(V2.longestClimb, n);
@@ -227,31 +251,30 @@ const buildWorld = (seed: number, world: number, start: number) => {
   const backToBack = ramp(V2.backToBackShare, n);
   const to = (nextX: number, nextY: number) => {
     const rise = nextY - y;
-    const room = V2.levelShare * Math.abs(rise);
-    const shift = rise === 0 ? 0 : Math.max(-room, Math.min(room, levelAt(knots, nextX) - level));
+    const shiftRoom = V2.levelShare * Math.abs(rise);
+    const shift = rise === 0 ? 0 : Math.max(-shiftRoom, Math.min(shiftRoom, levelAt(knots, nextX) - level));
     x = rise === 0 ? nextX : Math.max(nextX, x + run(rise + shift));
     y = nextY;
     level += shift;
     points.push({ x, y: y + level });
   };
-  const climb = (top: number, up: number, steps: number) => {
-    const dip = Math.min(ramp(V2.jaggedDip, n), (top - y) / (steps + 1));
-    const rise = (top - y + dip * (steps - 1)) / steps;
-    for (let i = 0; i < steps; i++) {
-      const crest = i === steps - 1 ? top : y + rise;
-      to(x + Math.max(up / steps, run(crest - y)), crest);
-      if (i < steps - 1) to(x + run(dip) * 1.1, y - dip);
+  const climb = (top: number, up: number, stepsCount: number) => {
+    const dip = Math.min(ramp(V2.jaggedDip, n), (top - y) / (stepsCount + 1));
+    const rise = (top - y + dip * (stepsCount - 1)) / stepsCount;
+    for (let i = 0; i < stepsCount; i++) {
+      const crest = i === stepsCount - 1 ? top : y + rise;
+      to(x + Math.max((up * 1.1) / stepsCount, run(crest - y)), crest);
+      if (i < stepsCount - 1) to(x + run(dip) * 1.4, y - dip);
     }
   };
   for (let last = false; !last; ) {
-    const down = Math.max(120, vary(rules.span));
-    const up = Math.max(100, vary(rules.span) * (1 - rules.squeeze));
+    const down = Math.max(115, vary(rules.span));
+    const up = Math.max(95, vary(rules.span) * (1 - rules.squeeze));
     last = x + down + up >= start + rules.length && Math.abs(level) <= V2.levelLanding;
     const roomy = x + 3 * (down + up) < start + rules.length;
     const again: boolean = previousShape !== null && roomy && random(rng) < backToBack;
-    const shape: HillShape | null = again
-      ? pickShape(random(rng), rules.world, true)
-      : roomy && rules.oddity > 0 && random(rng) < rules.oddity
+    const shape: HillShape | null =
+      (again || (roomy && rules.oddity > 0 && random(rng) < rules.oddity)) && rules.oddity > 0
         ? pickShape(random(rng), rules.world)
         : null;
     previousShape = shape;
@@ -263,17 +286,17 @@ const buildWorld = (seed: number, world: number, start: number) => {
     const steep = steepDown || shape === "cliff" || shape === "gorge" || shape === "drop";
     steepDown = false;
     to(x + (steep ? run(y - valley) * 1.05 : Math.max(down, run(y - valley))), valley);
-    if (shape === "cliff") to(x + down * 0.8 * flat, y);
+    if (shape === "cliff") to(x + down * 0.72 * flat, y);
     const tall = shape === "wall" ? ramp(V2.wallHeight, n) : shape === "drop" ? 0.45 : 1;
     const top = last ? GLIDER.peak : Math.min(GLIDER.ceiling + room, y + climbRoom, Math.max(y + 40, y + vary(rules.drop) * tall));
     if (shape === "jagged") climb(top, up, Math.floor(ramp(V2.jaggedSteps, n) + 1e-9));
     else if (shape === "gorge" || shape === "wall") to(x + run(top - y) * 1.02, top);
-    else to(x + Math.max(shape === "ramp" ? up * 2.2 : up, run(top - y)), top);
+    else to(x + Math.max(shape === "ramp" ? up * 1.9 : up, run(top - y)), top);
     if (shape === "ramp") steepDown = true;
-    if (shape === "plateau") to(x + up * 0.9 * flat, y);
+    if (shape === "plateau") to(x + up * 0.85 * flat, y);
     if (shape === "double") {
       const dip = Math.min(ramp(V2.doubleDip, n), (top - valley) * ramp(V2.doubleDipShare, n));
-      const hump = Math.max(up * 0.6 * flat, run(dip), 90 * flat);
+      const hump = Math.max(up * 0.55 * flat, run(dip), 85 * flat);
       to(x + hump, top - dip);
       to(x + hump, top);
     }
@@ -356,6 +379,15 @@ type Landing = "perfect" | "smooth" | "rough";
  * flight that lands perfectly gives a little more); coming down against the
  * slope, or onto an upslope while heavy, loses some.
  */
+type FeverLevel = 0 | 1 | 2;
+
+const feverLevelOf = (fever: boolean | FeverLevel): FeverLevel => (fever === true ? 1 : fever === false ? 0 : fever);
+
+const maxSpeedFor = (fever: boolean | FeverLevel) => {
+  const level = feverLevelOf(fever);
+  return level >= 2 ? GLIDER.doubleFeverMaxSpeed : level === 1 ? GLIDER.feverMaxSpeed : GLIDER.maxSpeed;
+};
+
 export const land = (
   vx: number,
   vy: number,
@@ -363,7 +395,8 @@ export const land = (
   heavy: boolean,
   tolerance: number,
   airTime: number,
-  roughKeep: number = GLIDER.roughKeep
+  roughKeep: number = GLIDER.roughKeep,
+  fever: boolean | FeverLevel = 0
 ): { speed: number; landing: Landing } => {
   const length = Math.hypot(1, slope);
   const along = (vx + vy * slope) / length;
@@ -379,10 +412,11 @@ export const land = (
     speed *= roughKeep;
     if (heavy && slope > 0) speed *= GLIDER.heavyUpslopeKeep;
   }
-  return { speed: clampSpeed(speed), landing };
+  return { speed: clampSpeed(speed, fever), landing };
 };
 
-const clampSpeed = (speed: number) => Math.max(GLIDER.minSpeed, Math.min(GLIDER.maxSpeed, speed));
+const clampSpeed = (speed: number, fever: boolean | FeverLevel = 0) =>
+  Math.max(GLIDER.minSpeed, Math.min(maxSpeedFor(fever), speed));
 
 /**
  * Whether the ground falls away faster than the bird can follow it: on a
@@ -395,7 +429,12 @@ export const leavesGround = (ground: Ground, speed: number, gravity: number): bo
   return bend * speed * speed < -gravity / length;
 };
 
-export type Popup = { id: number; text: string; born: number; kind: "perfect" | "flight" | "world" | "rough" };
+export type Popup = {
+  id: number;
+  text: string;
+  born: number;
+  kind: "perfect" | "flight" | "world" | "rough" | "fever" | "doubleFever" | "cloud";
+};
 
 export type Camera = {
   x: number;
@@ -408,6 +447,8 @@ export type Camera = {
   low?: number;
   lowFor?: number;
 };
+
+export type TrailPoint = { id: number; x: number; y: number };
 
 export type GliderState = {
   over: boolean;
@@ -438,6 +479,24 @@ export type GliderState = {
   /** Daylight won back so far in this world. */
   regained: number;
   streak: number;
+  /** Active after 3 good swoops in a row (Gold Fever) and upgraded at 6 (Purple Double Fever). */
+  fever: boolean;
+  /** 0 = normal, 1 = Gold Fever (streak >= 3), 2 = Purple Double Fever (streak >= 6). */
+  feverLevel: FeverLevel;
+  /** Smoothed nearby hilltop height used to anchor the cloud band and max flight ceiling. */
+  peakRef: number;
+  /** Whether this flight has already touched the clouds. */
+  cloudTouched: boolean;
+  cloudTouches: number;
+  /** 0..1 strength of how fast the bird entered the clouds (controls hang time and exit pickup). */
+  cloudFloat: number;
+  /** Smooth vertical parabola progression scale in/exiting clouds (1 below clouds on normal flights). */
+  cloudPace: number;
+  /** Stored exit boost that smoothly adds a Cloudtouch tailwind below the clouds. */
+  cloudExitBoost: number;
+  /** Short golden trail behind the bird while Fever is active. */
+  trail: readonly TrailPoint[];
+  trailClock: number;
   bonus: number;
   perfects: number;
   popups: Popup[];
@@ -461,12 +520,72 @@ export const viewSize = (aspect: number, zoom: number) => {
   return { width, height: width / Math.max(0.1, aspect) };
 };
 
-export const highestFlight = (highestGround: number = GLIDER.ceiling) => {
-  const climb = GLIDER.maxSpeed * Math.sin(Math.atan(GLIDER.maxSlope));
-  return highestGround + (climb * climb) / (2 * GLIDER.lightGravity);
+/** Highest ground within a range, using binary search so it stays O(1) per frame. */
+const highestGround = (points: readonly HillPoint[], from: number, to: number): number => {
+  let high = Math.max(groundAt(points, from).y, groundAt(points, to).y);
+  for (let i = spanAt(points, from) + 1; i < points.length && points[i].x < to; i++) high = Math.max(high, points[i].y);
+  return high;
 };
 
-type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vx" | "vy" | "grounded">>;
+const LOCAL_PEAK_REACH = 700;
+
+/** The tallest ridge near x: anchors the soft cloud ceiling not too far above the mountains. */
+export const localPeak = (points: readonly HillPoint[], x: number): number =>
+  Math.max(GLIDER.peak, highestGround(points, x - LOCAL_PEAK_REACH, x + LOCAL_PEAK_REACH));
+
+export const cloudAltitude = (peakRef: number) => peakRef + GLIDER.cloudAbovePeaks;
+
+export const maxFlightAltitude = (peakRef: number) => peakRef + GLIDER.maxAbovePeaks;
+
+export const highestFlight = (highestGroundY: number = GLIDER.ceiling) =>
+  Math.max(GLIDER.peak, highestGroundY) + GLIDER.maxAbovePeaks;
+
+/** Adaptive terrain detail level: keeps curves smooth while bounding total mounted views when zoomed out. */
+export const terrainLod = (zoom: number): { level: 0 | 1 | 2; strip: number; chunkStrips: number; chunk: number } => {
+  if (zoom >= 0.72) return { level: 0, strip: 12, chunkStrips: 32, chunk: 384 };
+  if (zoom >= 0.42) return { level: 1, strip: 18, chunkStrips: 24, chunk: 432 };
+  return { level: 2, strip: 32, chunkStrips: 18, chunk: 576 };
+};
+
+type IslandPalette = { farHill: string; nearHill: string; ground: string; grass: string };
+
+const hslHex = (hueDeg: number, sat: number, light: number): string => {
+  const h = (((hueDeg % 360) + 360) % 360) / 60;
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs((h % 2) - 1));
+  const m = light - c / 2;
+  const [r, g, b] =
+    h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+  return `#${[r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("")}`;
+};
+
+/**
+ * Each island (day) gets its own vibrant palette: curated Tiny Wings colours first,
+ * then a golden-angle hue sequence so mountain colours never repeat.
+ */
+export const islandPalette = (world: number, curated: readonly IslandPalette[]): IslandPalette => {
+  const index = Math.max(1, Math.floor(world)) - 1;
+  if (index < curated.length) return curated[index];
+  const step = index - curated.length + 1;
+  const hue = (27 + step * 137.507764) % 360;
+  const grassHue = (hue + 28 + (step % 3) * 14) % 360;
+  const sat = 0.48 + ((step % 4) * 0.05);
+  return {
+    farHill: hslHex(hue, sat * 0.65, 0.56),
+    nearHill: hslHex(hue, sat * 0.78, 0.43),
+    ground: hslHex(hue, sat, 0.31),
+    grass: hslHex(grassHue, Math.min(0.82, sat + 0.2), 0.67),
+  };
+};
+
+/** Which world owns ground at x: behind the start flag stays the previous island, past the end flag is already the next. */
+export const worldAtX = (x: number, world: number, worldStart: number, worldEnd: number): number => {
+  if (world > 1 && x < worldStart) return world - 1;
+  if (x >= worldEnd) return world + 1;
+  return world;
+};
+
+type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vx" | "vy" | "grounded" | "peakRef">>;
 
 const roomAbove = (state: Framed) => state.y + GLIDER.radius * 2 + VIEW.margin;
 
@@ -495,15 +614,31 @@ const fitFor = (state: Framed, top: number, extraAhead = 0, startZoom = 1) => {
   return zoom;
 };
 
-const highestGround = (points: readonly HillPoint[], from: number, to: number): number => {
-  let high = Math.max(groundAt(points, from).y, groundAt(points, to).y);
-  for (const point of points) if (point.x > from && point.x < to) high = Math.max(high, point.y);
-  return high;
-};
+const CLOUD_GRAVITY_SPAN = 260;
+const CLOUD_GRAVITY_GAIN = 1.35;
 
 const flightTop = (state: Framed) => {
-  const rising = state.grounded === false && (state.vy ?? 0) > 0 ? (state.vy ?? 0) ** 2 / (2 * GLIDER.lightGravity) : 0;
-  return state.y + rising;
+  const peak = state.peakRef ?? localPeak(state.hills, state.x);
+  if (state.grounded !== false || (state.vy ?? 0) <= 0) return Math.min(maxFlightAltitude(peak), state.y);
+  const vy = state.vy ?? 0;
+  // Exact integral of pure lightGravity below cloudY and the smooth parabola shortening above cloudY.
+  const cloudY = cloudAltitude(peak);
+  const g0 = GLIDER.lightGravity;
+  let energy = (vy * vy) / 2;
+  let y = state.y;
+  if (y < cloudY) {
+    const gap = cloudY - y;
+    const needed = g0 * gap;
+    if (energy <= needed) return y + energy / g0;
+    energy -= needed;
+    y = cloudY;
+  }
+  const h0 = Math.max(0, y - cloudY);
+  const k = (g0 * CLOUD_GRAVITY_GAIN) / CLOUD_GRAVITY_SPAN;
+  // Integrate (g0 + k * h) dh from h0 to h1 = energy => 0.5*k*(h1^2 - h0^2) + g0*(h1 - h0) = energy
+  const rhs = energy + g0 * h0 + 0.5 * k * h0 * h0;
+  const h1 = (-g0 + Math.sqrt(g0 * g0 + 2 * k * rhs)) / k;
+  return Math.min(maxFlightAltitude(peak), cloudY + h1);
 };
 
 const extraReach = (state: Framed) => Math.max(VIEW.width * VIEW.planAhead, Math.max(0, state.vx ?? 0) * VIEW.lookSeconds);
@@ -544,7 +679,7 @@ const followCamera = (camera: Camera, state: Framed, dt: number): Camera => {
     needed >= before || wideFor < VIEW.holdWide ? Math.max(needed, before) : needed + (before - needed) * Math.exp(-dt / VIEW.narrowing);
   const strict = fitFor(state, roomAbove(state), 0);
   const wanted = Math.min(strict, Math.max(VIEW.minZoom, Math.min(1, steadyHeight() / span)));
-  const behind = Math.min(1, Math.max(0, (camera.zoom / (strict * 0.92) - 1) * 8));
+  const behind = Math.min(1, Math.max(0, (camera.zoom / (strict * 0.9) - 1) * 4));
   const rate = VIEW.zoomRate + (VIEW.catchUpRate - VIEW.zoomRate) * behind;
   const eased = settle(Math.log(camera.zoom), camera.zoomSpeed ?? 0, Math.log(wanted), rate, dt);
   const rawZoom = Math.exp(eased.value);
@@ -603,6 +738,16 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     daySeen: 0,
     regained: 0,
     streak: 0,
+    fever: false,
+    feverLevel: 0,
+    peakRef: localPeak(hills, 0),
+    cloudTouched: false,
+    cloudTouches: 0,
+    cloudFloat: 0,
+    cloudPace: 1,
+    cloudExitBoost: 0,
+    trail: [],
+    trailClock: 0,
     bonus: 0,
     perfects: 0,
     popups: [],
@@ -664,45 +809,78 @@ const popup = (state: GliderState, kind: Popup["kind"], text: string) => {
   state.nextPopup += 1;
 };
 
-const regain = (state: GliderState, seconds: number) => {
-  const rules = worldRules(state.world);
-  const gained = Math.max(0, Math.min(seconds, rules.bonusCap - state.regained, rules.day - state.daylight));
-  state.daylight += gained;
-  state.regained += gained;
-  return gained;
-};
+const feverMultiplierOf = (level: FeverLevel) =>
+  level >= 2 ? GLIDER.doubleFeverMultiplier : level === 1 ? GLIDER.feverMultiplier : 1;
 
 const touchDown = (state: GliderState, ground: Ground) => {
   const rules = worldRules(state.world);
-  const { speed, landing } = land(state.vx, state.vy, ground.slope, state.heavy, rules.tolerance, state.air, rules.roughKeep);
+  const prevLevel: FeverLevel = state.feverLevel ?? (state.fever ? 1 : 0);
+  const { speed, landing } = land(
+    state.vx,
+    state.vy * state.cloudPace,
+    ground.slope,
+    state.heavy,
+    rules.tolerance,
+    state.air,
+    rules.roughKeep,
+    prevLevel
+  );
   const air = state.air;
   state.grounded = true;
   state.speed = speed;
   state.y = ground.y;
   state.air = 0;
+  state.cloudTouched = false;
+  state.cloudFloat = 0;
+  state.cloudPace = 1;
+  state.cloudExitBoost = 0;
   if (landing === "perfect") {
-    state.streak = Math.min(GLIDER.maxStreak, state.streak + 1);
+    state.streak += 1;
     state.perfects += 1;
-    state.bonus += GLIDER.perfectPoints * state.streak;
-    regain(state, GLIDER.perfectTime);
-    popup(state, "perfect", state.streak > 1 ? `Perfect ×${state.streak}` : "Perfect!");
+    const nextLevel: FeverLevel =
+      state.streak >= GLIDER.doubleFeverStreak ? 2 : state.streak >= GLIDER.feverStreak ? 1 : 0;
+    state.feverLevel = nextLevel;
+    state.fever = nextLevel > 0;
+    if (nextLevel === 1 && prevLevel === 0) state.speed = clampSpeed(state.speed * 1.09, 1);
+    else if (nextLevel === 2 && prevLevel < 2) state.speed = clampSpeed(state.speed * 1.1, 2);
+    const mult = feverMultiplierOf(nextLevel);
+    const streakFactor = Math.min(state.streak, GLIDER.maxStreak);
+    state.bonus += GLIDER.perfectPoints * streakFactor * mult;
+    if (nextLevel === 2) popup(state, "doubleFever", prevLevel < 2 ? "Double Fever!" : `Double Fever ×${state.streak}`);
+    else if (nextLevel === 1) popup(state, "fever", prevLevel === 0 ? "Fever!" : `Fever ×${state.streak}`);
+    else popup(state, "perfect", state.streak > 1 ? `Perfect ×${state.streak}` : "Perfect!");
   } else if (landing === "rough") {
     state.streak = 0;
+    state.fever = false;
+    state.feverLevel = 0;
+    state.trail = [];
     popup(state, "rough", "Bump");
   }
   if (air >= GLIDER.longFlight && landing !== "rough") {
-    state.bonus += GLIDER.flightPoints * Math.floor(air / 0.5);
-    regain(state, GLIDER.flightTime);
+    const level: FeverLevel = state.feverLevel ?? (state.fever ? 1 : 0);
+    const mult = feverMultiplierOf(level);
+    state.bonus += GLIDER.flightPoints * Math.floor(air / 0.5) * mult;
     popup(state, "flight", `Big flight ${air.toFixed(1)}s`);
   }
 };
 
 const moveOnGround = (state: GliderState, dt: number) => {
+  const level: FeverLevel = state.feverLevel ?? (state.fever ? 1 : 0);
   const gravity = state.heavy ? GLIDER.heavyGravity : GLIDER.lightGravity;
   const here = groundAt(state.hills, state.x);
   const length = Math.hypot(1, here.slope);
   const pull = (-gravity * here.slope) / length;
-  state.speed = clampSpeed(state.speed + (pull - GLIDER.groundDrag * state.speed * state.speed) * dt);
+  const boost = level >= 2 ? GLIDER.doubleFeverBoost : level === 1 ? GLIDER.feverBoost : 0;
+  const drive = pull > 0 && boost > 0 ? pull * (1 + boost) : pull;
+  const dragScale = level >= 2 ? GLIDER.doubleFeverDragScale : level === 1 ? GLIDER.feverDragScale : 1;
+  const drag = GLIDER.groundDrag * dragScale;
+  state.speed = clampSpeed(state.speed + (drive - drag * state.speed * state.speed) * dt, level);
+  if (state.fever && state.speed < GLIDER.startSpeed * 1.05) {
+    state.fever = false;
+    state.feverLevel = 0;
+    state.streak = 0;
+    state.trail = [];
+  }
   state.x += (state.speed / length) * dt;
   const there = groundAt(state.hills, state.x);
   const along = Math.hypot(1, there.slope);
@@ -716,14 +894,81 @@ const moveOnGround = (state: GliderState, dt: number) => {
 };
 
 const moveInAir = (state: GliderState, dt: number) => {
-  const gravity = state.heavy ? GLIDER.heavyGravity : GLIDER.lightGravity;
+  const level: FeverLevel = state.feverLevel ?? (state.fever ? 1 : 0);
+  const cloudY = cloudAltitude(state.peakRef);
+  const maxY = maxFlightAltitude(state.peakRef);
+  const wasInClouds = state.y >= cloudY;
+  // Holding to dive clears cloud float immediately for crisp drop-ins.
+  if (state.heavy) {
+    state.cloudFloat = 0;
+    state.cloudPace = 1;
+    state.cloudExitBoost = 0;
+  }
+  // Below the clouds on a normal flight: 100% pure lightGravity parabola (cloudPace = 1).
+  // Above the clouds (!heavy): smoothly shorten the parabola height with continuous curvature
+  // at cloudY and slow vertical parabola progression (cloudPace < 1, longer for faster entries)
+  // while keeping full horizontal speed vx. Dropping back below cloudY after a Cloudtouch
+  // gradually ramps cloudPace back up to 1 so you can prepare for descent.
+  let gravity: number = state.heavy ? GLIDER.heavyGravity : GLIDER.lightGravity;
+  if (!state.heavy && wasInClouds) {
+    const above = Math.max(0, state.y - cloudY);
+    gravity = GLIDER.lightGravity * (1 + CLOUD_GRAVITY_GAIN * Math.min(1.8, above / CLOUD_GRAVITY_SPAN));
+    const minPace = 0.78 - 0.2 * state.cloudFloat;
+    let targetPace = minPace;
+    if (state.vy > 0) {
+      const s = Math.min(1, above / 160);
+      const smooth = s * s * (3 - 2 * s);
+      targetPace = 1 - (1 - minPace) * smooth;
+    }
+    state.cloudPace += (targetPace - state.cloudPace) * Math.min(1, dt * 6);
+  } else if (!state.heavy && state.cloudTouched) {
+    state.cloudPace = Math.min(1, state.cloudPace + dt * 0.72);
+  } else {
+    state.cloudPace = 1;
+  }
   const speed = Math.hypot(state.vx, state.vy);
-  const slow = GLIDER.airDrag * speed * dt;
-  state.vx = Math.max(GLIDER.minSpeed * 0.8, state.vx - slow * state.vx);
-  state.vy -= gravity * dt + slow * state.vy;
+  const dragScale = level >= 2 ? GLIDER.doubleFeverDragScale : level === 1 ? GLIDER.feverDragScale : 1;
+  const drag = GLIDER.airDrag * dragScale;
+  const slow = drag * speed * dt;
+  const top = maxSpeedFor(level);
+  state.vx = Math.max(GLIDER.minSpeed * 0.8, Math.min(top, state.vx - slow * state.vx));
+  const vertDt = dt * state.cloudPace;
+  state.vy -= gravity * vertDt + slow * state.vy * state.cloudPace;
   state.x += state.vx * dt;
-  state.y += state.vy * dt;
+  state.y += state.vy * vertDt;
   state.air += dt;
+
+  // Entering the clouds from below: keep velocity & curvature 100% continuous;
+  // record entry speed for hang time and gradual post-cloud pickup.
+  if (!wasInClouds && state.y >= cloudY) {
+    if (!state.cloudTouched) {
+      state.cloudTouched = true;
+      state.cloudTouches += 1;
+      state.bonus += GLIDER.cloudPoints * feverMultiplierOf(level);
+      popup(state, "cloud", "Cloudtouch!");
+    }
+    if (!state.heavy && state.vy > 0) {
+      const entrySpeed = Math.hypot(state.vx, state.vy);
+      const strength = Math.max(0, Math.min(1, (entrySpeed - 500) / 850));
+      state.cloudFloat = Math.max(state.cloudFloat, strength);
+      state.cloudExitBoost = Math.max(state.cloudExitBoost, 0.3 + 0.7 * strength);
+    }
+  } else if (state.y < cloudY) {
+    if (wasInClouds) state.cloudFloat = 0;
+    // Coming back below the clouds after Cloudtouch: brisker-yet-smooth speed pickup.
+    if (!state.heavy && state.cloudTouched && state.cloudExitBoost > 0 && state.vy < 0) {
+      const spend = Math.min(state.cloudExitBoost, 1.15 * dt);
+      state.vx = Math.min(top, state.vx + 115 * spend);
+      state.vy -= 70 * spend;
+      state.cloudExitBoost = Math.max(0, state.cloudExitBoost - spend);
+    }
+  }
+
+  // Far safety bound only; smooth parabola naturally crests below maxY.
+  if (state.y > maxY) {
+    state.y = maxY;
+    if (state.vy > 0) state.vy = 0;
+  }
   const ground = groundAt(state.hills, state.x);
   if (state.y <= ground.y) touchDown(state, ground);
 };
@@ -780,7 +1025,23 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
     }
   }
   state.popups = state.popups.filter((p) => state.time - p.born < GLIDER.popupSeconds);
-  const rawAngle = state.grounded ? Math.atan(groundAt(state.hills, state.x).slope) : Math.atan2(state.vy, state.vx);
+  const targetPeak = localPeak(state.hills, state.x);
+  const peakRate = targetPeak > state.peakRef ? 4 : 1.2;
+  state.peakRef = state.peakRef + (targetPeak - state.peakRef) * (1 - Math.exp(-peakRate * dt));
+  if (state.fever) {
+    state.trailClock += dt;
+    if (state.trailClock >= 0.035) {
+      state.trailClock = 0;
+      const nextId = (state.trail.at(-1)?.id ?? 0) + 1;
+      state.trail = [...state.trail.slice(-6), { id: nextId, x: state.x, y: state.y }];
+    }
+  } else if (state.trail.length > 0) {
+    state.trail = [];
+    state.trailClock = 0;
+  }
+  const rawAngle = state.grounded
+    ? Math.atan(groundAt(state.hills, state.x).slope)
+    : Math.atan2(state.vy * state.cloudPace, state.vx);
   const targetTilt = Math.max(-1.1, Math.min(1.1, rawAngle));
   state.tilt = previous.tilt + (targetTilt - previous.tilt) * (1 - Math.exp(-16 * dt));
   state.camera = followCamera(state.camera, state, dt);
@@ -791,11 +1052,12 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
 
 export const maxWorldScore = (world: number) => {
   const rules = worldRules(world);
-  const seconds = rules.day + rules.bonusCap;
+  const seconds = rules.day;
   const distance = (rules.length + rules.span * 4) / GLIDER.unitsPerPoint;
-  const perfects = (seconds / GLIDER.perfectAir) * GLIDER.perfectPoints * GLIDER.maxStreak;
-  const flights = (seconds / 0.5) * GLIDER.flightPoints;
-  return Math.ceil(distance + perfects + flights + worldBonus(world) + rules.day * GLIDER.daylightPoints);
+  const perfects = (seconds / GLIDER.perfectAir) * GLIDER.perfectPoints * GLIDER.maxStreak * GLIDER.doubleFeverMultiplier;
+  const flights = (seconds / 0.5) * GLIDER.flightPoints * GLIDER.doubleFeverMultiplier;
+  const clouds = (seconds / GLIDER.perfectAir) * GLIDER.cloudPoints * GLIDER.doubleFeverMultiplier;
+  return Math.ceil(distance + perfects + flights + clouds + worldBonus(world) + rules.day * GLIDER.daylightPoints);
 };
 
 export const maxGliderScore = (worlds: number) =>

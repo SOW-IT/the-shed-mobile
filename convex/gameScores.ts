@@ -2,7 +2,17 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { GAME_IDS, MAX_SCORES_PER_SUBMIT, PODIUM_PLACES, scoreProblem, versionOf, type GameId, type GameVersion } from "../shared/games";
+import {
+  CURRENT_GAME_VERSION,
+  GAME_IDS,
+  isGameVersion,
+  MAX_SCORES_PER_SUBMIT,
+  PODIUM_PLACES,
+  scoreProblem,
+  versionOf,
+  type GameId,
+  type GameVersion,
+} from "../shared/games";
 import { lookFor, withHeight } from "../shared/world";
 import { worldLookValidator } from "./worldData";
 import { payoutMinEntries, PLACE_COINS } from "../shared/coins";
@@ -32,7 +42,7 @@ const versionArg = v.optional(v.number());
 
 const storedVersion = (version: GameVersion) => (version === 1 ? undefined : version);
 
-const boardVersion = (version: number | undefined): GameVersion => (version === 2 ? 2 : 1);
+const boardVersion = (version: number | undefined): GameVersion => (isGameVersion(version) ? version : 1);
 
 const bestOf = (ctx: Ctx, email: string, game: GameId, version: GameVersion) =>
   ctx.db
@@ -273,14 +283,14 @@ export const myLeaderboardPlace = query({
 });
 
 export const myBests = query({
-  args: { version: versionArg },
+  args: { version: versionArg, current: v.optional(v.boolean()) },
   returns: v.union(v.null(), v.object({ email: v.string(), bests: v.array(v.object({ game: gameIdValidator, score: v.number() })) })),
   handler: async (ctx, args) => {
     const email = await optionalEmail(ctx);
     if (!email) return null;
-    const version = boardVersion(args.version);
     const bests = [];
     for (const game of GAME_IDS) {
+      const version = args.current ? CURRENT_GAME_VERSION[game] : boardVersion(args.version);
       const row = await bestOf(ctx, email, game, version);
       if (row) bests.push({ game, score: row.score });
     }

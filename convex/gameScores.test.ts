@@ -535,16 +535,34 @@ describe("myBests", () => {
     expect(mine?.bests).toHaveLength(2);
   });
 
-  test("bests are per version: v2 asks for its own, and no version is v1, as older apps ask", async () => {
+  test("bests are per version: v2 asks for its own, no version is v1, and current returns each game's active version (v3 for Swoop)", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    await anna.mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 9_000), v2("run-anna-new", 400), v2("run-anna-flap", 12, "flappy")] });
+    await anna.mutation(api.gameScores.submitScores, {
+      scores: [
+        run("run-anna-old", 9_000),
+        v2("run-anna-new", 400),
+        v2("run-anna-flap", 12, "flappy"),
+        v2("run-anna-glider-v2", 1_500, "glider"),
+        { ...run("run-anna-glider-v3", 2_200, "glider"), version: 3 },
+      ],
+    });
     expect((await anna.query(api.gameScores.myBests, {}))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
     expect((await anna.query(api.gameScores.myBests, { version: 1 }))?.bests).toEqual([{ game: "runner", score: 9_000 }]);
     expect((await anna.query(api.gameScores.myBests, { version: 2 }))?.bests).toEqual([
       { game: "runner", score: 400 },
       { game: "flappy", score: 12 },
+      { game: "glider", score: 1_500 },
     ]);
+    expect((await anna.query(api.gameScores.myBests, { current: true }))?.bests).toEqual([
+      { game: "runner", score: 400 },
+      { game: "flappy", score: 12 },
+      { game: "glider", score: 2_200 },
+    ]);
+    const v3Board = await anna.query(api.gameScores.leaderboard, { game: "glider", version: 3 });
+    expect(v3Board.top.map((row) => row.score)).toEqual([2_200]);
+    const v2Board = await anna.query(api.gameScores.leaderboard, { game: "glider", version: 2 });
+    expect(v2Board.top.map((row) => row.score)).toEqual([1_500]);
   });
 
   test("a higher best from another device goes up through submitScores and shows everywhere", async () => {

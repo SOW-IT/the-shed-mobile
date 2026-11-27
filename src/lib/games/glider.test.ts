@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { GAME_VERSION, SCORE_LIMITS, scoreProblem } from "../../../shared/games";
+import { CURRENT_GAME_VERSION, SCORE_LIMITS, scoreProblem } from "../../../shared/games";
 import { random } from "./random";
 import {
   autoHold,
   blend,
   cameraTarget,
+  cloudAltitude,
   colourAt,
   dayProgress,
   dayLength,
@@ -21,12 +22,17 @@ import {
   HILL_SHAPES,
   hold,
   isGliderPreview,
+  islandPalette,
   land,
   leavesGround,
+  localPeak,
   lowestGround,
+  maxFlightAltitude,
   maxGliderScore,
   maxWorldScore,
   parallaxShift,
+  terrainLod,
+  worldAtX,
   WIDEST_BOARD,
   newGlider,
   previewGlider,
@@ -250,53 +256,55 @@ describe("Swoop's hills", () => {
 });
 
 describe("each world is harder than the last", () => {
-  test("one difficulty value rises by the same step every world, and every terrain knob follows it, holding only at a limit the physics sets", () => {
+  test("difficulty follows a pure logarithmic curve from day 1 through day 8 (1× old day 10) to a 3× plateau at day 32", () => {
     const steps = (pick: (world: number) => number, from: number, to: number) =>
       Array.from({ length: to - from }, (_, i) => pick(from + i + 1) - pick(from + i));
-    const even = (values: number[]) => values.every((value) => Math.abs(value - values[0]) < 1e-9);
-    expect(even(steps(difficulty, 1, 60))).toBe(true);
-    expect(steps(difficulty, 1, 2)[0]).toBeGreaterThan(0);
-    expect(even(steps(harshness, 1, 40))).toBe(true);
+    const diffs = steps(difficulty, 1, 32);
+    expect(diffs.every((d) => d > 0)).toBe(true);
+    // Purely logarithmic: strictly positive and strictly decreasing increments from day 1 to day 32.
+    for (let i = 1; i < diffs.length; i++) expect(diffs[i]).toBeLessThan(diffs[i - 1]);
+    // Plateaus cleanly from day 32 onward.
+    for (const world of [33, 40, 60]) expect(difficulty(world)).toBeCloseTo(difficulty(32), 9);
     expect(harshness(1)).toBe(0);
-    expect(harshness(HARDEST_WORLD)).toBe(1);
-    expect(harshness(30)).toBeGreaterThan(3);
-    const swing = steps(levelSwing, 1, 60);
-    expect(even(swing)).toBe(true);
-    expect(swing[0]).toBeGreaterThan(0);
-    for (const [pick, until] of [
-      [(w: number) => worldRules(w).span, 11],
-      [(w: number) => worldRules(w).drop, 11],
-      [(w: number) => worldRules(w).steepest, 10],
-      [(w: number) => worldRules(w).tolerance, 10],
-      [(w: number) => worldRules(w).squeeze, 10],
-      [(w: number) => worldRules(w).bumpiness, 10],
-    ] as const) {
-      const early = steps(pick, 1, until);
-      expect(even(early.map((step) => Math.round(step * 1e6)))).toBe(true);
-      expect(early[0]).not.toBe(0);
-      const later = steps(pick, until, 40);
-      expect(later.every((step) => Math.sign(step) === Math.sign(early[0]) || step === 0)).toBe(true);
+    expect(harshness(HARDEST_WORLD)).toBeCloseTo(1, 6);
+    expect(harshness(32)).toBeCloseTo(3, 6);
+    expect(levelSwing(8)).toBeGreaterThan(levelSwing(1));
+    expect(levelSwing(32)).toBeGreaterThan(levelSwing(16));
+    for (const pick of [
+      (w: number) => worldRules(w).span,
+      (w: number) => worldRules(w).drop,
+      (w: number) => worldRules(w).steepest,
+      (w: number) => worldRules(w).tolerance,
+      (w: number) => worldRules(w).squeeze,
+      (w: number) => worldRules(w).bumpiness,
+    ]) {
+      const all = steps(pick, 1, 40);
+      expect(all[0]).not.toBe(0);
+      expect(all.every((step) => Math.sign(step) === Math.sign(all[0]) || step === 0)).toBe(true);
     }
-    expect(worldRules(HARDEST_WORLD).steepest).toBe(GLIDER.maxSlope);
-    expect([1, 2].map((w) => worldRules(w).oddity)).toEqual([0, 0]);
-    for (let world = 2; world < 40; world++) expect(worldRules(world + 1).oddity).toBeGreaterThanOrEqual(worldRules(world).oddity);
-    expect(worldRules(20).oddity).toBe(0.97);
+    expect(worldRules(HARDEST_WORLD).steepest).toBeCloseTo(GLIDER.maxSlope, 6);
+    expect(worldRules(1).oddity).toBe(0);
+    for (let world = 1; world < 40; world++) expect(worldRules(world + 1).oddity).toBeGreaterThanOrEqual(worldRules(world).oddity);
+    expect(worldRules(8).oddity).toBeGreaterThan(0.7);
+    expect(worldRules(32).oddity).toBeGreaterThan(0.9);
+    expect(worldRules(32).oddity).toBeLessThanOrEqual(0.97);
     for (let world = 1; world < 60; world++) expect(worldRules(world).length / worldRules(world).day).toBeLessThan(GLIDER.maxSpeed);
     expect(worldRules(0)).toEqual(worldRules(1));
   });
 
-  test("the day starts at 30 s and curves down, fastest at first, to 15 s at world 20, then stays there", () => {
+  test("the day starts at 35 s, hits 20 s at day 8, and curves logarithmically down to 15 s at day 32, then stays there", () => {
     const days = Array.from({ length: 60 }, (_, i) => dayLength(i + 1));
-    expect(days[0]).toBe(30);
+    expect(days[0]).toBe(35);
     expect(FLOOR_DAY).toBe(15);
-    expect(days[19]).toBe(FLOOR_DAY);
-    expect(days[18]).toBeGreaterThan(FLOOR_DAY);
-    expect(days.slice(19).every((day) => day === FLOOR_DAY)).toBe(true);
-    for (let world = 2; world <= 20; world++) expect(days[world - 1]).toBeLessThan(days[world - 2]);
+    expect(days[7]).toBe(20);
+    expect(days[31]).toBe(FLOOR_DAY);
+    expect(days[27]).toBeGreaterThan(FLOOR_DAY);
+    expect(days.slice(31).every((day) => day === FLOOR_DAY)).toBe(true);
+    for (let world = 2; world <= 32; world++) expect(days[world - 1]).toBeLessThanOrEqual(days[world - 2]);
     expect(days[0] - days[1]).toBeGreaterThan(days[9] - days[10]);
-    expect(days[4]).toBeCloseTo(21.9, 1);
-    expect(days[9]).toBeCloseTo(18.5, 1);
-    expect(days[14]).toBeCloseTo(16.4, 1);
+    expect(days[1]).toBeCloseTo(29.3, 1);
+    expect(days[3]).toBeCloseTo(24.2, 1);
+    expect(days[15]).toBeCloseTo(16.8, 1);
     for (let world = 1; world <= 60; world++) expect(worldRules(world).day).toBe(dayLength(world));
   });
 
@@ -451,14 +459,14 @@ describe("the day", () => {
     expect(dayProgress(later)).toBeCloseTo(0.5, 5);
   });
 
-  test("perfect landings and long flights win daylight back, up to the world's cap", () => {
+  test("perfect landings and long flights never pause or rewind daylight progression", () => {
     const { frames } = fly(practised, 2, (state) => state.world > 1);
     const firstWorld = frames.filter((frame) => frame.world === 1);
-    const regained = Math.max(...firstWorld.map((frame) => frame.regained));
     expect(firstWorld.some((frame) => frame.perfects > 0)).toBe(true);
-    expect(regained).toBeGreaterThan(0);
-    expect(regained).toBeLessThanOrEqual(worldRules(1).bonusCap + 1e-9);
-    for (const frame of frames) expect(frame.daylight).toBeLessThanOrEqual(worldRules(frame.world).day);
+    for (let i = 1; i < firstWorld.length; i++) {
+      expect(firstWorld[i].regained).toBe(0);
+      expect(firstWorld[i].daylight).toBeLessThan(firstWorld[i - 1].daylight);
+    }
   });
 });
 
@@ -541,7 +549,7 @@ describe("wide hills first, odd shapes later", () => {
     for (const world of [13, 20, 50]) expect(worldRules(world).span).toBe(worldRules(12).span);
   });
 
-  test("the ground gets harsher by a similar step every world to world 10, and keeps on after: more odd shapes, steeper, a bigger rise and fall across the world", () => {
+  test("the ground gets harsher logarithmically from day 1 through day 8 and keeps escalating to the day 32 plateau", () => {
     const harshIndex = (world: number) => {
       let length = 0;
       let shaped = 0;
@@ -562,17 +570,15 @@ describe("wide hills first, odd shapes later", () => {
       }
       return shaped / length + steep / samples + relief / length + rise / 40 / 500;
     };
-    const early = Array.from({ length: 10 }, (_, i) => harshIndex(i + 1));
+    const early = Array.from({ length: 8 }, (_, i) => harshIndex(i + 1));
     const steps = early.slice(1).map((value, i) => value - early[i]);
     const mean = steps.reduce((sum, step) => sum + step, 0) / steps.length;
-    for (const step of steps) {
-      expect(step).toBeGreaterThan(0.3 * mean);
-      expect(step).toBeLessThan(2.5 * mean);
-    }
-    const later = [10, 20, 30].map(harshIndex);
-    later.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(later[i]));
-    expect(later[1] - later[0]).toBeGreaterThan(0.2);
-    expect(later[2] - later[1]).toBeGreaterThan(0.2);
+    expect(mean).toBeGreaterThan(0.15);
+    expect(early[7]).toBeGreaterThan(early[0] + 1.5);
+    expect(early[3]).toBeGreaterThan(early[0] + 0.45);
+    const later = [8, 16, 32].map(harshIndex);
+    expect(later[1]).toBeGreaterThan(later[0]);
+    expect(later[2]).toBeGreaterThan(later[1]);
     const range = (world: number) => {
       let total = 0;
       for (let seed = 1; seed <= 40; seed++) {
@@ -581,10 +587,8 @@ describe("wide hills first, odd shapes later", () => {
       }
       return total / 40;
     };
-    const ranges = [1, 10, 20, 30].map(range);
-    ranges.slice(1).forEach((value, i) => expect(value).toBeGreaterThan(ranges[i]));
-    expect(ranges[1]).toBeGreaterThan(3 * ranges[0]);
-    expect(ranges[3]).toBeGreaterThan(1.5 * ranges[1]);
+    expect(range(16)).toBeGreaterThan(1.7 * range(1));
+    expect(range(32)).toBeGreaterThan(range(16) * 1.1);
   }, 60_000);
 
   test("diving a little early still gets through world 1 on nearly every seed, diving a little late every time doesn't, and neither gets past world 5", () => {
@@ -621,13 +625,12 @@ describe("wide hills first, odd shapes later", () => {
     expect(first.every((used) => used !== null && used < 0.9)).toBe(true);
   }, 240_000);
 
-  test("world 2 brings no new shapes; each shape first turns up rarely in its own world, from world 3 to 8, then more often; jagged climbs stay rare; a perfect run gets over each", () => {
-    expect(HILL_SHAPES.map((shape) => FIRST_WORLD[shape])).toEqual([3, 3, 4, 4, 4, 4, 5, 6, 8]);
-    for (const seed of SEEDS) for (const world of [1, 2]) expect(worldShapes(seed, world, 0)).toEqual([]);
+  test("day 1 is smooth rolling waves; mountain shapes unlock progressively from day 2 to day 8 and stay clearable", () => {
+    expect(HILL_SHAPES).toEqual(["uneven", "double", "plateau", "ramp", "gorge", "wall", "drop", "cliff", "jagged"]);
+    for (const seed of SEEDS) expect(worldShapes(seed, 1, 0)).toEqual([]);
     for (const shape of HILL_SHAPES) {
       expect(shapeChance(shape, FIRST_WORLD[shape] - 1)).toBe(0);
       expect(shapeChance(shape, FIRST_WORLD[shape])).toBeGreaterThan(0);
-      expect(shapeChance(shape, FIRST_WORLD[shape])).toBeLessThanOrEqual(0.06);
     }
     const share = (shape: (typeof HILL_SHAPES)[number], world: number) => {
       let length = 0;
@@ -642,15 +645,10 @@ describe("wide hills first, odd shapes later", () => {
       expect(share(shape, FIRST_WORLD[shape] - 1)).toBe(0);
       expect(share(shape, FIRST_WORLD[shape])).toBeGreaterThan(0);
     }
-    for (const shape of ["double", "cliff", "uneven", "gorge", "drop", "wall"] as const) {
-      expect(share(shape, 20)).toBeGreaterThan(share(shape, FIRST_WORLD[shape]));
-    }
-    expect(share("jagged", 20)).toBeLessThan(0.1);
-    expect(share("jagged", 30)).toBeLessThan(0.1);
     const over: Record<string, number> = {};
     const met: Record<string, number> = {};
     for (const seed of SEEDS.slice(0, 3)) {
-      for (const world of [4, 8, 14]) {
+      for (const world of [3, 6, 9, 12]) {
         const pilot = reading();
         const stretches = worldShapes(seed, world, 0);
         let state = newGlider(seed, 2, world);
@@ -667,11 +665,244 @@ describe("wide hills first, odd shapes later", () => {
         }
       }
     }
-    for (const shape of HILL_SHAPES.filter((shape) => met[shape])) {
-      expect((over[shape] ?? 0) / met[shape], shape).toBeGreaterThanOrEqual(shape === "jagged" ? 0.4 : 0.7);
+    for (const shape of HILL_SHAPES) {
+      expect(met[shape]).toBeGreaterThan(0);
+      expect((over[shape] ?? 0) / met[shape], shape).toBeGreaterThanOrEqual(0.5);
     }
-    expect(Object.keys(met).length).toBeGreaterThanOrEqual(7);
   }, 120_000);
+});
+
+describe("Tiny Wings fever, cloud ceiling, and terrain LOD", () => {
+  test("3 good swoops trigger Gold Fever, 3 more consecutive Fevers trigger Purple Double Fever, and a rough bump ends it", () => {
+    const downX = 120;
+    const downGround = groundAt(VALLEY, downX);
+    const makePerfectTouchdown = (base: GliderState): GliderState => {
+      const speed = 700;
+      const len = Math.hypot(1, downGround.slope);
+      return stepGlider(
+        {
+          ...base,
+          x: downX,
+          y: downGround.y + 1,
+          vx: speed / len,
+          vy: (speed * downGround.slope) / len - 80,
+          grounded: false,
+          air: 0.6,
+          heavy: true,
+        },
+        FRAME
+      );
+    };
+    let state = onValley({});
+    expect(state.fever).toBe(false);
+    expect(state.feverLevel).toBe(0);
+    const daylightStart = state.daylight;
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(1);
+    expect(state.feverLevel).toBe(0);
+    // Normal swoops do not pause or rewind daylight progression either.
+    expect(state.daylight).toBeLessThan(daylightStart);
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(2);
+    expect(state.feverLevel).toBe(0);
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(3);
+    expect(state.fever).toBe(true);
+    expect(state.feverLevel).toBe(1);
+    expect(state.popups.some((p) => p.kind === "fever" && p.text === "Fever!")).toBe(true);
+    // 3 consecutive Fever swoops (4, 5, 6) upgrade into Purple Double Fever.
+    const daylightBefore = state.daylight;
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(4);
+    expect(state.feverLevel).toBe(1);
+    expect(state.daylight).toBeLessThan(daylightBefore);
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(5);
+    expect(state.feverLevel).toBe(1);
+    state = makePerfectTouchdown(state);
+    expect(state.streak).toBe(6);
+    expect(state.fever).toBe(true);
+    expect(state.feverLevel).toBe(2);
+    expect(state.popups.some((p) => p.kind === "doubleFever" && p.text === "Double Fever!")).toBe(true);
+
+    // Speed progression: normal < Gold Fever < Purple Double Fever.
+    expect(GLIDER.feverMaxSpeed).toBeGreaterThan(GLIDER.maxSpeed);
+    expect(GLIDER.doubleFeverMaxSpeed).toBeGreaterThan(GLIDER.feverMaxSpeed);
+    const normalRun = onValley({ x: 80, y: groundAt(VALLEY, 80).y, speed: GLIDER.maxSpeed, fever: false, feverLevel: 0, heavy: true });
+    const feverRun = onValley({ x: 80, y: groundAt(VALLEY, 80).y, speed: GLIDER.maxSpeed, fever: true, feverLevel: 1, heavy: true });
+    const doubleRun = onValley({ x: 80, y: groundAt(VALLEY, 80).y, speed: GLIDER.feverMaxSpeed, fever: true, feverLevel: 2, heavy: true });
+    let normalNext = normalRun;
+    let feverNext = feverRun;
+    let doubleNext = doubleRun;
+    for (let i = 0; i < 20; i++) {
+      normalNext = stepGlider(normalNext, FRAME);
+      feverNext = stepGlider(feverNext, FRAME);
+      doubleNext = stepGlider(doubleNext, FRAME);
+    }
+    expect(normalNext.speed).toBeLessThanOrEqual(GLIDER.maxSpeed);
+    expect(feverNext.speed).toBeGreaterThan(GLIDER.maxSpeed);
+    expect(feverNext.speed).toBeLessThanOrEqual(GLIDER.feverMaxSpeed);
+    expect(doubleNext.speed).toBeGreaterThan(GLIDER.feverMaxSpeed);
+    expect(doubleNext.trail.length).toBeGreaterThan(0);
+
+    // Slamming onto an upslope triggers a bump and ends Double Fever.
+    const upX = 520;
+    const upGround = groundAt(VALLEY, upX);
+    const bumped = stepGlider(
+      {
+        ...doubleNext,
+        x: upX,
+        y: upGround.y + 1,
+        vx: 700,
+        vy: -600,
+        grounded: false,
+        air: 0.6,
+        heavy: true,
+      },
+      FRAME
+    );
+    expect(bumped.fever).toBe(false);
+    expect(bumped.feverLevel).toBe(0);
+    expect(bumped.streak).toBe(0);
+    expect(bumped.trail).toEqual([]);
+  });
+
+  test("cloud arc triggers on strong launches, slows parabola progression without losing horizontal speed, and only applies gradual pickup after Cloudtouch", () => {
+    // A normal flight below the clouds keeps cloudPace === 1 and zero cloud exit pickup.
+    let normal = onValley({ x: 200, y: 260, vx: 650, vy: 620, grounded: false, heavy: false });
+    for (let i = 0; i < 240 && !normal.grounded; i++) {
+      normal = stepGlider(normal, FRAME);
+      expect(normal.cloudTouched).toBe(false);
+      expect(normal.cloudPace).toBe(1);
+      expect(normal.cloudExitBoost).toBe(0);
+    }
+
+    const runCloudEntry = (vx: number, vy: number) => {
+      let state = onValley({ x: 200, y: 300, vx, vy, grounded: false, heavy: false });
+      const peak = localPeak(state.hills, state.x);
+      let maxY = state.y;
+      let sawCloudPopup = false;
+      let cloudFrames = 0;
+      let minCloudPace = 1;
+      let paceAtExit = 1;
+      let paceAfterExit = 1;
+      let speedAtExit = 0;
+      let speedAfterExit = 0;
+      let minVxInCloud = Infinity;
+      let exitFrames = -1;
+      let wasAbove = false;
+      let entryVyBefore = 0;
+      let entryVyAfter = 0;
+      let regainedInAir = 0;
+      const startDaylight = state.daylight;
+      let daylightAtCloud = 0;
+      let timeAtCloud = 0;
+      for (let i = 0; i < 420 && !state.grounded; i++) {
+        const prevVy = state.vy * state.cloudPace;
+        state = stepGlider(state, FRAME);
+        maxY = Math.max(maxY, state.y);
+        expect(state.y).toBeLessThan(maxFlightAltitude(state.peakRef));
+        const above = state.y >= cloudAltitude(state.peakRef);
+        if (!wasAbove && above && entryVyBefore === 0) {
+          entryVyBefore = prevVy;
+          entryVyAfter = state.vy * state.cloudPace;
+          regainedInAir = state.regained;
+          daylightAtCloud = state.daylight;
+          timeAtCloud = state.time;
+        }
+        if (above) {
+          cloudFrames += 1;
+          minCloudPace = Math.min(minCloudPace, state.cloudPace);
+          minVxInCloud = Math.min(minVxInCloud, state.vx);
+        }
+        if (wasAbove && !above && exitFrames < 0) {
+          paceAtExit = state.cloudPace;
+          speedAtExit = Math.hypot(state.vx, state.vy * state.cloudPace);
+          exitFrames = 0;
+        } else if (exitFrames >= 0) {
+          exitFrames += 1;
+          if (exitFrames === 40) {
+            paceAfterExit = state.cloudPace;
+            speedAfterExit = Math.hypot(state.vx, state.vy * state.cloudPace);
+          }
+        }
+        wasAbove = above;
+        if (state.popups.some((p) => p.kind === "cloud")) sawCloudPopup = true;
+      }
+      return {
+        state,
+        peak,
+        maxY,
+        sawCloudPopup,
+        cloudSeconds: cloudFrames * FRAME,
+        minCloudPace,
+        paceAtExit,
+        paceAfterExit,
+        speedAtExit,
+        speedAfterExit,
+        minVxInCloud,
+        entryVyBefore,
+        entryVyAfter,
+        startDaylight,
+        regainedInAir,
+        daylightAtCloud,
+        timeAtCloud,
+      };
+    };
+    const gentle = runCloudEntry(620, 1020);
+    const fast = runCloudEntry(1020, 1220);
+    expect(gentle.maxY).toBeGreaterThan(cloudAltitude(gentle.peak) + 20);
+    expect(fast.maxY).toBeGreaterThan(gentle.maxY);
+    expect(fast.maxY).toBeLessThan(maxFlightAltitude(fast.peak));
+    expect(fast.state.cloudTouches).toBe(1);
+    expect(fast.sawCloudPopup).toBe(true);
+    // Cloudtouch never pauses daylight progression.
+    expect(fast.regainedInAir).toBe(0);
+    expect(fast.daylightAtCloud).toBeCloseTo(fast.startDaylight - fast.timeAtCloud, 3);
+    // Entering the clouds has no abrupt velocity drop (continuous upward slope across cloudY).
+    expect(fast.entryVyAfter).toBeGreaterThan(fast.entryVyBefore * 0.9);
+    // Horizontal speed stays full in the clouds (only vertical parabola progression slows).
+    expect(fast.minVxInCloud).toBeGreaterThan(850);
+    expect(fast.minCloudPace).toBeLessThan(0.75);
+    // Faster entries float in the clouds noticeably longer.
+    expect(fast.cloudSeconds).toBeGreaterThan(gentle.cloudSeconds + 0.25);
+    expect(fast.cloudSeconds).toBeGreaterThan(1.1);
+    // Dropping back below the clouds gradually ramps cloudPace back toward 1 and builds descent speed.
+    expect(fast.paceAfterExit).toBeGreaterThan(fast.paceAtExit + 0.1);
+    expect(fast.speedAfterExit).toBeGreaterThan(fast.speedAtExit + 80);
+  });
+
+  test("islandPalette never repeats colours across worlds and worldAtX splits colours at the finish flag", () => {
+    /* eslint-disable no-restricted-syntax -- test stub palette for non-repeating check */
+    const stub = [
+      { farHill: "#111111", nearHill: "#222222", ground: "#333333", grass: "#444444" },
+      { farHill: "#555555", nearHill: "#666666", ground: "#777777", grass: "#888888" },
+    ] as const;
+    /* eslint-enable no-restricted-syntax */
+    const grounds = new Set(Array.from({ length: 40 }, (_, i) => islandPalette(i + 1, stub).ground));
+    expect(grounds.size).toBe(40);
+    // Before worldStart stays the previous world; after worldEnd is already the next world.
+    expect(worldAtX(999, 2, 1000, 5000)).toBe(1);
+    expect(worldAtX(1000, 2, 1000, 5000)).toBe(2);
+    expect(worldAtX(4999, 2, 1000, 5000)).toBe(2);
+    expect(worldAtX(5000, 2, 1000, 5000)).toBe(3);
+    expect(worldAtX(-100, 1, 0, 5000)).toBe(1);
+  });
+
+  test("terrainLod coarsens strips as zoom drops so rendered chunk views stay bounded", () => {
+    const close = terrainLod(1);
+    const mid = terrainLod(0.5);
+    const far = terrainLod(0.25);
+    expect(close.strip).toBeLessThan(mid.strip);
+    expect(mid.strip).toBeLessThan(far.strip);
+    for (const zoom of [1, 0.7, 0.5, 0.35, 0.2]) {
+      const lod = terrainLod(zoom);
+      const viewWidth = VIEW.width / zoom;
+      const chunks = Math.ceil(viewWidth / lod.chunk) + 2;
+      const totalViews = chunks * lod.chunkStrips * 3;
+      expect(totalViews).toBeLessThan(650);
+    }
+  });
 });
 
 describe("score", () => {
@@ -693,8 +924,9 @@ describe("score", () => {
   });
 
   test("the server's limits sit above anything the rules allow, per second, and above any believable run in all", () => {
-    const limit = SCORE_LIMITS[GAME_VERSION].glider;
-    expect(GAME_VERSION).toBe(2);
+    const version = CURRENT_GAME_VERSION.glider;
+    const limit = SCORE_LIMITS[version].glider;
+    expect(version).toBe(3);
     expect(worldBonus(3)).toBe(3 * GLIDER.worldPoints);
     expect(worldBonus(500)).toBe(worldBonus(GLIDER.pointedWorlds));
     expect(maxWorldScore(1000)).toBe(maxWorldScore(200));
@@ -893,9 +1125,8 @@ describe("previews", () => {
 });
 
 describe("the sun and the far hills", () => {
-  test("the sun only moves forward or holds still in a world, even when good flying wins daylight back", () => {
+  test("the sun moves strictly forward through every world without pausing on swoops", () => {
     let state = newGlider(2, 2);
-    let won = 0;
     for (let i = 0; i < 60 * 120 && !state.over; i++) {
       const before = state;
       state = stepGlider(hold(state, practised(state)), FRAME);
@@ -903,12 +1134,10 @@ describe("the sun and the far hills", () => {
         expect(state.daySeen).toBeLessThan(0.05);
         continue;
       }
-      if (dayProgress(state) < dayProgress(before)) won++;
-      expect(state.daySeen).toBeGreaterThanOrEqual(before.daySeen);
-      expect(state.daySeen).toBeGreaterThanOrEqual(dayProgress(state));
+      expect(dayProgress(state)).toBeGreaterThan(dayProgress(before));
+      expect(state.daySeen).toBeCloseTo(dayProgress(state), 6);
       expect(state.daySeen - before.daySeen).toBeLessThan(0.01);
     }
-    expect(won).toBeGreaterThan(0);
   }, 60_000);
 
   test("the far hills slide the way the ground does, much slower, the farther ones slowest, whatever the zoom", () => {
