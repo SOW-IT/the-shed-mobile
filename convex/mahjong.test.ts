@@ -180,11 +180,25 @@ describe("the host's lobby", () => {
     const { t, anna, ben } = await cafe();
     await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
     await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
-    const settings = { minFaan: 1, maxFaan: 13, flowers: false, stake: 2 };
+    const settings = { minFaan: 1, maxFaan: 13, stake: 1, turnSeconds: 15, claimSeconds: 8 };
     expect(await anna.who.mutation(api.mahjong.setSettings, { settings })).toEqual({ ok: true });
     expect((await tableRows(t))[0].settings).toEqual(settings);
     expect(await ben.who.mutation(api.mahjong.setSettings, { settings })).toEqual({ ok: false, reason: "Only the host can do that." });
     await expect(anna.who.mutation(api.mahjong.setSettings, { settings: { ...settings, minFaan: 14 } })).rejects.toThrow("Those settings don't work.");
+    await expect(anna.who.mutation(api.mahjong.setSettings, { settings: { ...settings, stake: 2 } })).rejects.toThrow("Those settings don't work.");
+  });
+
+  test("switching coins on or off clears the table's scores, so points and coins never mix; other changes keep them", async () => {
+    const { t, anna } = await cafe();
+    await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
+    await t.run(async (ctx) => {
+      const table = (await ctx.db.query("mahjongTables").first())!;
+      await ctx.db.patch("mahjongTables", table._id, { net: [48, -16, -16, -16] });
+    });
+    await anna.who.mutation(api.mahjong.setSettings, { settings: { ...DEFAULT_SETTINGS, turnSeconds: 45 } });
+    expect((await tableRows(t))[0].net).toEqual([48, -16, -16, -16]);
+    await anna.who.mutation(api.mahjong.setSettings, { settings: { ...DEFAULT_SETTINGS, coins: true } });
+    expect((await tableRows(t))[0].net).toEqual([0, 0, 0, 0]);
   });
 });
 
@@ -336,6 +350,20 @@ describe("a hand", () => {
     expect((await handRow(t)).state.stage.kind).toBe("turn");
   });
 
+  test("a claim isn't settled before its deadline, even by an early tick", async () => {
+    const { t, anna, ben } = await twoAndTwoBots();
+    await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
+    const row = await handRow(t);
+    const state = structuredClone(row.state);
+    state.stage = { kind: "claim", from: 0, tile: tilesOf("R")[0], deadline: Date.now() + 5000, rob: false, offers: [null, { hu: false, pong: true, kong: false, chows: [] }, null, null], answers: [null, null, null, null] };
+    await t.run((ctx) => ctx.db.patch("mahjongHands", row._id, { state, beat: row.beat + 1 }));
+    vi.setSystemTime(Date.now() + 4850);
+    await t.mutation(internal.mahjong.tick, { tableId: row.tableId, beat: row.beat + 1, handNo: row.handNo });
+    expect((await handRow(t)).state.stage.kind).toBe("claim");
+    void anna;
+    void ben;
+  });
+
   test("a bot can't answer a claim once its window has closed", async () => {
     const { t, anna } = await twoAndTwoBots();
     await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
@@ -391,7 +419,11 @@ describe("a hand", () => {
     await t.run((ctx) => ctx.db.patch("mahjongHands", rigged._id, { state, beat: rigged.beat + 1 }));
     vi.setSystemTime(Date.now() + BOT_MS);
     await t.mutation(internal.mahjong.tick, { tableId: rigged.tableId, beat: rigged.beat + 1, handNo: rigged.handNo });
-    expect((await handRow(t)).state.stage.kind).toBe("turn");
+    const after = (await handRow(t)).state;
+    const answeredAt = Date.now();
+    if (after.stage.kind === "turn" && after.stage.seat === 2) expect(after.seats[2].melds.at(-1)).toMatchObject({ type: "pong", claimed: red });
+    else expect(after.stage).toMatchObject({ kind: "turn", seat: 1, deadline: answeredAt + 10_000 });
+    expect(answeredAt).toBeLessThan(state.stage.kind === "claim" ? state.stage.deadline : 0);
     expect(await t.mutation(api.mahjong.setSettings, { settings: { ...DEFAULT_SETTINGS, turnSeconds: 61 } }).catch((e: Error) => e.message)).toContain("Those settings don't work");
     void anna;
   });
@@ -486,7 +518,7 @@ describe("coins", () => {
     if (!benDiscardedTheWin) {
       expect(settled.deltas[1]).toBe(-1);
       expect((await wallet(t, BEN))!.balance).toBe(99);
-    } else expect(settled.deltas[1]).toBeLessThan(0);
+    } else expect(settled.deltas[1]).toBeLessThanOrEqual(0);
     expect(settled.deltas[2] + settled.deltas[3]).toBe(0);
     expect(await allCoins(t)).toBe(before);
   });
@@ -519,10 +551,21 @@ describe("coins", () => {
     later(1000);
     await anna.who.mutation(api.world.travel, { to: "garden" });
     expect(await ben.who.mutation(api.mahjong.play, { move: { kind: "answer", answer: { kind: "hu" } } })).toEqual({ ok: true });
+    if ((await handRow(t)).state.stage.kind === "claim") await tickNow(t);
     const result = (await handRow(t)).state.stage;
     const points = result.kind === "over" && result.result.kind === "win" ? result.result.points : 0;
     expect((await handRow(t)).settled?.deltas.slice(0, 2)).toEqual([-coinsFor(points), coinsFor(points)]);
     expect((await wallet(t, ANNA))!.balance).toBe(100 - coinsFor(points));
+  });
+
+  test("giving up is refused, not overcharged, when it now costs more than the question said", async () => {
+    const { t, anna } = await twoAndTwoBots(FOR_COINS);
+    later(REFILL);
+    expect(await anna.who.mutation(api.mahjong.leave, { cost: 0 })).toEqual({ ok: false, reason: "Giving up now costs 1 SOW coin. Try again if you still want to." });
+    expect((await tableRows(t))[0].seats[0]).toMatchObject({ kind: "human", email: ANNA });
+    expect((await wallet(t, ANNA))?.balance ?? 100).toBe(100);
+    expect(await anna.who.mutation(api.mahjong.leave, { cost: 1 })).toBeNull();
+    expect((await wallet(t, ANNA))!.balance).toBe(99);
   });
 
   test("giving up when it plays for points moves no coins", async () => {

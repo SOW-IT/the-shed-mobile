@@ -117,3 +117,12 @@ describe("the zoom on someone's discards", () => {
     expect(zoomShown(null, "turn")).toBeNull();
   });
 });
+
+describe("the result's title", () => {
+  it("says a robbed kong was robbed, not discarded", () => {
+    const names = ["Anna", "Ben", "Cara", "Dan"];
+    expect(resultTitle({ kind: "win", winner: 1, from: 0, robbed: true }, names, 2)).toBe("Ben wins, robbing Anna's kong");
+    expect(resultTitle({ kind: "win", winner: 1, from: 0 }, names, 2)).toBe("Ben wins off Anna's discard");
+    expect(resultTitle({ kind: "win", winner: 1, from: 0, robbed: true }, names, 0)).toBe("Ben wins, robbing your kong");
+  });
+});

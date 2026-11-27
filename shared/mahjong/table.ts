@@ -38,7 +38,7 @@ export const claimMsOf = (s: Settings) => (s.claimSeconds ?? CLAIM_SECONDS.fallb
 const wholeIn = (value: number | undefined, range: { min: number; max: number }) => value === undefined || (Number.isInteger(value) && value >= range.min && value <= range.max);
 export const FAAN_LIMITS = { min: 0, max: 13 } as const;
 export const MIN_FAAN_CHOICES = [0, 1, 3] as const;
-const STAKES = [1, 2, 5] as const;
+const STAKES = [1] as const;
 
 export const forCoins = (s: Settings) => s.coins === true;
 

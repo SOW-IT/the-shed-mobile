@@ -203,7 +203,10 @@ export const MahjongLayer = ({
               if (!bot) return;
               setDismissed(botKey);
               onWatch(bot.tableId);
-              void mahjong.leave().then(say);
+              void mahjong.leave().then((problem) => {
+                if (problem) setDismissed(null);
+                say(problem);
+              });
             },
           },
           {
@@ -211,7 +214,10 @@ export const MahjongLayer = ({
             testID: "mahjong-replace-no",
             onPress: () => {
               setDismissed(botKey);
-              void mahjong.leave().then(say);
+              void mahjong.leave().then((problem) => {
+                if (problem) setDismissed(null);
+                say(problem);
+              });
             },
           },
         ]}
@@ -252,7 +258,7 @@ export const MahjongLayer = ({
               .then((r) => say(r.ok ? null : r.reason))
               .catch(() => onNote("That didn't send."))
           }
-          onLeave={() => void mahjong.leave().then(say)}
+          onLeave={() => void mahjong.leave(mine.giveUpCost).then(say)}
         />
       ) : watching?.hand ? (
         <MahjongTable

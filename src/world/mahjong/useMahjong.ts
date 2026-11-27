@@ -36,7 +36,7 @@ export const useMahjong = ({ status, place, roomId }: { status: string; place: s
     addBot: useCallback((seat: number) => attempt(() => addBotM({ seat })), [addBotM]),
     removeBot: useCallback((seat: number) => attempt(() => removeBotM({ seat })), [removeBotM]),
     setSettings: useCallback((settings: Settings) => attempt(() => settingsM({ settings })), [settingsM]),
-    leave: useCallback(() => attempt(() => leaveM({})), [leaveM]),
+    leave: useCallback((cost?: number) => attempt(() => leaveM(cost === undefined ? {} : { cost })), [leaveM]),
     start: useCallback(() => attempt(() => startM({})), [startM]),
     replaceBot: useCallback((tableId: Id<"mahjongTables">, seat: number) => attempt(() => replaceM({ tableId, seat })), [replaceM]),
   };

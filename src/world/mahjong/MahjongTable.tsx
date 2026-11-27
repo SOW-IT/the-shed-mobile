@@ -522,8 +522,12 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const calm = useBatterySaver();
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [zoomed, setZoomed] = useState<number | null>(null);
+  const [confirmingHand, setConfirmingHand] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<{ seat: number; hand: number } | null>(null);
+  const zoomed = zoom?.hand === handNo ? zoom.seat : null;
+  const confirming = confirmingHand === handNo;
+  const setConfirming = (on: boolean) => setConfirmingHand(on ? handNo : null);
+  const setZoomed = (seat: number | null) => setZoom(seat === null ? null : { seat, hand: handNo });
   const [mineHeight, setMineHeight] = useState(0);
   const stage = hand.stage;
   const myTurn = mySeat !== null && stage.kind === "turn" && stage.seat === mySeat && !busy;

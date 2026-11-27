@@ -33,10 +33,12 @@ export const faanLine = (id: string) => (Object.hasOwn(FAAN, id) ? FAAN[id as Fa
 export const coinsWords = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0");
 
 /** The title of the round's breakdown. */
-export const resultTitle = (result: { kind: "draw" } | { kind: "win"; winner: number; from: number | null }, names: readonly string[], viewer: number | null) => {
+export const resultTitle = (result: { kind: "draw" } | { kind: "win"; winner: number; from: number | null; robbed?: boolean }, names: readonly string[], viewer: number | null) => {
   if (result.kind === "draw") return "Drawn hand";
   const who = result.winner === viewer ? "You win" : `${names[result.winner]} wins`;
-  return result.from === null ? `${who}, self-drawn` : `${who} off ${result.from === viewer ? "your" : `${names[result.from]}'s`} discard`;
+  if (result.from === null) return `${who}, self-drawn`;
+  const whose = result.from === viewer ? "your" : `${names[result.from]}'s`;
+  return result.robbed ? `${who}, robbing ${whose} kong` : `${who} off ${whose} discard`;
 };
 
 export const tileLabel = (tile: number) => (tile < 0 ? "Face down" : tileName(kindOf(tile)));

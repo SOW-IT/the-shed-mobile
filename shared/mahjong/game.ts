@@ -29,7 +29,7 @@ export type Answer = { kind: "pass" } | { kind: "hu" } | { kind: "pong" } | { ki
 
 export type Pay = { from: number; to: number; points: number };
 export type Result =
-  | { kind: "win"; winner: number; from: number | null; tile: number; lines: FaanLine[]; faan: number; points: number; pays: Pay[]; hand: number[] }
+  | { kind: "win"; winner: number; from: number | null; tile: number; lines: FaanLine[]; faan: number; points: number; pays: Pay[]; hand: number[]; robbed?: boolean }
   | { kind: "draw" };
 
 export type Stage =
@@ -322,7 +322,8 @@ export const resolveClaims = (hand: Hand, now: number): Step => {
       earthly: !stage.rob && hand.calls === 0 && s.turns === 0 && from === hand.dealer && hand.seats[from].turns === 1,
     })!;
     const won = stage.rob ? withSeat(hand, from, (x) => ({ ...x, hand: x.hand.filter((t) => t !== tile) })) : takeDiscard(hand, from);
-    return { ok: true, hand: over(won, winResult(hand, winner, from, tile, scored, tiles), { kind: "hu", seat: winner, tile }) };
+    const result = winResult(hand, winner, from, tile, scored, tiles);
+    return { ok: true, hand: over(won, stage.rob && result.kind === "win" ? { ...result, robbed: true } : result, { kind: "hu", seat: winner, tile }) };
   }
   if (stage.rob) return { ok: true, hand: promote({ ...hand, stage: { kind: "turn", seat: from, drawn: null, deadline: now, replacement: false, claimed: false } }, from, tile, now) };
   const kind = kindOf(tile);

@@ -24,7 +24,8 @@ All notable changes to **The SHED** mobile app. This project follows
   breaks, the tiles are dealt and sorted, and play passes round the table.
   You can win (食糊 or 自摸), kong (concealed, exposed, or onto your pong,
   which someone can rob), pong, or chow from the player on your left. A
-  claim opens a bar above your hand for 5 seconds, with Pass, and a Chow
+  claim opens a bar above your hand (5 seconds unless the host changes
+  it), with Pass, and a Chow
   button for each way to chow. The dealer keeps the deal only by winning.
   After the hand a breakdown lists the winning hand, each faan, the points
   and any coins, and "Play another round" deals again once everyone has

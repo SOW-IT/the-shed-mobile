@@ -101,6 +101,15 @@ const chargeGiveUp = async (ctx: MutationCtx, table: Table, from: number, presen
   return deltas;
 };
 
+const giveUpCharge = async (ctx: MutationCtx, table: Table, from: number, now: number) => {
+  const leaver = table.seats[from];
+  const present = presentSeats(table.seats);
+  const receivers = table.seats.filter((s, i) => s.kind === "human" && present[i] && i !== from).length;
+  if (leaver.kind !== "human" || receivers === 0) return 0;
+  const { balance } = await ensureWallet(ctx, leaver.email, now);
+  return Math.max(0, Math.min(giveUpCoins(table.settings), balance));
+};
+
 const presentSeats = (seats: readonly TableSeat[]) => seats.map((s) => s.kind === "human" && s.away === undefined);
 
 const putPlayer = async (ctx: MutationCtx, email: string, tableId: Id<"mahjongTables">, seat: number) => {
@@ -324,12 +333,12 @@ export const tick = internalMutation({
       if (started.ok) hand = started.hand;
     } else {
       const bots = botControlled(table.seats);
-      const closed = hand.stage.kind === "claim" && now >= hand.stage.deadline - TICK_SLACK_MS;
+      const closed = hand.stage.kind === "claim" && now >= hand.stage.deadline;
       const played = !closed && actors(hand).some((seat) => bots[seat]) ? playBots(hand, bots, now) : hand;
       if (played !== hand) hand = played;
       else {
         const deadline = deadlineOf(hand) ?? now;
-        if (now < deadline - TICK_SLACK_MS) {
+        if (now < deadline - (hand.stage.kind === "claim" ? 0 : TICK_SLACK_MS)) {
           await again(deadline);
           return null;
         }
@@ -535,7 +544,8 @@ export const setSettings = mutation({
     if (!validSettings(settings)) throw new ConvexError("Those settings don't work.");
     const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
     if (!table) return refuse(problem);
-    await ctx.db.patch("mahjongTables", table._id, { settings });
+    const modeChanged = forCoins(settings) !== forCoins(table.settings);
+    await ctx.db.patch("mahjongTables", table._id, { settings, ...(modeChanged ? { net: [0, 0, 0, 0] } : {}) });
     return done;
   },
 });
@@ -590,9 +600,9 @@ export const replaceBot = mutation({
 
 /** Gets up from the table: walks a step back from the stool, which frees the seat (or, mid-hand, hands it to a bot). */
 export const leave = mutation({
-  args: {},
+  args: { cost: v.optional(v.number()) },
   returns: v.union(v.null(), refusedReply),
-  handler: async (ctx) => {
+  handler: async (ctx, { cost }) => {
     const { member, state } = await requireMe(ctx);
     const now = Date.now();
     const held = await heldSeatOf(ctx, member.email);
@@ -610,6 +620,8 @@ export const leave = mutation({
       await ctx.db.patch("worldState", state._id, { fromX: seat.x, fromZ: seat.z, toX: to.x, toZ: to.z, startedAt: now, path: undefined, heading: undefined, seat: undefined });
     }
     if (held && held.table.phase === "playing" && forCoins(held.table.settings) && held.table.seats[held.seat].kind === "human") {
+      const charge = await giveUpCharge(ctx, held.table, held.seat, now);
+      if (cost !== undefined && charge > cost) return refuse(`Giving up now costs ${charge} SOW coin${charge === 1 ? "" : "s"}. Try again if you still want to.`);
       await giveUp(ctx, held.table, held.seat, now);
       return null;
     }

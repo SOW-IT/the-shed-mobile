@@ -57,6 +57,7 @@ export const mahjongResultValidator = v.union(
     points: v.number(),
     pays: v.array(payValidator),
     hand: v.array(v.number()),
+    robbed: v.optional(v.boolean()),
   }),
   v.object({ kind: v.literal("draw") })
 );
