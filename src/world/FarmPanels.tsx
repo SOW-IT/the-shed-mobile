@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { bagStacks, CROPS, seedList, stackLabel, type BuildingId, type CropId } from "@shared/farm";
 import { FARM_OFFERS_FROM as FARMER } from "./shopTabs";
-import { ANIMALS, BUILDINGS, cleanName, FEEDS, feedList, GOODS, goodsList, NAME_MAX, type AnimalId, type Mood } from "@shared/animals";
+import { ANIMALS, BUILDINGS, cleanName, FEEDS, feedList, GOODS, goodsList, NAME_MAX, type Mood } from "@shared/animals";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { AnimalThumb, FeedThumb, GoodThumb, TagThumb } from "./Animals";
@@ -451,26 +451,19 @@ export const PenSheet = ({
   kind,
   top,
   animals,
-  balance,
   nameTags,
-  suggest,
-  onBuy,
   onRename,
   onClose,
 }: {
   kind: BuildingId | null;
   top: number;
   animals: readonly SheetAnimal[];
-  balance: number;
   nameTags: number;
-  suggest: (kind: AnimalId) => string;
-  onBuy: (kind: AnimalId, name: string) => Promise<string | null>;
   onRename: (id: string, name: string) => Promise<string | null>;
   onClose: () => void;
 }) => {
   const [shown, setShown] = useState<BuildingId>(kind ?? "coop");
   const [wasOpen, setWasOpen] = useState(kind !== null);
-  const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -480,7 +473,6 @@ export const PenSheet = ({
     if (kind !== null) {
       setError(null);
       setRenaming(null);
-      setName(suggest(BUILDINGS[kind].animal));
     }
   }
   const building = BUILDINGS[shown];
@@ -488,7 +480,6 @@ export const PenSheet = ({
   const animal = ANIMALS[animalKind];
   const here = animals.filter((a) => a.kind === animalKind);
   const space = here.length < building.capacity;
-  const short = balance < animal.price;
   const run = async (task: () => Promise<string | null>) => {
     setBusy(true);
     setError(null);
@@ -572,45 +563,32 @@ export const PenSheet = ({
                       setError(null);
                       setRenaming({ id: a.id, name: a.name });
                     }}
+                    disabled={nameTags < 1}
                     hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel={`Rename ${a.name}`}
+                    accessibilityHint={nameTags < 1 ? `Needs a name tag from ${josh}` : undefined}
                     testID={`world-rename-${a.id}`}
-                    style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.renameButton, nameTags < 1 && styles.buyOff, pressed && styles.pressed]}
                   >
-                    <Ionicons name="pricetag-outline" size={16} color={glass.text} />
+                    <Ionicons name="pricetag-outline" size={14} color={glass.text} />
+                    <Text style={styles.renameText}>Rename</Text>
                   </Pressable>
                 </>
               )}
             </Animated.View>
           ))}
-          {renaming && nameTags < 1 ? <Text style={styles.muted}>Get a name tag from {josh}</Text> : null}
+          {here.length > 0 && nameTags < 1 ? (
+            <Text style={styles.muted} testID="world-rename-hint">
+              Renaming uses a name tag. Get one from {josh}.
+            </Text>
+          ) : null}
           {space ? (
-            <Animated.View style={[styles.newRow, itemStyle(overlay, 1 + here.length)]}>
-              <AnimalThumb kind={animalKind} stage={0} size={44} />
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                maxLength={NAME_MAX}
-                accessibilityLabel={`Name for the new ${animal.stages[0].toLowerCase()}`}
-                style={[styles.input, styles.grow]}
-                testID="world-new-animal-name"
-              />
-              <Pressable
-                onPress={() =>
-                  void run(() => onBuy(animalKind, name)).then((problem) => {
-                    if (!problem) setName(suggest(animalKind));
-                  })
-                }
-                disabled={busy || short}
-                accessibilityRole="button"
-                accessibilityLabel={`Buy a ${animal.stages[0].toLowerCase()} called ${name} for ${animal.price} coins`}
-                testID="world-buy-animal"
-                style={({ pressed }) => [styles.buySmall, (busy || short) && styles.buyOff, pressed && styles.pressed]}
-              >
-                <GoldCoin size={16} />
-                <Text style={styles.buyText}>{animal.price}</Text>
-              </Pressable>
+            <Animated.View style={[styles.newRow, itemStyle(overlay, 1 + here.length)]} testID="world-pen-buy-hint">
+              <Bust look={FARMER.look} size={40} />
+              <Text style={[styles.muted, styles.grow]}>
+                Buy {animal.label.toLowerCase()}s from {josh} in the Garden.
+              </Text>
             </Animated.View>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -668,5 +646,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: 38, paddingHorizontal: 12, borderRadius: 12, backgroundColor: glass.rowPressed, color: glass.text, fontSize: 15, fontWeight: "700" },
   tagButton: { flexDirection: "row", alignItems: "center", gap: 4, height: 38, paddingHorizontal: 10, borderRadius: 19, backgroundColor: hud.accent },
   tagButtonText: { color: hud.onAccent, fontWeight: "800", fontSize: 14 },
-  buySmall: { flexDirection: "row", alignItems: "center", gap: 5, height: 38, paddingHorizontal: 12, borderRadius: 19, backgroundColor: hud.accent },
+  renameButton: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 10, borderRadius: 15, backgroundColor: glass.rowPressed },
+  renameText: { color: glass.text, fontWeight: "800", fontSize: 13 },
 });
