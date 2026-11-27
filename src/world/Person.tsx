@@ -1404,8 +1404,8 @@ const AvatarView = ({
       // Cat: a white almond tipped up at the outer corner, round a tall slit of a pupil.
       const out = e > 0 ? { borderTopLeftRadius: s, borderBottomLeftRadius: s, borderTopRightRadius: 0.012 * s, borderBottomRightRadius: s } : { borderTopRightRadius: s, borderBottomRightRadius: s, borderTopLeftRadius: 0.012 * s, borderBottomLeftRadius: s };
       shape = (
-        <View style={[styles.abs, { left: c - 0.08 * s, top: c - 0.055 * s, width: 0.16 * s, height: 0.11 * s, backgroundColor: people.eyeShine, borderWidth: 0.018 * s, borderColor: people.eye, alignItems: "center", justifyContent: "center", transform: [{ rotate: `${-0.22 * e}rad` }] }, out]}>
-          <View style={{ width: 0.042 * s, height: 0.085 * s, borderRadius: s, backgroundColor: iris }} />
+        <View style={[styles.abs, { left: c - 0.08 * s, top: c - 0.055 * s, width: 0.16 * s, height: 0.11 * s, backgroundColor: people.eyeShine, borderWidth: 0.018 * s, borderColor: people.eye, alignItems: "center", justifyContent: "center", overflow: "hidden", transform: [{ rotate: `${-0.22 * e}rad` }] }, out]}>
+          <View style={{ width: 0.042 * s, height: 0.07 * s, borderRadius: s, backgroundColor: iris }} />
         </View>
       );
     } else if (eye === "dot" && eyeStyle === 9) {

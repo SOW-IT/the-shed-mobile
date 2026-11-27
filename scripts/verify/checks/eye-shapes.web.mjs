@@ -2,8 +2,10 @@
 // Every eye shape in the character editor: each tile is picked in turn and
 // the editor (its preview and the tiles) is shot. Then the last one is saved,
 // the World is shot with it, and the editor opens again with it still picked,
-// so the server took it. It shoots whatever tiles there are, so the base's
-// run shows the shapes from before.
+// so the server took it. Last, the eyes the account had are saved back, so
+// the iOS run and the other checks on this backend see the seeded look. It
+// shoots whatever tiles there are, so the base's run shows the shapes from
+// before.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -16,6 +18,8 @@ const OUT = arg("out") ?? "check-eye-shapes";
 const seed = JSON.parse(readFileSync(arg("seed") ?? "sweep-seed.json", "utf8"));
 const SECRET = process.env.SWEEP_E2E_SECRET ?? "sweep-only-secret";
 const TIMEOUT_MS = 60_000;
+// The server ignores a second save of a look within this (LOOK_SAVE_GAP_MS).
+const SAVE_GAP_MS = 3_000;
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
@@ -40,6 +44,8 @@ try {
   await page.goto(`${BASE}/world?sheet=character`);
   await openEyes();
   const count = await page.locator('[data-testid^="world-editor-eyes-"]').count();
+  let original = 0;
+  for (let i = 0; i < count; i++) if (await picked(i)) original = i;
   await page.screenshot({ path: `${OUT}/eyes-tiles.png` });
   for (let i = 0; i < count; i++) {
     await tile(i).scrollIntoViewIfNeeded();
@@ -59,7 +65,16 @@ try {
   await tile(last).scrollIntoViewIfNeeded();
   if (!(await picked(last))) failures.push(`the saved shape (tile ${last}) wasn't picked when the editor opened again`);
   await page.screenshot({ path: `${OUT}/eyes-saved-reopened.png` });
-  console.log(`${count} eye shapes shot.`);
+  // Put the account's own eyes back.
+  await page.waitForTimeout(SAVE_GAP_MS + 500);
+  await tile(original).scrollIntoViewIfNeeded();
+  await tile(original).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByTestId("world-editor").waitFor({ state: "hidden" });
+  await page.goto(`${BASE}/world?sheet=character`);
+  await openEyes();
+  if (!(await picked(original))) failures.push(`the account's own eyes (tile ${original}) didn't come back after the check`);
+  console.log(`${count} eye shapes shot; tile ${original} saved back.`);
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
   await page.screenshot({ path: `${OUT}/eyes-failed.png` }).catch(() => {});
