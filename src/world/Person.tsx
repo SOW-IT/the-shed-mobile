@@ -22,7 +22,6 @@ import {
   glassesTemples,
   HAT_PITCH,
   headPoint,
-  hoodLayer,
   mohawkPoints,
   ponytailPose,
   projectOnHead,
@@ -38,6 +37,9 @@ import {
   backpackPose,
   bodyHalfWidth,
   bowTiePose,
+  HOODIE_POCKET,
+  hoodPose,
+  hoodRim,
   necklacePose,
   PLAID_ANGLES,
   POLKA_DOTS,
@@ -799,15 +801,20 @@ const AvatarView = ({
     }
   };
   const outfit = lookPart(look, "outfit");
-  const hood = outfit === 5 ? hoodLayer(facing) : null;
+  // A hoodie's hood: one pouch on the back of the neck that turns with the
+  // body, drawn here (behind the head and body) or after the hair (seen from behind).
+  const hood = outfit === 5 ? hoodPose(bodyView, chin) : null;
   const hoodFill = shade(shirt, -0.18);
-  if (hood === "behind") ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, hoodFill);
+  const drawHood = () => {
+    if (!hood) return;
+    parts.push(<Ellipse key="hood" cx={hood.centre.x} cy={hood.centre.y} rx={hood.rx} ry={hood.ry} fill={hoodFill} ink={ink * 1.1} inkColour={garden.ink} ramp />);
+    const open = hood.opening;
+    if (open) parts.push(<Ellipse key="hoodInside" cx={open.centre.x} cy={open.centre.y} rx={open.rx} ry={open.ry} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
+    if (hood.seam) parts.push(capsule(hood.seam.a, hood.seam.b, 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
+  };
+  if (hood?.layer === "behind") drawHood();
   arms("back");
   if (pack && !pack.over) drawBackpack("packBehind");
-  if (hood && Math.abs(side) > 0.35) {
-    const nape = at(-Math.sign(side) * 0.27, chin + 0.02);
-    parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
-  }
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
@@ -983,13 +990,19 @@ const AvatarView = ({
   if (hood) {
     const hemTop = Math.max(chin, 0.36);
     if (pants > 0) piece("hoodieHem", shirt, hemTop, 0.27, halfWidth(hemTop), halfWidth(0.27) + 0.02, 10);
-    if (hood === "behind") {
-      const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
-      piece("pocket", shade(shirt, -0.14), pocketBottom + 0.09, pocketBottom, halfWidth(pocketBottom + 0.09) - 0.05, halfWidth(pocketBottom) - 0.04, 8);
-      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s + ink * 2, garden.ink, "hoodRimInk"));
-      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s, hoodFill, "hoodRim"));
-      for (const e of [-1, 1]) parts.push(capsule(at(0.05 * e, chin - 0.01), at(0.06 * e, chin - 0.13), 0.03 * s, people.drawstring, `string${e}`));
+    // The front pocket, the hood's edge round the neck and the drawstrings
+    // all sit on the body, so they turn with it and hide from behind.
+    const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
+    const pocketInk = surfaceStrip(bodyView, pocketBottom + 0.09, pocketBottom, HOODIE_POCKET.top, HOODIE_POCKET.bottom, ink);
+    const pocketFill = surfaceStrip(bodyView, pocketBottom + 0.09, pocketBottom, HOODIE_POCKET.top, HOODIE_POCKET.bottom, 0);
+    if (pocketInk && pocketFill) {
+      parts.push(quad(pocketInk, garden.ink, "pocketInk", 8));
+      parts.push(quad(pocketFill, shade(shirt, -0.14), "pocket", 8));
     }
+    const { rim, strings } = hoodRim(bodyView, chin);
+    rim.forEach((seg, i) => parts.push(capsule(seg.a, seg.b, 0.05 * s + ink * 2, garden.ink, `hoodRimInk${i}`)));
+    rim.forEach((seg, i) => parts.push(capsule(seg.a, seg.b, 0.05 * s, hoodFill, `hoodRim${i}`)));
+    for (const str of strings) parts.push(capsule(str.a, str.b, 0.03 * s, people.drawstring, `string${str.side}`));
   }
   if (pack) {
     BACKPACK_STRAPS.forEach(([t0, y0, t1, y1], i) => {
@@ -1646,12 +1659,7 @@ const AvatarView = ({
       />
     );
   }
-  if (hood === "over") {
-    const drape = at(-side * 0.03, chin + 0.04);
-    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
-    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
-    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
-  }
+  if (hood?.layer === "over") drawHood();
   if (wavyEnds) {
     for (const w of wavyEnds) if (w.front) ball(`waveFront${w.index}`, w.at.x, w.at.y, 0.1 * s, hair);
   }
