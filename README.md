@@ -52,7 +52,7 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   a per-game leaderboard ([ADR 0020](docs/adr/0020-offline-games-leaderboard-keeps-each-best.md)).
 - **Devotionals** (`src/components/devotionals/`, `convex/devotionals.ts`, rules
   in `shared/devotionals.ts` and `shared/bible.ts`): private daily devotionals
-  with the passage picked from book, chapter and verse lists (or typed) and
+  with one or more passages picked from book, chapter and verse lists (or typed) and
   validated against the Protestant canon, separate notes and prayer
   points, month and week history views, and immediate local saves with online
   sync.

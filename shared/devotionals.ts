@@ -1,10 +1,21 @@
-import { parseBibleReference } from "./bible";
+import { BIBLE_BOOKS, parseBibleReference } from "./bible";
 import { parseDayKey } from "./calendar";
 import { dateInputFromMs, pad2 } from "./datetime";
 
 export const MAX_PASSAGE_LENGTH = 120;
 export const MAX_NOTES_LENGTH = 20_000;
 export const MAX_PRAYER_LENGTH = 20_000;
+
+/**
+ * The most a row of the pickers can add to a passage: "; ", the longest book
+ * name, then a chapter and verse range as long as "150:176-176".
+ */
+const LONGEST_PICKED_REFERENCE =
+  "; ".length + Math.max(...BIBLE_BOOKS.map((book) => book.name.length)) + " 150:176-176".length;
+
+/** Whether another picked passage still fits under the length limit. */
+export const canAddPassage = (passage: string): boolean =>
+  passage.trim().length + LONGEST_PICKED_REFERENCE <= MAX_PASSAGE_LENGTH;
 
 export type DevotionalContent = {
   passage: string;

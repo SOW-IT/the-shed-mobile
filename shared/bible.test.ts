@@ -5,13 +5,16 @@ import {
   chooseBook,
   chooseChapter,
   chooseFromVerse,
+  chooseToChapter,
   chooseToVerse,
   OLD_TESTAMENT_BOOKS,
   type PassagePick,
   parseBibleReference,
   passageFromPick,
-  pickFromPassage,
+  passageFromPicks,
+  picksFromPassage,
   searchBibleBooks,
+  toEndsChapters,
   versesInChapter,
 } from "./bible";
 
@@ -194,102 +197,132 @@ describe("searchBibleBooks", () => {
   });
 });
 
-describe("pickFromPassage", () => {
+const at = (
+  name: string,
+  chapter: number | null,
+  fromVerse: number | null = null,
+  toVerse: number | null = null,
+  toChapter: number | null = null
+): PassagePick => ({ book: book(name), chapter, toChapter, fromVerse, toVerse });
+
+/** The single row a one-reference passage reads as. */
+const one = (passage: string) => {
+  const picks = picksFromPassage(passage);
+  return Array.isArray(picks) && picks.length === 1 ? picks[0] : picks;
+};
+
+describe("picksFromPassage", () => {
   test("reads nothing from an empty passage", () => {
-    expect(pickFromPassage("")).toBeNull();
-    expect(pickFromPassage("  ")).toBeNull();
+    expect(picksFromPassage("")).toBeNull();
+    expect(picksFromPassage("  ")).toBeNull();
   });
 
   test("reads a whole chapter, a verse and a verse range", () => {
-    expect(pickFromPassage("Psalm 23")).toEqual({ book: book("Psalms"), chapter: 23, fromVerse: null, toVerse: null });
-    expect(pickFromPassage("John 3:16")).toEqual({ book: book("John"), chapter: 3, fromVerse: 16, toVerse: null });
-    expect(pickFromPassage("John 15:1-17")).toEqual({ book: book("John"), chapter: 15, fromVerse: 1, toVerse: 17 });
-    expect(pickFromPassage("1 John 4")).toEqual({ book: book("1 John"), chapter: 4, fromVerse: null, toVerse: null });
+    expect(one("Psalm 23")).toEqual(at("Psalms", 23));
+    expect(one("John 3:16")).toEqual(at("John", 3, 16));
+    expect(one("John 15:1-17")).toEqual(at("John", 15, 1, 17));
+    expect(one("1 John 4")).toEqual(at("1 John", 4));
+  });
+
+  test("reads a run of whole chapters", () => {
+    expect(one("Genesis 1-3")).toEqual(at("Genesis", 1, null, null, 3));
+    expect(one("Psalms 23-24")).toEqual(at("Psalms", 23, null, null, 24));
+    expect(one("Psalm 23-23")).toEqual(at("Psalms", 23));
   });
 
   test("reads references typed before the pickers, in any form the parser takes", () => {
-    expect(pickFromPassage("jn 3:16")).toEqual({ book: book("John"), chapter: 3, fromVerse: 16, toVerse: null });
-    expect(pickFromPassage("Romans 8:28-8:39")).toEqual({
-      book: book("Romans"),
-      chapter: 8,
-      fromVerse: 28,
-      toVerse: 39,
-    });
-    expect(pickFromPassage("Song of Songs 2")).toEqual({
-      book: book("Song of Solomon"),
-      chapter: 2,
-      fromVerse: null,
-      toVerse: null,
-    });
+    expect(one("jn 3:16")).toEqual(at("John", 3, 16));
+    expect(one("Romans 8:28-8:39")).toEqual(at("Romans", 8, 28, 39));
+    expect(one("Song of Songs 2")).toEqual(at("Song of Solomon", 2));
+    expect(one("gen 1 - 3")).toEqual(at("Genesis", 1, null, null, 3));
   });
 
   test("reads one-chapter books with or without the chapter", () => {
-    const jude = book("Jude");
-    expect(pickFromPassage("Jude")).toEqual({ book: jude, chapter: 1, fromVerse: null, toVerse: null });
-    expect(pickFromPassage("Jude 3")).toEqual({ book: jude, chapter: 1, fromVerse: 3, toVerse: null });
-    expect(pickFromPassage("Jude 24-25")).toEqual({ book: jude, chapter: 1, fromVerse: 24, toVerse: 25 });
-    expect(pickFromPassage("Philemon 1:4-7")).toEqual({
-      book: book("Philemon"),
-      chapter: 1,
-      fromVerse: 4,
-      toVerse: 7,
-    });
+    expect(one("Jude")).toEqual(at("Jude", 1));
+    expect(one("Jude 3")).toEqual(at("Jude", 1, 3));
+    expect(one("Jude 24-25")).toEqual(at("Jude", 1, 24, 25));
+    expect(one("Philemon 1:4-7")).toEqual(at("Philemon", 1, 4, 7));
   });
 
   test("reads a book still waiting for its chapter", () => {
-    expect(pickFromPassage("Joh")).toEqual({ book: book("John"), chapter: null, fromVerse: null, toVerse: null });
-    expect(pickFromPassage("John")).toEqual({ book: book("John"), chapter: null, fromVerse: null, toVerse: null });
-    expect(pickFromPassage("Psalm")).toEqual({ book: book("Psalms"), chapter: null, fromVerse: null, toVerse: null });
+    expect(one("Joh")).toEqual(at("John", null));
+    expect(one("John")).toEqual(at("John", null));
+    expect(one("Psalm")).toEqual(at("Psalms", null));
+  });
+
+  test("reads several passages, one row each, from more than one book", () => {
+    expect(picksFromPassage("Genesis 1-3; Psalm 1")).toEqual([at("Genesis", 1, null, null, 3), at("Psalms", 1)]);
+    expect(picksFromPassage("Psalm 23;John 15:1-17 ; Jude")).toEqual([
+      at("Psalms", 23),
+      at("John", 15, 1, 17),
+      at("Jude", 1),
+    ]);
+    expect(picksFromPassage("Genesis 1; John")).toEqual([at("Genesis", 1), at("John", null)]);
   });
 
   test("leaves references the pickers can't show as typed text", () => {
     for (const custom of [
-      "Genesis 1-3",
-      "Psalms 23-24",
       "Romans 8:28-9:5",
-      "Psalm 23; John 15:1-17",
+      "Psalm 23; Romans 8:28-9:5",
+      "Psalm 23;",
+      "; Psalm 23",
       "Jo",
       "John 22",
       "hello",
     ]) {
-      expect(pickFromPassage(custom), custom).toBe("custom");
+      expect(picksFromPassage(custom), custom).toBe("custom");
     }
   });
 });
 
 describe("passageFromPick", () => {
-  const pick = (name: string, chapter: number | null, fromVerse: number | null = null, toVerse: number | null = null) =>
-    ({ book: book(name), chapter, fromVerse, toVerse }) satisfies PassagePick;
-
   test("formats picks the way a typed reference is saved", () => {
-    expect(passageFromPick(pick("Psalms", 23))).toBe("Psalm 23");
-    expect(passageFromPick(pick("John", 3, 16))).toBe("John 3:16");
-    expect(passageFromPick(pick("John", 15, 1, 17))).toBe("John 15:1-17");
-    expect(passageFromPick(pick("John", 15, 5, 5))).toBe("John 15:5");
-    expect(passageFromPick(pick("John", 15, 5, 3))).toBe("John 15:5");
-    expect(passageFromPick(pick("Song of Solomon", 2))).toBe("Song of Solomon 2");
-    expect(passageFromPick(pick("Jude", 1))).toBe("Jude");
-    expect(passageFromPick(pick("Jude", 1, 24, 25))).toBe("Jude 24-25");
-    expect(passageFromPick(pick("Obadiah", 1, 3))).toBe("Obadiah 3");
+    expect(passageFromPick(at("Psalms", 23))).toBe("Psalm 23");
+    expect(passageFromPick(at("John", 3, 16))).toBe("John 3:16");
+    expect(passageFromPick(at("John", 15, 1, 17))).toBe("John 15:1-17");
+    expect(passageFromPick(at("John", 15, 5, 5))).toBe("John 15:5");
+    expect(passageFromPick(at("John", 15, 5, 3))).toBe("John 15:5");
+    expect(passageFromPick(at("Song of Solomon", 2))).toBe("Song of Solomon 2");
+    expect(passageFromPick(at("Jude", 1))).toBe("Jude");
+    expect(passageFromPick(at("Jude", 1, 24, 25))).toBe("Jude 24-25");
+    expect(passageFromPick(at("Obadiah", 1, 3))).toBe("Obadiah 3");
+  });
+
+  test("formats a run of chapters, and ignores one that doesn't run forward", () => {
+    expect(passageFromPick(at("Genesis", 1, null, null, 3))).toBe("Genesis 1-3");
+    expect(passageFromPick(at("Psalms", 1, null, null, 2))).toBe("Psalms 1-2");
+    expect(passageFromPick(at("Psalms", 2, null, null, 2))).toBe("Psalm 2");
+    expect(passageFromPick(at("Psalms", 2, null, null, 1))).toBe("Psalm 2");
+    expect(passageFromPick(at("John", 3, 16, null, 4))).toBe("John 3:16");
   });
 
   test("keeps a book with no chapter yet, so the editor can ask for one", () => {
-    expect(passageFromPick(pick("John", null))).toBe("John");
+    expect(passageFromPick(at("John", null))).toBe("John");
     expect(parseBibleReference("John")).toEqual({ ok: false, error: "Include a chapter for John." });
+  });
+
+  test("joins several rows the way a typed list of references is saved", () => {
+    expect(passageFromPicks([])).toBe("");
+    expect(passageFromPicks([at("Genesis", 1, null, null, 3), at("Psalms", 1)])).toBe("Genesis 1-3; Psalm 1");
+    expect(parseBibleReference("Genesis 1-3; Psalm 1")).toEqual({ ok: true, formatted: "Genesis 1-3; Psalm 1" });
   });
 
   test("round-trips every pick through the stored text", () => {
     for (const b of BIBLE_BOOKS) {
       const last = b.chapters.length;
       const verses = b.chapters[last - 1];
-      for (const p of [
+      const picks = [
         chooseBook(b),
         chooseChapter(chooseBook(b), last),
+        chooseToChapter(chooseChapter(chooseBook(b), 1), last),
         chooseFromVerse(chooseChapter(chooseBook(b), last), verses),
         chooseToVerse(chooseFromVerse(chooseChapter(chooseBook(b), last), 1), verses),
-      ]) {
-        expect(pickFromPassage(passageFromPick(p)), passageFromPick(p)).toEqual(p);
+      ];
+      for (const p of picks) {
+        expect(one(passageFromPick(p)), passageFromPick(p)).toEqual(p);
       }
+      const complete = picks.slice(1);
+      expect(picksFromPassage(passageFromPicks(complete))).toEqual(complete);
     }
   });
 });
@@ -298,21 +331,27 @@ describe("picker steps", () => {
   const john = book("John");
 
   test("choosing a book starts over, and a one-chapter book needs no chapter", () => {
-    expect(chooseBook(john)).toEqual({ book: john, chapter: null, fromVerse: null, toVerse: null });
-    expect(chooseBook(book("Jude"))).toEqual({ book: book("Jude"), chapter: 1, fromVerse: null, toVerse: null });
+    expect(chooseBook(john)).toEqual(at("John", null));
+    expect(chooseBook(book("Jude"))).toEqual(at("Jude", 1));
   });
 
-  test("choosing a chapter clears the verses", () => {
-    expect(chooseChapter({ book: john, chapter: 15, fromVerse: 1, toVerse: 17 }, 3)).toEqual({
-      book: john,
-      chapter: 3,
-      fromVerse: null,
-      toVerse: null,
-    });
+  test("choosing a chapter clears the verses and any run of chapters", () => {
+    expect(chooseChapter(at("John", 15, 1, 17), 3)).toEqual(at("John", 3));
+    expect(chooseChapter(at("John", 1, null, null, 3), 5)).toEqual(at("John", 5));
+  });
+
+  test("choosing a last chapter makes a run, or clears it for the same or an earlier chapter", () => {
+    const genesis = at("Genesis", 2);
+    expect(chooseToChapter(genesis, 4)).toEqual(at("Genesis", 2, null, null, 4));
+    expect(chooseToChapter(at("Genesis", 2, null, null, 4), null)).toEqual(genesis);
+    expect(chooseToChapter(genesis, 2)).toEqual(genesis);
+    expect(chooseToChapter(genesis, 1)).toEqual(genesis);
+    expect(chooseToChapter(at("Genesis", null), 3)).toEqual(at("Genesis", null));
+    expect(chooseToChapter(at("Genesis", 2, 5, 9), 4)).toEqual(at("Genesis", 2, null, null, 4));
   });
 
   test("choosing a start verse keeps a later end verse and drops an earlier one", () => {
-    const range = { book: john, chapter: 15, fromVerse: 1, toVerse: 17 };
+    const range = at("John", 15, 1, 17);
     expect(chooseFromVerse(range, 5)).toEqual({ ...range, fromVerse: 5, toVerse: 17 });
     expect(chooseFromVerse(range, 17)).toEqual({ ...range, fromVerse: 17, toVerse: null });
     expect(chooseFromVerse(range, 20)).toEqual({ ...range, fromVerse: 20, toVerse: null });
@@ -320,15 +359,30 @@ describe("picker steps", () => {
     expect(chooseFromVerse({ ...range, toVerse: null }, 3)).toEqual({ ...range, fromVerse: 3, toVerse: null });
   });
 
+  test("a start verse ends a run of chapters, and the whole chapter keeps it", () => {
+    const run = at("John", 1, null, null, 3);
+    expect(chooseFromVerse(run, 5)).toEqual(at("John", 1, 5));
+    expect(chooseFromVerse(run, null)).toEqual(run);
+  });
+
   test("choosing an end verse sets or clears it", () => {
-    const start = { book: john, chapter: 15, fromVerse: 1, toVerse: null };
+    const start = at("John", 15, 1);
     expect(chooseToVerse(start, 17)).toEqual({ ...start, toVerse: 17 });
     expect(chooseToVerse({ ...start, toVerse: 17 }, null)).toEqual(start);
   });
 
   test("counts the verses in the chosen chapter", () => {
-    expect(versesInChapter({ book: john, chapter: null, fromVerse: null, toVerse: null })).toBe(0);
-    expect(versesInChapter({ book: john, chapter: 3, fromVerse: null, toVerse: null })).toBe(36);
-    expect(versesInChapter({ book: book("Psalms"), chapter: 119, fromVerse: null, toVerse: null })).toBe(176);
+    expect(versesInChapter(at("John", null))).toBe(0);
+    expect(versesInChapter(at("John", 3))).toBe(36);
+    expect(versesInChapter(at("Psalms", 119))).toBe(176);
+  });
+
+  test("the To box ends a run of chapters only while no start verse is chosen", () => {
+    expect(toEndsChapters(at("Genesis", 1))).toBe(true);
+    expect(toEndsChapters(at("Genesis", 1, null, null, 3))).toBe(true);
+    expect(toEndsChapters(at("Genesis", 1, 5))).toBe(false);
+    expect(toEndsChapters(at("Genesis", 50))).toBe(false);
+    expect(toEndsChapters(at("Genesis", null))).toBe(false);
+    expect(toEndsChapters(at("Jude", 1))).toBe(false);
   });
 });

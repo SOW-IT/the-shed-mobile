@@ -287,7 +287,7 @@
         "shared/{bible,devotionals,devotionalStore,devotionalGroups,devotionalEditor,devotionalAutosave}.ts"
       ],
       "routes": ["/devotionals", "/devotionals?tab=groups", "/devotionals/{devotionalDate}", "/devotionals/{devotionalEmptyDate}"],
-      "checks": ["passage-picker-close"]
+      "checks": ["passage-picker-close", "passage-multi"]
     }
   },
   "fullOnlyRoutes": ["/checkin/not-a-real-link", "/no-such-page"]

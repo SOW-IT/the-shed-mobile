@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  canAddPassage,
   earliestTodayDevotionalDate,
   EMPTY_DEVOTIONAL,
   hasDevotionalContent,
@@ -70,6 +71,20 @@ describe("devotional date rules", () => {
 });
 
 describe("devotional validation and merging", () => {
+  test("saves several passages from more than one book as one passage", () => {
+    expect(
+      validateDevotionalInput({ passage: "gen 1-3;ps 1", notes: "", prayerPoints: "" })
+    ).toEqual({ ok: true, normalized: { passage: "Genesis 1-3; Psalm 1", notes: "", prayerPoints: "" } });
+  });
+
+  test("offers another picked passage only while the longest one still fits", () => {
+    expect(canAddPassage("")).toBe(true);
+    expect(canAddPassage("Genesis 1-3; Psalm 1")).toBe(true);
+    const longest = "; 1 Thessalonians 150:176-176";
+    expect(canAddPassage("x".repeat(MAX_PASSAGE_LENGTH - longest.length))).toBe(true);
+    expect(canAddPassage("x".repeat(MAX_PASSAGE_LENGTH - longest.length + 1))).toBe(false);
+  });
+
   test("validates passage, notes and prayer", () => {
     expect(
       validateDevotionalInput({ passage: "ps 23", notes: "Good shepherd", prayerPoints: "Peace" })

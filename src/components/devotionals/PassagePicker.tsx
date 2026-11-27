@@ -7,16 +7,18 @@ import {
   chooseBook,
   chooseChapter,
   chooseFromVerse,
+  chooseToChapter,
   chooseToVerse,
   OLD_TESTAMENT_BOOKS,
   type PassagePick,
   parseBibleReference,
-  passageFromPick,
-  pickFromPassage,
+  passageFromPicks,
+  picksFromPassage,
   searchBibleBooks,
+  toEndsChapters,
   versesInChapter,
 } from "@shared/bible";
-import { MAX_PASSAGE_LENGTH } from "@shared/devotionals";
+import { canAddPassage, MAX_PASSAGE_LENGTH } from "@shared/devotionals";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -144,11 +146,100 @@ const BookList = ({
 const chapterLabel = (pick: PassagePick) =>
   pick.chapter === null ? pick.book.name : `${pick.book.singular ?? pick.book.name} ${pick.chapter}`;
 
+/** Row 1 keeps the test ids it always had; later rows add their number. */
+const rowId = (id: string, row: number) => (row === 0 ? id : `${id}-${row + 1}`);
+
+const toValue = (pick: PassagePick | null) =>
+  pick?.toChapter != null ? `Ch ${pick.toChapter}` : pick?.toVerse != null ? String(pick.toVerse) : null;
+
+const PickRow = ({
+  pick,
+  row,
+  rows,
+  editable,
+  onOpen,
+  onRemove,
+}: {
+  pick: PassagePick | null;
+  row: number;
+  rows: number;
+  editable: boolean;
+  onOpen: (step: Step) => void;
+  onRemove: () => void;
+}) => {
+  const t = useAppTheme();
+  const oneChapter = pick?.book.chapters.length === 1;
+  const verses = pick ? versesInChapter(pick) : 0;
+  const chaptersTo = pick !== null && toEndsChapters(pick);
+  return (
+    <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
+      {rows > 1 ? (
+        <View style={styles.rowHeader}>
+          <Text style={[typography.label, { color: t.muted }]}>Passage {row + 1}</Text>
+          {editable ? (
+            <Pressable
+              onPress={onRemove}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove passage ${row + 1}`}
+              testID={rowId("devotional-passage-remove", row)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="close-circle-outline" size={16} color={t.muted} />
+              <Text style={[typography.caption, styles.switchText, { color: t.muted }]}>Remove</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      <PickerFace
+        label="Book"
+        value={pick?.book.name ?? null}
+        placeholder="Choose a book"
+        onPress={() => onOpen("book")}
+        disabled={!editable}
+        testID={rowId("devotional-passage-book", row)}
+      />
+      <View style={styles.row}>
+        {oneChapter ? null : (
+          <PickerFace
+            label="Chapter"
+            value={pick?.chapter == null ? null : String(pick.chapter)}
+            placeholder="–"
+            onPress={() => onOpen("chapter")}
+            disabled={!editable || !pick}
+            testID={rowId("devotional-passage-chapter", row)}
+            inRow
+          />
+        )}
+        <PickerFace
+          label="Verse"
+          value={pick?.fromVerse == null ? null : String(pick.fromVerse)}
+          placeholder={verses ? "All" : "–"}
+          onPress={() => onOpen("from")}
+          disabled={!editable || !verses}
+          testID={rowId("devotional-passage-from", row)}
+          inRow
+        />
+        <PickerFace
+          label="To"
+          value={toValue(pick)}
+          placeholder="–"
+          onPress={() => onOpen("to")}
+          disabled={!editable || (pick?.fromVerse == null && !chaptersTo)}
+          testID={rowId("devotional-passage-to", row)}
+          inRow
+        />
+      </View>
+    </View>
+  );
+};
+
 /**
- * The devotional's passage as a book, chapter and verse range picked from
- * lists. The stored text is unchanged: a pick is written the way a typed
- * reference is saved, and a saved reference the lists can't show (several
- * passages, or a range across chapters) stays in the typed box.
+ * The devotional's passages as books, chapters and verse ranges picked from
+ * lists, one row each. The stored text is unchanged: picks are written the
+ * way a typed reference is saved ("Genesis 1-3; Psalm 1"), and a saved
+ * reference the rows can't show (a verse range across chapters) stays in the
+ * typed box.
  */
 export const PassagePicker = ({
   passage,
@@ -162,24 +253,28 @@ export const PassagePicker = ({
   invalid: boolean;
 }) => {
   const t = useAppTheme();
-  const pick = pickFromPassage(passage);
+  const read = picksFromPassage(passage);
   const [typingChosen, setTypingChosen] = useState(false);
-  const typing = typingChosen || pick === "custom";
-  const [step, setStep] = useState<Step | null>(null);
+  const typing = typingChosen || read === "custom";
+  const [open, setOpen] = useState<{ row: number; step: Step } | null>(null);
   const [query, setQuery] = useState("");
-  const current = pick === "custom" ? null : pick;
+  const picks = read === "custom" ? [] : (read ?? []);
 
-  const write = (next: PassagePick | null) => {
+  /** Sets the row's pick, or removes the row for `null`. A row past the end is a new one. */
+  const write = (row: number, next: PassagePick | null) => {
     hapticSelect();
-    onChange(next ? passageFromPick(next) : "");
+    const nextPicks = [...picks];
+    if (next) nextPicks[row] = next;
+    else nextPicks.splice(row, 1);
+    onChange(passageFromPicks(nextPicks));
   };
   const close = () => {
-    setStep(null);
+    setOpen(null);
     setQuery("");
   };
 
   if (typing) {
-    const canUseLists = pick !== "custom";
+    const canUseLists = read !== "custom";
     const valid = passage.trim().length > 0 && parseBibleReference(passage).ok;
     return (
       <View style={styles.wrap}>
@@ -222,16 +317,22 @@ export const PassagePicker = ({
           </Pressable>
         ) : valid ? (
           <Text style={[typography.caption, { color: t.muted }]}>
-            The lists show one chapter at a time, so this reference stays typed.
+            The lists can’t show verses running across chapters, so this reference stays typed.
           </Text>
         ) : null}
       </View>
     );
   }
 
+  const rows: (PassagePick | null)[] = picks.length > 0 ? picks : [null];
+  const row = open?.row ?? 0;
+  const step = open?.step ?? null;
+  const current = picks[row] ?? null;
   const oneChapter = current?.book.chapters.length === 1;
   const verses = current ? versesInChapter(current) : 0;
   const wholeLabel = oneChapter ? "Whole book" : "Whole chapter";
+  const chaptersTo = current !== null && toEndsChapters(current);
+  const canAdd = editable && picks.length > 0 && parseBibleReference(passage).ok && canAddPassage(passage);
 
   const title =
     step === "book" || !current
@@ -240,49 +341,38 @@ export const PassagePicker = ({
         ? `${current.book.name}: chapter`
         : step === "from"
           ? `${chapterLabel(current)}: first verse`
-          : `${chapterLabel(current)}: last verse`;
+          : chaptersTo
+            ? `${chapterLabel(current)}: last chapter`
+            : `${chapterLabel(current)}: last verse`;
 
   return (
     <View style={styles.wrap}>
-      <PickerFace
-        label="Book"
-        value={current?.book.name ?? null}
-        placeholder="Choose a book"
-        onPress={() => setStep("book")}
-        disabled={!editable}
-        testID="devotional-passage-book"
-      />
-      <View style={styles.row}>
-        {oneChapter ? null : (
-          <PickerFace
-            label="Chapter"
-            value={current?.chapter == null ? null : String(current.chapter)}
-            placeholder="–"
-            onPress={() => setStep("chapter")}
-            disabled={!editable || !current}
-            testID="devotional-passage-chapter"
-            inRow
-          />
-        )}
-        <PickerFace
-          label="Verse"
-          value={current?.fromVerse == null ? null : String(current.fromVerse)}
-          placeholder={verses ? "All" : "–"}
-          onPress={() => setStep("from")}
-          disabled={!editable || !verses}
-          testID="devotional-passage-from"
-          inRow
+      {rows.map((pick, index) => (
+        <PickRow
+          // eslint-disable-next-line react/no-array-index-key -- a row is its place in the passage; rows have no other identity
+          key={index}
+          pick={pick}
+          row={index}
+          rows={rows.length}
+          editable={editable}
+          onOpen={(next) => setOpen({ row: index, step: next })}
+          onRemove={() => write(index, null)}
         />
-        <PickerFace
-          label="To"
-          value={current?.toVerse == null ? null : String(current.toVerse)}
-          placeholder="–"
-          onPress={() => setStep("to")}
-          disabled={!editable || current?.fromVerse == null}
-          testID="devotional-passage-to"
-          inRow
-        />
-      </View>
+      ))}
+      {canAdd ? (
+        <Pressable
+          onPress={() => setOpen({ row: picks.length, step: "book" })}
+          accessibilityRole="button"
+          testID="devotional-passage-add"
+          hitSlop={8}
+          style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="add-circle-outline" size={16} color={t.primary} />
+          <Text style={[typography.caption, styles.switchText, { color: t.primary }]}>
+            Add another passage
+          </Text>
+        </Pressable>
+      ) : null}
       <Pressable
         onPress={() => setTypingChosen(true)}
         disabled={!editable}
@@ -302,15 +392,19 @@ export const PassagePicker = ({
           <>
             <SearchField value={query} onChangeText={setQuery} placeholder="Search books" />
             {current && !query.trim() ? (
-              <OptionRow label="No passage" selected={false} onPress={() => { write(null); close(); }} />
+              <OptionRow
+                label={picks.length > 1 ? "Remove this passage" : "No passage"}
+                selected={false}
+                onPress={() => { write(row, null); close(); }}
+              />
             ) : null}
             <BookList
               query={query}
               selected={current?.book ?? null}
               onPick={(book) => {
-                write(chooseBook(book));
+                write(row, chooseBook(book));
                 setQuery("");
-                setStep(book.chapters.length === 1 ? null : "chapter");
+                setOpen(book.chapters.length === 1 ? null : { row, step: "chapter" });
               }}
             />
           </>
@@ -321,7 +415,7 @@ export const PassagePicker = ({
             selected={current.chapter}
             noun="Chapter"
             onPick={(chapter) => {
-              write(chooseChapter(current, chapter));
+              write(row, chooseChapter(current, chapter));
               close();
             }}
           />
@@ -331,7 +425,7 @@ export const PassagePicker = ({
               label={wholeLabel}
               selected={current.fromVerse === null}
               onPress={() => {
-                write(chooseFromVerse(current, null));
+                write(row, chooseFromVerse(current, null));
                 close();
               }}
             />
@@ -341,8 +435,29 @@ export const PassagePicker = ({
               selected={current.fromVerse}
               noun="Verse"
               onPick={(verse) => {
-                write(chooseFromVerse(current, verse));
-                setStep(verse < verses ? "to" : null);
+                write(row, chooseFromVerse(current, verse));
+                setOpen(verse < verses ? { row, step: "to" } : null);
+              }}
+            />
+          </>
+        ) : chaptersTo && current.chapter !== null ? (
+          <>
+            <OptionRow
+              label={`Just chapter ${current.chapter}`}
+              selected={current.toChapter === null}
+              onPress={() => {
+                write(row, chooseToChapter(current, null));
+                close();
+              }}
+            />
+            <NumberGrid
+              from={current.chapter + 1}
+              to={current.book.chapters.length}
+              selected={current.toChapter}
+              noun="Chapter"
+              onPick={(chapter) => {
+                write(row, chooseToChapter(current, chapter));
+                close();
               }}
             />
           </>
@@ -352,7 +467,7 @@ export const PassagePicker = ({
               label={`Just verse ${current.fromVerse}`}
               selected={current.toVerse === null}
               onPress={() => {
-                write(chooseToVerse(current, null));
+                write(row, chooseToVerse(current, null));
                 close();
               }}
             />
@@ -362,7 +477,7 @@ export const PassagePicker = ({
               selected={current.toVerse}
               noun="Verse"
               onPick={(verse) => {
-                write(chooseToVerse(current, verse));
+                write(row, chooseToVerse(current, verse));
                 close();
               }}
             />
@@ -392,6 +507,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
   },
+  laterRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, marginTop: spacing.xs },
+  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   switch: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" },
   switchText: { fontWeight: "700" },
   groupHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
