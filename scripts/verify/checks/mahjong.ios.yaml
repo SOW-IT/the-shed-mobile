@@ -83,6 +83,24 @@ appId: au.org.sow.theshed
       id: mahjong-remove-bot-3
     timeout: 15000
 - takeScreenshot: "${OUT}/check-mahjong-lobby-full"
+# The lobby sits just above the chat box with the chat log in view (the screenshot shows it); the rules open in a
+# dialog of their own and ✕ closes it. The World behind keeps moving, so these taps don't wait for it to settle.
+- tapOn:
+    id: mahjong-rules-change
+    waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    visible:
+      id: mahjong-rules-done
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-mahjong-rules"
+- tapOn:
+    id: mahjong-rules-close
+    waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: mahjong-rules-done
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-mahjong-rules-closed"
 - tapOn:
     id: mahjong-start
 - extendedWaitUntil:

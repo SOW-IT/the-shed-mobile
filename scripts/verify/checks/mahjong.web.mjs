@@ -228,10 +228,29 @@ try {
   await shot(host, "lobby-not-ready");
   await id(guest, "mahjong-ready").click();
   await expect(host, "the host's button says Start game once everyone's ready", host.page.waitForFunction(() => !document.querySelector('[data-testid="mahjong-not-ready"]'), null, { timeout: 15_000 }).then(() => true, () => false));
-  await id(host, "mahjong-rules").click();
-  await host.page.waitForTimeout(800);
+  // The lobby sits just above the chat box and grows upward, below the chat log, which stays in view.
+  const lobby = await id(host, "mahjong-lobby").boundingBox();
+  const chatBox = await id(host, "world-chat-input").boundingBox();
+  const log = await id(host, "world-log-row").boundingBox();
+  await expect(host, "the lobby sits just above the chat box, below the chat log", Promise.resolve(Boolean(lobby && chatBox && log && lobby.y + lobby.height <= chatBox.y && chatBox.y - (lobby.y + lobby.height) < 40 && lobby.y >= log.y + log.height - 1)));
   await shot(host, "lobby-full");
   await shot(guest, "lobby-full");
+  // The rules open in a dialog of their own; ✕, a tap outside it and Escape each close it.
+  await id(host, "mahjong-rules-change").click();
+  await expect(host, "the rules open in a dialog", appears(host, "mahjong-settings", 5_000));
+  await host.page.waitForTimeout(400);
+  await shot(host, "rules-dialog");
+  await id(host, "mahjong-rules-close").click();
+  await expect(host, "✕ closes the rules", (async () => (await host.page.getByTestId("mahjong-settings").count()) === 0)());
+  await id(host, "mahjong-rules-change").click();
+  await id(host, "mahjong-settings").waitFor({ timeout: 5_000 }).catch(() => {});
+  await host.page.mouse.click(8, 8);
+  await expect(host, "a tap outside closes the rules", (async () => (await host.page.getByTestId("mahjong-settings").count()) === 0)());
+  await id(host, "mahjong-rules-change").click();
+  await id(host, "mahjong-settings").waitFor({ timeout: 5_000 }).catch(() => {});
+  await host.page.keyboard.press("Escape");
+  await host.page.waitForTimeout(300);
+  await expect(host, "Escape closes the rules", (async () => (await host.page.getByTestId("mahjong-settings").count()) === 0)());
 
   // Start: a countdown for everyone seated, then the dice and the deal, and the table full screen.
   await id(host, "mahjong-start").click();

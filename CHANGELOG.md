@@ -19,10 +19,14 @@ All notable changes to **The SHED** mobile app. This project follows
   stops the countdown.
 - **A host's mahjong rules are remembered** for the next table they open.
 - **The chat log stays readable while you wait in the mahjong lobby.** The
-  lobby opens just under it instead of over it; on a short screen the log
-  gives up a few lines while the lobby is open (three on an iPhone SE, five
-  on an iPhone 17 Pro), and the Start / I'm ready buttons stay pinned at
-  the bottom of the lobby, with the seats scrolling above them if need be.
+  lobby sits just above the chat box and grows upward, stopping below the
+  chat log instead of covering it; on a short screen the log gives up a few
+  lines while the lobby is open (three on an iPhone SE, five on an iPhone
+  17 Pro), and the Start / I'm ready buttons stay pinned at the bottom of
+  the lobby, with the seats scrolling above them if need be.
+- **The table's rules open in a dialog.** The host's Change button beside
+  the rules opens them in a pop-up of their own instead of unfolding the
+  lobby; ✕, Done, a tap outside or Escape closes it.
 
 ### Changed
 - **The mahjong table uses much more of the screen.** The players on your

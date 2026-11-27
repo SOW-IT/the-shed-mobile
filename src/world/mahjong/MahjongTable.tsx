@@ -10,6 +10,7 @@ import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/v
 import { gradientStyle } from "@/components/ui/Grid";
 import { FocusedStatusBar } from "@/components/games/FocusedStatusBar";
 import { useHideAppChrome } from "@/components/nav/appChrome";
+import { useEscape } from "../useEscape";
 import { glass, hud, mahjong as m } from "../palette";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock } from "../Overlays";
 import { Row, Toggle } from "../SettingsPanel";
@@ -537,17 +538,6 @@ const Backs = ({ count, width, room }: { count: number; width: number; room: num
       ))}
     </View>
   );
-};
-
-const useEscape = (onEscape: () => void) => {
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onEscape();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onEscape]);
 };
 
 /** The table's options, built like the World's settings: a glass card of rows with switches. */

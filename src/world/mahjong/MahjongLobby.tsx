@@ -14,6 +14,10 @@ import { glass } from "../palette";
 import { SeatFace } from "./Faces";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { MahjongMine, MahjongSeatView } from "./useMahjong";
+import { useEscape } from "../useEscape";
+
+/** Between the chat box and the lobby, which sits just above it. */
+const LOBBY_GAP = 8;
 
 const { hud } = worldColours;
 const ROWS = 8;
@@ -116,13 +120,13 @@ export const MahjongLobby = ({
   const overlay = useOverlayClock(open && table !== null, ROWS);
   const { width, height } = useWindowDimensions();
   const [kept, setKept] = useState(table);
-  const [editing, setEditing] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [removing, setRemoving] = useState<{ seat: number; member: Id<"worldMembers"> | null; name: string } | null>(null);
   if (table && table !== kept) setKept(table);
-  // A closed lobby forgets an open question and the rules it was editing, so neither comes back when it opens again.
-  if (!open && (removing !== null || editing)) {
+  // A closed lobby forgets an open question and the rules dialog, so neither comes back when it opens again.
+  if (!open && (removing !== null || rulesOpen)) {
     setRemoving(null);
-    setEditing(false);
+    setRulesOpen(false);
   }
   if (!overlay.mounted || !kept) return null;
   const t = kept;
@@ -165,8 +169,9 @@ export const MahjongLobby = ({
   ));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* Anchored just above the chat box and growing upward, never past the chat log at the top, so the log stays in view. */}
       <Animated.View
-        style={[styles.panel, blurBehind, { top, width: Math.min(380, width - 28), maxHeight: Math.max(0, height - top - bottom) }, popStyle(overlay)]}
+        style={[styles.panel, blurBehind, { bottom: bottom + LOBBY_GAP, width: Math.min(380, width - 28), maxHeight: Math.max(0, height - top - bottom - LOBBY_GAP) }, popStyle(overlay)]}
         pointerEvents={open ? "auto" : "none"}
         testID="mahjong-lobby"
       >
@@ -181,54 +186,11 @@ export const MahjongLobby = ({
             icon="options"
             title="Rules"
             detail={rulesWords(settings)}
-            label={`Rules: ${rulesWords(settings)}${t.isHost ? (editing ? ", open" : ", tap to change") : ""}`}
-            onPress={t.isHost ? () => setEditing((was) => !was) : undefined}
-            trailing={t.isHost ? <Ionicons name={editing ? "chevron-up" : "chevron-down"} size={18} color={glass.muted} /> : undefined}
+            label={`Rules: ${rulesWords(settings)}`}
+            trailing={t.isHost ? <Pill label="Change" onPress={() => setRulesOpen(true)} testID="mahjong-rules-change" a11y="Change the rules" /> : undefined}
             testID="mahjong-rules"
             style={itemStyle(overlay, 5)}
           />
-          {t.isHost && editing ? (
-            <View style={styles.settings} testID="mahjong-settings">
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Minimum faan</Text>
-                <Pill
-                  label={minWords(settings.minFaan)}
-                  onPress={() => {
-                    const at = MIN_FAAN_CHOICES.indexOf(settings.minFaan as (typeof MIN_FAAN_CHOICES)[number]);
-                    const next = MIN_FAAN_CHOICES[(at + 1) % MIN_FAAN_CHOICES.length];
-                    change({ minFaan: next, maxFaan: Math.max(settings.maxFaan, next) });
-                  }}
-                  testID="mahjong-min-faan"
-                  a11y={`Minimum faan to win: ${minWords(settings.minFaan)}. Tap to change`}
-                />
-              </View>
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Faan cap</Text>
-                <Stepper value={settings.maxFaan} min={settings.minFaan} max={FAAN_LIMITS.max} label="faan cap" onChange={(maxFaan) => change({ maxFaan })} testID="mahjong-max-faan" />
-              </View>
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Seconds a turn</Text>
-                <Pill label={`${turnOf(settings)} s`} onPress={() => change({ turnSeconds: nextOf(TURN_SECONDS.choices, turnOf(settings)) })} testID="mahjong-turn-seconds" a11y={`Seconds a turn: ${turnOf(settings)}. Tap to change`} />
-              </View>
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Seconds to chow, pong or win</Text>
-                <Stepper value={claimOf(settings)} min={CLAIM_SECONDS.min} max={CLAIM_SECONDS.max} label="seconds to claim" onChange={(claimSeconds) => change({ claimSeconds })} testID="mahjong-claim-seconds" />
-              </View>
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Play for SOW coins</Text>
-                <Switch
-                  value={settings.coins === true}
-                  onValueChange={(on) => change({ coins: on })}
-                  trackColor={{ false: glass.rowPressed, true: hud.accent }}
-                  accessibilityRole="switch"
-                  accessibilityLabel="Play for SOW coins"
-                  accessibilityState={{ checked: settings.coins === true }}
-                  testID="mahjong-coins"
-                />
-              </View>
-
-            </View>
-          ) : null}
         </SharpScrollView>
         <Animated.View style={[styles.startRow, itemStyle(overlay, 6)]}>
           <Text style={[styles.note, settings.coins === true && styles.coinsNote]} testID="mahjong-coins-note">
@@ -269,6 +231,74 @@ export const MahjongLobby = ({
           />
         ) : null}
       </Animated.View>
+      {rulesOpen && t.isHost ? (
+        <RulesDialog onClose={() => setRulesOpen(false)}>
+              <View style={styles.setting}>
+              <Text style={styles.settingName}>Minimum faan</Text>
+              <Pill
+                label={minWords(settings.minFaan)}
+                onPress={() => {
+                  const at = MIN_FAAN_CHOICES.indexOf(settings.minFaan as (typeof MIN_FAAN_CHOICES)[number]);
+                  const next = MIN_FAAN_CHOICES[(at + 1) % MIN_FAAN_CHOICES.length];
+                  change({ minFaan: next, maxFaan: Math.max(settings.maxFaan, next) });
+                }}
+                testID="mahjong-min-faan"
+                a11y={`Minimum faan to win: ${minWords(settings.minFaan)}. Tap to change`}
+              />
+            </View>
+            <View style={styles.setting}>
+              <Text style={styles.settingName}>Faan cap</Text>
+              <Stepper value={settings.maxFaan} min={settings.minFaan} max={FAAN_LIMITS.max} label="faan cap" onChange={(maxFaan) => change({ maxFaan })} testID="mahjong-max-faan" />
+            </View>
+            <View style={styles.setting}>
+              <Text style={styles.settingName}>Seconds a turn</Text>
+              <Pill label={`${turnOf(settings)} s`} onPress={() => change({ turnSeconds: nextOf(TURN_SECONDS.choices, turnOf(settings)) })} testID="mahjong-turn-seconds" a11y={`Seconds a turn: ${turnOf(settings)}. Tap to change`} />
+            </View>
+            <View style={styles.setting}>
+              <Text style={styles.settingName}>Seconds to chow, pong or win</Text>
+              <Stepper value={claimOf(settings)} min={CLAIM_SECONDS.min} max={CLAIM_SECONDS.max} label="seconds to claim" onChange={(claimSeconds) => change({ claimSeconds })} testID="mahjong-claim-seconds" />
+            </View>
+            <View style={styles.setting}>
+              <Text style={styles.settingName}>Play for SOW coins</Text>
+              <Switch
+                value={settings.coins === true}
+                onValueChange={(on) => change({ coins: on })}
+                trackColor={{ false: glass.rowPressed, true: hud.accent }}
+                accessibilityRole="switch"
+                accessibilityLabel="Play for SOW coins"
+                accessibilityState={{ checked: settings.coins === true }}
+                testID="mahjong-coins"
+              />
+            </View>
+        </RulesDialog>
+      ) : null}
+    </View>
+  );
+};
+
+/** The host's table rules, in a dialog of their own over the lobby: ✕, Done, a tap outside or Escape closes it. */
+const RulesDialog = ({ children, onClose }: { children: ReactNode; onClose: () => void }) => {
+  useEscape(onClose);
+  const { height } = useWindowDimensions();
+  return (
+    <View style={styles.dialogWrap} testID="mahjong-settings">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close the rules" testID="mahjong-rules-backdrop" />
+      <View style={[styles.dialog, { maxHeight: Math.max(240, height - 80) }]} accessibilityViewIsModal>
+        <View style={styles.dialogHead}>
+          <Text style={styles.confirmTitle} accessibilityRole="header">
+            Table rules
+          </Text>
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close the rules" testID="mahjong-rules-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+            <Ionicons name="close" size={18} color={glass.text} />
+          </Pressable>
+        </View>
+        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.settings}>
+          {children}
+        </SharpScrollView>
+        <View style={styles.dialogFoot}>
+          <Pill label="Done" primary onPress={onClose} testID="mahjong-rules-done" />
+        </View>
+      </View>
     </View>
   );
 };
@@ -283,7 +313,7 @@ const styles = StyleSheet.create({
     borderColor: glass.edge,
     paddingTop: 12,
     overflow: "hidden",
-    transformOrigin: "top left",
+    transformOrigin: "bottom left",
   },
   close: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   pressed: { opacity: 0.7 },
@@ -310,4 +340,8 @@ const styles = StyleSheet.create({
   confirm: { width: "100%", gap: 10, padding: 16, borderRadius: 20, backgroundColor: Platform.OS === "web" ? glass.panel : glass.panelSolid, borderWidth: 1.5, borderColor: glass.edge },
   confirmTitle: { fontFamily: fonts.display, fontSize: 17, color: glass.text, textAlign: "center" },
   confirmButtons: { flexDirection: "row", gap: 8, justifyContent: "center" },
+  dialogWrap: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: glass.scrimDeep },
+  dialog: { width: "100%", maxWidth: 380, borderRadius: 22, backgroundColor: Platform.OS === "web" ? glass.panel : glass.panelSolid, borderWidth: 1.5, borderColor: glass.edge, overflow: "hidden" },
+  dialogHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
+  dialogFoot: { alignItems: "center", paddingVertical: 12, borderTopWidth: 1, borderTopColor: glass.edge },
 });
