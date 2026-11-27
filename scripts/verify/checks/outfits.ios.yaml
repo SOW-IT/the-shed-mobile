@@ -10,13 +10,22 @@ appId: au.org.sow.theshed
     timeout: 60000
 - tapOn:
     id: world-editor-tab-outfit
-# Sleeves on a collared shirt: short, then long.
+# Sleeves on a collared shirt: short, then long. The choices scroll under
+# the preview and the tabs, so each scroll is a short swipe inside the list
+# (from 80% to 58% of the screen): the middle of the screen is the tabs,
+# which don't scroll, so scrollUntilVisible's swipe never moved the list.
 - tapOn:
     id: world-editor-outfit-6
-- scrollUntilVisible:
-    element:
-      id: world-editor-sleeves-2
-    direction: DOWN
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-sleeves-2
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
 - tapOn:
     id: world-editor-sleeves-1
 - takeScreenshot: "${OUT}/check-outfits-collared-short"
@@ -25,10 +34,16 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-outfits-collared-long"
 # The new tops: a tank top (no sleeves choice), a sailor top, a sweater
 # vest, a sundress, a jumpsuit and a Hawaiian shirt.
-- scrollUntilVisible:
-    element:
-      id: world-editor-outfit-12
-    direction: UP
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-12
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-12
 - assertNotVisible:
@@ -40,10 +55,16 @@ appId: au.org.sow.theshed
 - tapOn:
     id: world-editor-outfit-14
 - takeScreenshot: "${OUT}/check-outfits-sweater-vest"
-- scrollUntilVisible:
-    element:
-      id: world-editor-outfit-17
-    direction: DOWN
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-17
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-15
 - takeScreenshot: "${OUT}/check-outfits-sundress"
@@ -54,16 +75,28 @@ appId: au.org.sow.theshed
     id: world-editor-outfit-17
 - takeScreenshot: "${OUT}/check-outfits-hawaiian-shirt"
 # Any colour: the picker opens under the row, and a typed hex colours the top.
-- scrollUntilVisible:
-    element:
-      id: world-editor-shirt-custom
-    direction: DOWN
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-shirt-custom
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
 - tapOn:
     id: world-editor-shirt-custom
-- scrollUntilVisible:
-    element:
-      id: world-editor-shirt-hex
-    direction: DOWN
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-shirt-hex
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
 - tapOn:
     id: world-editor-shirt-hex
 - eraseText: 10
