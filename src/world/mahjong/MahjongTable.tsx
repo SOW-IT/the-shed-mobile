@@ -1,6 +1,5 @@
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CLAIM_MS, TURN_MS } from "@shared/mahjong/game";
 import { isMahjongTable, MAHJONG_TABLE_NAMES } from "@shared/mahjong/table";
 import { BUBBLE_MS, EMOTE_MS, EMOTES, isEmote, type Look } from "@shared/world";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -10,7 +9,7 @@ import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/v
 import { gradientStyle } from "@/components/ui/Grid";
 import { mahjong as m } from "../palette";
 import { SeatFace } from "./Faces";
-import { claimChoices, coinsWords, dealtCount, handRows, INTRO, introElapsed, faanLine, resultTitle, roundWords, secondsLeft, tileLabel, windBadge, windWords } from "./tableWords";
+import { claimChoices, coinsWords, dealtCount, handRows, INTRO, introElapsed, faanLine, leaveQuestion, resultTitle, roundWords, secondsLeft, tileLabel, windBadge, windWords, zoomShown } from "./tableWords";
 import { Tile, TILE_RATIO, TileLabels } from "./Tile";
 import { pointsOnly } from "@shared/mahjong/coins";
 import { Arrive, Punch } from "./Motion";
@@ -41,6 +40,8 @@ type TableProps = {
   busy: boolean;
   forCoins: boolean;
   minFaan: number;
+  turnSeconds: number;
+  claimSeconds: number;
   giveUpCost: number;
   chatLog: ReactNode;
   onMove: (move: Move) => void;
@@ -301,7 +302,7 @@ const Chip = ({ label, onPress, primary = false, children, testID, a11y }: { lab
 );
 
 /** What you can do right now, above your hand: claim a discard (5 seconds, and Pass), or win, kong or discard on your turn. */
-const ActionBar = ({ hand, mySeat, selected, now, busy, onMove }: { hand: HandView; mySeat: number; selected: number | null; now: number; busy: boolean; onMove: (move: Move) => void }) => {
+const ActionBar = ({ hand, mySeat, selected, now, busy, turnMs, claimMs, onMove }: { hand: HandView; mySeat: number; selected: number | null; now: number; busy: boolean; turnMs: number; claimMs: number; onMove: (move: Move) => void }) => {
   const mine = hand.mine;
   const stage = hand.stage;
   if (!mine || busy) return <View style={styles.actionBar} />;
@@ -323,7 +324,7 @@ const ActionBar = ({ hand, mySeat, selected, now, busy, onMove }: { hand: HandVi
             </Chip>
           ))}
         </View>
-        <Bar deadline={stage.deadline} total={CLAIM_MS} now={now} />
+        <Bar deadline={stage.deadline} total={claimMs} now={now} />
       </View>
     );
   }
@@ -342,7 +343,7 @@ const ActionBar = ({ hand, mySeat, selected, now, busy, onMove }: { hand: HandVi
           ))}
           <Text style={styles.hint}>{selected === null ? "Your turn: tap a tile, or slide one up to discard" : "Tap it again (or slide it up) to discard"}</Text>
         </View>
-        <Bar deadline={stage.deadline} total={TURN_MS} now={now} />
+        <Bar deadline={stage.deadline} total={turnMs} now={now} />
       </View>
     );
   }
@@ -388,23 +389,26 @@ const useEscape = (onEscape: () => void) => {
   }, [onEscape]);
 };
 
-const LeaveConfirm = ({ cost, onLeave, onStay }: { cost: number; onLeave: () => void; onStay: () => void }) => {
+const LeaveConfirm = ({ question, onLeave, onStay }: { question: NonNullable<ReturnType<typeof leaveQuestion>>; onLeave: () => void; onStay: () => void }) => {
   useEscape(onStay);
   return (
-  <View style={styles.resultWrap} testID="mahjong-give-up">
-    <View style={[styles.result, styles.resultBody]} accessibilityViewIsModal>
-      <Text style={styles.resultTitle} accessibilityRole="header">
-        Give up this hand?
-      </Text>
-      <Text style={styles.confirmText}>
-        {cost > 0 ? `You'll lose ${cost} SOW coin${cost === 1 ? "" : "s"}, shared between the other players, and a bot plays your seat for the rest of the hand.` : "You won't lose any SOW coins (a minimum win here is worth less than a coin, or nobody else is playing for coins). A bot plays your seat for the rest of the hand."}
-      </Text>
-      <View style={styles.resultButtons}>
-        <Chip label={cost > 0 ? `Give up (−${cost})` : "Give up"} onPress={onLeave} testID="mahjong-give-up-confirm" />
-        <Chip label="Stay" primary onPress={onStay} testID="mahjong-give-up-stay" />
+    <View style={styles.resultWrap} testID="mahjong-give-up">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onStay} accessibilityRole="button" accessibilityLabel="Stay" testID="mahjong-give-up-backdrop" />
+      <View style={[styles.result, styles.resultBody]} accessibilityViewIsModal>
+        <Text style={styles.resultTitle} accessibilityRole="header">
+          {question.title}
+        </Text>
+        {question.lines.map((line) => (
+          <Text key={line} style={styles.confirmText}>
+            {line}
+          </Text>
+        ))}
+        <View style={styles.resultButtons}>
+          <Chip label={question.leave} onPress={onLeave} testID="mahjong-give-up-confirm" />
+          <Chip label="Stay" primary onPress={onStay} testID="mahjong-give-up-stay" />
+        </View>
       </View>
     </View>
-  </View>
   );
 };
 
@@ -505,7 +509,7 @@ const freshAct = (act: Person["act"], now: number) => (act && now - act.at < EMO
  * each seat's bubble and emote show beside them. Watching (no seat), East
  * sits at the bottom and every hand is face down.
  */
-export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, people, muted, now, nameOf, top, bottom, busy, forCoins, minFaan, giveUpCost, chatLog, onMove, onAgain, onLeave }: TableProps) => {
+export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, people, muted, now, nameOf, top, bottom, busy, forCoins, minFaan, turnSeconds, claimSeconds, giveUpCost, chatLog, onMove, onAgain, onLeave }: TableProps) => {
   const { width: screenWidth } = useWindowDimensions();
   const [rows, setRows] = useWorldSetting("mahjongRows");
   const [labels, setLabels] = useWorldSetting("mahjongLabels");
@@ -520,9 +524,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [zoomed, setZoomed] = useState<number | null>(null);
+  const [mineHeight, setMineHeight] = useState(0);
   const stage = hand.stage;
   const myTurn = mySeat !== null && stage.kind === "turn" && stage.seat === mySeat && !busy;
-  const asked = mySeat !== null && stage.kind === "claim" && hand.mine?.offer != null && !hand.mine.answered;
   const selected = myTurn && chosen?.step === hand.step ? chosen.tile : null;
   const person = (seat: MahjongSeatView) => (seat.member ? people.find((p) => p.memberId === seat.member) : undefined);
   const lookOf = (seat: MahjongSeatView) => person(seat)?.look ?? null;
@@ -552,10 +556,12 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
     if (selected === tile) discard(tile);
     else setSelected({ tile, step: hand.step });
   };
+  const question = leaveQuestion(stage.kind, mySeat !== null, forCoins, giveUpCost);
   const leave = () => {
-    if (mySeat !== null && forCoins && stage.kind !== "over") setConfirming(true);
+    if (question) setConfirming(true);
     else onLeave();
   };
+  const shownZoom = zoomShown(zoomed, stage.kind);
   const seatBlock = (i: number, vertical: boolean, turn = 0) => (
     <SeatBlock
       seat={seats[i]}
@@ -582,7 +588,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
     ) : (
       <River seat={hand.seats[i]} index={i} name={names[i]} lastDiscard={lastDiscard} zone={zone} from={stage.kind === "claim" && stage.from === i} calm={calm} onOpen={setZoomed} />
     );
-  const title = `${isMahjongTable(table) ? MAHJONG_TABLE_NAMES[table] : "Mahjong"} · ${roundWords(hand.roundWind)} · Hand ${handNo}`;
+  const title = `${isMahjongTable(table) ? MAHJONG_TABLE_NAMES[table] : "Mahjong"} · ${roundWords(hand.roundWind)} · Hand ${handNo} · ${turnSeconds}s/${claimSeconds}s`;
   return (
     <TileLabels.Provider value={labels === "on"}>
     <View style={[StyleSheet.absoluteFill, styles.screen, gradientStyle(`radial-gradient(circle at 50% 45%, ${m.feltLight} 0%, ${m.felt} 55%, ${m.feltDark} 100%)`)]} testID={mySeat === null ? "mahjong-watching" : "mahjong-table"} accessibilityViewIsModal>
@@ -638,7 +644,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             </View>
           ) : null}
         </View>
-        <View style={[styles.mine, { paddingBottom: bottom }]}>
+        <View style={[styles.mine, { paddingBottom: bottom }]} onLayout={(e) => setMineHeight(Math.ceil(e.nativeEvent.layout.height))}>
           <View style={[styles.mineTop, { height: 2 * (layout.myMeld * TILE_RATIO + 4) + 4 }]}>
             <View style={[styles.myPlate, active === viewer && styles.seatActive]} accessible accessibilityLabel={`${names[viewer]}, ${windWords(hand.seats[viewer].wind)}${viewer === hand.dealer ? ", dealer" : ""}, ${forCoins ? "coins" : "points"} ${coinsWords(seats[viewer].net)}`} testID="mahjong-plate-bottom">
               <View>
@@ -652,7 +658,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             </View>
             <Melds melds={hand.seats[viewer].melds} width={layout.myMeld} calm={calm} testID="mahjong-melds-bottom" />
           </View>
-          <View style={{ height: mySeat === null ? 8 : ACTION_HEIGHT, justifyContent: "flex-end" }}>{mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} now={now} busy={busy} onMove={onMove} /> : null}</View>
+          <View style={{ height: mySeat === null ? 8 : ACTION_HEIGHT, justifyContent: "flex-end" }}>{mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} now={now} busy={busy} turnMs={turnSeconds * 1000} claimMs={claimSeconds * 1000} onMove={onMove} /> : null}</View>
           <View style={[styles.handRows, { minHeight: (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.4 }]} testID="mahjong-hand">
             {mySeat === null ? (
               <View style={styles.hand}>
@@ -671,13 +677,15 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
         </View>
       </View>
       <Callout hand={hand} names={names} calm={calm} />
-      {zoomed !== null && !myTurn && !asked && stage.kind !== "over" ? (
-        <Zoom seat={hand.seats[zoomed]} index={zoomed} name={names[zoomed]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(zoomed)} onClose={() => setZoomed(null)} />
+      {shownZoom !== null ? (
+        <View style={[styles.zoomArea, { bottom: mineHeight }]} pointerEvents="box-none">
+          <Zoom seat={hand.seats[shownZoom]} index={shownZoom} name={names[shownZoom]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(shownZoom)} onClose={() => setZoomed(null)} />
+        </View>
       ) : null}
       <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} minFaan={minFaan} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
-      {confirming && stage.kind !== "over" ? (
+      {confirming && question ? (
         <LeaveConfirm
-          cost={giveUpCost}
+          question={question}
           onStay={() => setConfirming(false)}
           onLeave={() => {
             setConfirming(false);
@@ -744,6 +752,7 @@ const styles = StyleSheet.create({
   centreStake: { fontSize: 11, fontWeight: "800", color: m.muted },
   centreCoins: { color: m.win },
   introBox: { alignItems: "center", justifyContent: "center" },
+  zoomArea: { position: "absolute", left: 0, right: 0, top: 0 },
   zoomHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   zoomTitle: { flex: 1, textAlign: "left" },
   zoomTiles: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, justifyContent: "center" },

@@ -1,7 +1,7 @@
 import { worldColours } from "@/worldColours";
 import { fonts } from "@/theme";
 import type { Move } from "@shared/mahjong/play";
-import { mahjongSeatId, type MahjongTableId } from "@shared/mahjong/table";
+import { CLAIM_SECONDS, mahjongSeatId, TURN_SECONDS, type MahjongTableId } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
@@ -242,6 +242,8 @@ export const MahjongLayer = ({
           busy={busy}
           forCoins={mine.settings.coins === true}
           minFaan={mine.settings.minFaan}
+          turnSeconds={mine.settings.turnSeconds ?? TURN_SECONDS.fallback}
+          claimSeconds={mine.settings.claimSeconds ?? CLAIM_SECONDS.fallback}
           giveUpCost={mine.giveUpCost}
           chatLog={chatLog}
           onMove={move}
@@ -269,6 +271,8 @@ export const MahjongLayer = ({
           busy={false}
           forCoins={watching.settings.coins === true}
           minFaan={watching.settings.minFaan}
+          turnSeconds={watching.settings.turnSeconds ?? TURN_SECONDS.fallback}
+          claimSeconds={watching.settings.claimSeconds ?? CLAIM_SECONDS.fallback}
           giveUpCost={0}
           chatLog={chatLog}
           onMove={() => undefined}

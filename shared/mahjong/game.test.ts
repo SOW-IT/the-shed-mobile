@@ -4,7 +4,6 @@ import {
   actors,
   answerClaim,
   begin,
-  CLAIM_MS,
   deadlineOf,
   declareKong,
   discard,
@@ -21,12 +20,13 @@ import {
   type Hand,
 } from "./game";
 import { applyMove, botMove, playBots } from "./play";
-import { DEFAULT_SETTINGS, validSettings, type Settings } from "./table";
+import { claimMsOf, DEFAULT_SETTINGS, turnMsOf, validSettings, type Settings } from "./table";
 import { counts, kinds, seeded, tilesOf } from "./testTiles";
 import { countsOf, kindOf, TILE_COUNT } from "./tiles";
 import { HIDDEN, viewHand } from "./view";
 
 const NOW = 1_000_000;
+const CLAIM_MS = 5000;
 
 /**
  * A hand set up by hand: each seat's concealed tiles, the wall in draw
@@ -97,6 +97,34 @@ describe("settings and payouts", () => {
       { from: 1, to: 2, points: 4 },
     ]);
     expect(paysFor(0, null, 1)[0].points).toBe(1);
+  });
+});
+
+describe("turn and claim times", () => {
+  it("accepts whole seconds from 10 to 60 a turn and 3 to 15 to claim, and nothing else", () => {
+    for (const turnSeconds of [10, 60]) expect(validSettings({ ...DEFAULT_SETTINGS, turnSeconds })).toBe(true);
+    for (const turnSeconds of [9, 61, 20.5]) expect(validSettings({ ...DEFAULT_SETTINGS, turnSeconds })).toBe(false);
+    for (const claimSeconds of [3, 15]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(true);
+    for (const claimSeconds of [2, 16, 4.5]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(false);
+  });
+
+  it("defaults to 30 seconds a turn and 5 to claim, for new tables and settings saved without them", () => {
+    expect([DEFAULT_SETTINGS.turnSeconds, DEFAULT_SETTINGS.claimSeconds]).toEqual([30, 5]);
+    const old = { minFaan: 3, maxFaan: 10, stake: 1 };
+    expect([turnMsOf(old), claimMsOf(old)]).toEqual([30_000, 5000]);
+  });
+
+  it.each([
+    [10, 3],
+    [60, 15],
+  ])("gives a %i second turn and a %i second claim, and times out on them", (turnSeconds, claimSeconds) => {
+    const hand = rig({ hands: ["123p 456p 789p 2s RG", "13s 99m", "33s 88m", "4s 77m"], wall: "1m 1m 5p", settings: { turnSeconds, claimSeconds } });
+    const claim = ok(discard(hand, 0, tileIn(hand, 0, "2s"), NOW));
+    expect(claim.stage).toMatchObject({ kind: "claim", deadline: NOW + claimSeconds * 1000 });
+    const passed = ok(timeOut(claim, NOW + claimSeconds * 1000));
+    expect(passed.stage).toMatchObject({ kind: "turn", seat: 1, deadline: NOW + claimSeconds * 1000 + turnSeconds * 1000 });
+    const thrown = ok(timeOut(passed, NOW + claimSeconds * 1000 + turnSeconds * 1000));
+    expect(thrown.seats[1].discards).toHaveLength(1);
   });
 });
 

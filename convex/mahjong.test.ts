@@ -372,6 +372,30 @@ describe("a hand", () => {
     void anna;
   });
 
+  test("a table's own turn and claim times set the clocks, and bots answer inside a 3 second claim", async () => {
+    const { t, anna } = await twoAndTwoBots({ ...DEFAULT_SETTINGS, turnSeconds: 10, claimSeconds: 3 });
+    const row = await handRow(t);
+    const until = row.state.stage.kind === "intro" ? row.state.stage.until : 0;
+    vi.setSystemTime(until);
+    await t.mutation(internal.mahjong.tick, { tableId: row.tableId, beat: row.beat, handNo: row.handNo });
+    const turn = (await handRow(t)).state.stage;
+    expect(turn).toMatchObject({ kind: "turn", deadline: until + 10_000 });
+    await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
+    const rigged = await handRow(t);
+    const state = structuredClone(rigged.state);
+    const [red, red2, red3] = [124, 125, 126];
+    for (const s of state.seats) s.hand = s.hand.filter((x) => x !== red2 && x !== red3);
+    state.seats[0].hand = state.seats[0].hand.filter((x) => x !== red);
+    state.seats[2].hand = [...state.seats[2].hand.slice(0, 11), red2, red3];
+    state.stage = { kind: "claim", from: 0, tile: red, deadline: Date.now() + 3000, rob: false, offers: [null, null, { hu: false, pong: true, kong: false, chows: [] }, null], answers: [null, null, null, null] };
+    await t.run((ctx) => ctx.db.patch("mahjongHands", rigged._id, { state, beat: rigged.beat + 1 }));
+    vi.setSystemTime(Date.now() + BOT_MS);
+    await t.mutation(internal.mahjong.tick, { tableId: rigged.tableId, beat: rigged.beat + 1, handNo: rigged.handNo });
+    expect((await handRow(t)).state.stage.kind).toBe("turn");
+    expect(await t.mutation(api.mahjong.setSettings, { settings: { ...DEFAULT_SETTINGS, turnSeconds: 61 } }).catch((e: Error) => e.message)).toContain("Those settings don't work");
+    void anna;
+  });
+
   test("a stale tick does nothing", async () => {
     const { t } = await twoAndTwoBots();
     const before = await handRow(t);

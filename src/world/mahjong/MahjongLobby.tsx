@@ -3,7 +3,7 @@ import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { FAAN_LIMITS, MIN_FAAN_CHOICES, type Settings } from "@shared/mahjong/table";
+import { CLAIM_SECONDS, FAAN_LIMITS, MIN_FAAN_CHOICES, TURN_SECONDS, type Settings } from "@shared/mahjong/table";
 import { isMahjongTable, MAHJONG_TABLE_NAMES, seatPlace } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
@@ -17,7 +17,10 @@ const { hud } = worldColours;
 const ROWS = 8;
 
 const minWords = (min: number) => (min === 0 ? "0 faan (chicken hand)" : `${min} faan`);
-const rulesWords = (s: Settings) => `${minWords(s.minFaan)} to win, ${s.maxFaan} faan cap · ${s.coins === true ? "For SOW coins, 8 points a coin" : "For points, no coins"}`;
+const turnOf = (s: Settings) => s.turnSeconds ?? TURN_SECONDS.fallback;
+const claimOf = (s: Settings) => s.claimSeconds ?? CLAIM_SECONDS.fallback;
+const nextOf = (choices: readonly number[], value: number) => choices[(choices.indexOf(value) + 1) % choices.length];
+const rulesWords = (s: Settings) => `${minWords(s.minFaan)} to win, ${s.maxFaan} faan cap · ${turnOf(s)} s a turn, ${claimOf(s)} s to claim · ${s.coins === true ? "For SOW coins, 8 points a coin" : "For points, no coins"}`;
 
 const Pill = ({ label, onPress, primary = false, disabled = false, testID, a11y }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID: string; a11y?: string }) => (
   <Pressable
@@ -162,6 +165,14 @@ export const MahjongLobby = ({
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Faan cap</Text>
                 <Stepper value={settings.maxFaan} min={settings.minFaan} max={FAAN_LIMITS.max} label="faan cap" onChange={(maxFaan) => change({ maxFaan })} testID="mahjong-max-faan" />
+              </View>
+              <View style={styles.setting}>
+                <Text style={styles.settingName}>Seconds a turn</Text>
+                <Pill label={`${turnOf(settings)} s`} onPress={() => change({ turnSeconds: nextOf(TURN_SECONDS.choices, turnOf(settings)) })} testID="mahjong-turn-seconds" a11y={`Seconds a turn: ${turnOf(settings)}. Tap to change`} />
+              </View>
+              <View style={styles.setting}>
+                <Text style={styles.settingName}>Seconds to chow, pong or win</Text>
+                <Pill label={`${claimOf(settings)} s`} onPress={() => change({ claimSeconds: nextOf(CLAIM_SECONDS.choices, claimOf(settings)) })} testID="mahjong-claim-seconds" a11y={`Seconds to claim a discard: ${claimOf(settings)}. Tap to change`} />
               </View>
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Play for SOW coins</Text>

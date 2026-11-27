@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handRows, tileIndex, claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
+import { handRows, leaveQuestion, tileIndex, zoomShown, claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
 
 describe("the table's words", () => {
   it("puts you at the bottom and the next seat on your right", () => {
@@ -89,5 +89,31 @@ describe("a hand in two rows", () => {
   it("splits a hand with no drawn tile, or one after melds, evenly", () => {
     expect(handRows(tiles.slice(0, 13), null, true).map((r) => r.length)).toEqual([7, 6]);
     expect(handRows([1, 5, 9, 13, 17], 17, true)).toEqual([[1, 5], [9, 13, 17]]);
+  });
+});
+
+describe("asking before leaving a hand", () => {
+  it("asks during a hand that a bot will take the seat, and doesn't ask after it or when watching", () => {
+    expect(leaveQuestion("turn", true, false, 0)).toEqual({ title: "Leave the table?", lines: ["A bot plays your seat until you sit back down."], leave: "Leave" });
+    expect(leaveQuestion("intro", true, false, 0)?.title).toBe("Leave the table?");
+    expect(leaveQuestion("over", true, false, 0)).toBeNull();
+    expect(leaveQuestion("turn", false, true, 3)).toBeNull();
+  });
+
+  it("adds what it costs when coins are on, or that it costs nothing", () => {
+    expect(leaveQuestion("claim", true, true, 2)).toEqual({
+      title: "Give up this hand?",
+      lines: ["A bot plays your seat for the rest of this hand.", "You'll lose 2 SOW coins, shared between the other players."],
+      leave: "Give up (−2)",
+    });
+    expect(leaveQuestion("turn", true, true, 0)?.lines[1]).toBe("You won't lose any SOW coins.");
+  });
+});
+
+describe("the zoom on someone's discards", () => {
+  it("stays open on your turn or a claim, and closes only when the hand is over", () => {
+    expect(["intro", "turn", "claim"].map((stage) => zoomShown(2, stage))).toEqual([2, 2, 2]);
+    expect(zoomShown(2, "over")).toBeNull();
+    expect(zoomShown(null, "turn")).toBeNull();
   });
 });

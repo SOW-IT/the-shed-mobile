@@ -1,6 +1,6 @@
 import { cappedFaan, scoreWin, type FaanLine, type MeldShape, type Scored } from "./faan";
 import { isComplete } from "./hand";
-import type { Settings } from "./table";
+import { claimMsOf, turnMsOf, type Settings } from "./table";
 import { allTiles, countsOf, isSuited, kindOf, shuffled, sortTiles, suitOf } from "./tiles";
 
 /**
@@ -16,8 +16,7 @@ import { allTiles, countsOf, isSuited, kindOf, shuffled, sortTiles, suitOf } fro
 
 const SEATS = 4;
 export const INTRO_MS = 5200;
-export const TURN_MS = 20_000;
-export const CLAIM_MS = 5000;
+export const TURN_MS = 30_000;
 
 
 type Meld = { type: "chow" | "pong" | "kong"; kind: number; tiles: number[]; concealed?: boolean; from?: number; claimed?: number };
@@ -142,21 +141,21 @@ export const newHand = ({
 /** The dice and deal have played: the dealer's turn, holding 14. */
 export const begin = (hand: Hand, now: number): Step => {
   if (hand.stage.kind !== "intro") return fail("The hand has started.");
-  return { ok: true, hand: { ...hand, stage: { kind: "turn", seat: hand.dealer, drawn: null, deadline: now + TURN_MS, replacement: false, claimed: false } } };
+  return { ok: true, hand: { ...hand, stage: { kind: "turn", seat: hand.dealer, drawn: null, deadline: now + turnMsOf(hand.settings), replacement: false, claimed: false } } };
 };
 
 const turnFor = (hand: Hand, seat: number, now: number): Hand => {
   const drawn = drawInto(hand, seat, false);
   if (!drawn) return drawnGame(hand);
   const next = stamp(drawn.hand, { kind: "draw", seat, tile: drawn.tile });
-  return { ...next, stage: { kind: "turn", seat, drawn: drawn.tile, deadline: now + TURN_MS, replacement: false, claimed: false } };
+  return { ...next, stage: { kind: "turn", seat, drawn: drawn.tile, deadline: now + turnMsOf(hand.settings), replacement: false, claimed: false } };
 };
 
 const replacementFor = (hand: Hand, seat: number, now: number, event: Omit<GameEvent, "step">): Hand => {
   const stamped = stamp(hand, event);
   const drawn = drawInto(stamped, seat, true);
   if (!drawn) return drawnGame(stamped);
-  return { ...drawn.hand, stage: { kind: "turn", seat, drawn: drawn.tile, deadline: now + TURN_MS, replacement: true, claimed: false } };
+  return { ...drawn.hand, stage: { kind: "turn", seat, drawn: drawn.tile, deadline: now + turnMsOf(hand.settings), replacement: true, claimed: false } };
 };
 
 type WinFlags = { selfDrawn: boolean; kongWin?: boolean; lastTile?: boolean; robbedKong?: boolean; heavenly?: boolean; earthly?: boolean };
@@ -255,7 +254,7 @@ const discardOffers = (hand: Hand, from: number, tile: number, rob: boolean): (O
 const openClaims = (hand: Hand, from: number, tile: number, rob: boolean, now: number): Hand | null => {
   const offers = discardOffers(hand, from, tile, rob);
   if (offers.every((o) => o === null)) return null;
-  return { ...hand, stage: { kind: "claim", from, tile, deadline: now + CLAIM_MS, rob, offers, answers: offers.map(() => null) } };
+  return { ...hand, stage: { kind: "claim", from, tile, deadline: now + claimMsOf(hand.settings), rob, offers, answers: offers.map(() => null) } };
 };
 
 export const discard = (hand: Hand, seat: number, tile: number, now: number): Step => {
@@ -334,14 +333,14 @@ export const resolveClaims = (hand: Hand, now: number): Step => {
     const claimed = claimMeld(hand, big, from, tile, used, isKong ? "kong" : "pong");
     if (isKong) return { ok: true, hand: replacementFor(claimed, big, now, { kind: "kong", seat: big, tile }) };
     const next = stamp(claimed, { kind: "pong", seat: big, tile });
-    return { ok: true, hand: { ...next, stage: { kind: "turn", seat: big, drawn: null, deadline: now + TURN_MS, replacement: false, claimed: true } } };
+    return { ok: true, hand: { ...next, stage: { kind: "turn", seat: big, drawn: null, deadline: now + turnMsOf(hand.settings), replacement: false, claimed: true } } };
   }
   const chower = order.find((seat) => answers[seat]?.kind === "chow");
   if (chower !== undefined) {
     const answer = answers[chower] as Extract<Answer, { kind: "chow" }>;
     const used = stage.offers[chower]!.chows[answer.option];
     const next = stamp(claimMeld(hand, chower, from, tile, used, "chow"), { kind: "chow", seat: chower, tile });
-    return { ok: true, hand: { ...next, stage: { kind: "turn", seat: chower, drawn: null, deadline: now + TURN_MS, replacement: false, claimed: true } } };
+    return { ok: true, hand: { ...next, stage: { kind: "turn", seat: chower, drawn: null, deadline: now + turnMsOf(hand.settings), replacement: false, claimed: true } } };
   }
   return { ok: true, hand: turnFor({ ...hand, stage: { ...stage } }, nextSeat(from), now) };
 };

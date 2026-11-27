@@ -29,8 +29,13 @@ export type TableSeat =
   | { kind: "bot"; name: string };
 
 /** A table's rules, which the host sets in the lobby: 3 to 10 faan, flowers, 1 coin a point. */
-export type Settings = { minFaan: number; maxFaan: number; stake: number; coins?: boolean };
-export const DEFAULT_SETTINGS: Settings = { minFaan: 0, maxFaan: 10, stake: 1, coins: false };
+export type Settings = { minFaan: number; maxFaan: number; stake: number; coins?: boolean; turnSeconds?: number; claimSeconds?: number };
+export const TURN_SECONDS = { choices: [10, 15, 20, 30, 45, 60], fallback: 30, min: 10, max: 60 } as const;
+export const CLAIM_SECONDS = { choices: [3, 5, 8, 10, 15], fallback: 5, min: 3, max: 15 } as const;
+export const DEFAULT_SETTINGS: Settings = { minFaan: 0, maxFaan: 10, stake: 1, coins: false, turnSeconds: TURN_SECONDS.fallback, claimSeconds: CLAIM_SECONDS.fallback };
+export const turnMsOf = (s: Settings) => (s.turnSeconds ?? TURN_SECONDS.fallback) * 1000;
+export const claimMsOf = (s: Settings) => (s.claimSeconds ?? CLAIM_SECONDS.fallback) * 1000;
+const wholeIn = (value: number | undefined, range: { min: number; max: number }) => value === undefined || (Number.isInteger(value) && value >= range.min && value <= range.max);
 export const FAAN_LIMITS = { min: 0, max: 13 } as const;
 export const MIN_FAAN_CHOICES = [0, 1, 3] as const;
 const STAKES = [1, 2, 5] as const;
@@ -43,7 +48,9 @@ export const validSettings = (s: Settings) =>
   s.minFaan >= FAAN_LIMITS.min &&
   s.maxFaan <= FAAN_LIMITS.max &&
   s.minFaan <= s.maxFaan &&
-  (STAKES as readonly number[]).includes(s.stake);
+  (STAKES as readonly number[]).includes(s.stake) &&
+  wholeIn(s.turnSeconds, TURN_SECONDS) &&
+  wholeIn(s.claimSeconds, CLAIM_SECONDS);
 
 export const EMPTY_SEAT: TableSeat = { kind: "empty" };
 export const emptySeats = (): TableSeat[] => [EMPTY_SEAT, EMPTY_SEAT, EMPTY_SEAT, EMPTY_SEAT];

@@ -72,3 +72,12 @@ export const handRows = (tiles: readonly number[], drawn: number | null, twoRows
   const bottom = [...held.slice(top), ...(drawn !== null && tiles.includes(drawn) ? [drawn] : [])];
   return [held.slice(0, top), bottom];
 };
+
+export const leaveQuestion = (stage: string, seated: boolean, forCoins: boolean, cost: number) => {
+  if (!seated || stage === "over") return null;
+  const bot = forCoins ? "A bot plays your seat for the rest of this hand." : "A bot plays your seat until you sit back down.";
+  const coins = !forCoins ? null : cost > 0 ? `You'll lose ${cost} SOW coin${cost === 1 ? "" : "s"}, shared between the other players.` : "You won't lose any SOW coins.";
+  return { title: forCoins ? "Give up this hand?" : "Leave the table?", lines: coins ? [bot, coins] : [bot], leave: forCoins && cost > 0 ? `Give up (−${cost})` : "Leave" };
+};
+
+export const zoomShown = (zoomed: number | null, stage: string) => (stage === "over" ? null : zoomed);

@@ -5,7 +5,7 @@ import { internalMutation, mutation, query, type MutationCtx } from "./_generate
 import { CAFE_PLACE } from "../shared/cafeGames";
 import { START_COINS } from "../shared/coins";
 import { coinsToSit, giveUpCoins, pointsOnly, settle, splitAmong } from "../shared/mahjong/coins";
-import { actors, begin, CLAIM_MS, deadlineOf, newHand, nextDealer, timeOut, TURN_MS, type Hand, type Result } from "../shared/mahjong/game";
+import { actors, begin, deadlineOf, newHand, nextDealer, timeOut, type Hand, type Result } from "../shared/mahjong/game";
 import { applyMove, playBots, type Move } from "../shared/mahjong/play";
 import { viewHand } from "../shared/mahjong/view";
 import {
@@ -28,6 +28,8 @@ import {
   seatOfEmail,
   tableFull,
   type MahjongTableId,
+  claimMsOf,
+  turnMsOf,
   type Settings,
   type TableSeat,
 } from "../shared/mahjong/table";
@@ -163,9 +165,11 @@ const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, no
   // Back in your seat on your own turn: a fresh clock, so the tile isn't thrown for you the moment you sit.
   const stage = row.state.stage;
   const bots = botControlled(table.seats);
-  const back = stage.kind === "turn" && stage.seat === regained && !bots[stage.seat] && stage.deadline < now + TURN_MS / 2;
-  const claimBack = stage.kind === "claim" && regained !== undefined && !bots[regained] && actors(row.state).includes(regained) && stage.deadline < now + CLAIM_MS / 2;
-  const hand = back || claimBack ? { ...row.state, stage: { ...stage, deadline: now + (back ? TURN_MS : CLAIM_MS) } } : row.state;
+  const turnMs = turnMsOf(row.state.settings);
+  const claimMs = claimMsOf(row.state.settings);
+  const back = stage.kind === "turn" && stage.seat === regained && !bots[stage.seat] && stage.deadline < now + turnMs / 2;
+  const claimBack = stage.kind === "claim" && regained !== undefined && !bots[regained] && actors(row.state).includes(regained) && stage.deadline < now + claimMs / 2;
+  const hand = back || claimBack ? { ...row.state, stage: { ...stage, deadline: now + (back ? turnMs : claimMs) } } : row.state;
   await saveHand(ctx, { ...table, allAwayAt }, row, hand, now);
 };
 

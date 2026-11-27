@@ -13,7 +13,9 @@ All notable changes to **The SHED** mobile app. This project follows
   an empty table and you host it. Its lobby is the arcade's panel: four
   seats (East, South, West, North), Add bot and Remove for the host, the
   rules (the minimum faan to win, 0 for a chicken hand by default, or 1 or
-  3; a 10 faan cap; and a Play for SOW coins switch, off by default), and
+  3; a 10 faan cap; 30 seconds a turn, from 10 to 60; 5 seconds to chow,
+  pong or win, from 3 to 15; and a Play for SOW coins switch, off by
+  default), and
   Start game once every seat has a person or a bot. The host passes to
   the next person seated if they get up before the start. The rules stay
   until the table empties and can only change between hands.
@@ -33,7 +35,9 @@ All notable changes to **The SHED** mobile app. This project follows
   players to the left and right run theirs down the sides. Every player's
   discards sit in front of them toward a small counter in the middle, the
   newest lit, in spaces that never move as discards pile up. Tap anyone's
-  discards to see them big. Tiles look like real ones (circle dots, bamboo
+  discards to see them big, even on your turn or with a claim waiting;
+  your hand, clock and claim buttons stay usable below it. Tiles look like
+  real ones (circle dots, bamboo
   sticks with a bird on the 1, blue numerals over a red 萬, blue winds, a
   red 中, a green 發, a framed white dragon, orange backs) with a small
   1 to 9, E S W N or C F P in the corner. Tap a tile to lift it and tap it
@@ -48,11 +52,14 @@ All notable changes to **The SHED** mobile app. This project follows
   or collects. The discarder pays a win off their tile in full; a
   self-drawn win is paid half each by the other people at the table.
   Nobody pays more than they have.
-- **Giving up costs coins when they're on the line.** Leaving mid-hand asks
-  first and says what it costs: what a minimum win off your discard would,
-  shared between the other people at the table. A bot then plays your
-  seat. Walking off or closing the app and not coming back before the hand
-  ends costs the same.
+- **Leaving a hand asks first.** Getting up from the table mid-hand says a
+  bot will play your seat until you sit back down, with Stay and Leave.
+  When coins are on, leaving gives the hand up: the same question also says
+  what it costs, what a minimum win off your discard would, shared between
+  the other people at the table, and the bot plays your seat for the rest
+  of the hand. In the lobby and after a hand, leaving doesn't ask. With
+  coins on, walking off or closing the app and not coming back before the
+  hand ends costs the same.
 - **Chat, emotes, watching and joining mid-hand.** The room's chat shows in
   two lines at the top of the table and as bubbles above each player, and
   the World's chat bar and emotes stay at the bottom; typing floats the
