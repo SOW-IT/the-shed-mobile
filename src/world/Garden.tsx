@@ -44,7 +44,7 @@ import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
 import type { PlayingTag } from "./cafe";
 import { duelLookFor, type DuelView } from "./duel";
-import { planClock, shouldRefreshClock, useFrameTicks } from "./frameClock";
+import { AMBIENT_FRAME_MS, planClock, shouldRefreshClock, useFrameTicks } from "./frameClock";
 import { tagShown, useBatterySaver, useWorldName, useWorldSetting } from "./settings";
 import { layerOrder } from "./tags";
 import { tapTarget } from "./personHit";
@@ -430,6 +430,9 @@ export const Garden = ({
     const pose = poses[i];
     return pose ? !sitting[i] && !p.away && inWater(place, pose) : false;
   });
+  // Everyone standing about breathes and sways a little, at the gentle
+  // ambient rate; not on battery saver.
+  const swaying = !saver && !paused && (npcHere || people.some((p, i) => !p.away && Boolean(poses[i])));
   const animating =
     poses.some((pose) => pose && (pose.walking || pose.strideAmp > 0 || pose.turning)) ||
     swimmers.some((swimming, i) => swimming && poses[i]?.walking === true) ||
@@ -443,7 +446,7 @@ export const Garden = ({
   useFrameTicks(
     planClock({
       moving: animating,
-      ambient: swimmers.some(Boolean),
+      ambient: swimmers.some(Boolean) || swaying,
       paused,
       now,
       saver,
@@ -465,6 +468,10 @@ export const Garden = ({
     setClockAt
   );
   const t = now / 1000;
+  // Standing still, the sway only needs the ambient rate: this clock moves
+  // 15 times a second, so a standing avatar's memo holds while someone else
+  // walks at full rate.
+  const ambientT = (Math.floor(now / AMBIENT_FRAME_MS) * AMBIENT_FRAME_MS) / 1000;
   const mine = me >= 0 ? poses[me] : null;
   const press = useRef<{
     x: number;
@@ -636,7 +643,7 @@ export const Garden = ({
   const actors: { depth: number; key: string; node: ReactNode; tag?: boolean }[] = [...propActors];
   if (npcHere) {
     const figure = figureFor(cam, NPC_POSE);
-    actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={0} seed={3} /> });
+    actors.push({ depth: figure.foot.depth, key: NPC.id, node: <Avatar figure={figure} pose={NPC_POSE} look={NPC.look} t={swaying ? ambientT : 0} seed={3} sway={swaying} /> });
     const head = cam.project([NPC.x, headTop(NPC.look), NPC.z]);
     actors.push({ depth: figure.foot.depth, key: `${NPC.id}:tag`, tag: true, node: <Tag x={head.x} y={head.y} name={NPC_TAG} me={false} npc emoteRise={0} /> });
   }
@@ -822,7 +829,7 @@ export const Garden = ({
           <Avatar figure={figure} pose={turned} look={p.look} t={0} seed={seed} stride={stride} />
         </View>
       ) : (
-        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || d || (swimming && !saver) ? t : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} />
+        <Avatar figure={figure} pose={turned} look={p.look} t={pose.walking || pose.strideAmp > 0 || d || (swimming && !saver) ? t : swaying ? ambientT : 0} seed={seed} stride={stride} sit={seat?.height} doing={d} swim={swimming} talk={talking[i]} sway={swaying} />
       ),
     });
     const duelLook = duelLooks[i];
