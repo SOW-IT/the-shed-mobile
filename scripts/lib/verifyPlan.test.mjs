@@ -194,10 +194,18 @@ describe("planSweep", () => {
     expect(plan.routes).toEqual(allRoutes(realMap));
   });
 
-  test("does not trigger a full sweep for tooling test files alone", () => {
-    const plan = planSweep({ changed: ["scripts/lib/verifyPlan.test.mjs"], map: realMap });
-    expect(plan.run).toBe(false);
-    expect(plan.tier).toBe("static");
+  test("does not trigger a full sweep for tooling test files or feature-map updates alone", () => {
+    const testOnly = planSweep({ changed: ["scripts/lib/verifyPlan.test.mjs"], map: realMap });
+    expect(testOnly.run).toBe(false);
+    expect(testOnly.tier).toBe("static");
+
+    const featurePlusMap = planSweep({
+      changed: ["src/world/Person.tsx", "scripts/verify/feature-map.json"],
+      map: realMap,
+    });
+    expect(featurePlusMap.run).toBe(true);
+    expect(featurePlusMap.tier).toBe("scoped");
+    expect(featurePlusMap.areas).toEqual(["world"]);
   });
 
   test("runs every screen when full is requested (push to main)", () => {

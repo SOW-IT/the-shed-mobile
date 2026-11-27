@@ -32,6 +32,8 @@ export const isVersionOnlyDiff = (diff) => {
 /**
  * Sweep and CI files that live under `static` in the feature map, but should
  * still trigger a full CI web sweep whenever a PR changes them.
+ * `scripts/verify/feature-map.json` is deliberately excluded because feature
+ * PRs routinely add new files or checks there and should stay scoped.
  */
 export const SWEEP_TOOLING = [
   ".github/workflows/ci.yml",
@@ -41,7 +43,6 @@ export const SWEEP_TOOLING = [
   "scripts/sweep-plan.mjs",
   "scripts/lib/verifyPlan.mjs",
   "scripts/lib/stableFrames.mjs",
-  "scripts/verify/feature-map.json",
 ];
 
 /** Every route a full run opens, in map order. */
