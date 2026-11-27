@@ -1,0 +1,62 @@
+appId: au.org.sow.theshed
+---
+# The character editor's preview frames the part each tab changes. A
+# screenshot on each tab; the web check compares them. The seeded character
+# has no brows, mouth or extra, so it picks one of each; Close doesn't save.
+- openLink: "theshedmobile://world?sheet=character"
+- extendedWaitUntil:
+    visible:
+      id: world-editor-preview
+    timeout: 60000
+- tapOn:
+    id: world-editor-tab-face
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-face"
+- tapOn:
+    id: world-editor-tab-eyes
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-eyes"
+- tapOn:
+    id: world-editor-tab-brows
+- tapOn:
+    id: world-editor-brows-3
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-brows"
+- tapOn:
+    id: world-editor-tab-mouth
+- tapOn:
+    id: world-editor-mouth-1
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-mouth"
+- tapOn:
+    id: world-editor-tab-hair
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-hair"
+# A tap on the preview stops the wide shots turning on their own, so they're
+# taken facing you.
+- tapOn:
+    id: world-editor-preview
+- tapOn:
+    id: world-editor-tab-body
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-body"
+- tapOn:
+    id: world-editor-tab-outfit
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-outfit"
+- tapOn:
+    id: world-editor-tab-extras
+- tapOn:
+    id: world-editor-extra-6
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${OUT}/check-camera-extras"
+- tapOn:
+    id: world-editor-close

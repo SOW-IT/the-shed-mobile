@@ -114,6 +114,10 @@ export const places = {
     couch: "#5B8DB8",
     pot: "#C9603A",
     plant: "#5FA066",
+    felt: "#2F7A55",
+    feltEdge: "#7A4A2C",
+    tile: "#FFFEF8",
+    tileBack: "#3E8E6A",
   },
   home: {
     sky: "#EFE6D6",
@@ -500,6 +504,45 @@ export const shade = (hex: string, amount: number): string => {
   if (shadeCache.size >= SHADE_CACHE_MAX) shadeCache.clear();
   shadeCache.set(key, result);
   return result;
+};
+
+/** A mahjong bot's face: a screen with glowing eyes. The same in both themes, like the World. */
+export const botFace = { head: "#8FB7C9", face: "#21343D", eye: "#9BF0E1", edge: "#F5F3E3", antenna: "#F6D365" };
+
+/** The mahjong table: felt, wood, ivory tiles, and each suit's ink. The same in both themes. */
+export const mahjong = {
+  felt: "#1F5E45",
+  feltLight: "#2B7556",
+  feltDark: "#163F30",
+  rail: "#6B3F24",
+  tile: "#FFFDF4",
+  tileEdge: "#D9CFB4",
+  tileSide: "#E9C46A",
+  back: "#2F8F68",
+  backEdge: "#1E6A4C",
+  dots: "#2563B8",
+  bamboo: "#1E7F45",
+  characters: "#C0392B",
+  honour: "#1F2A2E",
+  flower: "#8E44AD",
+  lit: "#F6D365",
+  litSoft: "rgba(246, 211, 101, 0.35)",
+  text: "#F5F3E3",
+  muted: "rgba(245, 243, 227, 0.7)",
+  chip: "rgba(0, 0, 0, 0.28)",
+  win: "#F6D365",
+  lose: "#FFB4A6",
+  gain: "#9BF0B4",
+  shout: "#FFFFFF",
+  shoutEdge: "#C9603A",
+  face: "#FCFCFA",
+  faceEdge: "#D8D8D2",
+  faceSide: "#C9CCC4",
+  backOrange: "#F08419",
+  backOrangeEdge: "#C2620A",
+  inkBlue: "#2B2FA8",
+  inkGreen: "#1F6B45",
+  inkRed: "#C8193C",
 };
 
 /** 0xRRGGBB as "#rrggbb". */

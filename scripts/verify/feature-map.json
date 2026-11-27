@@ -275,7 +275,16 @@
         "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm,animals}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
-      "checks": ["chapel-pews", "arcade-podium", "rps-ask", "backyard-chat", "outfits", "eye-shapes"]
+      "checks": ["chapel-pews", "arcade-podium", "rps-ask", "backyard-chat", "outfits", "eye-shapes", "character-camera", "mahjong"]
+    },
+    "mahjong": {
+      "files": [
+        "shared/mahjong/**",
+        "convex/{mahjong,mahjongData}.ts",
+        "src/world/mahjong/**"
+      ],
+      "routes": ["/world", "/world?sheet=arcade"],
+      "checks": ["mahjong"]
     },
     "devotionals": {
       "files": [
