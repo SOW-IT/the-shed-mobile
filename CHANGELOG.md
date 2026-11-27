@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.58] - 2026-11-27
+
+### Changed
+- **Renaming an animal starts with a Rename button, which is greyed out
+  without a name tag.** Each animal in a coop or barn had a small tag icon
+  that opened the name field even with no name tags, and only then said to
+  get one from Josh. The row now has a labelled Rename button. With no name
+  tags it can't be tapped, and the sheet says that renaming uses a name tag
+  from Josh. With a tag, it opens the name field as before, and saving still
+  uses one tag. The server still refuses a rename without a tag.
+
 ## [2.13.55] - 2026-11-27
 
 ### Fixed

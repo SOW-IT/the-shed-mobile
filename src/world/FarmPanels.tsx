@@ -572,19 +572,26 @@ export const PenSheet = ({
                       setError(null);
                       setRenaming({ id: a.id, name: a.name });
                     }}
+                    disabled={nameTags < 1}
                     hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel={`Rename ${a.name}`}
+                    accessibilityHint={nameTags < 1 ? `Needs a name tag from ${josh}` : undefined}
                     testID={`world-rename-${a.id}`}
-                    style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.renameButton, nameTags < 1 && styles.buyOff, pressed && styles.pressed]}
                   >
-                    <Ionicons name="pricetag-outline" size={16} color={glass.text} />
+                    <Ionicons name="pricetag-outline" size={14} color={glass.text} />
+                    <Text style={styles.renameText}>Rename</Text>
                   </Pressable>
                 </>
               )}
             </Animated.View>
           ))}
-          {renaming && nameTags < 1 ? <Text style={styles.muted}>Get a name tag from {josh}</Text> : null}
+          {here.length > 0 && nameTags < 1 ? (
+            <Text style={styles.muted} testID="world-rename-hint">
+              Renaming uses a name tag. Get one from {josh}.
+            </Text>
+          ) : null}
           {space ? (
             <Animated.View style={[styles.newRow, itemStyle(overlay, 1 + here.length)]}>
               <AnimalThumb kind={animalKind} stage={0} size={44} />
@@ -668,5 +675,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: 38, paddingHorizontal: 12, borderRadius: 12, backgroundColor: glass.rowPressed, color: glass.text, fontSize: 15, fontWeight: "700" },
   tagButton: { flexDirection: "row", alignItems: "center", gap: 4, height: 38, paddingHorizontal: 10, borderRadius: 19, backgroundColor: hud.accent },
   tagButtonText: { color: hud.onAccent, fontWeight: "800", fontSize: 14 },
+  renameButton: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 10, borderRadius: 15, backgroundColor: glass.rowPressed },
+  renameText: { color: glass.text, fontWeight: "800", fontSize: 13 },
   buySmall: { flexDirection: "row", alignItems: "center", gap: 5, height: 38, paddingHorizontal: 12, borderRadius: 19, backgroundColor: hud.accent },
 });
