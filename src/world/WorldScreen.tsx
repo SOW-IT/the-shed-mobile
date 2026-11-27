@@ -68,6 +68,7 @@ import { arcadeStep, AWAY_FROM_ARCADE } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
 import { DRAFT_KEY, isPending, PENDING_PREFIX, showMove, showPlace, showRemove } from "./homeDecor";
+import { seatsTaken } from "./seats";
 import { InviteCard, KnockCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import type { Keeper } from "./shopTabs";
@@ -752,6 +753,8 @@ export const WorldScreen = ({
   const dropItem = (key: string, x: number, z: number) => {
     const piece = shownHome?.items.find((p) => p.key === key);
     if (!piece) return;
+    // Another piece dragged while one from the tray waits: that one's put down where it is.
+    if (draft && key !== DRAFT_KEY) putDown(draft);
     setChosenItem(key);
     if (key === DRAFT_KEY) putDown({ ...piece, x, z });
     else shift(piece, x, z, piece.turn);
@@ -770,7 +773,8 @@ export const WorldScreen = ({
     if (chosen.key === DRAFT_KEY) setDraft(null);
     else if (!isPending(chosen.key)) decorate(() => removeItemM.withOptimisticUpdate(showRemove)({ key: chosen.key }));
   };
-  const itemActions: HudAction[] = chosen && isFurniture(chosen.item)
+  // A piece put down shows its ring while it waits for its key, but nothing can be done to it until then.
+  const itemActions: HudAction[] = chosen && isFurniture(chosen.item) && !isPending(chosen.key)
     ? [
         { id: "turn", label: "Turn", hint: `Turn the ${FURNITURE[chosen.item].label.toLowerCase()}`, icon: "refresh", onPress: turnChosen },
         { id: "away", label: "Put away", hint: `Put the ${FURNITURE[chosen.item].label.toLowerCase()} away`, icon: "archive-outline", onPress: putAway },
@@ -865,7 +869,7 @@ export const WorldScreen = ({
     }
     const tapped = seats.find((seat) => seat.id === (mahjongMove?.kind === "sit" ? mahjongMove.seat : seatId));
     if (!tapped) return;
-    const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
+    const taken = seatsTaken(world.people.filter((p) => !p.isMe), seats);
     const free = seats
       .filter((seat) => !taken.has(seat.id) && samePiece(seat, tapped))
       .sort((a, b) => Math.hypot(a.x - tapped.x, a.z - tapped.z) - Math.hypot(b.x - tapped.x, b.z - tapped.z))[0];

@@ -36,3 +36,18 @@ export const seatAt = (place: Place, cam: Camera, x: number, y: number, items?: 
     .sort((a, b) => a.miss - b.miss)[0];
   return best && (under || best.miss < SEAT_TAP_RADIUS) ? best.id : null;
 };
+
+const ON_SEAT = 0.05;
+
+/**
+ * The seats other people hold: those they're sitting on or walking to, where
+ * the seat is now. Moving a piece of furniture frees its seats from anyone
+ * left sitting at its old spot.
+ */
+export const seatsTaken = (others: readonly { seat?: string; walk: { toX: number; toZ: number } | null }[], seats: readonly Seat[]): Set<string> =>
+  new Set(
+    others.flatMap((p) => {
+      const seat = p.seat === undefined ? undefined : seats.find((s) => s.id === p.seat);
+      return seat && p.walk && Math.hypot(p.walk.toX - seat.x, p.walk.toZ - seat.z) <= ON_SEAT ? [seat.id] : [];
+    })
+  );
