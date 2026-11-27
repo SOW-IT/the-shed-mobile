@@ -7,6 +7,7 @@ import { actors, TURN_MS } from "../shared/mahjong/game";
 import { botControlled, DEFAULT_SETTINGS } from "../shared/mahjong/table";
 import { tilesOf } from "../shared/mahjong/testTiles";
 import { ABANDON_MS, BOT_MS } from "./mahjong";
+import { coinsFor } from "../shared/mahjong/coins";
 
 const ANNA = "anna@sow.org.au";
 const BEN = "ben@sow.org.au";
@@ -222,7 +223,7 @@ const tickNow = async (t: T) => {
   await t.mutation(internal.mahjong.tick, { tableId: table._id, beat: row.beat });
 };
 
-const FOR_COINS = { ...DEFAULT_SETTINGS, coins: true, maxFaan: 8 };
+const FOR_COINS = { ...DEFAULT_SETTINGS, coins: true, minFaan: 3, maxFaan: 8 };
 
 /** Anna and Ben at table A (seats 0 and 1), bots in 2 and 3, a hand started. */
 const twoAndTwoBots = async (settings?: typeof DEFAULT_SETTINGS) => {
@@ -393,23 +394,23 @@ describe("coins", () => {
     const row = await handRow(t);
     const result = row.state.stage.kind === "over" ? row.state.stage.result : null;
     expect(result).toMatchObject({ kind: "win", winner: 0, from: null, faan: 6, points: 32 });
-    expect(row.settled).toEqual({ deltas: [16, -16, 0, 0], fromBank: [0, 0, 0, 0] });
-    expect((await wallet(t, ANNA))!.balance).toBe(116);
-    expect((await wallet(t, BEN))!.balance).toBe(84);
-    expect((await ledger(t, BEN)).map((r) => [r.delta, r.runId])).toEqual([[-16, `mahjong:${row._id}`]]);
+    expect(row.settled).toEqual({ deltas: [2, -2, 0, 0], fromBank: [0, 0, 0, 0] });
+    expect((await wallet(t, ANNA))!.balance).toBe(102);
+    expect((await wallet(t, BEN))!.balance).toBe(98);
+    expect((await ledger(t, BEN)).map((r) => [r.delta, r.runId])).toEqual([[-2, `mahjong:${row._id}`]]);
     expect(await allCoins(t)).toBe(before);
     const [table] = await tableRows(t);
-    expect(table).toMatchObject({ phase: "ended", net: [16, -16, 0, 0] });
+    expect(table).toMatchObject({ phase: "ended", net: [2, -2, 0, 0] });
     const state = await t.run((ctx) => ctx.db.query("worldState").collect());
     expect(state.some((s) => s.act?.emote === "cheer")).toBe(true);
   });
 
   test("nobody pays more than they have", async () => {
     const { t, anna } = await twoAndTwoBots(FOR_COINS);
-    await setWallet(t, BEN, { balance: 10 });
+    await setWallet(t, BEN, { balance: 1 });
     await rigTurn(t, 0, WIN);
     await anna.who.mutation(api.mahjong.play, { move: { kind: "win" } });
-    expect((await handRow(t)).settled?.deltas).toEqual([10, -10, 0, 0]);
+    expect((await handRow(t)).settled?.deltas).toEqual([1, -1, 0, 0]);
     expect((await wallet(t, BEN))!.balance).toBe(0);
   });
 
@@ -435,14 +436,14 @@ describe("coins", () => {
   test("giving up mid-hand pays the others what a minimum win off your discard costs, and a bot takes the seat", async () => {
     const { t, anna, ben } = await twoAndTwoBots(FOR_COINS);
     const before = await allCoins(t);
-    expect((await anna.who.query(api.mahjong.mine, {}))?.giveUpCost).toBe(8);
+    expect((await anna.who.query(api.mahjong.mine, {}))?.giveUpCost).toBe(1);
     later(REFILL);
     await anna.who.mutation(api.mahjong.leave, {});
     const [table] = await tableRows(t);
     expect(table.seats[0]).toMatchObject({ kind: "bot" });
-    expect(table.net[1]).toBe(8);
-    expect((await wallet(t, ANNA))!.balance).toBe(92);
-    expect((await wallet(t, BEN))!.balance).toBe(108);
+    expect(table.net[1]).toBe(1);
+    expect((await wallet(t, ANNA))!.balance).toBe(99);
+    expect((await wallet(t, BEN))!.balance).toBe(101);
     expect(await anna.who.query(api.mahjong.mine, {})).toBeNull();
     expect(await allCoins(t)).toBe(before);
     expect((await ben.who.query(api.mahjong.mine, {}))?.giveUpCost).toBe(0);
@@ -459,8 +460,8 @@ describe("coins", () => {
     const result = row.state.stage.kind === "over" ? row.state.stage.result : null;
     const benDiscardedTheWin = result?.kind === "win" && result.from === 1;
     if (!benDiscardedTheWin) {
-      expect(settled.deltas[1]).toBe(-8);
-      expect((await wallet(t, BEN))!.balance).toBe(92);
+      expect(settled.deltas[1]).toBe(-1);
+      expect((await wallet(t, BEN))!.balance).toBe(99);
     } else expect(settled.deltas[1]).toBeLessThan(0);
     expect(settled.deltas[2] + settled.deltas[3]).toBe(0);
     expect(await allCoins(t)).toBe(before);
@@ -496,8 +497,8 @@ describe("coins", () => {
     expect(await ben.who.mutation(api.mahjong.play, { move: { kind: "answer", answer: { kind: "hu" } } })).toEqual({ ok: true });
     const result = (await handRow(t)).state.stage;
     const points = result.kind === "over" && result.result.kind === "win" ? result.result.points : 0;
-    expect((await handRow(t)).settled?.deltas.slice(0, 2)).toEqual([-points, points]);
-    expect((await wallet(t, ANNA))!.balance).toBe(100 - points);
+    expect((await handRow(t)).settled?.deltas.slice(0, 2)).toEqual([-coinsFor(points), coinsFor(points)]);
+    expect((await wallet(t, ANNA))!.balance).toBe(100 - coinsFor(points));
   });
 
   test("giving up when it plays for points moves no coins", async () => {
@@ -539,11 +540,11 @@ describe("playing for coins", () => {
     const { t, anna, ben } = await cafe();
     await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
     await anna.who.mutation(api.mahjong.setSettings, { settings: { ...DEFAULT_SETTINGS, coins: true, maxFaan: 9, stake: 1 } });
-    expect((await anna.who.query(api.mahjong.mine, {}))?.coinsToSit).toBe(96);
-    await setWallet(t, BEN, { balance: 95 });
-    await expect(ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" })).rejects.toThrow("you need 96 coins to sit (the most one hand can cost), and you have 95");
+    expect((await anna.who.query(api.mahjong.mine, {}))?.coinsToSit).toBe(12);
+    await setWallet(t, BEN, { balance: 11 });
+    await expect(ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" })).rejects.toThrow("you need 12 coins to sit (the most one hand can cost), and you have 11");
     expect((await tableRows(t))[0].seats[1]).toEqual({ kind: "empty" });
-    await setWallet(t, BEN, { balance: 96 });
+    await setWallet(t, BEN, { balance: 12 });
     later(REFILL);
     await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
     expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: BEN });
@@ -555,20 +556,20 @@ describe("playing for coins", () => {
     await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
     await anna.who.mutation(api.mahjong.addBot, { seat: 2 });
     await anna.who.mutation(api.mahjong.addBot, { seat: 3 });
-    await setWallet(t, BEN, { balance: 20 });
+    await setWallet(t, BEN, { balance: 5 });
     await anna.who.mutation(api.mahjong.setSettings, { settings: FOR_COINS });
     expect((await anna.who.query(api.mahjong.mine, {}))?.seats.map((s) => s.short)).toEqual([false, true, false, false]);
-    expect(await anna.who.mutation(api.mahjong.start, {})).toEqual({ ok: false, reason: expect.stringContaining("needs 64 coins to play for coins, and has 20") });
+    expect(await anna.who.mutation(api.mahjong.start, {})).toEqual({ ok: false, reason: expect.stringContaining("needs 8 coins to play for coins, and has 5") });
     await anna.who.mutation(api.mahjong.setSettings, { settings: { ...FOR_COINS, coins: false } });
     expect(await anna.who.mutation(api.mahjong.start, {})).toEqual({ ok: true });
   });
 
   test("taking over a bot needs the coins too", async () => {
     const { t, cara } = await twoAndTwoBots(FOR_COINS);
-    await setWallet(t, CARA, { balance: 10 });
+    await setWallet(t, CARA, { balance: 3 });
     await cara.who.mutation(api.world.sit, { seat: "mahjong-a-2" });
     const [table] = await tableRows(t);
-    expect(await cara.who.mutation(api.mahjong.replaceBot, { tableId: table._id, seat: 2 })).toEqual({ ok: false, reason: expect.stringContaining("you need 64 coins") });
+    expect(await cara.who.mutation(api.mahjong.replaceBot, { tableId: table._id, seat: 2 })).toEqual({ ok: false, reason: expect.stringContaining("you need 8 coins") });
     expect((await tableRows(t))[0].seats[2].kind).toBe("bot");
   });
 
@@ -576,12 +577,12 @@ describe("playing for coins", () => {
     const { t, anna, ben } = await twoAndTwoBots(FOR_COINS);
     await rigTurn(t, 0, "123p 456p 789p RRR 55p");
     await anna.who.mutation(api.mahjong.play, { move: { kind: "win" } });
-    expect((await wallet(t, BEN))!.balance).toBe(84);
-    await setWallet(t, BEN, { balance: 50 });
+    expect((await wallet(t, BEN))!.balance).toBe(98);
+    await setWallet(t, BEN, { balance: 5 });
     expect(await anna.who.mutation(api.mahjong.again, {})).toEqual({ ok: true });
-    expect(await ben.who.mutation(api.mahjong.again, {})).toEqual({ ok: false, reason: expect.stringContaining("hasn't the 64 coins") });
+    expect(await ben.who.mutation(api.mahjong.again, {})).toEqual({ ok: false, reason: expect.stringContaining("hasn't the 8 coins") });
     expect((await tableRows(t))[0]).toMatchObject({ phase: "lobby", settings: FOR_COINS });
-    expect(await anna.who.mutation(api.mahjong.setSettings, { settings: { ...FOR_COINS, maxFaan: 7 } })).toEqual({ ok: true });
+    expect(await anna.who.mutation(api.mahjong.setSettings, { settings: { ...FOR_COINS, maxFaan: 6 } })).toEqual({ ok: true });
     expect(await anna.who.mutation(api.mahjong.start, {})).toEqual({ ok: true });
   });
 

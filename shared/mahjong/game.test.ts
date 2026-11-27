@@ -74,7 +74,8 @@ const tileIn = (hand: Hand, seat: number, kindText: string) => hand.seats[seat].
 describe("settings and payouts", () => {
   it("checks settings", () => {
     expect(validSettings(DEFAULT_SETTINGS)).toBe(true);
-    expect(validSettings({ ...DEFAULT_SETTINGS, minFaan: 0 })).toBe(false);
+    expect(validSettings({ ...DEFAULT_SETTINGS, minFaan: 0 })).toBe(true);
+    expect(validSettings({ ...DEFAULT_SETTINGS, minFaan: -1 })).toBe(false);
     expect(validSettings({ ...DEFAULT_SETTINGS, minFaan: 11 })).toBe(false);
     expect(validSettings({ ...DEFAULT_SETTINGS, maxFaan: 14 })).toBe(false);
     expect(validSettings({ ...DEFAULT_SETTINGS, stake: 3 })).toBe(false);
@@ -189,6 +190,33 @@ describe("self-drawn wins", () => {
     const enough = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 3 } });
     expect(turnOptions(enough, 0).win?.total).toBe(3);
     expect(selfWin(enough, 0).ok).toBe(true);
+  });
+
+  it.each([
+    [0, true],
+    [1, false],
+    [3, false],
+  ])("takes a chicken hand off a discard only when the minimum is 0 (minimum %i)", (minFaan, wins) => {
+    const hand = rig({ hands: ["E 9m", "123p 456s 789m E", "2m", "3m"], wall: "5p 5p", settings: { minFaan } });
+    hand.seats[1].melds = [{ type: "pong", kind: 9, tiles: [36, 37, 38], from: 3 }];
+    const after = ok(discard(hand, 0, tileIn(hand, 0, "E"), NOW));
+    const offer = after.stage.kind === "claim" ? after.stage.offers[1] : null;
+    expect(offer?.hu ?? false).toBe(wins);
+    if (!wins) return;
+    const won = ok(answerClaim(after, 1, { kind: "hu" }, NOW));
+    const result = won.stage.kind === "over" ? won.stage.result : null;
+    expect(result).toMatchObject({ kind: "win", winner: 1, faan: 0, points: 1, lines: [] });
+  });
+
+  it("lets a bot declare a chicken hand at a minimum of 0, and not above it", () => {
+    const at = (minFaan: number) => {
+      const hand = rig({ hands: ["E 9m", "123p 456s 789m E", "2m", "3m"], wall: "5p 5p", settings: { minFaan } });
+      hand.seats[1].melds = [{ type: "pong", kind: 9, tiles: [36, 37, 38], from: 3 }];
+      const after = ok(discard(hand, 0, tileIn(hand, 0, "E"), NOW));
+      return after.stage.kind === "claim" && after.stage.offers[1] ? botAnswer(after, 1, after.stage.offers[1], after.stage.tile) : null;
+    };
+    expect(at(0)).toEqual({ kind: "hu" });
+    expect(at(3)).toBeNull();
   });
 
   it("counts a heavenly hand on the dealer's first 14", () => {

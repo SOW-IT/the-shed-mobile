@@ -3,11 +3,11 @@ import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { FAAN_LIMITS, STAKES, type Settings } from "@shared/mahjong/table";
+import { FAAN_LIMITS, MIN_FAAN_CHOICES, type Settings } from "@shared/mahjong/table";
 import { isMahjongTable, MAHJONG_TABLE_NAMES, seatPlace } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Switch, Text, useWindowDimensions, View } from "react-native";
 import { blurBehind, itemStyle, popStyle, useOverlayClock } from "../Overlays";
 import { glass } from "../palette";
 import { SeatFace } from "./Faces";
@@ -16,8 +16,8 @@ import type { MahjongMine, MahjongSeatView } from "./useMahjong";
 const { hud } = worldColours;
 const ROWS = 8;
 
-const stakeWords = (stake: number) => (stake === 1 ? "1 coin a point" : `${stake} coins a point`);
-const rulesWords = (s: Settings) => `${s.minFaan} to ${s.maxFaan} faan · ${s.coins === true ? `For SOW coins, ${stakeWords(s.stake)}` : "For points, no coins"}`;
+const minWords = (min: number) => (min === 0 ? "0 faan (chicken hand)" : `${min} faan`);
+const rulesWords = (s: Settings) => `${minWords(s.minFaan)} to win, ${s.maxFaan} faan cap · ${s.coins === true ? "For SOW coins, 8 points a coin" : "For points, no coins"}`;
 
 const Pill = ({ label, onPress, primary = false, disabled = false, testID, a11y }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID: string; a11y?: string }) => (
   <Pressable
@@ -147,8 +147,17 @@ export const MahjongLobby = ({
           {t.isHost && editing ? (
             <View style={styles.settings} testID="mahjong-settings">
               <View style={styles.setting}>
-                <Text style={styles.settingName}>Least faan to win</Text>
-                <Stepper value={settings.minFaan} min={FAAN_LIMITS.min} max={settings.maxFaan} label="faan to win" onChange={(minFaan) => change({ minFaan })} testID="mahjong-min-faan" />
+                <Text style={styles.settingName}>Minimum faan</Text>
+                <Pill
+                  label={minWords(settings.minFaan)}
+                  onPress={() => {
+                    const at = MIN_FAAN_CHOICES.indexOf(settings.minFaan as (typeof MIN_FAAN_CHOICES)[number]);
+                    const next = MIN_FAAN_CHOICES[(at + 1) % MIN_FAAN_CHOICES.length];
+                    change({ minFaan: next, maxFaan: Math.max(settings.maxFaan, next) });
+                  }}
+                  testID="mahjong-min-faan"
+                  a11y={`Minimum faan to win: ${minWords(settings.minFaan)}. Tap to change`}
+                />
               </View>
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Faan cap</Text>
@@ -156,18 +165,17 @@ export const MahjongLobby = ({
               </View>
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Play for SOW coins</Text>
-                <Pill label={settings.coins === true ? "On" : "Off"} primary={settings.coins === true} onPress={() => change({ coins: settings.coins !== true })} testID="mahjong-coins" a11y={`Play for SOW coins: ${settings.coins === true ? "on" : "off"}`} />
+                <Switch
+                  value={settings.coins === true}
+                  onValueChange={(on) => change({ coins: on })}
+                  trackColor={{ false: glass.rowPressed, true: hud.accent }}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Play for SOW coins"
+                  accessibilityState={{ checked: settings.coins === true }}
+                  testID="mahjong-coins"
+                />
               </View>
-              {settings.coins === true ? (
-                <View style={styles.setting}>
-                  <Text style={styles.settingName}>Coins a point</Text>
-                  <Pill
-                    label={stakeWords(settings.stake)}
-                    onPress={() => change({ stake: STAKES[(STAKES.indexOf(settings.stake as (typeof STAKES)[number]) + 1) % STAKES.length] })}
-                    testID="mahjong-stake"
-                  />
-                </View>
-              ) : null}
+
             </View>
           ) : null}
           <Animated.View style={[styles.startRow, itemStyle(overlay, 6)]}>

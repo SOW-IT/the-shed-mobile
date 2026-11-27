@@ -12,6 +12,7 @@ import { mahjong as m } from "../palette";
 import { SeatFace } from "./Faces";
 import { claimChoices, coinsWords, dealtCount, handRows, INTRO, introElapsed, faanLine, resultTitle, roundWords, secondsLeft, tileLabel, windBadge, windWords } from "./tableWords";
 import { Tile, TILE_RATIO, TileLabels } from "./Tile";
+import { pointsOnly } from "@shared/mahjong/coins";
 import { Arrive, Punch } from "./Motion";
 import { Intro } from "./Intro";
 import { useBatterySaver, useWorldSetting } from "../settings";
@@ -39,7 +40,7 @@ type TableProps = {
   bottom: number;
   busy: boolean;
   forCoins: boolean;
-  stake: number;
+  minFaan: number;
   giveUpCost: number;
   chatLog: ReactNode;
   onMove: (move: Move) => void;
@@ -262,7 +263,7 @@ const Callout = ({ hand, names, calm }: { hand: HandView; names: readonly string
   );
 };
 
-const Centre = ({ hand, now, forCoins, stake }: { hand: HandView; now: number; forCoins: boolean; stake: number }) => {
+const Centre = ({ hand, now, forCoins }: { hand: HandView & { minFaan: number }; now: number; forCoins: boolean }) => {
   const stage = hand.stage;
   const deadline = stage.kind === "turn" || stage.kind === "claim" ? stage.deadline : null;
   return (
@@ -272,9 +273,10 @@ const Centre = ({ hand, now, forCoins, stake }: { hand: HandView; now: number; f
         {hand.wallLeft}
       </Text>
       {deadline !== null ? <Text style={styles.centreTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
-      <Text style={[styles.centreStake, forCoins && styles.centreCoins]} testID="mahjong-stakes">
-        {forCoins ? `🪙${stake}` : "pts"}
+      <Text style={[styles.centreStake, forCoins && styles.centreCoins]} testID="mahjong-stakes" accessibilityLabel={`${forCoins ? "For SOW coins" : "For points"}, ${hand.minFaan} faan to win`}>
+        {forCoins ? "🪙" : "pts"}
       </Text>
+      <Text style={styles.centreStake}>{`≥${hand.minFaan}`}</Text>
     </View>
   );
 };
@@ -395,7 +397,7 @@ const LeaveConfirm = ({ cost, onLeave, onStay }: { cost: number; onLeave: () => 
         Give up this hand?
       </Text>
       <Text style={styles.confirmText}>
-        {cost > 0 ? `You'll lose ${cost} SOW coin${cost === 1 ? "" : "s"}, shared between the other players, and a bot plays your seat for the rest of the hand.` : "Nobody else here is playing for coins, so you won't lose any. A bot plays your seat for the rest of the hand."}
+        {cost > 0 ? `You'll lose ${cost} SOW coin${cost === 1 ? "" : "s"}, shared between the other players, and a bot plays your seat for the rest of the hand.` : "You won't lose any SOW coins (a minimum win here is worth less than a coin, or nobody else is playing for coins). A bot plays your seat for the rest of the hand."}
       </Text>
       <View style={styles.resultButtons}>
         <Chip label={cost > 0 ? `Give up (−${cost})` : "Give up"} onPress={onLeave} testID="mahjong-give-up-confirm" />
@@ -412,6 +414,7 @@ const ResultCard = ({
   settled,
   mySeat,
   forCoins,
+  minFaan,
   nameOf,
   onAgain,
   onLeave,
@@ -421,6 +424,7 @@ const ResultCard = ({
   settled: Settled;
   mySeat: number | null;
   forCoins: boolean;
+  minFaan: number;
   nameOf: (n: string) => string;
   onAgain: () => void;
   onLeave: () => void;
@@ -430,6 +434,7 @@ const ResultCard = ({
   const names = seats.map((s) => seatName(s, nameOf));
   const me = mySeat === null ? null : seats[mySeat];
   const waiting = seats.filter((s) => s.kind === "human" && !s.ready && !s.isMe && !s.away).map((s) => nameOf(s.name));
+  const points = result.kind === "win" ? pointsOnly(result.pays).deltas : [0, 0, 0, 0];
   return (
     <View style={styles.resultWrap} pointerEvents="box-none">
       <ScrollView style={styles.result} contentContainerStyle={styles.resultBody} testID="mahjong-result">
@@ -455,7 +460,7 @@ const ResultCard = ({
                 );
               })}
               <View style={[styles.faanRow, styles.faanTotal]}>
-                <Text style={styles.faanEn}>{`${result.faan} faan · ${result.points} points`}</Text>
+                <Text style={styles.faanEn}>{`${result.faan} faan · ${result.points} points · ${minFaan === 0 ? "chicken hands win here" : `${minFaan} faan to win`}`}</Text>
               </View>
             </View>
           </>
@@ -464,13 +469,15 @@ const ResultCard = ({
         )}
         {settled ? (
           <View style={styles.transfers} testID="mahjong-transfers">
-            <Text style={styles.transferHead}>{forCoins ? "SOW coins (bots never pay or collect)" : "Points (no coins on this table)"}</Text>
+            <Text style={styles.transferHead}>{forCoins ? "Points, and SOW coins at 8 points a coin (bots never pay or collect)" : "Points (no coins on this table)"}</Text>
             {seats.map((seat, i) => (
               <View key={windBadge(hand.seats[i].wind)} style={styles.transfer}>
                 <Text style={styles.transferName} numberOfLines={1}>
                   {names[i]}
                 </Text>
-                <Text style={[styles.transferCoins, settled.deltas[i] > 0 ? styles.up : settled.deltas[i] < 0 ? styles.down : null]}>{coinsWords(settled.deltas[i])}</Text>
+                <Text style={[styles.transferCoins, settled.deltas[i] > 0 ? styles.up : settled.deltas[i] < 0 ? styles.down : null]}>
+                  {forCoins ? `${coinsWords(points[i])} pts · ${coinsWords(settled.deltas[i])} 🪙` : coinsWords(settled.deltas[i])}
+                </Text>
               </View>
             ))}
           </View>
@@ -498,7 +505,7 @@ const freshAct = (act: Person["act"], now: number) => (act && now - act.at < EMO
  * each seat's bubble and emote show beside them. Watching (no seat), East
  * sits at the bottom and every hand is face down.
  */
-export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, people, muted, now, nameOf, top, bottom, busy, forCoins, stake, giveUpCost, chatLog, onMove, onAgain, onLeave }: TableProps) => {
+export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, people, muted, now, nameOf, top, bottom, busy, forCoins, minFaan, giveUpCost, chatLog, onMove, onAgain, onLeave }: TableProps) => {
   const { width: screenWidth } = useWindowDimensions();
   const [rows, setRows] = useWorldSetting("mahjongRows");
   const [labels, setLabels] = useWorldSetting("mahjongLabels");
@@ -619,7 +626,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             {seatBlock(left, true, 90)}
             {river(left, zones.side)}
             <View style={[styles.centreBox, { width: CENTRE }]}>
-              {stage.kind === "intro" ? null : <Centre hand={hand} now={now} forCoins={forCoins} stake={stake} />}
+              {stage.kind === "intro" ? null : <Centre hand={{ ...hand, minFaan }} now={now} forCoins={forCoins} />}
             </View>
             {river(right, zones.side)}
             {seatBlock(right, true, -90)}
@@ -667,7 +674,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       {zoomed !== null && !myTurn && !asked && stage.kind !== "over" ? (
         <Zoom seat={hand.seats[zoomed]} index={zoomed} name={names[zoomed]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(zoomed)} onClose={() => setZoomed(null)} />
       ) : null}
-      <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
+      <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} minFaan={minFaan} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
       {confirming && stage.kind !== "over" ? (
         <LeaveConfirm
           cost={giveUpCost}

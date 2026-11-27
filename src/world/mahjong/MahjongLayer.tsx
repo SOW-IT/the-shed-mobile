@@ -241,7 +241,7 @@ export const MahjongLayer = ({
           bottom={bottom}
           busy={busy}
           forCoins={mine.settings.coins === true}
-          stake={mine.settings.stake}
+          minFaan={mine.settings.minFaan}
           giveUpCost={mine.giveUpCost}
           chatLog={chatLog}
           onMove={move}
@@ -268,7 +268,7 @@ export const MahjongLayer = ({
           bottom={bottom}
           busy={false}
           forCoins={watching.settings.coins === true}
-          stake={watching.settings.stake}
+          minFaan={watching.settings.minFaan}
           giveUpCost={0}
           chatLog={chatLog}
           onMove={() => undefined}
