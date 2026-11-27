@@ -25,6 +25,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { HOME_TAB_SHOWN } from "../../../shared/homeContent";
 
 const TabPill = ({
   focused,
@@ -207,6 +208,7 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: "Home",
+          ...(HOME_TAB_SHOWN ? {} : sideMenuOnly),
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />

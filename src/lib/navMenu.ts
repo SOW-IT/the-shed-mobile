@@ -4,6 +4,7 @@ import {
   roleLabel,
   type RoleTitles,
 } from "../../shared/flow";
+import { HOME_TAB_SHOWN } from "../../shared/homeContent";
 
 export type NavKey =
   | "home"
@@ -144,8 +145,8 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   return items;
 };
 
-export const sidebarItems = (viewer: NavViewer): NavKey[] => {
-  const items: NavKey[] = ["home"];
+export const sidebarItems = (viewer: NavViewer, homeShown = HOME_TAB_SHOWN): NavKey[] => {
+  const items: NavKey[] = homeShown ? ["home"] : [];
   if (showsReimbursements(viewer)) items.push(...REQUEST_KEYS);
   if (viewer.isStaff) items.push("attendance", "calendar");
   items.push(viewer.signedIn ? "devotionals" : "org", "churches");

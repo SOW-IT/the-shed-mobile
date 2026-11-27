@@ -27,6 +27,7 @@ import {
 import { useLandingTab } from "@/hooks/useLandingTab";
 import { typography } from "@/theme";
 import { staffOnlyMessage } from "@shared/staffOnly";
+import { HOME_LINKS } from "@shared/homeContent";
 
 type Group = StatusGroup<DesignRequestStatus>;
 
@@ -163,7 +164,7 @@ export default function DesignRequestsScreen() {
       </Screen>
     );
   }
-  if (me === null) return <Redirect href="/home" />;
+  if (me === null) return <Redirect href={HOME_LINKS.signedOut} />;
   if (me.profile === null) {
     return (
       <ChromeScreen>
