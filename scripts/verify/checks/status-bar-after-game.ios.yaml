@@ -31,16 +31,17 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "${OUT}/check-leaderboard-over-game"
-# Mystic Man (a dark game, light bar), then a link opens People on top.
+# Mystic Man (a dark game, light bar), then a link opens Notifications on
+# top, as tapping a push would.
 - openLink: "theshedmobile://games/runner"
 - extendedWaitUntil:
     visible:
       id: game-play-area
     timeout: 30000
-- openLink: "theshedmobile://org"
+- openLink: "theshedmobile://notifications"
 - extendedWaitUntil:
-    visible: "People"
+    visible: "Notifications"
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: "${OUT}/check-people-over-game"
+- takeScreenshot: "${OUT}/check-notifications-over-game"

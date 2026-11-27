@@ -19,7 +19,8 @@ All notable changes to **The SHED** mobile app. This project follows
   A game's status bar, and the Games list's, now only counts while its
   screen is in front. Found by the iOS sweep, where every screen after the
   games, signed in or out, had the white bar. A new
-  `status-bar-after-game` iOS check takes screenshots of both cases.
+  `status-bar-after-game` iOS check takes screenshots of both cases (the
+  Leaderboard after a game over, and Notifications opened over Mystic Man).
 
 ## [2.13.48] - 2026-11-27
 
