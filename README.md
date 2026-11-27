@@ -40,7 +40,8 @@ Each area's rules and vocabulary are in [CONTEXT-MAP.md](CONTEXT-MAP.md) and
   staff year rolls over on October 1 (ADR 0003). Admins are the Director, the
   always-admin department's team and anyone admins choose (ADR 0018), and can
   act as another role to see the app as it does (ADR 0017). Org chart,
-  Teams, Mentoring, Announcements, Churches and an editable Home tab.
+  Teams, Mentoring, Announcements, Churches and an editable Home tab (hidden
+  for now behind `HOME_TAB_SHOWN` in `shared/homeContent.ts`).
 - **Reminders** (`convex/reminders.ts`): one morning digest per person of
   everything waiting on them, by push and email.
 - **Accounts**: Google and Apple sign-in through Convex Auth, delete account
