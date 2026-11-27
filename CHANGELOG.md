@@ -15,8 +15,9 @@ All notable changes to **The SHED** mobile app. This project follows
   stayed open and picked its tab only when it first opened. Found by the
   iOS sweep, where `/games/leaderboard?game=runner` and `?game=glider`,
   opened one after the other, both showed Sky Shooter. The screen now
-  starts again on the linked game. Web wasn't affected in the sweep, since
-  each visit there loads the page afresh.
+  starts again on the linked game. A new `leaderboard-link-tab` web check
+  changes the open Leaderboard's link to each game and checks the tab
+  follows.
 
 ## [2.13.52] - 2026-11-27
 
