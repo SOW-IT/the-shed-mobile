@@ -25,15 +25,21 @@ All notable changes to **The SHED** mobile app. This project follows
   button for each way to chow. The dealer keeps the deal only by winning.
   After the hand a breakdown lists the winning hand, each faan and the
   score, and "Play another round" deals again once everyone has asked.
-- **Laid out for a phone, with big traditional tiles.** The other three
-  players sit in a strip at the top (face, wind, dealer, whose turn and the
-  clock, how many tiles they hold, and their melds), each player's discards
-  run the full width below with the newest lit, and your melds and hand
-  sit at the bottom as large as the screen allows. Tiles look like real
-  ones: white faces with circle dots, bamboo sticks (a bird on the 1), blue
-  numerals over a red 萬, blue winds, a red 中, a green 發, a framed white
-  dragon, and orange backs. Tap a tile to lift it and tap it again to
-  discard, or slide it up to discard it straight away.
+- **A table laid out for a phone, with big traditional tiles.** Each
+  player sits on their own side: the player across at the top with their
+  face, wind, dealer mark, score, clock, a small orange back for each tile
+  they hold and their melds; the players to the left and right in narrow
+  strips at the edges, their discards turned sideways beside them; and a
+  small counter in the middle with the round, the tiles left and the
+  clock. Every player's discards sit in front of them toward the middle,
+  the newest lit, in spaces that never move as discards pile up. Tap
+  anyone's discards to see them, their melds and how many tiles they hold,
+  big, in a popup. Your discards, melds and hand sit at the bottom, the
+  hand as large as the screen allows. Tiles look like real ones: white
+  faces with circle dots, bamboo sticks (a bird on the 1), blue numerals
+  over a red 萬, blue winds, a red 中, a green 發, a framed white dragon,
+  and orange backs. Tap a tile to lift it and tap it again to discard, or
+  slide it up to discard it straight away.
 - **SOW coins are optional, and off by default.** Off, a hand is played for
   points only. The host can turn coins on in the lobby before a hand
   starts, at 1, 2 or 5 coins a point; then everyone needs the most one hand
