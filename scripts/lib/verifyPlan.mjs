@@ -17,6 +17,33 @@ const matchesAny = (file, globs) => globs.some((glob) => matchesGlob(file, glob)
 
 const unique = (items) => [...new Set(items)];
 
+/**
+ * Every PR bumps `"version"` in these three files, which would make each one a
+ * full run. A change to nothing but `"version"` lines doesn't count.
+ */
+export const VERSION_FILES = ["package.json", "package-lock.json", "app.json"];
+
+/** Whether a unified-0 git diff touches nothing but JSON `"version"` lines. */
+export const isVersionOnlyDiff = (diff) => {
+  const lines = diff.split("\n").filter((l) => /^[+-](?![+-])/.test(l));
+  return lines.length > 0 && lines.every((l) => /^[+-]\s*"version": "[^"]*",?$/.test(l));
+};
+
+/**
+ * Sweep and CI files that live under `static` in the feature map, but should
+ * still trigger a full CI web sweep whenever a PR changes them.
+ */
+export const SWEEP_TOOLING = [
+  ".github/workflows/ci.yml",
+  "scripts/sweep.mjs",
+  "scripts/sweep-backend.sh",
+  "scripts/sweep-seed.mjs",
+  "scripts/sweep-plan.mjs",
+  "scripts/lib/verifyPlan.mjs",
+  "scripts/lib/stableFrames.mjs",
+  "scripts/verify/feature-map.json",
+];
+
 /** Every route a full run opens, in map order. */
 export const allRoutes = (map) =>
   unique([...map.smoke, ...Object.values(map.areas).flatMap((area) => area.routes), ...map.fullOnlyRoutes]);
@@ -102,6 +129,77 @@ export const planVerification = ({ changed, map, full = false, only = null, unat
     routes: screenAreas.length > 0 ? unique([...map.smoke, ...screenAreas.flatMap((name) => map.areas[name].routes)]) : [],
     unit: { kind: "related", files: classified.filter((c) => c.kind !== "core").map((c) => c.file).filter(isCodeOrTest) },
   };
+};
+
+/**
+ * Plan the CI web sweep for a diff. On `push` to main (`full: true`) or when
+ * sweep/CI tooling itself changed, runs every screen. Otherwise reuses the
+ * feature map in unattended mode: static-only and unit-only PRs skip the
+ * browser run, area PRs check smoke + affected routes, and core/unmapped files
+ * run every screen.
+ * @param {{ changed: string[], map: FeatureMap, full?: boolean, tooling?: readonly string[] }} input
+ */
+export const planSweep = ({ changed, map, full = false, tooling = SWEEP_TOOLING }) => {
+  if (full) {
+    return {
+      run: true,
+      tier: "full",
+      reasons: ["full sweep requested"],
+      unmapped: [],
+      areas: Object.keys(map.areas),
+      routes: allRoutes(map),
+    };
+  }
+
+  const plan = planVerification({ changed, map, unattended: true });
+  const touchedTooling = changed.filter((file) => matchesAny(file, tooling));
+  if (touchedTooling.length > 0) {
+    return {
+      run: true,
+      tier: "full",
+      reasons: [...touchedTooling.map((file) => `sweep tooling: ${file}`), ...plan.reasons.filter((r) => plan.tier === "full")],
+      unmapped: plan.unmapped,
+      areas: Object.keys(map.areas),
+      routes: allRoutes(map),
+    };
+  }
+
+  return {
+    run: plan.routes.length > 0,
+    tier: plan.tier,
+    reasons: plan.reasons,
+    unmapped: plan.unmapped,
+    areas: plan.areas,
+    routes: plan.routes,
+  };
+};
+
+/** Plain markdown summary for logs and GitHub step summaries. */
+export const formatSweepSummary = (plan, { bumped = [], base = null } = {}) => {
+  const lines = [
+    `### Web sweep plan: \`${plan.tier}\`${base ? ` (against \`${base}\`)` : ""}`,
+    "",
+  ];
+  if (!plan.run) {
+    lines.push("No screens affected — skipping Playwright, local Convex, and Expo web.");
+  } else if (plan.tier === "full") {
+    lines.push(`Running **full** web sweep (${plan.routes.length} routes, 4 roles).`);
+  } else {
+    lines.push(`Running **scoped** web sweep for ${plan.areas.map((a) => `\`${a}\``).join(", ")} (${plan.routes.length} routes, 4 roles).`);
+  }
+  if (plan.reasons.length > 0) {
+    lines.push("", "**Reasons:**", ...plan.reasons.map((r) => `- ${r}`));
+  }
+  if (bumped.length > 0) {
+    lines.push("", `Ignored version-only bump(s): ${bumped.map((f) => `\`${f}\``).join(", ")}`);
+  }
+  if (plan.unmapped.length > 0) {
+    lines.push("", "**Unmapped files (add to `scripts/verify/feature-map.json`):**", ...plan.unmapped.map((f) => `- \`${f}\``));
+  }
+  if (plan.run && plan.tier === "scoped") {
+    lines.push("", "**Routes:**", ...plan.routes.map((r) => `- \`${r}\``));
+  }
+  return lines.join("\n");
 };
 
 /**

@@ -1,7 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { allRoutes, classify, planVerification, resolveRoutes, routeSlug } from "./verifyPlan.mjs";
+import {
+  allRoutes,
+  classify,
+  formatSweepSummary,
+  isVersionOnlyDiff,
+  planSweep,
+  planVerification,
+  resolveRoutes,
+  routeSlug,
+  SWEEP_TOOLING,
+} from "./verifyPlan.mjs";
 
 const realMap = JSON.parse(readFileSync(new URL("../verify/feature-map.json", import.meta.url), "utf8"));
 
@@ -110,5 +120,105 @@ describe("the checked-in feature map", () => {
 
   test("full runs keep every route the CI sweep opened before the map existed", () => {
     expect(allRoutes(realMap)).toEqual(expect.arrayContaining(["/", "/home", "/admin?tab=system", "/no-such-page"]));
+  });
+
+  test("no route contains a comma (safe for --routes CSV)", () => {
+    expect(allRoutes(realMap).filter((route) => route.includes(","))).toEqual([]);
+  });
+
+  test("every SWEEP_TOOLING path exists in the repo", () => {
+    const root = new URL("../..", import.meta.url);
+    expect(SWEEP_TOOLING.filter((file) => !existsSync(new URL(file, root)))).toEqual([]);
+  });
+});
+
+describe("isVersionOnlyDiff", () => {
+  test("accepts diffs that only change version lines", () => {
+    const diff = [
+      "@@ -3 +3 @@",
+      '-  "version": "2.13.50",',
+      '+  "version": "2.13.51",',
+      "@@ -9 +9 @@",
+      '-      "version": "2.13.50",',
+      '+      "version": "2.13.51",',
+    ].join("\n");
+    expect(isVersionOnlyDiff(diff)).toBe(true);
+  });
+
+  test("rejects empty diffs or diffs touching anything besides version", () => {
+    expect(isVersionOnlyDiff("")).toBe(false);
+    expect(isVersionOnlyDiff('-  "version": "2.13.50",\n+  "version": "2.13.51",\n+  "private": true')).toBe(false);
+  });
+});
+
+describe("planSweep", () => {
+  test("skips the browser run for static-only changes", () => {
+    const plan = planSweep({ changed: ["README.md", "convex/calendar.test.ts"], map });
+    expect(plan.run).toBe(false);
+    expect(plan.tier).toBe("static");
+    expect(plan.routes).toEqual([]);
+  });
+
+  test("skips the browser run for unit-only areas", () => {
+    const plan = planSweep({ changed: ["convex/billing.ts"], map });
+    expect(plan.run).toBe(false);
+    expect(plan.tier).toBe("scoped");
+    expect(plan.routes).toEqual([]);
+  });
+
+  test("scopes PR runs to smoke plus affected areas", () => {
+    const plan = planSweep({ changed: ["convex/calendar.ts", "README.md"], map });
+    expect(plan.run).toBe(true);
+    expect(plan.tier).toBe("scoped");
+    expect(plan.areas).toEqual(["calendar"]);
+    expect(plan.routes).toEqual(["/", "/home", "/calendar"]);
+  });
+
+  test("runs every screen on core or unmapped files", () => {
+    const core = planSweep({ changed: ["src/components/ui/button.tsx"], map });
+    expect(core.run).toBe(true);
+    expect(core.tier).toBe("full");
+    expect(core.routes).toEqual(allRoutes(map));
+
+    const unmapped = planSweep({ changed: ["convex/newThing.ts"], map });
+    expect(unmapped.run).toBe(true);
+    expect(unmapped.tier).toBe("full");
+    expect(unmapped.unmapped).toEqual(["convex/newThing.ts"]);
+  });
+
+  test("runs every screen when sweep or CI tooling itself changed", () => {
+    const plan = planSweep({ changed: ["scripts/sweep.mjs", "README.md"], map: realMap });
+    expect(plan.run).toBe(true);
+    expect(plan.tier).toBe("full");
+    expect(plan.reasons).toEqual(["sweep tooling: scripts/sweep.mjs"]);
+    expect(plan.routes).toEqual(allRoutes(realMap));
+  });
+
+  test("does not trigger a full sweep for tooling test files alone", () => {
+    const plan = planSweep({ changed: ["scripts/lib/verifyPlan.test.mjs"], map: realMap });
+    expect(plan.run).toBe(false);
+    expect(plan.tier).toBe("static");
+  });
+
+  test("runs every screen when full is requested (push to main)", () => {
+    const plan = planSweep({ changed: ["README.md"], map, full: true });
+    expect(plan.run).toBe(true);
+    expect(plan.tier).toBe("full");
+    expect(plan.routes).toEqual(allRoutes(map));
+  });
+
+  test("formatSweepSummary describes skipped, scoped and full runs", () => {
+    const skipped = formatSweepSummary(planSweep({ changed: ["README.md"], map }), { bumped: ["app.json"], base: "HEAD^1 @ abc1234" });
+    expect(skipped).toContain("`static`");
+    expect(skipped).toContain("skipping Playwright");
+    expect(skipped).toContain("`app.json`");
+
+    const scoped = formatSweepSummary(planSweep({ changed: ["convex/calendar.ts"], map }));
+    expect(scoped).toContain("`calendar`");
+    expect(scoped).toContain("`/calendar`");
+
+    const full = formatSweepSummary(planSweep({ changed: ["convex/newThing.ts"], map }));
+    expect(full).toContain("Running **full** web sweep");
+    expect(full).toContain("`convex/newThing.ts`");
   });
 });
