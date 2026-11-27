@@ -12,35 +12,51 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Hong Kong mahjong at two tables in the online World's Café.** Sit at
   an empty table and you host it. Its lobby is the arcade's panel: four
   seats (East, South, West, North), Add bot and Remove for the host, the
-  rules (3 faan to win and a 10 faan cap by default, flowers on or off,
-  how many coins a point is worth), and Start game once every seat has a
-  person or a bot. The host passes to the next person seated if they get
-  up before the start.
-- **A full game of Hong Kong (Cantonese) rules, played full screen.** The
-  dice pick the dealer and where the wall breaks, the tiles are dealt and
-  sorted, and play passes round the table. You can win (食糊 or 自摸),
-  kong (concealed, exposed, or onto your pong, which someone can rob),
-  pong, or chow from the player on your left. A claim opens a bar above
-  your hand for 5 seconds, with Pass, and a Chow button for each way to
-  chow. Everyone else at the table shows as their own World character
-  (bots as a bot), with their discards, melds, flowers, wind and score.
+  rules (3 faan to win and a 10 faan cap by default, and whether the table
+  plays for SOW coins), and Start game once every seat has a person or a
+  bot. The host passes to the next person seated if they get up before the
+  start.
+- **A full game of Hong Kong Old Style rules, played full screen.** 136
+  tiles, no flowers or seasons. The dice pick the dealer and where the wall
+  breaks, the tiles are dealt and sorted, and play passes round the table.
+  You can win (食糊 or 自摸), kong (concealed, exposed, or onto your pong,
+  which someone can rob), pong, or chow from the player on your left. A
+  claim opens a bar above your hand for 5 seconds, with Pass, and a Chow
+  button for each way to chow. The dealer keeps the deal only by winning.
   After the hand a breakdown lists the winning hand, each faan and the
-  coins that moved, and "Play another round" deals again once everyone
-  has asked.
-- **Points are SOW coins.** The discarder pays a win off their tile in
-  full; a self-drawn win is paid half each by the other three. The server
-  works it out and moves the coins as the hand ends, and nobody pays more
-  than they have. Bots play for the bank: what you lose to a bot leaves
-  the game, and what you win from one comes from the bank, up to 200 coins
-  a day.
+  score, and "Play another round" deals again once everyone has asked.
+- **Laid out for a phone, with big traditional tiles.** The other three
+  players sit in a strip at the top (face, wind, dealer, whose turn and the
+  clock, how many tiles they hold, and their melds), each player's discards
+  run the full width below with the newest lit, and your melds and hand
+  sit at the bottom as large as the screen allows. Tiles look like real
+  ones: white faces with circle dots, bamboo sticks (a bird on the 1), blue
+  numerals over a red 萬, blue winds, a red 中, a green 發, a framed white
+  dragon, and orange backs. Tap a tile to lift it and tap it again to
+  discard, or slide it up to discard it straight away.
+- **SOW coins are optional, and off by default.** Off, a hand is played for
+  points only. The host can turn coins on in the lobby before a hand
+  starts, at 1, 2 or 5 coins a point; then everyone needs the most one hand
+  can cost them (a capped win off their discard) to sit, take over a bot
+  or start, and is told why if they're short. The setting stays until the
+  table empties. Coins only ever move between people: a bot never pays or
+  collects. The discarder pays a win off their tile in full; a self-drawn
+  win is paid half each by the other people at the table. Nobody pays more
+  than they have.
+- **Giving up costs coins when they're on the line.** Leaving mid-hand asks
+  first and says how many coins it costs: what a minimum win off your
+  discard would, shared between the other people at the table (nothing if
+  nobody else is playing). A bot then plays your seat. Walking off or
+  closing the app and not coming back before the hand ends costs the same.
 - **Chat, emotes, watching and joining mid-hand.** The World's chat bar
   and emotes stay on top of the table, and each player's line and emote
-  show by their seat, as they do over their heads in the World. Anyone in
-  the Café can tap the table, or someone at it, to watch without seeing
-  anyone's tiles. Bots aren't drawn in the World, so their seats look
+  show by their seat. Anyone in the Café can tap the table, or someone at
+  it, to watch without seeing anyone's tiles, and a 🀄 tag shows over
+  people playing. Bots aren't drawn in the World, so their seats look
   free; sitting in one during a hand asks whether to take it over, hand,
   melds, score and all. If you get up or drop out mid-hand, a bot plays
-  your seat until you sit back down.
+  your seat until you sit back down, and the Café room keeps your table
+  while you're away.
 
 ## [2.13.45] - 2026-11-27
 
