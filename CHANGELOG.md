@@ -6,9 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.63] - 2026-11-27
+## [2.13.64] - 2026-11-28
 
 ### Changed
+- **Animals are bought from Josh in the Garden.** Josh's shop has a new
+  Animals tab beside Seeds and feed and Sell, with a chicken and a cow. Each
+  shows its price and how much room your coop or barn has ("2 / 4 in your
+  coop"), or that you need to build one first, and its Buy is greyed out
+  when there's no room or not enough coins. The coop and barn sheets in your
+  backyard no longer sell animals: where the Buy row was, they say "Buy
+  chickens from Josh in the Garden." The new animal is in your coop or barn
+  straight away, without walking in through the gate, and a note says
+  "Pecky is in your coop." The server only sells animals in the Garden, or
+  in your own backyard for phones still on an older app.
+- **Buying an animal is two steps: Buy, then name it.** Buy in Josh's shop
+  opens a dialog that asks you to name your chick or calf, with a suggested
+  name you can change. Only the dialog's Buy spends the coins: Enter or
+  Done in the name field doesn't, and neither does Cancel or tapping
+  outside, which are also locked while a purchase is going through. A blank
+  name greys Buy out. Naming at purchase is free, needs no name tag, and is
+  checked the same way as a rename. On web, Tab stays inside the dialog and
+  focus goes back to the Buy you pressed when it closes.
 - **Renaming an animal starts with a Rename button, which is greyed out
   without a name tag.** Each animal in a coop or barn had a small tag icon
   that opened the name field even with no name tags, and only then said to
@@ -16,18 +34,12 @@ All notable changes to **The SHED** mobile app. This project follows
   tags it can't be tapped, and the sheet says that renaming uses a name tag
   from Josh. With a tag, it opens the name field as before, and saving still
   uses one tag. The server still refuses a rename without a tag.
-- **Buying an animal is two steps: Buy, then name it, and it comes from
-  Josh Kim.** The coop or barn's last row had a name field already filled in
-  next to the price, so one tap bought the animal under whatever name was
-  there. The row now says "New chick" (or calf), "From Josh Kim", and its
-  price. Tapping it opens a dialog with Josh beside the chick that asks you
-  to name your animal, with a suggested name filled in that you can change.
-  Only that dialog's Buy spends the coins: pressing Enter or Done in the
-  name field doesn't, and neither does Cancel or tapping outside, which are
-  also locked while a purchase is going through. A blank name, or a full
-  pen, greys Buy out. Naming at purchase is free and needs no name tag, and
-  the name is checked the same way as a rename. Afterwards a note says
-  "Josh Kim brought Pecky over."
+- **The plot or animal you're walking to is ringed.** Tapping a plot or an
+  animal you have to walk over to (to water, plant, feed or collect) draws
+  the same gold ring that props and seats get, for the whole walk. The
+  animal's ring moves with it. The ring goes when you arrive and the plant
+  picker or feeding starts, when you tap somewhere else, or when the animal
+  wanders off.
 
 ### Added
 - **The World's top-left menu has a "Your home" section with Home and
@@ -35,6 +47,40 @@ All notable changes to **The SHED** mobile app. This project follows
   tap, and is left out while you're already there. The backyard's only way
   in is still through your home, so from anywhere else Backyard goes home
   and on through the back door without stopping.
+
+## [2.13.63] - 2026-11-27
+
+### Changed
+- **The World fills the whole browser window on web, as it does on a
+  phone.** In a browser at least 700 px wide, the app's sidebar stayed
+  beside the Garden and every other World scene, so the scene took only
+  what was left of the window. The World now hides the sidebar the way the
+  games do, and the Garden and your backyard reach every edge and follow the
+  window as it resizes. The title, coins, chat log and chat box stay pinned
+  to their corners at desktop, tall and ultrawide sizes. Leaving the World
+  brings the sidebar back. Screens the World opens (its calendar, praise list
+  and devotionals) keep the sidebar, and Swoop's black borders are
+  unchanged. A new `world-fullscreen` web check opens the Garden and a
+  backyard at 1280x800, 800x1200 and 1920x900 and checks the scene fills
+  each one with the HUD inside it.
+
+## [2.13.62] - 2026-11-27
+
+### Fixed
+- **The character editor's sliders drag from anywhere on the thumb.** Height
+  and Build on the Body tab, and the move, size and tilt sliders for the
+  eyes, brows and mouth, only took a press on their thin 8px line. The round
+  thumb let touches through and hung over the line's edges, so pressing most
+  of the thumb, or just above or below the line, did nothing, and on a phone
+  that drag scrolled the choices instead. On iOS, a drag that drifted up or
+  down a little could also be taken over by the scroll. Now the whole row
+  between the end labels takes the press, the slider keeps following your
+  finger when it strays above or below, the page doesn't pan on a phone browser,
+  and the choices stay still on iOS and Android until you let go. A new
+  `steps-drag` web check drags each slider by the thumb's edges, past both
+  ends, with the pointer wandering off it, one step at a time, and with a
+  finger. On the web the sliders also now tell a screen reader their value:
+  they had none, because react-native-web ignores `accessibilityValue`.
 
 ## [2.13.59] - 2026-11-27
 
