@@ -509,17 +509,16 @@ describe("coins", () => {
     const { t, ben } = await twoAndTwoBots(FOR_COINS);
     later(REFILL);
     await ben.who.mutation(api.world.travel, { to: "garden" });
+    // A bot wins off its own draw, so the hand always ends with Ben still away and not the
+    // discarder: a random hand could end on his discard, which makes him pay the win instead.
+    await rigTurn(t, 2, WIN);
     const before = await allCoins(t);
     while ((await tableRows(t))[0].phase === "playing") await tickNow(t);
     const row = await handRow(t);
-    const settled = row.settled!;
     const result = row.state.stage.kind === "over" ? row.state.stage.result : null;
-    const benDiscardedTheWin = result?.kind === "win" && result.from === 1;
-    if (!benDiscardedTheWin) {
-      expect(settled.deltas[1]).toBe(-1);
-      expect((await wallet(t, BEN))!.balance).toBe(99);
-    } else expect(settled.deltas[1]).toBeLessThanOrEqual(0);
-    expect(settled.deltas[2] + settled.deltas[3]).toBe(0);
+    expect(result).toMatchObject({ kind: "win", winner: 2, from: null });
+    expect(row.settled!.deltas).toEqual([1, -1, 0, 0]);
+    expect((await wallet(t, BEN))!.balance).toBe(99);
     expect(await allCoins(t)).toBe(before);
   });
 
