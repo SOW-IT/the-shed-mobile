@@ -2,8 +2,8 @@ import { AppIcon, type AppIconName } from "@/components/ui/icon";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { elsewhereTitle, PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { memo, useEffect, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
 import { backdropOf, BUST_BORDER, bustFigure } from "./bust";
@@ -168,6 +168,8 @@ export type MenuEntry = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   tone?: "leave";
+  /** A heading shown above the first entry of a run that shares it. */
+  section?: string;
   accessibilityLabel?: string;
   onPress: () => void;
 };
@@ -193,6 +195,11 @@ export const WorldMenu = ({
       <Animated.View style={[styles.menu, blurBehind, { top }, popStyle(overlay)]} testID="world-menu">
         {entries.map((entry, i) => (
           <Animated.View key={entry.id} style={[itemStyle(overlay, i), entry.tone === "leave" && i > 0 && styles.leaveGap]}>
+            {entry.section && entry.section !== entries[i - 1]?.section ? (
+              <Text style={[styles.menuSection, i > 0 && styles.menuSectionGap]} accessibilityRole="header">
+                {entry.section}
+              </Text>
+            ) : null}
             <Pressable
               onPress={entry.onPress}
               accessibilityRole="button"
@@ -222,7 +229,7 @@ export const LeaveDialog = ({ open, onStay, onLeave }: { open: boolean; onStay: 
       <Pressable style={StyleSheet.absoluteFill} onPress={onStay} accessibilityRole="button" accessibilityLabel="Stay" testID="world-leave-scrim">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-leave-dialog" accessibilityViewIsModal>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-leave-dialog" role="dialog" aria-modal aria-label="Leave the World?">
         <Animated.View style={[styles.door, itemStyle(overlay, 0)]}>
           <Ionicons name="exit-outline" size={30} color={glass.text} />
         </Animated.View>
@@ -273,7 +280,7 @@ export const DevotionalPromptDialog = ({
       >
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-devotional-dialog" accessibilityViewIsModal>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-devotional-dialog" role="dialog" aria-modal aria-label="Daily devotional">
         <Animated.View style={[styles.devotionalIcon, itemStyle(overlay, 0)]}>
           <Ionicons name="book-outline" size={30} color={glass.text} />
         </Animated.View>
@@ -300,6 +307,131 @@ export const DevotionalPromptDialog = ({
           >
             <Ionicons name="book-outline" size={17} color={glass.text} />
             <Text style={styles.dialogButtonText}>Open</Text>
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+};
+
+/**
+ * On web, while a dialog is open: focus its first field, keep Tab and Shift+Tab
+ * among its own controls, and when it closes hand focus back to whatever had it
+ * before (the button that opened it), if that is still on the page.
+ */
+const useWebFocusTrap = (open: boolean) => {
+  const box = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !open || typeof document === "undefined") return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const node: unknown = box.current;
+    if (!(node instanceof HTMLElement)) return;
+    const stops = () =>
+      [...node.querySelectorAll<HTMLElement>('input, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+        (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-disabled") !== "true"
+      );
+    stops()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const list = stops();
+      if (list.length === 0) return;
+      const at = document.activeElement instanceof HTMLElement ? list.indexOf(document.activeElement) : -1;
+      const next = e.shiftKey ? (at <= 0 ? list.length - 1 : at - 1) : at === -1 || at === list.length - 1 ? 0 : at + 1;
+      e.preventDefault();
+      list[next].focus();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+  return box;
+};
+
+/** The second step of buying an animal: name it (a default is filled in), then Buy. Closing buys nothing. */
+export const NameAnimalDialog = ({
+  open,
+  top,
+  title,
+  text,
+  art,
+  name,
+  maxLength,
+  price,
+  buyLabel,
+  canBuy,
+  busy,
+  error,
+  onName,
+  onCancel,
+  onBuy,
+}: {
+  open: boolean;
+  top: number;
+  title: string;
+  text: string;
+  art: ReactNode;
+  name: string;
+  maxLength: number;
+  price: ReactNode;
+  buyLabel: string;
+  canBuy: boolean;
+  busy: boolean;
+  error: string | null;
+  onName: (name: string) => void;
+  onCancel: () => void;
+  onBuy: () => void;
+}) => {
+  const overlay = useOverlayClock(open, 4);
+  const box = useWebFocusTrap(open && overlay.mounted);
+  if (!overlay.mounted) return null;
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.topDialog, { paddingTop: top + 24 }]} pointerEvents={open ? "box-none" : "none"}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} disabled={busy} accessibilityRole="button" accessibilityLabel="Cancel" testID="world-name-animal-scrim">
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
+      </Pressable>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" role="dialog" aria-modal aria-label={title} ref={box}>
+        <Animated.View style={itemStyle(overlay, 0)}>{art}</Animated.View>
+        <Animated.View style={itemStyle(overlay, 1)}>
+          <Text style={styles.dialogTitle} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={styles.dialogText}>{text}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.nameField, itemStyle(overlay, 2)]}>
+          <TextInput
+            value={name}
+            onChangeText={onName}
+            maxLength={maxLength}
+            autoFocus={Platform.OS !== "web"}
+            selectTextOnFocus
+            returnKeyType="done"
+            accessibilityLabel="Name"
+            style={styles.nameInput}
+            testID="world-name-animal-input"
+          />
+          {error ? <Text style={styles.nameError}>{error}</Text> : null}
+        </Animated.View>
+        <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 3)]}>
+          <Pressable
+            onPress={onCancel}
+            disabled={busy}
+            accessibilityRole="button"
+            testID="world-name-animal-cancel"
+            style={({ pressed }) => [styles.dialogButton, busy && styles.dialogOff, pressed && styles.rowPressed]}
+          >
+            <Text style={styles.dialogButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={onBuy}
+            disabled={!canBuy}
+            accessibilityRole="button"
+            accessibilityLabel={buyLabel}
+            testID="world-name-animal-buy"
+            style={({ pressed }) => [styles.dialogButton, styles.dialogLeave, !canBuy && styles.dialogOff, pressed && styles.rowPressed]}
+          >
+            {price}
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -383,6 +515,13 @@ const styles = StyleSheet.create({
   dialogButtonText: { color: glass.text, fontFamily: fonts.display, fontSize: 16 },
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { opacity: 0.7 },
+  topDialog: { alignItems: "center" },
+  menuSection: { color: glass.muted, fontWeight: "800", fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", paddingHorizontal: 8, paddingBottom: 6 },
+  menuSectionGap: { paddingTop: 4 },
+  dialogOff: { opacity: 0.45 },
+  nameField: { alignSelf: "stretch", gap: 6 },
+  nameInput: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: glass.rowPressed, color: glass.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
+  nameError: { color: glass.error, fontSize: 12.5, textAlign: "center" },
   placeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   placeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 16, color: glass.text },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: glass.row, borderWidth: 1, borderColor: glass.edge },

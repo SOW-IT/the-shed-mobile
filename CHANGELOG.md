@@ -6,6 +6,48 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.64] - 2026-11-28
+
+### Changed
+- **Animals are bought from Josh in the Garden.** Josh's shop has a new
+  Animals tab beside Seeds and feed and Sell, with a chicken and a cow. Each
+  shows its price and how much room your coop or barn has ("2 / 4 in your
+  coop"), or that you need to build one first, and its Buy is greyed out
+  when there's no room or not enough coins. The coop and barn sheets in your
+  backyard no longer sell animals: where the Buy row was, they say "Buy
+  chickens from Josh in the Garden." The new animal is in your coop or barn
+  straight away, without walking in through the gate, and a note says
+  "Pecky is in your coop." The server only sells animals in the Garden, or
+  in your own backyard for phones still on an older app.
+- **Buying an animal is two steps: Buy, then name it.** Buy in Josh's shop
+  opens a dialog that asks you to name your chick or calf, with a suggested
+  name you can change. Only the dialog's Buy spends the coins: Enter or
+  Done in the name field doesn't, and neither does Cancel or tapping
+  outside, which are also locked while a purchase is going through. A blank
+  name greys Buy out. Naming at purchase is free, needs no name tag, and is
+  checked the same way as a rename. On web, Tab stays inside the dialog and
+  focus goes back to the Buy you pressed when it closes.
+- **Renaming an animal starts with a Rename button, which is greyed out
+  without a name tag.** Each animal in a coop or barn had a small tag icon
+  that opened the name field even with no name tags, and only then said to
+  get one from Josh. The row now has a labelled Rename button. With no name
+  tags it can't be tapped, and the sheet says that renaming uses a name tag
+  from Josh. With a tag, it opens the name field as before, and saving still
+  uses one tag. The server still refuses a rename without a tag.
+- **The plot or animal you're walking to is ringed.** Tapping a plot or an
+  animal you have to walk over to (to water, plant, feed or collect) draws
+  the same gold ring that props and seats get, for the whole walk. The
+  animal's ring moves with it. The ring goes when you arrive and the plant
+  picker or feeding starts, when you tap somewhere else, or when the animal
+  wanders off.
+
+### Added
+- **The World's top-left menu has a "Your home" section with Home and
+  Backyard.** Each takes you straight to your own home or backyard in one
+  tap, and is left out while you're already there. The backyard's only way
+  in is still through your home, so from anywhere else Backyard goes home
+  and on through the back door without stopping.
+
 ## [2.13.63] - 2026-11-27
 
 ### Changed

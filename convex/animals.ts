@@ -18,12 +18,12 @@ import {
   NAME_MAX,
   NAME_TAG_PRICE,
 } from "../shared/animals";
-import { BACKYARD } from "../shared/world";
+import { BACKYARD, FARMER } from "../shared/world";
 import { ensureWallet } from "./coins";
 import { asOwner, atFarmShop, inBackyard, JOSH } from "./farm";
 import { animalsOf, buildingsOf, ensureFarm, farmOf, noteFeeder } from "./farmData";
 import { optionalEmail, requireEmail } from "./model";
-import { blockedEither, memberByEmail } from "./world";
+import { blockedEither, memberByEmail, ownerOf, placeOf, requireMe } from "./world";
 
 
 const feedingValidator = v.object({ at: v.number(), by: v.union(v.string(), v.null()), mine: v.boolean() });
@@ -79,6 +79,25 @@ export const yard = query({
       animals: animals.map((animal) => shownAnimal(animal, email, hidden)),
       wandered: mine ? ((await farmOf(ctx, owner))?.wandered ?? []) : [],
     };
+  },
+});
+
+/** Your own coop and barn, wherever you are, so Josh's shop can say what fits. */
+export const pens = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      buildings: v.array(v.string()),
+      animals: v.array(v.object({ kind: v.string(), boughtAt: v.number(), feedings: v.array(v.object({ at: v.number() })) })),
+    })
+  ),
+  handler: async (ctx) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const buildings = (await buildingsOf(ctx, email)).map((b) => b.kind);
+    const animals = (await animalsOf(ctx, email)).map((a) => ({ kind: a.kind, boughtAt: a.boughtAt, feedings: a.feedings.map((f) => ({ at: f.at })) }));
+    return { buildings, animals };
   },
 });
 
@@ -140,11 +159,21 @@ const nameOf = (raw: string) => {
   return name;
 };
 
+// Josh sells animals at his shop in the Garden. Apps before 2.13.64 buy from
+// the coop sheet, so your own backyard still works for them.
+const atJoshForAnimals = async (ctx: MutationCtx) => {
+  const me = await requireMe(ctx);
+  const place = placeOf(me.member);
+  if (place === FARMER.place) return me;
+  if (place === BACKYARD && (await ownerOf(ctx, me.member)) === me.email) return me;
+  throw new ConvexError(`Find ${FARMER.name} in the Garden to buy animals.`);
+};
+
 export const buyAnimal = mutation({
   args: { kind: v.string(), name: v.string() },
   returns: v.object({ balance: v.number(), id: v.id("worldAnimals") }),
   handler: async (ctx, args) => {
-    const email = await requireEmail(ctx);
+    const { email } = await atJoshForAnimals(ctx);
     if (!isAnimal(args.kind)) throw new ConvexError(`${JOSH} doesn't sell that.`);
     const kind = args.kind;
     const name = nameOf(args.name);

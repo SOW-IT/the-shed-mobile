@@ -39,7 +39,8 @@ import { useKeyboardHeight } from "@/hooks/useKeyboardInset";
 import { announce } from "./announce";
 import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
-import { Garden, type GardenFarm, type GardenYard, type HighlightTarget, type InteractivePropId } from "./Garden";
+import { Garden, type GardenFarm, type GardenYard } from "./Garden";
+import { tripTarget, type InteractivePropId } from "./tripTarget";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
 import { CropThumb, GainChip, type FarmCardData } from "./Farm";
 import { AnimalThumb } from "./Animals";
@@ -280,7 +281,6 @@ export const WorldScreen = ({
   const [collecting, setCollecting] = useState<{ id: string; good: GoodId; key: number } | null>(null);
   const [buildingOffer, setBuildingOffer] = useState<BuildingId | null>(null);
   const [penSheet, setPenSheet] = useState<BuildingId | null>(null);
-  const [arrivals, setArrivals] = useState<ReadonlySet<string>>(new Set());
   const [leftIds, setLeftIds] = useState<ReadonlySet<string>>(new Set());
   const [bagOpen, setBagOpen] = useState(false);
   const [pickPlot, setPickPlot] = useState<number | null>(null);
@@ -626,11 +626,7 @@ export const WorldScreen = ({
     return () => clearInterval(id);
   }, [seatTrip]);
 
-  const highlighted: HighlightTarget | null = propTrip
-    ? { kind: "prop", id: propTrip.kind }
-    : seatTrip
-      ? { kind: "seat", id: seatTrip.seatId }
-      : null;
+  const highlighted = tripTarget({ prop: propTrip, seat: seatTrip, plot: plotTrip, animal: animalTrip });
 
   const [fade] = useState(() => new Animated.Value(0));
   const clearWatering = useCallback(() => setWatering(null), []);
@@ -655,7 +651,6 @@ export const WorldScreen = ({
     setYardCard(null);
     setBuildingOffer(null);
     setPenSheet(null);
-    setArrivals(new Set());
     setFeeding(null);
     setCollecting(null);
     setPlotCard(null);
@@ -687,6 +682,8 @@ export const WorldScreen = ({
     });
   };
   const goHome = () => go("home");
+  // The backyard's only door is in the home, so from anywhere else go home and straight on through.
+  const goBackyard = () => (world.place === "home" || world.place === "backyard" ? go("backyard") : go("home", undefined, () => go("backyard")));
   const invitePerson = (memberId: Id<"worldMembers">, name: string) =>
     void world.invite(memberId).then((problem) => setNote(problem ?? `Invited ${worldName(name)} home.`));
   const askToVisit = (memberId: Id<"worldMembers">, name: string) =>
@@ -1138,8 +1135,10 @@ export const WorldScreen = ({
       const at = latest.serverNow();
       const mine = latest.people.find((p) => p.isMe);
       const pose = mine?.walk ? posAt(mine.walk, at) : null;
-      const arrived = pose !== null && distance(pose, spot) <= AT_OBJECT;
-      const strayed = pose === null || (!pose.walking && at - pose.arrivesAt > 400) || at - animalTrip.since > OBJECT_TRIP_MS;
+      // The animal can wander off, or the yard can go, while you walk over.
+      const still = live.current.animals.view?.animals.some((a) => a.id === animalTrip.id && life(a, at).mood !== "gone") ?? false;
+      const arrived = still && pose !== null && distance(pose, spot) <= AT_OBJECT;
+      const strayed = !still || pose === null || (!pose.walking && at - pose.arrivesAt > 400) || at - animalTrip.since > OBJECT_TRIP_MS;
       if (!arrived && !strayed) return;
       setAnimalTrip(null);
       if (arrived) animalActRef.current(animalTrip.id);
@@ -1222,12 +1221,11 @@ export const WorldScreen = ({
           progress: l.progress,
           mood: l.mood,
           ready: l.ready,
-          fresh: arrivals.has(animal.id),
           label: animalLabel(animal, farmNow),
           ...(by ? { note: `Fed by ${by}` } : {}),
         };
       }),
-    [shownAnimals, farmNow, arrivals, worldName]
+    [shownAnimals, farmNow, worldName]
   );
   const gardenYard: GardenYard | null = yardView
     ? {
@@ -1401,6 +1399,9 @@ export const WorldScreen = ({
           buySeeds: farm.buySeeds,
           buyFeed: animals.buyFeed,
           buyNameTag: animals.buyNameTag,
+          buyAnimal: animals.buyAnimal,
+          suggestName,
+          serverNow: world.serverNow,
           sell: farm.sell,
         }}
       />
@@ -1425,16 +1426,7 @@ export const WorldScreen = ({
             const l = life(a, farmNow);
             return { id: a.id, kind: a.kind, name: a.name, stage: l.stage, mood: l.mood, status: [stageLabel(a.kind, l.stage), ...animalCard(a, farmNow).split(" · ").slice(1)].join(" · ") };
           })}
-        balance={wallet?.balance ?? 0}
         nameTags={farm.bag?.nameTags ?? 0}
-        suggest={suggestName}
-        onBuy={async (kind, name) => {
-          const reply = await animals.buyAnimal(kind, name);
-          if (typeof reply === "string") return reply;
-          setArrivals((was) => new Set([...was, reply.id]));
-          setPenSheet(null);
-          return null;
-        }}
         onRename={(id, name) => animals.rename(id, name)}
         onClose={() => setPenSheet(null)}
       />
@@ -1544,6 +1536,7 @@ export const WorldScreen = ({
   );
 
   // No trips from here: you walk to a place. Outfit sits above Your home.
+  const myBackyard = world.place === "backyard" && farmView?.mine === true;
   const menuEntries: MenuEntry[] = [
     {
       id: "outfit",
@@ -1572,10 +1565,23 @@ export const WorldScreen = ({
       : [
           {
             id: "home",
-            label: "Your home",
+            label: "Home",
             icon: "home" as const,
+            section: "Your home",
             accessibilityLabel: "Go to your home",
             onPress: goHome,
+          },
+        ]),
+    ...(myBackyard
+      ? []
+      : [
+          {
+            id: "backyard",
+            label: "Backyard",
+            icon: "flower-outline" as const,
+            section: "Your home",
+            accessibilityLabel: "Go to your backyard",
+            onPress: goBackyard,
           },
         ]),
     ...(world.place === WORLD_PLACE

@@ -2,9 +2,9 @@ import { expect, test } from "vitest";
 import { FARMER, NPC } from "../../shared/world";
 import { FARM_OFFERS_FROM, KEEPERS, SHOP_TABS } from "./shopTabs";
 
-test("Sijin sells furniture and wallpaper only, and Josh everything for the farm", () => {
+test("Sijin sells furniture and wallpaper only, and Josh everything for the farm, animals too", () => {
   expect(SHOP_TABS.sijin.map((tab) => tab.id)).toEqual(["furniture", "wallpaper"]);
-  expect(SHOP_TABS.josh.map((tab) => tab.id)).toEqual(["seeds", "sell"]);
+  expect(SHOP_TABS.josh.map((tab) => tab.id)).toEqual(["seeds", "animals", "sell"]);
   expect(KEEPERS.sijin).toBe(NPC);
   expect(KEEPERS.josh.name).toBe("Josh Kim");
 });
