@@ -41,6 +41,7 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type GardenFarm, type GardenYard } from "./Garden";
 import { tripTarget, type InteractivePropId } from "./tripTarget";
+import { BackyardGuide } from "./BackyardGuide";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
 import { CropThumb, GainChip, type FarmCardData } from "./Farm";
 import { AnimalThumb } from "./Animals";
@@ -283,6 +284,7 @@ export const WorldScreen = ({
   const [penSheet, setPenSheet] = useState<BuildingId | null>(null);
   const [leftIds, setLeftIds] = useState<ReadonlySet<string>>(new Set());
   const [bagOpen, setBagOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [pickPlot, setPickPlot] = useState<number | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
@@ -655,6 +657,7 @@ export const WorldScreen = ({
     setCollecting(null);
     setPlotCard(null);
     setPickPlot(null);
+    setGuideOpen(false);
     setOfferOpen(false);
     setApproach(null);
     setPropTrip(null);
@@ -1694,6 +1697,7 @@ export const WorldScreen = ({
         target={world.target}
         onHoldStart={(x, z) => {
           setTray(false);
+          setGuideOpen(false);
           setPerson(null);
           setPlotCard(null);
           setYardCard(null);
@@ -1905,6 +1909,14 @@ export const WorldScreen = ({
               setChosenItem(null);
             }}
           />
+        ) : null}
+        {inBackyard && !keyboard.open ? (
+          <>
+            <BackyardGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+            <View style={styles.decorateRow} pointerEvents="box-none">
+              <RoundButton icon={guideOpen ? "close" : "information-circle-outline"} label={guideOpen ? "Close how to farm" : "How to farm"} onPress={() => setGuideOpen((was) => !was)} testID="world-backyard-guide-open" />
+            </View>
+          </>
         ) : null}
         <ChatBar
           keyboardOpen={keyboard.open}

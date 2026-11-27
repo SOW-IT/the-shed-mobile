@@ -254,7 +254,44 @@ export const ShopPanel = ({
                 </Pressable>
               </Animated.View>
             ))}
-            <Animated.View style={[styles.full, itemStyle(overlay, 2 + CROP_IDS.length)]}>
+            {error && !choice ? (
+              <Text style={[styles.error, styles.full]} numberOfLines={2}>
+                {error}
+              </Text>
+            ) : null}
+          </SharpScrollView>
+        ) : tab === "animals" ? (
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+            {ANIMAL_IDS.map((id, i) => {
+              const { room, note } = stock(id);
+              const price = ANIMALS[id].price;
+              const off = busy || pens === undefined || !room || balance < price;
+              return (
+                <Animated.View key={id} style={[styles.stack, itemStyle(overlay, 2 + i)]} testID={`world-shop-animal-${id}`}>
+                  <AnimalThumb kind={id} stage={0} size={40} />
+                  <View style={styles.feedText}>
+                    <Text style={styles.stackName} numberOfLines={1}>
+                      {ANIMALS[id].label}
+                    </Text>
+                    <Text style={styles.stockText} numberOfLines={1}>
+                      {note}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => pickAnimal(id)}
+                    disabled={off}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Buy a ${ANIMALS[id].stages[0].toLowerCase()} for ${price} coins`}
+                    testID={`world-shop-animal-${id}-buy`}
+                    style={({ pressed }) => [styles.animalBuy, off && styles.buyOff, pressed && styles.pressed]}
+                  >
+                    <GoldCoin size={16} />
+                    <Text style={styles.plusText}>{price}</Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+            <Animated.View style={[styles.full, itemStyle(overlay, 2 + ANIMAL_IDS.length)]}>
               <Text style={styles.section} accessibilityRole="header">
                 Feed
               </Text>
@@ -304,43 +341,6 @@ export const ShopPanel = ({
                 <Text style={styles.plusText}>+1</Text>
               </Pressable>
             </View>
-            {error && !choice ? (
-              <Text style={[styles.error, styles.full]} numberOfLines={2}>
-                {error}
-              </Text>
-            ) : null}
-          </SharpScrollView>
-        ) : tab === "animals" ? (
-          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
-            {ANIMAL_IDS.map((id, i) => {
-              const { room, note } = stock(id);
-              const price = ANIMALS[id].price;
-              const off = busy || pens === undefined || !room || balance < price;
-              return (
-                <Animated.View key={id} style={[styles.stack, itemStyle(overlay, 2 + i)]} testID={`world-shop-animal-${id}`}>
-                  <AnimalThumb kind={id} stage={0} size={40} />
-                  <View style={styles.feedText}>
-                    <Text style={styles.stackName} numberOfLines={1}>
-                      {ANIMALS[id].label}
-                    </Text>
-                    <Text style={styles.stockText} numberOfLines={1}>
-                      {note}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => pickAnimal(id)}
-                    disabled={off}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Buy a ${ANIMALS[id].stages[0].toLowerCase()} for ${price} coins`}
-                    testID={`world-shop-animal-${id}-buy`}
-                    style={({ pressed }) => [styles.animalBuy, off && styles.buyOff, pressed && styles.pressed]}
-                  >
-                    <GoldCoin size={16} />
-                    <Text style={styles.plusText}>{price}</Text>
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
             {error && !naming.open ? (
               <Text style={[styles.error, styles.full]} numberOfLines={2}>
                 {error}

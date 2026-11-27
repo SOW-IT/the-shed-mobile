@@ -196,7 +196,6 @@ export const NoticeBoardPanel = ({
                   testID="field-notice"
                 />
                 <View style={styles.actions}>
-                  <Text style={styles.meta}>Everyone in the World sees it.</Text>
                   <View style={styles.grow} />
                   <TextButton label="Cancel" onPress={() => setDraft(null)} testID="world-board-cancel" />
                   <TextButton label={draft.id ? "Save" : "Pin it up"} strong disabled={saving || !draft.text.trim()} onPress={() => void save()} testID="world-board-save" />
@@ -204,7 +203,8 @@ export const NoticeBoardPanel = ({
               </View>
             ) : null}
 
-            {pinned.map((n, i) => (
+            {/* The notice being edited shows only as the editor above, not twice. */}
+            {pinned.map((n, i) => (n.id === draft?.id ? null : (
               <Animated.View key={n.id} style={itemStyle(overlay, next())}>
                 <View
                   style={[styles.paper, styles.notice, { transform: [{ rotate: tiltOf(i) }] }]}
@@ -239,7 +239,7 @@ export const NoticeBoardPanel = ({
                   ) : null}
                 </View>
               </Animated.View>
-            ))}
+            )))}
 
             {!loading && !noAccess ? (
               <Animated.View style={[styles.label, itemStyle(overlay, next())]}>
