@@ -7,7 +7,8 @@
 //   tab, and the Seeds tab is seeds only.
 // - The backyard: the (i) at the bottom right opens How to farm just above
 //   it, the menu and chat stay clear of it, and its ×, the button and a tap
-//   on the backyard each close it. Then the coop still opens.
+//   on the backyard each close it, and tapping the coop puts it away and
+//   opens the coop.
 // The World's accessible targets don't take clicks themselves (the stage
 // above them does), so a target is clicked at its middle, as a finger would.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -165,33 +166,38 @@ try {
   await page.waitForTimeout(500);
   await open.click();
   expect("the button didn't close How to farm again", await gone(guide));
-  await open.click();
-  await shown(guide);
-  await page.waitForTimeout(500);
-  // A tap on the backyard above the card, clear of the chat lines under the coins.
-  const above = await guide.boundingBox();
-  await page.mouse.click(stage.width * 0.6, above.y - 24);
-  expect("tapping the backyard didn't close How to farm", await gone(guide));
-  await page.waitForTimeout(1500);
 
   // The coop still opens (built, its sheet; not yet, its offer).
+  const offer = page.locator('[data-testid="world-pen-sheet"], [data-testid="world-building-offer"]').first();
   const coop = page.getByLabel(/^Coop, /).first();
-  if ((await coop.count()) > 0) {
-    await clickMiddle(coop);
-    expect("tapping the coop opened nothing", await shown(page.locator('[data-testid="world-pen-sheet"], [data-testid="world-building-offer"]').first(), 20_000));
-    await page.waitForTimeout(800);
-    await shot("coop");
-  } else failures.push("no coop in the backyard");
-
-  // Wider, as on a laptop.
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.keyboard.press("Escape");
-  await page.mouse.click(8, 400);
+  await clickMiddle(coop);
+  expect("tapping the coop opened nothing", await shown(offer, 20_000));
   await page.waitForTimeout(800);
+  await shot("coop");
+  await page.mouse.click(8, 420);
+  await gone(offer);
+
+  // Wider, as on a laptop, where the backyard shows beside the card: tapping
+  // the coop puts How to farm away and opens the coop, and so does tapping
+  // the ground.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(1200);
   await open.click();
   await shown(guide);
   await page.waitForTimeout(900);
   await shot("guide-wide");
+  await clickMiddle(coop);
+  expect("tapping the coop didn't open it over How to farm", await shown(offer, 20_000));
+  expect("tapping the coop didn't put How to farm away", await gone(guide));
+  await page.waitForTimeout(800);
+  await shot("coop-wide");
+  await page.mouse.click(8, 420);
+  await gone(offer);
+  await open.click();
+  await shown(guide);
+  await page.waitForTimeout(600);
+  await page.mouse.click(300, 650);
+  expect("tapping the backyard didn't close How to farm", await gone(guide));
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
   await shot("failed").catch(() => {});
@@ -205,7 +211,7 @@ try {
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Notice board, Josh's shop and How to farm: the editor says nothing about who sees a notice and an edited notice shows once; animals, feed and name tags share a tab; the backyard's (i) opens How to farm clear of the menu and chat, and closes three ways."
+    ? "Notice board, Josh's shop and How to farm: the editor says nothing about who sees a notice and an edited notice shows once; animals, feed and name tags share a tab; the backyard's (i) opens How to farm clear of the menu and chat, and closes with its ×, its button, a tap on the backyard or a tap on the coop."
     : `${failures.length} step(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

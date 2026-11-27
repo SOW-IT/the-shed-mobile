@@ -16,12 +16,13 @@ All notable changes to **The SHED** mobile app. This project follows
   from seed to ripe, harvesting and selling, and feeding chickens and cows
   for eggs and milk. The menu, coins and chat stay where they are and keep
   working while it's open. It closes with its ×, with the same button
-  (which turns into a ×), or by tapping the backyard.
+  (which turns into a ×), or by tapping the backyard, and it makes way when
+  you tap a plot, a pen or an animal.
 
 ### Changed
 - **Josh's animals and their feed are on one tab.** Josh's shop tabs are
   now Seeds, Animals and feed, and Sell. The Animals and feed tab lists the
-  chicken and the cow, then grain, hay and name tags, so everything for
+  chicken and the cow, then grain, hay and name tags under "Feed and name tags", so everything for
   your animals is in one place. Buying works the same as before.
 - **A notice being edited shows once.** Tapping Edit on a pinned notice
   opens the editor at the top of the notice board, and the notice no longer

@@ -952,6 +952,8 @@ export const WorldScreen = ({
   });
   const tapPlot = (plot: number) => {
     if (!farmView) return;
+    // How to farm makes way for the plot, pen or animal you tap.
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1103,6 +1105,7 @@ export const WorldScreen = ({
   const tapAnimal = (id: string) => {
     const animal = animalOn(id);
     if (!animal || !yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1155,6 +1158,7 @@ export const WorldScreen = ({
   }, [yardCard]);
   const tapBuilding = (kind: BuildingId) => {
     if (!yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setTray(false);
     setAnimalTrip(null);
