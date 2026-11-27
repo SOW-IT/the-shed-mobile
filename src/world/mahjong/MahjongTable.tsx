@@ -4,7 +4,7 @@ import { CLAIM_MS, TURN_MS } from "@shared/mahjong/game";
 import { isMahjongTable, MAHJONG_TABLE_NAMES } from "@shared/mahjong/table";
 import { BUBBLE_MS, EMOTE_MS, EMOTES, isEmote, type Look } from "@shared/world";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import type { Move } from "@shared/mahjong/play";
 import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/view";
 import { gradientStyle } from "@/components/ui/Grid";
@@ -16,7 +16,7 @@ import { Arrive, Punch } from "./Motion";
 import { Intro } from "./Intro";
 import { useBatterySaver } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
-import { DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, RIVER_LABEL, STRIP_GAP, tableLayout } from "./layout";
+import { ACROSS_SEAT_HEIGHT, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, PAD, RIVER_GAP, riverFit, SIDE_COLUMN, TABLE_GAP, tableLayout, zoneHeight, type Zone } from "./layout";
 import { isSlideUp, startsSlideUp } from "./tap";
 
 type Person = { memberId: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
@@ -69,10 +69,10 @@ const keyedMelds = (melds: readonly MeldView[]) => melds.map((meld, i) => ({ mel
 
 const keyedTiles = (tiles: readonly number[]) => tiles.map((tile, i) => ({ tile, key: tile >= 0 ? `t${tile}` : `h${i}`, end: i === 0 || i === tiles.length - 1 }));
 
-const Melds = ({ melds, width, calm, testID }: { melds: readonly MeldView[]; width: number; calm: boolean; testID: string }) => {
+const Melds = ({ melds, width, calm, vertical = false, testID }: { melds: readonly MeldView[]; width: number; calm: boolean; vertical?: boolean; testID: string }) => {
   if (melds.length === 0) return null;
   return (
-    <View style={styles.melds} testID={testID}>
+    <View style={[styles.melds, vertical && styles.meldsColumn]} testID={testID}>
       {keyedMelds(melds).map(({ meld, key }) => (
         <Arrive key={key} from={{ x: 0, y: 40 }} scale={1.3} calm={calm}>
           <View style={styles.meld} accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}`}>
@@ -86,22 +86,7 @@ const Melds = ({ melds, width, calm, testID }: { melds: readonly MeldView[]; wid
   );
 };
 
-const OpponentCard = ({
-  seat,
-  index,
-  hand,
-  look,
-  active,
-  deadline,
-  now,
-  meld,
-  width,
-  concealed,
-  nameOf,
-  said,
-  emote,
-  calm,
-}: {
+type SeatProps = {
   seat: MahjongSeatView;
   index: number;
   hand: HandView;
@@ -109,73 +94,123 @@ const OpponentCard = ({
   active: boolean;
   deadline: number | null;
   now: number;
-  meld: number;
-  width: number;
   concealed: number;
   nameOf: (n: string) => string;
   said: string | null;
   emote: string | null;
   calm: boolean;
-}) => {
+  back: number;
+  meld: number;
+  forCoins: boolean;
+  vertical: boolean;
+};
+
+const Backs = ({ count, width, wrap }: { count: number; width: number; wrap: boolean }) => (
+  <View style={[styles.backs, wrap && styles.backsWrap]} accessible accessibilityLabel={`${count} tiles in hand`}>
+    {Array.from({ length: count }, (_, i) => `b${i}`).map((key) => (
+      <Tile key={key} tile={-1} width={width} back />
+    ))}
+  </View>
+);
+
+const SeatBlock = ({ seat, index, hand, look, active, deadline, now, concealed, nameOf, said, emote, calm, back, meld, forCoins, vertical }: SeatProps) => {
   const wind = hand.seats[index].wind;
   const name = seatName(seat, nameOf);
   const dealer = index === hand.dealer;
   return (
-    <View
-      style={[styles.card, { width }, active && styles.cardActive]}
-      accessible
-      accessibilityLabel={`${name}, ${windWords(wind)}${dealer ? ", dealer" : ""}${seat.away ? ", away, a bot is playing" : ""}, ${concealed} tiles in hand, score ${coinsWords(seat.net)}${active ? ", their turn" : ""}`}
-      testID={`mahjong-player-${index}`}
-    >
-      <View style={styles.cardHead}>
+    <View style={[vertical ? styles.sideSeat : styles.acrossSeat, active && styles.seatActive]} testID={`mahjong-player-${index}`}>
+      <View
+        style={vertical ? styles.sideHead : styles.acrossHead}
+        accessible
+        accessibilityLabel={`${name}, ${windWords(wind)}${dealer ? ", dealer" : ""}${seat.away ? ", away, a bot is playing" : ""}, ${concealed} tiles in hand, ${forCoins ? "coins" : "points"} ${coinsWords(seat.net)}${active ? ", their turn" : ""}`}
+      >
         <View>
-          <SeatFace kind={seat.kind === "human" && seat.away ? "bot" : seat.kind} look={look} name={seat.name} size={30} />
+          <SeatFace kind={seat.kind === "human" && seat.away ? "bot" : seat.kind} look={look} name={seat.name} size={vertical ? 26 : 28} />
           <Bubble text={said} emote={emote} />
         </View>
-        <View style={styles.cardText}>
-          <Text style={styles.cardName} numberOfLines={1}>
+        <View style={vertical ? styles.sideText : null}>
+          <Text style={styles.seatName} numberOfLines={1}>
             {name}
           </Text>
           <View style={styles.badges}>
             <Text style={[styles.wind, dealer && styles.dealer]}>{windBadge(wind)}</Text>
             <Text style={[styles.score, seat.net > 0 ? styles.up : seat.net < 0 ? styles.down : null]}>{coinsWords(seat.net)}</Text>
+            {active && deadline !== null ? <Text style={styles.seatTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
           </View>
         </View>
       </View>
-      <View style={styles.cardRow}>
-        <View style={styles.count}>
-          <Tile tile={-1} width={11} back />
-          <Text style={styles.countText}>{`×${concealed}`}</Text>
-        </View>
-        {active && deadline !== null ? <Text style={styles.cardTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
-      </View>
-      <Melds melds={hand.seats[index].melds} width={meld} calm={calm} testID={`mahjong-melds-${index}`} />
+      <Backs count={concealed} width={back} wrap={vertical} />
+      <Melds melds={hand.seats[index].melds} width={meld} calm={calm} vertical={vertical} testID={`mahjong-melds-${index}`} />
     </View>
   );
 };
 
-/** A seat's discards in the order they were let go, the newest lit. */
-const River = ({ seat, index, hand, nameOf, seats, lastDiscard, width, perRow, from, calm }: { seat: HandSeat; index: number; hand: HandView; nameOf: (n: string) => string; seats: readonly MahjongSeatView[]; lastDiscard: { seat: number; tile: number } | null; width: number; perRow: number; from: boolean; calm: boolean }) => {
-  const shown = seat.discards.filter((d) => !d.taken);
-  const name = seatName(seats[index], nameOf);
-  return (
-    <View style={[styles.riverRow, from && styles.riverFrom]} testID={`mahjong-river-${index}`} accessibilityLabel={`${name}'s discards`}>
-      <View style={[styles.riverLabel, { width: RIVER_LABEL }]}>
-        <Text style={[styles.wind, index === hand.dealer && styles.dealer]}>{windBadge(seat.wind)}</Text>
-        <Text style={styles.riverName} numberOfLines={1}>
-          {name}
-        </Text>
+const Upright = ({ tile, width, sideways, lit, testID }: { tile: number; width: number; sideways: boolean; lit?: boolean; testID?: string }) =>
+  sideways ? (
+    <View style={{ width: Math.round(width * TILE_RATIO), height: width, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ transform: [{ rotate: "90deg" }] }}>
+        <Tile tile={tile} width={width} lit={lit} testID={testID} />
       </View>
-      <View style={[styles.river, { width: perRow * (width + RIVER_GAP) }]}>
-        {shown.map((d) =>
-          lastDiscard && lastDiscard.seat === index && d.tile === lastDiscard.tile ? (
-            <Arrive key={d.tile} from={{ x: 0, y: -60 }} scale={1.6} arc={20} duration={320} calm={calm}>
-              <Tile tile={d.tile} width={width} lit testID="mahjong-last-discard" />
-            </Arrive>
-          ) : (
-            <Tile key={d.tile} tile={d.tile} width={width} />
-          )
-        )}
+    </View>
+  ) : (
+    <Tile tile={tile} width={width} lit={lit} testID={testID} />
+  );
+
+/** A seat's discards in the order they were let go, the newest lit. */
+const River = ({ seat, index, name, lastDiscard, zone, from, calm, onOpen }: { seat: HandSeat; index: number; name: string; lastDiscard: { seat: number; tile: number } | null; zone: Zone; from: boolean; calm: boolean; onOpen: (seat: number) => void }) => {
+  const shown = seat.discards.filter((d) => !d.taken);
+  const fit = riverFit(shown.length, zone);
+  return (
+    <Pressable
+      onPress={() => onOpen(index)}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}'s discards, ${shown.length} tiles. Show them bigger`}
+      testID={`mahjong-river-${index}`}
+      style={[styles.river, { width: zone.width, height: zoneHeight(zone) }, from && styles.riverFrom]}
+    >
+      {shown.map((d) =>
+        lastDiscard && lastDiscard.seat === index && d.tile === lastDiscard.tile ? (
+          <Arrive key={d.tile} from={{ x: 0, y: -40 }} scale={1.6} arc={20} duration={320} calm={calm}>
+            <Upright tile={d.tile} width={fit.tile} sideways={zone.sideways} lit testID="mahjong-last-discard" />
+          </Arrive>
+        ) : (
+          <Upright key={d.tile} tile={d.tile} width={fit.tile} sideways={zone.sideways} />
+        )
+      )}
+    </Pressable>
+  );
+};
+
+const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, onClose }: { seat: HandSeat; index: number; name: string; hand: HandView; lastDiscard: { seat: number; tile: number } | null; width: number; concealed: number; onClose: () => void }) => {
+  const shown = seat.discards.filter((d) => !d.taken);
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <View style={styles.resultWrap} testID="mahjong-zoom">
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-zoom-backdrop" />
+      <View style={[styles.result, styles.resultBody]} accessibilityViewIsModal>
+        <View style={styles.zoomHead}>
+          <Text style={[styles.resultTitle, styles.zoomTitle]} accessibilityRole="header" numberOfLines={1}>
+            {`${name} · ${windBadge(seat.wind)}${index === hand.dealer ? " · dealer" : ""}`}
+          </Text>
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-zoom-close" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+            <Ionicons name="close" size={18} color={m.text} />
+          </Pressable>
+        </View>
+        <Text style={styles.resultNote}>{`${concealed} tiles in hand · ${shown.length} let go`}</Text>
+        {seat.melds.length > 0 ? <Melds melds={seat.melds} width={Math.round(width * 0.8)} calm testID="mahjong-zoom-melds" /> : null}
+        <View style={styles.zoomTiles}>
+          {shown.map((d) => (
+            <Tile key={d.tile} tile={d.tile} width={width} lit={lastDiscard !== null && lastDiscard.seat === index && d.tile === lastDiscard.tile} />
+          ))}
+        </View>
+        {shown.length === 0 ? <Text style={styles.resultNote}>Nothing let go yet.</Text> : null}
       </View>
     </View>
   );
@@ -199,21 +234,19 @@ const Callout = ({ hand, names, calm }: { hand: HandView; names: readonly string
   );
 };
 
-const InfoBar = ({ hand, names, now, forCoins, stake }: { hand: HandView; names: readonly string[]; now: number; forCoins: boolean; stake: number }) => {
+const Centre = ({ hand, now, forCoins, stake }: { hand: HandView; now: number; forCoins: boolean; stake: number }) => {
   const stage = hand.stage;
-  const who = stage.kind === "turn" ? (names[stage.seat] === "You" ? "Your turn" : `${names[stage.seat]}'s turn`) : stage.kind === "claim" ? `${names[stage.from]} let go` : "";
   const deadline = stage.kind === "turn" || stage.kind === "claim" ? stage.deadline : null;
   return (
-    <View style={styles.info} testID="mahjong-compass">
-      <Text style={styles.infoText}>{roundWords(hand.roundWind)}</Text>
-      <Text style={styles.infoText} accessibilityLabel={`${hand.wallLeft} tiles left in the wall`} testID="mahjong-wall-left">{`${hand.wallLeft} left`}</Text>
-      <Text style={[styles.infoText, styles.infoWho]} numberOfLines={1}>
-        {who}
+    <View style={[styles.centre, { width: CENTRE }]} testID="mahjong-compass">
+      <Text style={styles.centreWind}>{windBadge(hand.roundWind)}</Text>
+      <Text style={styles.centreLeft} accessibilityLabel={`${hand.wallLeft} tiles left in the wall`} testID="mahjong-wall-left">
+        {hand.wallLeft}
       </Text>
-      {deadline !== null ? <Text style={styles.infoTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
-      <View style={[styles.stakePill, forCoins && styles.stakeCoins]} testID="mahjong-stakes">
-        <Text style={styles.stakeText}>{forCoins ? `🪙 ${stake}/pt` : "Points"}</Text>
-      </View>
+      {deadline !== null ? <Text style={styles.centreTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
+      <Text style={[styles.centreStake, forCoins && styles.centreCoins]} testID="mahjong-stakes">
+        {forCoins ? `🪙${stake}` : "pts"}
+      </Text>
     </View>
   );
 };
@@ -430,8 +463,10 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [zoomed, setZoomed] = useState<number | null>(null);
   const stage = hand.stage;
   const myTurn = mySeat !== null && stage.kind === "turn" && stage.seat === mySeat && !busy;
+  const asked = mySeat !== null && stage.kind === "claim" && hand.mine?.offer != null && !hand.mine.answered;
   const selected = myTurn && chosen?.step === hand.step ? chosen.tile : null;
   const person = (seat: MahjongSeatView) => (seat.member ? people.find((p) => p.memberId === seat.member) : undefined);
   const lookOf = (seat: MahjongSeatView) => person(seat)?.look ?? null;
@@ -448,8 +483,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const handTiles = dealing ? [...sorted].sort((a, b) => ((a * 37) % 136) - ((b * 37) % 136)).slice(0, dealtCount(intro, sorted.length, calm)) : sorted;
   const concealedOf = (seat: number) => (intro === null ? hand.seats[seat].concealed : dealtCount(intro, hand.seats[seat].concealed, calm));
   const names = seats.map((s) => seatName(s, nameOf));
-  const others = [1, 2, 3].map((d) => (viewer + d) % 4);
-  const riverOrder = [...others, viewer];
+  const right = (viewer + 1) % 4;
+  const across = (viewer + 2) % 4;
+  const left = (viewer + 3) % 4;
   const discard = (tile: number) => {
     if (!myTurn) return;
     setSelected(null);
@@ -464,7 +500,33 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
     if (mySeat !== null && forCoins && stage.kind !== "over") setConfirming(true);
     else onLeave();
   };
-  const title = `${isMahjongTable(table) ? MAHJONG_TABLE_NAMES[table] : "Mahjong"} · Hand ${handNo}`;
+  const seatBlock = (i: number, vertical: boolean) => (
+    <SeatBlock
+      seat={seats[i]}
+      index={i}
+      hand={hand}
+      look={lookOf(seats[i])}
+      active={active === i}
+      deadline={deadline}
+      now={now}
+      concealed={concealedOf(i)}
+      nameOf={nameOf}
+      said={saidOf(seats[i])}
+      emote={actOf(seats[i])}
+      calm={calm}
+      back={layout.back}
+      meld={layout.meld}
+      forCoins={forCoins}
+      vertical={vertical}
+    />
+  );
+  const river = (i: number, zone: Zone) =>
+    stage.kind === "intro" ? (
+      <View style={{ width: zone.width, height: zoneHeight(zone) }} />
+    ) : (
+      <River seat={hand.seats[i]} index={i} name={names[i]} lastDiscard={lastDiscard} zone={zone} from={stage.kind === "claim" && stage.from === i} calm={calm} onOpen={setZoomed} />
+    );
+  const title = `${isMahjongTable(table) ? MAHJONG_TABLE_NAMES[table] : "Mahjong"} · ${roundWords(hand.roundWind)} · Hand ${handNo}`;
   return (
     <View style={[StyleSheet.absoluteFill, styles.screen, gradientStyle(`radial-gradient(circle at 50% 45%, ${m.feltLight} 0%, ${m.felt} 55%, ${m.feltDark} 100%)`)]} testID={mySeat === null ? "mahjong-watching" : "mahjong-table"} accessibilityViewIsModal>
       <View style={[styles.column, { width: layout.width }]}>
@@ -482,60 +544,43 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             <Ionicons name="close" size={18} color={m.text} />
           </Pressable>
         </View>
-        <View style={styles.strip}>
-          {others.map((i) => (
-            <OpponentCard
-              key={i}
-              seat={seats[i]}
-              index={i}
-              hand={hand}
-              look={lookOf(seats[i])}
-              active={active === i}
-              deadline={deadline}
-              now={now}
-              meld={layout.meld}
-              width={layout.card}
-              concealed={concealedOf(i)}
-              nameOf={nameOf}
-              said={saidOf(seats[i])}
-              emote={actOf(seats[i])}
-              calm={calm}
-            />
-          ))}
-        </View>
-        <InfoBar hand={hand} names={names} now={now} forCoins={forCoins} stake={stake} />
-        <ScrollView style={styles.rivers} contentContainerStyle={styles.riversBody}>
+        <View style={styles.table}>
+          <View style={{ height: ACROSS_SEAT_HEIGHT }}>{seatBlock(across, false)}</View>
+          {river(across, layout.across)}
+          <View style={styles.middle}>
+            {seatBlock(left, true)}
+            {river(left, layout.side)}
+            <View style={[styles.centreBox, { width: CENTRE }]}>
+              {stage.kind === "intro" ? null : <Centre hand={hand} now={now} forCoins={forCoins} stake={stake} />}
+            </View>
+            {river(right, layout.side)}
+            {seatBlock(right, true)}
+          </View>
+          {river(viewer, layout.across)}
           {stage.kind === "intro" ? (
-            <View style={styles.introBox}>
+            <View style={styles.introOver} pointerEvents="none">
               <Intro dice={hand.dice} breakAt={hand.breakAt} dealer={hand.dealer} dealerName={names[hand.dealer]} until={stage.until} now={now} calm={calm} />
             </View>
-          ) : (
-            riverOrder.map((i) => (
-              <River key={i} seat={hand.seats[i]} index={i} hand={hand} nameOf={nameOf} seats={seats} lastDiscard={lastDiscard} width={layout.river} perRow={layout.riverPerRow} from={stage.kind === "claim" && stage.from === i} calm={calm} />
-            ))
-          )}
-        </ScrollView>
+          ) : null}
+        </View>
         <View style={[styles.mine, { paddingBottom: bottom }]}>
           <View style={styles.mineTop}>
-            <View style={[styles.myPlate, active === viewer && styles.cardActive]} accessible accessibilityLabel={`${names[viewer]}, ${windWords(hand.seats[viewer].wind)}${viewer === hand.dealer ? ", dealer" : ""}, score ${coinsWords(seats[viewer].net)}`} testID="mahjong-plate-bottom">
+            <View style={[styles.myPlate, active === viewer && styles.seatActive]} accessible accessibilityLabel={`${names[viewer]}, ${windWords(hand.seats[viewer].wind)}${viewer === hand.dealer ? ", dealer" : ""}, ${forCoins ? "coins" : "points"} ${coinsWords(seats[viewer].net)}`} testID="mahjong-plate-bottom">
               <View>
-                <SeatFace kind={seats[viewer].kind === "human" && seats[viewer].away ? "bot" : seats[viewer].kind} look={lookOf(seats[viewer])} name={seats[viewer].name} size={30} />
+                <SeatFace kind={seats[viewer].kind === "human" && seats[viewer].away ? "bot" : seats[viewer].kind} look={lookOf(seats[viewer])} name={seats[viewer].name} size={28} />
                 <Bubble text={saidOf(seats[viewer])} emote={actOf(seats[viewer])} />
               </View>
-              <Text style={styles.cardName}>{names[viewer]}</Text>
+              <Text style={styles.seatName}>{names[viewer]}</Text>
               <Text style={[styles.wind, viewer === hand.dealer && styles.dealer]}>{windBadge(hand.seats[viewer].wind)}</Text>
               <Text style={[styles.score, seats[viewer].net > 0 ? styles.up : seats[viewer].net < 0 ? styles.down : null]}>{coinsWords(seats[viewer].net)}</Text>
+              {active === viewer && deadline !== null ? <Text style={styles.seatTime}>{`${secondsLeft(deadline, now)}s`}</Text> : null}
             </View>
             <Melds melds={hand.seats[viewer].melds} width={layout.myMeld} calm={calm} testID="mahjong-melds-bottom" />
           </View>
-          {mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} now={now} busy={busy} onMove={onMove} /> : null}
+          <View style={{ height: mySeat === null ? 8 : ACTION_HEIGHT, justifyContent: "flex-end" }}>{mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} now={now} busy={busy} onMove={onMove} /> : null}</View>
           <View style={[styles.hand, { minHeight: layout.hand * TILE_RATIO + layout.hand * 0.5, gap: HAND_GAP }]} testID="mahjong-hand">
             {mySeat === null ? (
-              <View style={styles.backs}>
-                {Array.from({ length: concealedOf(viewer) }, (_, i) => `b${i}`).map((key) => (
-                  <Tile key={key} tile={-1} width={Math.round(layout.hand * 0.8)} back />
-                ))}
-              </View>
+              <Backs count={concealedOf(viewer)} width={Math.round(layout.hand * 0.8)} wrap={false} />
             ) : (
               handTiles.map((tile) => (
                 <HandTile key={tile} tile={tile} width={layout.hand} lifted={selected === tile} enabled={myTurn} drawn={tile === drawn} dealing={dealing} calm={calm} onTap={() => pick(tile)} onSlide={() => discard(tile)} />
@@ -545,6 +590,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
         </View>
       </View>
       <Callout hand={hand} names={names} calm={calm} />
+      {zoomed !== null && !myTurn && !asked && stage.kind !== "over" ? (
+        <Zoom seat={hand.seats[zoomed]} index={zoomed} name={names[zoomed]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(zoomed)} onClose={() => setZoomed(null)} />
+      ) : null}
       <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
       {confirming && stage.kind !== "over" ? (
         <LeaveConfirm
@@ -569,16 +617,17 @@ const styles = StyleSheet.create({
   watchText: { fontFamily: fonts.display, fontSize: 13, color: m.text },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: m.chip },
   pressed: { opacity: 0.7 },
-  strip: { flexDirection: "row", gap: STRIP_GAP, paddingHorizontal: PAD, alignItems: "flex-start" },
-  card: { gap: 4, padding: 5, borderRadius: 12, borderWidth: 2, borderColor: m.chip, backgroundColor: m.chip },
-  cardActive: { borderColor: m.lit, backgroundColor: m.litSoft },
-  cardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardText: { flex: 1 },
-  cardName: { fontFamily: fonts.display, fontSize: 12.5, color: m.text },
-  cardRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  count: { flexDirection: "row", alignItems: "center", gap: 3 },
-  countText: { fontSize: 12, fontWeight: "800", color: m.muted, fontVariant: ["tabular-nums"] },
-  cardTime: { fontSize: 12, fontWeight: "800", color: m.lit, fontVariant: ["tabular-nums"] },
+  table: { flex: 1, paddingHorizontal: PAD, gap: TABLE_GAP, justifyContent: "space-between" },
+  acrossSeat: { alignSelf: "center", flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6, padding: 4, borderRadius: 12, borderWidth: 2, borderColor: m.chip, maxHeight: ACROSS_SEAT_HEIGHT, overflow: "hidden" },
+  acrossHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  sideSeat: { width: SIDE_COLUMN, alignItems: "center", gap: 3, paddingVertical: 4, borderRadius: 12, borderWidth: 2, borderColor: m.chip },
+  sideHead: { alignItems: "center", gap: 2 },
+  sideText: { alignItems: "center" },
+  seatActive: { borderColor: m.lit, backgroundColor: m.litSoft },
+  seatName: { fontFamily: fonts.display, fontSize: 12, color: m.text, maxWidth: 120 },
+  seatTime: { fontSize: 12, fontWeight: "800", color: m.lit, fontVariant: ["tabular-nums"] },
+  backs: { flexDirection: "row", gap: 1 },
+  backsWrap: { flexWrap: "wrap", justifyContent: "center", maxWidth: SIDE_COLUMN - 6 },
   badges: { flexDirection: "row", alignItems: "center", gap: 5 },
   wind: { fontSize: 12, fontWeight: "800", color: m.text, paddingHorizontal: 4, borderRadius: 4, backgroundColor: m.chip, overflow: "hidden" },
   dealer: { backgroundColor: m.characters },
@@ -588,28 +637,28 @@ const styles = StyleSheet.create({
   emote: { position: "absolute", right: -10, top: -10, fontSize: 20 },
   bubble: { position: "absolute", zIndex: 5, left: 26, top: 22, maxWidth: 150, minWidth: 60, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: m.tile },
   bubbleText: { fontSize: 12.5, fontWeight: "600", color: m.honour },
-  melds: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  melds: { flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "center" },
+  meldsColumn: { flexDirection: "column", alignItems: "center", gap: 3 },
   meld: { flexDirection: "row", gap: 1 },
-  info: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: PAD + 4, paddingVertical: 6 },
-  infoText: { fontSize: 12.5, fontWeight: "700", color: m.muted },
-  infoWho: { flex: 1, color: m.text },
-  infoTime: { fontSize: 13, fontWeight: "800", color: m.lit, fontVariant: ["tabular-nums"] },
-  stakePill: { paddingHorizontal: 8, height: 22, borderRadius: 11, justifyContent: "center", backgroundColor: m.chip },
-  stakeCoins: { backgroundColor: m.shoutEdge },
-  stakeText: { fontSize: 12, fontWeight: "800", color: m.text },
-  rivers: { flex: 1 },
-  riversBody: { gap: 4, paddingHorizontal: PAD },
-  riverRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 3, borderRadius: 8 },
+  middle: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: TABLE_GAP },
+  centreBox: { alignItems: "center" },
+  introOver: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
+  river: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, alignContent: "flex-start", justifyContent: "center", borderRadius: 6, alignSelf: "center" },
   riverFrom: { backgroundColor: m.litSoft },
-  riverLabel: { alignItems: "center", gap: 2, paddingTop: 2 },
-  riverName: { fontSize: 9.5, fontWeight: "700", color: m.muted, maxWidth: RIVER_LABEL },
-  river: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, alignContent: "flex-start", minHeight: 20 },
-  introBox: { alignItems: "center", paddingTop: 30 },
+  centre: { alignItems: "center", gap: 2, paddingVertical: 6, borderRadius: 12, backgroundColor: m.chip },
+  centreWind: { fontSize: 14, fontWeight: "800", color: m.muted },
+  centreLeft: { fontFamily: fonts.display, fontSize: 18, color: m.text, fontVariant: ["tabular-nums"] },
+  centreTime: { fontSize: 12, fontWeight: "800", color: m.lit, fontVariant: ["tabular-nums"] },
+  centreStake: { fontSize: 11, fontWeight: "800", color: m.muted },
+  centreCoins: { color: m.win },
+  introBox: { alignItems: "center", justifyContent: "center" },
+  zoomHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  zoomTitle: { flex: 1, textAlign: "left" },
+  zoomTiles: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, justifyContent: "center" },
   mine: { gap: 6, paddingHorizontal: PAD },
   mineTop: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   myPlate: { flexDirection: "row", alignItems: "center", gap: 6, padding: 4, borderRadius: 12, borderWidth: 2, borderColor: m.chip },
   hand: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center" },
-  backs: { flexDirection: "row", gap: 1 },
   actionBar: { minHeight: 8 },
   claim: { gap: 6 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 },
