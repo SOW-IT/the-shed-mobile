@@ -717,7 +717,11 @@ const Steps = ({
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={label}
+        // The web reads the aria- props, not accessibilityValue.
         accessibilityValue={{ min: 1, max: count, now: value + 1 }}
+        aria-valuemin={1}
+        aria-valuemax={count}
+        aria-valuenow={value + 1}
         accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
         onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
         {...keys}

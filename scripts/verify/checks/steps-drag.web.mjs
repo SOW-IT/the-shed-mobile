@@ -16,8 +16,6 @@ const OUT = arg("out") ?? "check-steps-drag";
 const seed = JSON.parse(readFileSync(arg("seed") ?? "sweep-seed.json", "utf8"));
 const SECRET = process.env.SWEEP_E2E_SECRET ?? "sweep-only-secret";
 const TIMEOUT_MS = 60_000;
-/** Half the thumb: the track sits this far in from each end of the slider. */
-const HALF_THUMB = 13;
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
@@ -27,28 +25,50 @@ page.setDefaultTimeout(TIMEOUT_MS);
 const failures = [];
 const settle = () => page.waitForTimeout(150);
 
-/** One slider: where each step sits, and its value (1 to count). */
+/**
+ * One slider: where each step sits, and its value (1 to count), read from the
+ * page itself (the stop dots and where the thumb is) so it reads the same
+ * before and after this check was added. Where the slider has aria-valuenow,
+ * it has to agree.
+ */
 const slider = async (testID) => {
   const el = page.getByTestId(testID);
   await el.scrollIntoViewIfNeeded();
   await settle();
-  const box = await el.boundingBox();
-  const count = Number(await el.getAttribute("aria-valuemax"));
-  // Before this check, the slider was only its 8px line, with no inset.
-  const inset = box.height > 20 ? HALF_THUMB : 0;
-  const left = box.x + inset;
-  const width = box.width - 2 * inset;
+  const read = () =>
+    el.evaluate((node) => {
+      const divs = [...node.querySelectorAll("div")];
+      const centre = (d) => {
+        const r = d.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      const stops = divs.filter((d) => Math.round(d.getBoundingClientRect().width) === 6).map(centre);
+      const thumb = divs.findLast((d) => Math.round(d.getBoundingClientRect().width) === 26);
+      return { stops, thumb: thumb ? centre(thumb).x : null, aria: node.getAttribute("aria-valuenow") };
+    });
+  const key = async (name) => {
+    await el.focus();
+    await page.keyboard.press(name);
+    await settle();
+  };
+  const { stops } = await read();
+  if (stops.length < 2) throw new Error(`${testID}: found ${stops.length} step dot(s)`);
+  const count = stops.length;
+  const spacing = (stops[count - 1].x - stops[0].x) / (count - 1);
   return {
     el,
     count,
-    y: box.y + box.height / 2,
-    x: (i) => left + (i / (count - 1)) * width,
-    now: async () => Number(await el.getAttribute("aria-valuenow")),
-    home: async () => {
-      await el.focus();
-      await page.keyboard.press("Home");
-      await settle();
+    y: stops[0].y,
+    x: (i) => stops[0].x + i * spacing,
+    now: async () => {
+      const { thumb, aria } = await read();
+      if (thumb === null) throw new Error(`${testID}: no thumb`);
+      const value = Math.round((thumb - stops[0].x) / spacing) + 1;
+      if (aria !== null && Number(aria) !== value) failures.push(`${testID}: aria-valuenow says ${aria}, the thumb is on ${value}`);
+      return value;
     },
+    home: () => key("Home"),
+    end: () => key("End"),
   };
 };
 
@@ -74,6 +94,7 @@ const checkSlider = async (testID) => {
   await drag({ x: s.x(0), y: s.y - 10 }, [{ x: s.x(last) + 40, y: s.y - 10 }]);
   await expect(s, `${testID}, dragged by the top of the thumb past the far end`, s.count);
 
+  await s.end();
   await drag({ x: s.x(last) + 8, y: s.y + 9 }, [{ x: s.x(0) - 40, y: s.y + 9 }]);
   await expect(s, `${testID}, dragged by the bottom edge of the thumb past the near end`, 1);
 
