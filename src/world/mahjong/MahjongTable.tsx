@@ -192,8 +192,10 @@ type RiverProps = { seat: HandSeat; index: number; name: string; lastDiscard: { 
 
 /** How long a tile takes to fly: drawn into your hand, or thrown into a pile. */
 const FLY_MS = 300;
-/** Between your plate and melds and your hand, now the action row is gone. */
-const HAND_SPACER = 8;
+/** Room kept above your hand for a picked tile to rise into, as a share of a tile; it may rise over your plate row too. */
+const LIFT_ROOM = 0.2;
+/** Between your plate and melds and your hand: tight, so the discards get the room. */
+const MINE_GAP = 2;
 
 const riverLabel = (name: string, count: number) => `${name === "You" ? "Your" : `${name}'s`} discards, ${count} ${count === 1 ? "tile" : "tiles"}. Show them bigger`;
 
@@ -332,21 +334,37 @@ const Timer = ({ deadline, total, now, who, mine }: { deadline: number; total: n
   );
 };
 
-const Chip = ({ label, onPress, onFocus, primary = false, lit = false, children, testID, a11y }: { label?: string; onPress: () => void; onFocus?: () => void; primary?: boolean; lit?: boolean; children?: ReactNode; testID: string; a11y?: string }) => (
-  <Pressable
-    onPress={onPress}
-    onPressIn={onFocus}
-    onHoverIn={onFocus}
-    onFocus={onFocus}
-    accessibilityRole="button"
-    accessibilityLabel={a11y ?? label}
-    testID={testID}
-    style={({ pressed }) => [styles.action, primary && styles.actionPrimary, lit && styles.actionLit, pressed && styles.pressed]}
-  >
-    {label ? <Text style={[styles.actionText, primary && styles.actionTextPrimary]}>{label}</Text> : null}
-    {children}
-  </Pressable>
-);
+/** A chip's look: the table's default, the primary choice, a claim (Pong, Chow, Kong), a win (Hu) or a pass. */
+type Tone = "default" | "primary" | "claim" | "win" | "pass";
+const TONE = {
+  default: { chip: null, text: null },
+  primary: { chip: { backgroundColor: m.shoutEdge, borderColor: m.lit }, text: { color: m.shout } },
+  claim: { chip: { backgroundColor: m.claimChip, borderColor: m.claimChipEdge, borderWidth: 2 }, text: { color: m.shout } },
+  win: { chip: { backgroundColor: m.lit, borderColor: m.shout, borderWidth: 2 }, text: { color: m.honour } },
+  pass: { chip: { backgroundColor: m.passChip, borderColor: m.passChipEdge }, text: { color: m.passText } },
+} as const;
+
+/** How tall a claim chip is: an easy thumb target on an iPhone SE, and bigger on a bigger table. */
+const claimChipHeight = (inner: number) => Math.max(44, Math.min(64, Math.round(inner * 0.12)));
+
+const Chip = ({ label, onPress, onFocus, primary = false, tone = primary ? "primary" : "default", size, lit = false, children, testID, a11y }: { label?: string; onPress: () => void; onFocus?: () => void; primary?: boolean; tone?: Tone; size?: number; lit?: boolean; children?: ReactNode; testID: string; a11y?: string }) => {
+  const sized = size === undefined ? null : { height: size, borderRadius: size / 2, paddingHorizontal: Math.round(size * 0.42) };
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={onFocus}
+      onHoverIn={onFocus}
+      onFocus={onFocus}
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
+      testID={testID}
+      style={({ pressed }) => [styles.action, TONE[tone].chip, sized, lit && styles.actionLit, pressed && styles.pressed]}
+    >
+      {label ? <Text style={[styles.actionText, TONE[tone].text, size === undefined ? null : { fontSize: Math.round(size * 0.38) }]}>{label}</Text> : null}
+      {children}
+    </Pressable>
+  );
+};
 
 type Choices = ReturnType<typeof claimChoices>;
 
@@ -356,10 +374,12 @@ type Choices = ReturnType<typeof claimChoices>;
  * turn. The chips float, see-through, over your own discards (never the
  * pile the claimed tile is in), so they take no row of their own.
  */
-const Actions = ({ hand, mySeat, choices, focus, busy, onFocus, onMove }: { hand: HandView; mySeat: number; choices: Choices | null; focus: string | null; busy: boolean; onFocus: (key: string) => void; onMove: (move: Move) => void }) => {
+const Actions = ({ hand, mySeat, choices, focus, busy, size, onFocus, onMove }: { hand: HandView; mySeat: number; choices: Choices | null; focus: string | null; busy: boolean; size: number; onFocus: (key: string) => void; onMove: (move: Move) => void }) => {
   const mine = hand.mine;
   const stage = hand.stage;
   if (!mine || busy) return null;
+  const words = [styles.actionText, { fontSize: Math.round(size * 0.38) }];
+  const tileWidth = Math.round(size * 0.4);
   if (stage.kind === "claim" && choices) {
     return (
       <View style={styles.actionRow} testID="mahjong-claim" accessibilityLiveRegion="polite">
@@ -367,7 +387,8 @@ const Actions = ({ hand, mySeat, choices, focus, busy, onFocus, onMove }: { hand
           <Chip
             key={c.key}
             label={c.tiles ? undefined : c.label}
-            primary={c.answer.kind === "hu"}
+            tone={c.answer.kind === "hu" ? "win" : c.answer.kind === "pass" ? "pass" : "claim"}
+            size={size}
             lit={focus === c.key}
             onFocus={() => onFocus(c.key)}
             onPress={() => onMove({ kind: "answer", answer: c.answer })}
@@ -376,9 +397,9 @@ const Actions = ({ hand, mySeat, choices, focus, busy, onFocus, onMove }: { hand
           >
             {c.tiles ? (
               <View style={styles.chowTiles}>
-                <Text style={styles.actionText}>Chow</Text>
+                <Text style={[words, { color: m.shout }]}>Chow</Text>
                 {c.tiles.map((tile) => (
-                  <Tile key={tile} tile={tile} width={14} lit={tile === stage.tile} />
+                  <Tile key={tile} tile={tile} width={tileWidth} lit={tile === stage.tile} />
                 ))}
               </View>
             ) : null}
@@ -390,12 +411,12 @@ const Actions = ({ hand, mySeat, choices, focus, busy, onFocus, onMove }: { hand
   if (stage.kind === "turn" && stage.seat === mySeat && (mine.win || mine.kongs.length > 0)) {
     return (
       <View style={styles.actionRow} testID="mahjong-turn-actions">
-        {mine.win ? <Chip label={`Hu · ${mine.win.faan} faan`} primary onPress={() => onMove({ kind: "win" })} testID="mahjong-self-win" /> : null}
+        {mine.win ? <Chip label={`Hu · ${mine.win.faan} faan`} tone="win" size={size} onPress={() => onMove({ kind: "win" })} testID="mahjong-self-win" /> : null}
         {mine.kongs.map((kind) => (
-          <Chip key={kind} onPress={() => onMove({ kind: "kong", tileKind: kind })} testID={`mahjong-kong-${kind}`} a11y={`Kong ${tileLabel(kind * 4)}`}>
+          <Chip key={kind} tone="claim" size={size} onPress={() => onMove({ kind: "kong", tileKind: kind })} testID={`mahjong-kong-${kind}`} a11y={`Kong ${tileLabel(kind * 4)}`}>
             <View style={styles.chowTiles}>
-              <Text style={styles.actionText}>Kong</Text>
-              <Tile tile={kind * 4} width={14} />
+              <Text style={[words, { color: m.shout }]}>Kong</Text>
+              <Tile tile={kind * 4} width={tileWidth} />
             </View>
           </Chip>
         ))}
@@ -832,9 +853,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const acrossHeight = acrossHeightOf(sizes.across);
   const middle = Math.max(0, region - 2 * acrossHeight - 2 * TABLE_GAP);
   // Where tiles fly from, roughly: the wall (the compass) for your draw, and each seat for its discard.
-  const mineTopHeight = Math.max(44, layout.myMeld * TILE_RATIO + 8);
-  const handTop = mineTopHeight + 6 + HAND_SPACER;
-  const compassAbove = handTop + acrossHeight + TABLE_GAP + middle / 2 + handSize * 0.5 + (twoRows ? handSize * TILE_RATIO + 4 : 0);
+  const mineTopHeight = Math.max(34, layout.myMeld * TILE_RATIO + 4);
+  const handTop = mineTopHeight + MINE_GAP;
+  const compassAbove = handTop + acrossHeight + TABLE_GAP + middle / 2 + handSize * LIFT_ROOM + (twoRows ? handSize * TILE_RATIO + 4 : 0);
   const lastRow = handRows(handTiles, drawn, twoRows).at(-1) ?? [];
   const lastRowWidth = lastRow.length * (handSize + HAND_GAP) + DRAWN_GAP;
   const drawnFrom = { x: -(lastRowWidth / 2 - handSize / 2), y: -compassAbove };
@@ -906,13 +927,14 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
                   {intro_ ? <View style={{ width: layout.sideWidth }} /> : <SideRiver {...riverProps(right)} size={sizes.side} width={layout.sideWidth} height={middle} side="right" />}
                 </View>
                 {intro_ ? <View style={{ height: acrossHeight }} /> : <AcrossRiver {...riverProps(viewer)} size={sizes.across} width={layout.centre} height={acrossHeight} thrownFrom={fromSeat.mine} />}
-                {mySeat !== null && !intro_ ? (
-                  <View style={[styles.actionsOver, { minHeight: acrossHeight }]} pointerEvents="box-none">
-                    <Actions hand={hand} mySeat={mySeat} choices={choices} focus={focusKey} busy={busy} onFocus={(key) => setFocused({ key, step: hand.step })} onMove={onMove} />
-                  </View>
-                ) : null}
               </View>
               {sideSeat(right, -90)}
+              {/* Over your own pile, across the table's whole width (not just its centre, where A's and C's newest discards are), so even on an iPhone SE the big chips fit in one row. */}
+              {mySeat !== null && !intro_ ? (
+                <View style={[styles.actionsOver, { minHeight: acrossHeight }]} pointerEvents="box-none">
+                  <Actions hand={hand} mySeat={mySeat} choices={choices} focus={focusKey} busy={busy} size={claimChipHeight(layout.inner)} onFocus={(key) => setFocused({ key, step: hand.step })} onMove={onMove} />
+                </View>
+              ) : null}
             </View>
           ) : null}
           {intro_ ? (
@@ -927,7 +949,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
           </View>
         ) : null}
         <View style={[styles.mine, { paddingBottom: bottom }]} onLayout={(e) => setMineHeight(Math.ceil(e.nativeEvent.layout.height))}>
-          <View style={[styles.mineTop, { minHeight: Math.max(44, layout.myMeld * TILE_RATIO + 8) }]}>
+          <View style={[styles.mineTop, { minHeight: mineTopHeight }]}>
             <View style={[styles.myPlate, active === viewer && styles.seatActive]} accessible accessibilityLabel={`${names[viewer]}, ${windWords(hand.seats[viewer].wind)}${viewer === hand.dealer ? ", dealer" : ""}, ${forCoins ? "coins" : "points"} ${coinsWords(seats[viewer].net)}`} testID="mahjong-plate-bottom">
               <View>
                 <SeatFace kind={faceKind(seats[viewer])} look={lookOf(seats[viewer])} name={seats[viewer].name} size={28} />
@@ -939,13 +961,12 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             </View>
             <SeatMelds melds={hand.seats[viewer].melds} size={layout.myMeld} turn={0} calm={calm} seat={meldSeat(viewer)} wrap testID="mahjong-melds-bottom" />
           </View>
-          <View style={{ height: HAND_SPACER }} />
           {/* Your turn lights your tiles (see HandTile); this wrapper only names it, and is always here so the tiles never remount when it starts. */}
           <View testID={myTurn ? "mahjong-turn" : undefined} accessibilityLabel={myTurn ? "Your turn: tap a tile to pick it, then tap it again or slide it up to discard" : undefined}>
           <View
             onLayout={scrub.measure}
             {...scrub.handlers}
-            style={[styles.handRows, { minHeight: mySeat === null ? backsSize * TILE_RATIO + 8 : (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.5 }]}
+            style={[styles.handRows, { minHeight: mySeat === null ? backsSize * TILE_RATIO + 8 : (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * LIFT_ROOM }]}
             testID="mahjong-hand"
           >
             {mySeat === null ? (
@@ -1075,19 +1096,18 @@ const styles = StyleSheet.create({
   zoomLabel: { fontSize: 12, fontWeight: "800", color: m.muted, textTransform: "uppercase", letterSpacing: 0.6 },
   zoomTitle: { flex: 1, textAlign: "left" },
   zoomTiles: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, justifyContent: "center" },
-  mine: { gap: 6, paddingHorizontal: PAD },
-  mineTop: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  myPlate: { flexDirection: "row", alignItems: "center", gap: 6, padding: 4, borderRadius: 12, borderWidth: 2, borderColor: m.chip },
+  mine: { gap: MINE_GAP, paddingHorizontal: PAD },
+  mineTop: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  myPlate: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 12, borderWidth: 2, borderColor: m.chip },
   hand: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center" },
   backs: { flexDirection: "row", gap: 1 },
-  actionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8 },
   actionsOver: { position: "absolute", left: 0, right: 0, bottom: 0, justifyContent: "center", paddingHorizontal: 4 },
-  action: { height: 30, paddingHorizontal: 10, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: m.overlayChip, borderWidth: 1.5, borderColor: m.muted },
-  actionPrimary: { backgroundColor: m.shoutEdge, borderColor: m.lit },
-  actionLit: { borderColor: m.lit, backgroundColor: m.litSoft },
+  action: { height: 30, paddingHorizontal: 10, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: m.chip, borderWidth: 1.5, borderColor: m.muted },
+  // The focused chow (finger, pointer or keyboard on it): a lit ring, keeping the chip's own colour.
+  actionLit: { borderColor: m.lit, borderWidth: 3 },
   actionText: { fontFamily: fonts.display, fontSize: 13.5, color: m.text },
-  actionTextPrimary: { color: m.shout },
-  chowTiles: { flexDirection: "row", alignItems: "center", gap: 2 },
+  chowTiles: { flexDirection: "row", alignItems: "center", gap: 3 },
   calloutWrap: { position: "absolute", left: 0, right: 0, top: "38%", alignItems: "center" },
   callout: {
     fontFamily: fonts.display,

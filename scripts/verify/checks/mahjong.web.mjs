@@ -133,6 +133,22 @@ const sitInStool = async (who, place) => {
   return false;
 };
 
+/** The World's chat box is drawn over the table: visible, inside the window, and not covered at its middle. */
+const chatBoxOnScreen = ({ page }) =>
+  page.evaluate(() => {
+    const input = document.querySelector('[data-testid="world-chat-input"]');
+    if (!input) return false;
+    const r = input.getBoundingClientRect();
+    const inside = r.width > 40 && r.height > 10 && r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight;
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return inside && Boolean(top && (top === input || input.contains(top) || top.contains(input)));
+  });
+/** Whether a chat line saying `text` shows in this person's log within a few seconds. */
+const hears = ({ page }, text) =>
+  page
+    .waitForFunction((text) => [...document.querySelectorAll('[data-testid="world-chat-line"]')].some((line) => (line.getAttribute("aria-label") ?? line.textContent ?? "").includes(text)), text, { timeout: 10_000 })
+    .then(() => true, () => false);
+
 /** Plays this person's turn if it's theirs: tap the drawn tile (the last), then tap it again. Passes claims after a shot. */
 const playTurn = async (who, seen) => {
   if (await shown(who, "mahjong-claim")) {
@@ -266,9 +282,11 @@ try {
   await host.page.waitForTimeout(2600);
   await shot(host, "deal");
 
-  // A chat line and an emote at the table show by the seat.
-  await guest.page.getByTestId("world-chat-input").fill("Good luck everyone!").catch(() => notes.push("no chat input to type in"));
-  await guest.page.getByTestId("world-send").click().catch(() => notes.push("couldn't send a line"));
+  // A chat line and an emote at the table show by the seat. The chat box is there at the table, on screen, and sends.
+  await expect(guest, "the chat box is on screen at the table", chatBoxOnScreen(guest));
+  await guest.page.getByTestId("world-chat-input").fill("Good luck everyone!").catch(() => {});
+  await guest.page.getByTestId("world-send").click().catch(() => {});
+  await expect(host, "a line typed at the table reaches the others", hears(host, "Good luck everyone!"));
   await host.page.getByTestId("world-emotes").click().catch(() => notes.push("no emote button"));
   await host.page.getByTestId("world-emote-wave").click().catch(() => notes.push("no wave emote"));
   await host.page.waitForTimeout(900);
@@ -282,6 +300,10 @@ try {
   await watcher.page.waitForTimeout(800);
   await shot(watcher, "watching");
   await expect(watcher, "a watcher sees no concealed tiles", (async () => (await watcher.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"]').count()) === 0)());
+  await expect(watcher, "the chat box is on screen while watching", chatBoxOnScreen(watcher));
+  await watcher.page.getByTestId("world-chat-input").fill("Nice hand!").catch(() => {});
+  await watcher.page.getByTestId("world-send").click().catch(() => {});
+  await expect(host, "a watcher's line reaches the table", hears(host, "Nice hand!"));
   await id(watcher, "mahjong-leave").click();
 
   // The table's options, a settings card.
@@ -363,6 +385,7 @@ try {
         const leave = await id(host, "mahjong-leave").boundingBox();
         const whole = table && Math.round(table.x) <= 0 && Math.round(table.y) <= 0 && Math.round(table.x + table.width) >= width && Math.round(table.y + table.height) >= height;
         await expect(host, `the table fills the ${width}x${height} window, with ✕ to leave on screen`, Promise.resolve(Boolean(whole && leave && leave.x >= 0 && leave.y >= 0 && leave.x + leave.width <= width && leave.y + leave.height <= height)));
+        await expect(host, `the chat box is on screen at ${width}x${height}`, chatBoxOnScreen(host));
         const rows = await host.page.locator('[data-testid="mahjong-hand"] > div').count();
         const tile = (await host.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"]').first().boundingBox())?.width ?? 0;
         await expect(host, `the hand is one row at ${width}x${height}`, Promise.resolve(rows === 1));

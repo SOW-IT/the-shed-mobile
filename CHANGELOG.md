@@ -61,9 +61,13 @@ All notable changes to **The SHED** mobile app. This project follows
   runs down, with the seconds at its right end, instead of a strip of its
   own. The bar above your hand and the seconds in the compass and on the
   seats are gone.
-- **Chow, Pong and Pass float over your discards** as see-through buttons
-  (Hu and Kong too, on your turn), so they no longer take a row above
-  your hand, and the discards get that height back. The table's chat log
+- **Chow, Pong and Pass float over your discards**, so they no longer take
+  a row above your hand, and the discards get that height back (Hu and
+  Kong too, on your turn). They're big, easy thumb targets (44 points on
+  an iPhone SE, up to 64 on a bigger screen): Pong, Chow and Kong in a
+  bright vermilion, Hu in gold, and Pass greyed out as the quiet choice.
+- **Less space at your seat**: your face, your melds and your hand sit
+  closer together, so the discards get more of the table. The table's chat log
   is taller (three lines, up from two). The World's chat log shows seven
   lines, up from five.
 - **The chat log grows on bigger screens.** On a large phone, an iPad or a
