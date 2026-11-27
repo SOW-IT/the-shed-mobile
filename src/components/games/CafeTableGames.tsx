@@ -1,10 +1,10 @@
 import { CAFE_GAMES, boxesWon, isCafeGameKind, type Side } from "@shared/cafeGames";
-import { Screen } from "@/components/ui";
+import { ConfirmDialog, Screen } from "@/components/ui";
 import { fonts } from "@/theme";
 import { storedValue } from "@/lib/deviceStorage";
 import { cleanName, DEFAULT_NAMES, localResultWords, localTurnWords, NAME_MAX, playLocal, rematchLocal, restoreNames, startLocal, type LocalCafeGame, type LocalNames } from "@/lib/games/cafeLocal";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
+import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Reanimated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
 import { CafeBoardView, CafePiece } from "./cafe/CafeBoards";
 import { GameGlyph, GameTiles } from "./cafe/CafeParts";
@@ -183,19 +183,73 @@ const LocalGame = ({ game, names, onMove, onRename, onRematch, onPicker }: { gam
   );
 };
 
-export const CafeTableGames = ({ onExit }: { onExit: () => void }) => {
+/**
+ * A back from outside the screen (the browser's back, the iOS swipe) that
+ * the route held. Each one bumps `asks`; `onStay` lets it go unanswered.
+ */
+export type CafeBackGuard = { asks: number; onStay: () => void };
+
+/**
+ * Every way back out of Café Games asks first, in the picker, mid-game and
+ * after a game alike: the back button, Escape on web, and whatever back the
+ * route holds (`guard`). Leave then does what that back would have: out of a
+ * game to the picker, out of the picker to wherever it was opened from.
+ */
+const useLeaveAsk = (guard: CafeBackGuard | undefined) => {
+  const asks = guard?.asks ?? 0;
+  const [askedHere, setAskedHere] = useState(false);
+  const [answered, setAnswered] = useState(asks);
+  const asking = askedHere || asks !== answered;
+  const ask = () => setAskedHere(true);
+  const stay = () => {
+    setAskedHere(false);
+    setAnswered(asks);
+    guard?.onStay();
+  };
+  // On web, Escape is a back too: it asks, and while the question is up it
+  // answers Stay. It's taken before any modal sees it, both the dialog's and
+  // the one around the screen offline, which would otherwise close too.
+  const onEscape = useEffectEvent(() => (asking ? stay() : ask()));
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onEscape();
+    };
+    window.addEventListener("keyup", onKey, true);
+    return () => window.removeEventListener("keyup", onKey, true);
+  }, []);
+  return { asking, ask, stay };
+};
+
+export const CafeTableGames = ({ onExit, guard }: { onExit: () => void; guard?: CafeBackGuard }) => {
   const c = useCafeTheme();
   const [names, setNames] = useNames();
   const [game, setGame] = useState<LocalCafeGame | null>(null);
   const [round, setRound] = useState(0);
+  const leaveAsk = useLeaveAsk(guard);
   const rename = (side: Side, name: string) => setNames({ ...names, [side]: name });
   const pick = (kind: string) => {
     if (!isCafeGameKind(kind)) return;
     setRound((n) => n + 1);
     setGame(startLocal(kind));
   };
+  const leave = () => {
+    if (game) setGame(null);
+    else onExit();
+  };
   return (
-    <Screen title="Café Games" onBack={game ? () => setGame(null) : onExit} maxWidth={480}>
+    <Screen title="Café Games" onBack={leaveAsk.ask} maxWidth={480}>
+      <ConfirmDialog
+        visible={leaveAsk.asking}
+        title="Are you sure you want to leave?"
+        message={game && game.winner === null ? "This game ends if you leave." : undefined}
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        onConfirm={leave}
+        onClose={leaveAsk.stay}
+      />
       {game ? (
         <LocalGame
           key={round}
