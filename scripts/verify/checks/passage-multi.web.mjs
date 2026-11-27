@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Builds a day of two passages from the lists (Genesis 1-3 and Psalm 1),
-// saves it, opens it again, and checks a saved one-chapter day still shows
-// one row the way it did before.
+// saves it, opens it again, checks a change over the 120-character limit is
+// refused, and checks a saved one-chapter day still shows one row the way it
+// did before.
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -80,6 +81,34 @@ try {
   await expectText("devotional-passage-display", "Genesis 1-3", "after removing Psalm 1");
   await expectCount("devotional-passage-book-2", 0, "after removing Psalm 1");
 
+  // A change to a row that would take the passage over 120 characters is
+  // refused with a note; changes up to the limit go through.
+  const song = "Song of Solomon 1:1-17";
+  await page.getByTestId("devotional-passage-type").click();
+  await page.getByTestId("devotional-passage-input").fill(Array(5).fill(song).join("; "));
+  await page.getByTestId("devotional-passage-use-lists").click();
+  await page.getByTestId("devotional-passage-book-5").waitFor();
+  const startAtTen = async (row) => {
+    await page.getByTestId(`devotional-passage-from-${row}`).click();
+    await page.getByTestId("passage-verse-10").click();
+  };
+  for (const row of [3, 4]) {
+    await startAtTen(row);
+    await page.getByTestId("sheet-close").click();
+    await sheetClosed();
+  }
+  const atLimit = [song, song, "Song of Solomon 1:10-17", "Song of Solomon 1:10-17", song];
+  if (atLimit.join("; ").length !== 120) failures.push("the refusal setup isn't at the limit");
+  await expectCount("devotional-passage-too-long", 0, "changes up to the limit");
+  await startAtTen(5);
+  await sheetClosed();
+  await expectCount("devotional-passage-too-long", 1, "a change over the limit");
+  await expectText("devotional-passage-display", atLimit.join("\n"), "the refused change");
+  await page.getByTestId("devotional-passage-too-long").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${OUT}/multi-too-long-refused.png`, fullPage: true });
+  await page.getByTestId("devotional-passage-remove-5").click();
+  await expectCount("devotional-passage-too-long", 0, "after removing a row");
+
   // A saved one-chapter day looks as it always did: one row, no headings.
   await page.goto(`${BASE}/devotionals/${seed.devotionalDate}`);
   await page.getByTestId("devotional-passage-book").waitFor();
@@ -97,5 +126,5 @@ try {
 }
 
 for (const failure of failures) console.log(`✘ ${failure}`);
-console.log(failures.length === 0 ? "A day takes Genesis 1-3 and Psalm 1 from the lists, saves, reopens with both rows, and a one-chapter day still shows one row." : `${failures.length} step(s) failed.`);
+console.log(failures.length === 0 ? "A day takes Genesis 1-3 and Psalm 1 from the lists, saves, reopens with both rows, refuses a change over 120 characters, and a one-chapter day still shows one row." : `${failures.length} step(s) failed.`);
 process.exit(failures.length === 0 ? 0 : 1);
