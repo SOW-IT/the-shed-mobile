@@ -37,6 +37,26 @@ const openEyes = async () => {
   await page.getByTestId("world-editor-tab-eyes").click();
   await tile(0).waitFor();
 };
+// The eyes the account had, and when the check last saved, so cleanup can
+// put them back whatever step failed.
+let original = 0;
+let savedAt = null;
+const save = async () => {
+  await page.getByRole("button", { name: "Save" }).click();
+  savedAt = Date.now();
+  await page.getByTestId("world-editor").waitFor({ state: "hidden" });
+};
+const restore = async () => {
+  await page.goto(`${BASE}/world?sheet=character`);
+  await openEyes();
+  await page.waitForTimeout(Math.max(0, savedAt + SAVE_GAP_MS + 500 - Date.now()));
+  await tile(original).scrollIntoViewIfNeeded();
+  await tile(original).click();
+  await save();
+  await page.goto(`${BASE}/world?sheet=character`);
+  await openEyes();
+  if (!(await picked(original))) throw new Error(`tile ${original} wasn't picked when the editor opened again`);
+};
 
 try {
   await page.goto(`${BASE}/e2e-auth?email=${encodeURIComponent(seed.people.admin)}&secret=${encodeURIComponent(SECRET)}`);
@@ -44,7 +64,6 @@ try {
   await page.goto(`${BASE}/world?sheet=character`);
   await openEyes();
   const count = await page.locator('[data-testid^="world-editor-eyes-"]').count();
-  let original = 0;
   for (let i = 0; i < count; i++) if (await picked(i)) original = i;
   await page.screenshot({ path: `${OUT}/eyes-tiles.png` });
   for (let i = 0; i < count; i++) {
@@ -55,8 +74,7 @@ try {
     await page.screenshot({ path: `${OUT}/eyes-${String(i).padStart(2, "0")}-${name}.png` });
   }
   const last = count - 1;
-  await page.getByRole("button", { name: "Save" }).click();
-  await page.getByTestId("world-editor").waitFor({ state: "hidden" });
+  await save();
   await page.getByTestId("world-me").waitFor();
   await page.waitForTimeout(1_500);
   await page.screenshot({ path: `${OUT}/eyes-saved-world.png` });
@@ -65,20 +83,18 @@ try {
   await tile(last).scrollIntoViewIfNeeded();
   if (!(await picked(last))) failures.push(`the saved shape (tile ${last}) wasn't picked when the editor opened again`);
   await page.screenshot({ path: `${OUT}/eyes-saved-reopened.png` });
-  // Put the account's own eyes back.
-  await page.waitForTimeout(SAVE_GAP_MS + 500);
-  await tile(original).scrollIntoViewIfNeeded();
-  await tile(original).click();
-  await page.getByRole("button", { name: "Save" }).click();
-  await page.getByTestId("world-editor").waitFor({ state: "hidden" });
-  await page.goto(`${BASE}/world?sheet=character`);
-  await openEyes();
-  if (!(await picked(original))) failures.push(`the account's own eyes (tile ${original}) didn't come back after the check`);
-  console.log(`${count} eye shapes shot; tile ${original} saved back.`);
+  console.log(`${count} eye shapes shot.`);
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
   await page.screenshot({ path: `${OUT}/eyes-failed.png` }).catch(() => {});
 } finally {
+  // Put the account's own eyes back, once, even when a step after the save failed.
+  if (savedAt !== null) {
+    await restore().then(
+      () => console.log(`Tile ${original} saved back.`),
+      (error) => failures.push(`couldn't put the account's own eyes (tile ${original}) back: ${String(error).split("\n")[0]}`)
+    );
+  }
   await browser.close();
 }
 
