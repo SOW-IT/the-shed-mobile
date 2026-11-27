@@ -173,6 +173,21 @@ export const TIE_DYE_LIGHTS: readonly TorsoDot[] = [
   { theta: -2.85, y: 0.32, rad: 0.04 },
 ];
 
+/** The Hawaiian shirt's flowers, front and back. */
+export const HIBISCUS: readonly TorsoDot[] = [
+  { theta: -0.5, y: 0.58, rad: 0.06 },
+  { theta: 0.55, y: 0.48, rad: 0.065 },
+  { theta: -0.3, y: 0.32, rad: 0.06 },
+  { theta: 0.62, y: 0.25, rad: 0.05 },
+  { theta: 1.6, y: 0.56, rad: 0.06 },
+  { theta: -1.6, y: 0.42, rad: 0.065 },
+  { theta: 2.5, y: 0.36, rad: 0.06 },
+  { theta: -2.5, y: 0.58, rad: 0.06 },
+  { theta: Math.PI, y: 0.44, rad: 0.065 },
+  { theta: 1.9, y: 0.26, rad: 0.05 },
+  { theta: -2.1, y: 0.26, rad: 0.05 },
+];
+
 export const PLAID_ANGLES = [-2.5, -1.57, -0.64, 0.64, 1.57, 2.5] as const;
 
 export const backpackPose = (v: BodyView) => {

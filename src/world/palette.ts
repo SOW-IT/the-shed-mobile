@@ -2,6 +2,7 @@
 // the offline games' scenes, so these don't follow the app theme. Lint allows
 // colour literals in this file only, under src/world.
 
+import { customRgb, lookPart, type Look } from "../../shared/world";
 import { worldColours } from "../worldColours";
 
 export const garden = {
@@ -302,7 +303,13 @@ export const people = {
   skins: ["#F0C7A5", "#F6D9C2", "#B27B58", "#F2CDAE", "#C9926C", "#EFCBA9", "#8D5A3B", "#5E3A26", "#FCE9DE", "#DDAA80", "#734730", "#42291B"],
   // Then pink, blue and platinum.
   hairColours: ["#3A2A20", "#D49A5A", "#1C1714", "#7A4A2C", "#2A201A", "#141414", "#E8C77A", "#B8473A", "#8A8F98", "#E896B4", "#5E86C2", "#ECE6D8"],
-  shirts: ["#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8"],
+  // Tops. Then red, coral, orange, mustard, lime, teal, sky, navy, royal blue,
+  // purple, plum, burgundy, grey and black.
+  shirts: [
+    "#C9603A", "#F6E3D8", "#BCDCCD", "#F4A6B8", "#9DC5E0", "#D9CDEE", "#F6D365", "#A9D8A6", "#1D4A41", "#FFFEF8",
+    "#D9473A", "#F08A6C", "#F0A04B", "#E2B23E", "#B5D86A", "#3E9A9A", "#7EC8E8", "#2E3F5E", "#3A64B8", "#8A5CC2",
+    "#7A3A5C", "#8E2E3E", "#9AA3A8", "#26302E",
+  ],
   hats: {
     cap: "#C9603A",
     beanie: "#9DC5E0",
@@ -325,14 +332,23 @@ export const people = {
   clearRim: "#D9E4E6",
   clearLens: "rgba(255, 255, 255, 0.18)",
   tieDye: "#E0514F",
+  // The sailor top's collar and neckerchief, and the Hawaiian shirt's flowers.
+  sailor: "#2E3F5E",
+  sailorStripe: "#FFFEF8",
+  neckerchief: "#D9473A",
+  hibiscus: ["#FFFEF8", "#F6D365", "#F08A6C"],
   shades: "#26302E",
   collar: "#FFFEF8",
   plaid: "#E8893A",
   headphones: "#3F4A46",
   pearl: "#FFFEF8",
   mole: "#5A3B2C",
-  // Bottoms: denim, charcoal, khaki, navy, brown, cream, olive and pink.
-  pants: ["#5B7FA6", "#3F4A46", "#C9B48A", "#2E3F5E", "#7A5238", "#F1ECE0", "#6E7F4E", "#E8A0B8"],
+  // Bottoms: denim, charcoal, khaki, navy, brown, cream, olive and pink, then
+  // black, white, grey, burgundy, teal, mustard, lilac and sky.
+  pants: [
+    "#5B7FA6", "#3F4A46", "#C9B48A", "#2E3F5E", "#7A5238", "#F1ECE0", "#6E7F4E", "#E8A0B8",
+    "#26302E", "#FFFEF8", "#9AA3A8", "#8E2E3E", "#3E8A8A", "#D9A83E", "#B9A3E3", "#9DC5E0",
+  ],
   // Makeup, after "None": lilac, peach, teal, gold and rose eyeshadow, and
   // rose, red, coral, plum and pink lipstick.
   eyeshadow: ["#B9A3E3", "#F2B48C", "#6FC1B8", "#E2C36A", "#E89AAE"],
@@ -345,9 +361,12 @@ export const people = {
   eyeColours: ["#1F2A28", "#6B4226", "#3A6EA5", "#3E7D4F", "#8A6A2F", "#5F6B73"],
   // Favourite colours, worn as shoes. The first is the shoes everyone had
   // before, then red, orange, yellow, lime, green, sky, blue, purple, pink,
-  // brown and white.
+  // brown and white, then teal, coral, navy, lilac, black and gold.
   backdrops: ["#BFE3DA", "#BFD9F0", "#F6D2BC", "#F3E3A6", "#D9CCEF", "#F2C4D0", "#C9DDB5", "#E6D5BC", "#9FB4C2", "#F0A99A"],
-  favourites: ["#3F4A46", "#D9473A", "#F08A3C", "#F6CF45", "#A6D65A", "#3E9A5A", "#7EC8E8", "#3A64B8", "#8A5CC2", "#F08FB4", "#8A5A3A", "#F5F3EC"],
+  favourites: [
+    "#3F4A46", "#D9473A", "#F08A3C", "#F6CF45", "#A6D65A", "#3E9A5A", "#7EC8E8", "#3A64B8", "#8A5CC2", "#F08FB4", "#8A5A3A", "#F5F3EC",
+    "#3E9A9A", "#F08A6C", "#2E3F5E", "#B9A3E3", "#26302E", "#E2B23E",
+  ],
   eye: "#1F2A28",
   eyeShine: "#FFFFFF",
   cheek: "#F4A0A0",
@@ -481,4 +500,30 @@ export const shade = (hex: string, amount: number): string => {
   if (shadeCache.size >= SHADE_CACHE_MAX) shadeCache.clear();
   shadeCache.set(key, result);
   return result;
+};
+
+/** 0xRRGGBB as "#rrggbb". */
+export const rgbHex = (rgb: number): string => `#${(Math.round(rgb) & 0xffffff).toString(16).padStart(6, "0")}`;
+
+/** "#rrggbb" as 0xRRGGBB. */
+export const hexRgb = (hex: string): number => parseInt(hex.slice(1, 7), 16);
+
+/** The top's colour: a custom one, or one of the palette's. */
+export const shirtColour = (look: Look): string => {
+  const custom = customRgb(look.shirt);
+  return custom !== null ? rgbHex(custom) : (people.shirts[look.shirt] ?? people.shirts[0]);
+};
+
+/** The bottoms' colour: a custom one, or one of the palette's. */
+export const pantsColour = (look: Look): string => {
+  const custom = customRgb(look.pantsColour);
+  return custom !== null ? rgbHex(custom) : (people.pants[lookPart(look, "pantsColour")] ?? people.pants[0]);
+};
+
+/** The favourite colour, or null before one is picked (the first swatch). */
+export const favouriteColour = (look: Look): string | null => {
+  const custom = customRgb(look.favourite);
+  if (custom !== null) return rgbHex(custom);
+  const pick = lookPart(look, "favourite");
+  return pick > 0 ? (people.favourites[pick] ?? null) : null;
 };
