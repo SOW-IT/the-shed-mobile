@@ -1,0 +1,128 @@
+appId: au.org.sow.theshed
+---
+# Café Games (two players on one phone) asks before going back, from the
+# back button and from the swipe back at the screen's left edge, in the
+# picker, mid-game and after a game. Stay keeps the screen; Leave goes back
+# one step: out of a game to the picker, out of the picker to the Games list.
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-cafe
+    timeout: 30000
+- tapOn:
+    id: games-open-cafe
+- extendedWaitUntil:
+    visible:
+      id: cafe-local-picker-card
+    timeout: 20000
+# Picker: the back button asks, Stay keeps it.
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-cafe-picker-question"
+- tapOn: "Stay"
+- extendedWaitUntil:
+    notVisible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- assertVisible:
+    id: cafe-local-picker-card
+# Picker: the swipe back from the left edge asks too, instead of leaving.
+- swipe:
+    start: "1%, 50%"
+    end: "85%, 50%"
+    duration: 400
+- extendedWaitUntil:
+    visible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-cafe-picker-swipe-question"
+- tapOn: "Stay"
+- extendedWaitUntil:
+    notVisible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- assertVisible:
+    id: cafe-local-picker-card
+# Mid-game, one move in.
+- tapOn:
+    id: cafe-local-fourInARow
+- extendedWaitUntil:
+    visible:
+      id: cafe-local-game
+    timeout: 5000
+- tapOn:
+    id: cafe-col-3
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "This game ends if you leave."
+    timeout: 5000
+- assertVisible: "Are you sure you want to leave\\?"
+- takeScreenshot: "${OUT}/check-cafe-mid-game-question"
+- tapOn: "Stay"
+- extendedWaitUntil:
+    notVisible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- assertVisible:
+    id: cafe-local-game
+# Mid-game: swipe back, then Leave goes to the picker, not out of Café Games.
+- swipe:
+    start: "1%, 50%"
+    end: "85%, 50%"
+    duration: 400
+- extendedWaitUntil:
+    visible: "This game ends if you leave."
+    timeout: 5000
+- tapOn: "Leave"
+- extendedWaitUntil:
+    visible:
+      id: cafe-local-picker-card
+    timeout: 5000
+# After a game: Tic-tac-toe, the first player takes the top row.
+- tapOn:
+    id: cafe-local-ticTacToe
+- tapOn:
+    id: cafe-cell-0
+- tapOn:
+    id: cafe-cell-3
+- tapOn:
+    id: cafe-cell-1
+- tapOn:
+    id: cafe-cell-4
+- tapOn:
+    id: cafe-cell-2
+- extendedWaitUntil:
+    visible:
+      id: cafe-local-result
+    timeout: 5000
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- assertNotVisible: "This game ends if you leave."
+- takeScreenshot: "${OUT}/check-cafe-game-over-question"
+- tapOn: "Stay"
+- extendedWaitUntil:
+    notVisible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- assertVisible:
+    id: cafe-local-result
+# Out: Leave from the game, then Leave from the picker reaches the Games list.
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- tapOn: "Leave"
+- extendedWaitUntil:
+    visible:
+      id: cafe-local-picker-card
+    timeout: 5000
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Are you sure you want to leave\\?"
+    timeout: 5000
+- tapOn: "Leave"
+- extendedWaitUntil:
+    visible:
+      id: games-open-cafe
+    timeout: 20000
+- assertNotVisible:
+    id: cafe-local-picker-card

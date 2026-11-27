@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.42] - 2026-11-27
+## [2.13.43] - 2026-11-27
 
 ### Fixed
 - **Walking away from the arcade closes its games list as you set off.**
@@ -18,6 +18,24 @@ All notable changes to **The SHED** mobile app. This project follows
   still stays until you've been to the arcade and left. A walk already
   under way that passes the arcade closes it once you're out of reach, as
   before. Verify's arcade check now times the close from the tap.
+
+## [2.13.42] - 2026-11-27
+
+### Changed
+- **Café Games asks "Are you sure you want to leave?" before you go back.**
+  Two players sharing a phone could lose a game of Four in a Row to one
+  stray tap on the back arrow. Every way back out of Café Games now asks
+  first, with Leave and Stay, in all four games and in the picker, during a
+  game and after it: the back arrow, the swipe back from the left edge on
+  iOS, the browser's back button, and Escape on web. During a game the
+  dialog adds "This game ends if you leave." Stay keeps everything as it
+  was. Leave goes back one step, as the back arrow always has: from a game
+  to the picker, and from the picker to the Games list. Offline, Escape
+  used to close the whole offline games window from inside a Café game;
+  now it asks too, and while the question is up Escape answers Stay. On the
+  Café Games page, reloading or closing the browser tab now gets the
+  browser's own leave-page prompt. The online Café tables in the World
+  aren't changed.
 
 ## [2.13.41] - 2026-11-27
 
