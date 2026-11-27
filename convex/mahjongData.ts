@@ -7,7 +7,7 @@ export const mahjongSeatValidator = v.union(
   v.object({ kind: v.literal("bot"), name: v.string() })
 );
 
-export const mahjongSettingsValidator = v.object({ minFaan: v.number(), maxFaan: v.number(), flowers: v.boolean(), stake: v.number(), coins: v.optional(v.boolean()) });
+export const mahjongSettingsValidator = v.object({ minFaan: v.number(), maxFaan: v.number(), stake: v.number(), coins: v.optional(v.boolean()), flowers: v.optional(v.boolean()) });
 
 export const mahjongPhaseValidator = v.union(v.literal("lobby"), v.literal("playing"), v.literal("ended"));
 
@@ -27,7 +27,7 @@ const discardValidator = v.object({ tile: v.number(), taken: v.optional(v.boolea
 const seatHandValidator = v.object({
   hand: v.array(v.number()),
   melds: v.array(meldValidator),
-  flowers: v.array(v.number()),
+  flowers: v.optional(v.array(v.number())),
   discards: v.array(discardValidator),
   turns: v.number(),
 });
@@ -126,7 +126,6 @@ export const mahjongHandViewValidator = v.object({
       concealed: v.number(),
       hand: v.union(v.array(v.number()), v.null()),
       melds: v.array(meldViewValidator),
-      flowers: v.array(v.number()),
       discards: v.array(discardValidator),
     })
   ),

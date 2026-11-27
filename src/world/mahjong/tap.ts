@@ -54,3 +54,9 @@ export const mahjongTags = (tables: readonly TableSummary[]) => {
   }
   return tags;
 };
+
+const SLIDE_TO_DISCARD = 40;
+
+export const isSlideUp = (dx: number, dy: number) => dy <= -SLIDE_TO_DISCARD && Math.abs(dy) > Math.abs(dx) * 1.5;
+
+export const startsSlideUp = (dx: number, dy: number) => dy < -10 && Math.abs(dy) > Math.abs(dx) * 1.5;

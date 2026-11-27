@@ -227,6 +227,9 @@ export const MahjongLayer = ({
           top={safeTop + 6}
           bottom={bottom}
           busy={busy}
+          forCoins={mine.settings.coins === true}
+          stake={mine.settings.stake}
+          giveUpCost={mine.giveUpCost}
           onMove={move}
           onAgain={() =>
             void againM({})
@@ -250,6 +253,9 @@ export const MahjongLayer = ({
           top={safeTop + 6}
           bottom={bottom}
           busy={false}
+          forCoins={watching.settings.coins === true}
+          stake={watching.settings.stake}
+          giveUpCost={0}
           onMove={() => undefined}
           onAgain={() => undefined}
           onLeave={onStopWatching}

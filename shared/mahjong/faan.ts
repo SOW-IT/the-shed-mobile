@@ -1,5 +1,5 @@
 import { isThirteenOrphans, readings, type Group } from "./hand";
-import { flowerWind, isDragon, isHonour, isSuited, isTerminal, isTerminalOrHonour, isWind, suitOf, windKind } from "./tiles";
+import { isDragon, isHonour, isSuited, isTerminal, isTerminalOrHonour, isWind, suitOf, windKind } from "./tiles";
 
 /**
  * Hong Kong faan (番). Each entry is one line on the round's breakdown. A
@@ -8,9 +8,6 @@ import { flowerWind, isDragon, isHonour, isSuited, isTerminal, isTerminalOrHonou
 export const FAAN = {
   selfDrawn: { zh: "自摸", en: "Self-drawn", faan: 1 },
   concealed: { zh: "門前清", en: "Concealed hand", faan: 1 },
-  noFlowers: { zh: "無花", en: "No flowers", faan: 1 },
-  seatFlower: { zh: "正花", en: "Seat flower", faan: 1 },
-  flowerSet: { zh: "一台花", en: "Full set of flowers", faan: 2 },
   allChows: { zh: "平糊", en: "All chows", faan: 1 },
   allPongs: { zh: "對對糊", en: "All pongs", faan: 3 },
   mixedSuit: { zh: "混一色", en: "Mixed one suit", faan: 3 },
@@ -45,9 +42,6 @@ export type WinContext = {
   /** The concealed tiles' counts, the winning tile included. */
   counts: readonly number[];
   melds: readonly MeldShape[];
-  /** Flower kinds (34–41) this seat has set aside. */
-  flowers: readonly number[];
-  flowersInPlay: boolean;
   winKind: number;
   selfDrawn: boolean;
   seatWind: number;
@@ -64,20 +58,6 @@ export type Scored = { lines: FaanLine[]; total: number; limit: boolean };
 type Set = { type: "chow" | "pong" | "kong"; kind: number; concealed: boolean };
 
 const line = (id: FaanId, times = 1): FaanLine => ({ id, faan: FAAN[id].faan * times });
-
-const flowerLines = (ctx: WinContext): FaanLine[] => {
-  if (!ctx.flowersInPlay) return [];
-  if (ctx.flowers.length === 0) return [line("noFlowers")];
-  const lines: FaanLine[] = [];
-  let seat = 0;
-  for (const group of [0, 1]) {
-    const inGroup = ctx.flowers.filter((kind) => Math.floor((kind - 34) / 4) === group);
-    if (inGroup.length === 4) lines.push(line("flowerSet"));
-    else seat += inGroup.filter((kind) => flowerWind(kind) === ctx.seatWind).length;
-  }
-  if (seat > 0) lines.push(line("seatFlower", seat));
-  return lines;
-};
 
 const situationLines = (ctx: WinContext, concealedHand: boolean): FaanLine[] => {
   const lines: FaanLine[] = [];
@@ -131,7 +111,7 @@ const scoreReading = (ctx: WinContext, pair: number, sets: Set[]): Omit<Scored, 
     if (pongs.some((s) => s.kind === windKind(ctx.roundWind))) lines.push(line("roundWind"));
   }
   if (honours && kinds.every(isTerminalOrHonour)) lines.push(line("mixedTerminals"));
-  return { lines: [...lines, ...situationLines(ctx, concealedHand), ...flowerLines(ctx)], limit: false };
+  return { lines: [...lines, ...situationLines(ctx, concealedHand)], limit: false };
 };
 
 /**

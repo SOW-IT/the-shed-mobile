@@ -5,8 +5,6 @@ import { counts, kinds } from "./testTiles";
 const ctx = (hand: string, extra: Partial<WinContext> = {}): WinContext => ({
   counts: counts(hand),
   melds: [],
-  flowers: [],
-  flowersInPlay: true,
   winKind: kinds(hand)[0],
   selfDrawn: false,
   seatWind: 1,
@@ -24,20 +22,20 @@ describe("faan", () => {
     expect(scoreWin(ctx("123p 456s 789m RRR EW"))).toBeNull();
   });
 
-  it("scores a chicken hand only for its situation and flowers", () => {
+  it("scores a chicken hand at nothing", () => {
     const scored = scoreWin(ctx("123p 456s 789m 111p EE", { melds: [{ type: "pong", kind: 0 }], counts: counts("123p 456s 789m EE"), winKind: 0 }));
-    expect(scored).toEqual({ lines: [{ id: "noFlowers", faan: 1 }], total: 1, limit: false });
+    expect(scored).toEqual({ lines: [], total: 0, limit: false });
   });
 
-  it("scores all chows, concealed, self-drawn and no flowers", () => {
-    expect(ids("123p 456s 789m 234p 55m", { selfDrawn: true })).toEqual(["allChows", "selfDrawn", "concealed", "noFlowers"]);
+  it("scores all chows, concealed and self-drawn", () => {
+    expect(ids("123p 456s 789m 234p 55m", { selfDrawn: true })).toEqual(["allChows", "selfDrawn", "concealed"]);
   });
 
   it("scores all pongs and one suit", () => {
     expect(ids("111p 333p 555p 777p 99p", { melds: [], selfDrawn: false })).toContain("pureSuit");
     expect(ids("111p 333p 555p 777p EE")).toEqual(expect.arrayContaining(["allPongs", "mixedSuit"]));
     const mixed = scoreWin(ctx("111p 333p 555p 777p EE"))!;
-    expect(mixed.total).toBe(FAAN.allPongs.faan + FAAN.mixedSuit.faan + FAAN.concealed.faan + FAAN.noFlowers.faan);
+    expect(mixed.total).toBe(FAAN.allPongs.faan + FAAN.mixedSuit.faan + FAAN.concealed.faan);
   });
 
   it("reads a hand the way that scores most", () => {
@@ -69,17 +67,6 @@ describe("faan", () => {
   it("scores situations", () => {
     expect(ids("123p 456s 789m 234p 55m", { selfDrawn: true, kongWin: true, lastTile: true })).toEqual(expect.arrayContaining(["kongWin", "lastTile"]));
     expect(ids("123p 456s 789m 234p 55m", { robbedKong: true })).toContain("robbedKong");
-  });
-
-  it("scores flowers", () => {
-    expect(ids("123p 456s 789m 234p 55m", { flowers: [35, 39], seatWind: 1 })).toContain("seatFlower");
-    const set = scoreWin(ctx("123p 456s 789m 234p 55m", { flowers: [34, 35, 36, 37, 39], seatWind: 1 }))!;
-    expect(set.lines.filter((l) => l.id === "flowerSet" || l.id === "seatFlower")).toEqual([
-      { id: "flowerSet", faan: 2 },
-      { id: "seatFlower", faan: 1 },
-    ]);
-    expect(ids("123p 456s 789m 234p 55m", { flowers: [34], seatWind: 1 })).not.toContain("seatFlower");
-    expect(ids("123p 456s 789m 234p 55m", { flowersInPlay: false })).not.toContain("noFlowers");
   });
 
   it("scores limit hands at the cap", () => {

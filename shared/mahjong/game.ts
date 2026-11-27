@@ -1,7 +1,7 @@
 import { cappedFaan, scoreWin, type FaanLine, type MeldShape, type Scored } from "./faan";
 import { isComplete } from "./hand";
 import type { Settings } from "./table";
-import { allTiles, countsOf, isFlowerTile, isSuited, kindOf, shuffled, sortTiles, suitOf } from "./tiles";
+import { allTiles, countsOf, isSuited, kindOf, shuffled, sortTiles, suitOf } from "./tiles";
 
 /**
  * One hand of Hong Kong mahjong, as pure functions over a plain object the
@@ -22,7 +22,7 @@ export const CLAIM_MS = 5000;
 
 type Meld = { type: "chow" | "pong" | "kong"; kind: number; tiles: number[]; concealed?: boolean; from?: number; claimed?: number };
 export type Discard = { tile: number; taken?: boolean };
-export type SeatHand = { hand: number[]; melds: Meld[]; flowers: number[]; discards: Discard[]; turns: number };
+export type SeatHand = { hand: number[]; melds: Meld[]; discards: Discard[]; turns: number };
 
 /** What someone can do with a discard. A chow is the two tiles from their hand it uses. */
 export type Offer = { hu: boolean; pong: boolean; kong: boolean; chows: number[][] };
@@ -86,18 +86,11 @@ const withSeat = (hand: Hand, seat: number, change: (s: SeatHand) => SeatHand): 
   seats: hand.seats.map((s, i) => (i === seat ? change(s) : s)),
 });
 
-/** Draws for a seat (from the back for a replacement), setting flowers aside for more from the back. Null when the wall is empty. */
 const drawInto = (hand: Hand, seat: number, fromBack: boolean): { hand: Hand; tile: number } | null => {
   const wall = [...hand.wall];
-  const flowers = [...hand.seats[seat].flowers];
-  let tile = fromBack ? wall.pop() : wall.shift();
-  while (tile !== undefined && isFlowerTile(tile)) {
-    flowers.push(tile);
-    tile = wall.pop();
-  }
+  const tile = fromBack ? wall.pop() : wall.shift();
   if (tile === undefined) return null;
-  const drawn = tile;
-  return { hand: withSeat({ ...hand, wall }, seat, (s) => ({ ...s, hand: [...s.hand, drawn], flowers })), tile: drawn };
+  return { hand: withSeat({ ...hand, wall }, seat, (s) => ({ ...s, hand: [...s.hand, tile] })), tile };
 };
 
 const meldShapes = (melds: readonly Meld[]): MeldShape[] => melds.map((m) => ({ type: m.type, kind: m.kind, concealed: m.concealed }));
@@ -124,22 +117,13 @@ export const newHand = ({
   const dice = [rollDie(random), rollDie(random), rollDie(random)];
   const total = dice[0] + dice[1] + dice[2];
   const first = dealer ?? (total - 1) % SEATS;
-  const wall = shuffled(allTiles(settings.flowers), random);
-  const seats: SeatHand[] = Array.from({ length: SEATS }, () => ({ hand: [], melds: [], flowers: [], discards: [], turns: 0 }));
+  const wall = shuffled(allTiles(), random);
+  const seats: SeatHand[] = Array.from({ length: SEATS }, () => ({ hand: [], melds: [], discards: [], turns: 0 }));
   const order = [0, 1, 2, 3].map((d) => (first + d) % SEATS);
   for (let round = 0; round < 3; round++) for (const seat of order) seats[seat].hand.push(...wall.splice(0, 4));
   for (const seat of order) seats[seat].hand.push(wall.shift()!);
   seats[first].hand.push(wall.shift()!);
-  for (const seat of order) {
-    const s = seats[seat];
-    let flower = s.hand.findIndex(isFlowerTile);
-    while (flower >= 0) {
-      s.flowers.push(s.hand[flower]);
-      s.hand.splice(flower, 1, wall.pop()!);
-      flower = s.hand.findIndex(isFlowerTile);
-    }
-    s.hand = sortTiles(s.hand);
-  }
+  for (const seat of order) seats[seat].hand = sortTiles(seats[seat].hand);
   return {
     step: 0,
     wall,
@@ -185,8 +169,6 @@ const scoreFor = (hand: Hand, seat: number, tiles: readonly number[], winTile: n
   return scoreWin({
     counts,
     melds: meldShapes(s.melds),
-    flowers: s.flowers.map(kindOf),
-    flowersInPlay: hand.settings.flowers,
     winKind: kindOf(winTile),
     seatWind: seatWindOf(hand, seat),
     roundWind: hand.roundWind,

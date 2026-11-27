@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botSeatUnder, mahjongTags, mahjongTap, tableToWatch, type TableSummary } from "./tap";
+import { botSeatUnder, isSlideUp, mahjongTags, mahjongTap, startsSlideUp, tableToWatch, type TableSummary } from "./tap";
 
 const seat = (kind: "empty" | "human" | "bot", member: string | null = null, name = "") => ({ kind, member, name, away: false });
 const table = (phase: TableSummary["phase"], seats: TableSummary["seats"]): TableSummary => ({ id: "t1", table: "mahjong-a", phase, seats });
@@ -44,5 +44,22 @@ describe("the World's tags for mahjong players", () => {
     expect([...tags.keys()]).toEqual(["ann", "ben"]);
     expect(tags.get("ann")).toEqual({ tag: "🀄 Mahjong", icon: "🀄", with: "ben" });
     expect(mahjongTags([table("playing", [seat("human", "ann"), seat("bot"), seat("bot"), seat("bot")])]).get("ann")?.with).toBe("");
+  });
+});
+
+describe("sliding a tile up to discard", () => {
+  it("needs a clear upward travel", () => {
+    expect(isSlideUp(0, -40)).toBe(true);
+    expect(isSlideUp(10, -60)).toBe(true);
+    expect(isSlideUp(0, -30)).toBe(false);
+    expect(isSlideUp(0, 60)).toBe(false);
+  });
+
+  it("never counts a sideways or sloppy move", () => {
+    expect(isSlideUp(50, -45)).toBe(false);
+    expect(isSlideUp(-80, -50)).toBe(false);
+    expect(startsSlideUp(30, -12)).toBe(false);
+    expect(startsSlideUp(2, -4)).toBe(false);
+    expect(startsSlideUp(2, -14)).toBe(true);
   });
 });

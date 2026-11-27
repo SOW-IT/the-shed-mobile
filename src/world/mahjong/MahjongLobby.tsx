@@ -16,8 +16,8 @@ import type { MahjongMine, MahjongSeatView } from "./useMahjong";
 const { hud } = worldColours;
 const ROWS = 8;
 
-const stakeWords = (stake: number) => (stake === 0 ? "For fun, no coins" : stake === 1 ? "1 coin a point" : `${stake} coins a point`);
-const rulesWords = (s: Settings) => `${s.minFaan} to ${s.maxFaan} faan · Flowers ${s.flowers ? "on" : "off"} · ${stakeWords(s.stake)}`;
+const stakeWords = (stake: number) => (stake === 1 ? "1 coin a point" : `${stake} coins a point`);
+const rulesWords = (s: Settings) => `${s.minFaan} to ${s.maxFaan} faan · ${s.coins === true ? `For SOW coins, ${stakeWords(s.stake)}` : "For points, no coins"}`;
 
 const Pill = ({ label, onPress, primary = false, disabled = false, testID, a11y }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID: string; a11y?: string }) => (
   <Pressable
@@ -96,13 +96,14 @@ export const MahjongLobby = ({
   const settings = t.settings;
   const change = (next: Partial<Settings>) => onSettings({ ...settings, ...next });
   const hostName = t.hostSeat >= 0 ? nameOf(t.seats[t.hostSeat].name) : "the host";
+  const short = t.seats.filter((s) => s.short).map((s) => (s.isMe ? "You" : nameOf(s.name)));
   const title = `Mahjong · ${isMahjongTable(t.table) ? MAHJONG_TABLE_NAMES[t.table] : "Table"}`;
   const rows: ReactNode[] = t.seats.map((seat, i) => (
     <MenuRow
       key={seatPlace(i)}
       face={<SeatFace kind={seat.kind} look={lookOf(seat.member)} name={seat.name} size={38} />}
       title={seat.kind === "empty" ? "Empty seat" : seat.isMe ? `${nameOf(seat.name)} (you)` : nameOf(seat.name)}
-      detail={seatDetail(seat, i, t.hostSeat)}
+      detail={`${seatDetail(seat, i, t.hostSeat)}${seat.short ? ` · Needs ${t.coinsToSit} coins` : ""}`}
       label={`${seatPlace(i)} seat: ${seat.kind === "empty" ? "empty" : nameOf(seat.name)}${seat.kind === "bot" ? ", a bot" : ""}${i === t.hostSeat ? ", host" : ""}`}
       trailing={
         t.isHost && seat.kind === "empty" ? (
@@ -154,24 +155,32 @@ export const MahjongLobby = ({
                 <Stepper value={settings.maxFaan} min={settings.minFaan} max={FAAN_LIMITS.max} label="faan cap" onChange={(maxFaan) => change({ maxFaan })} testID="mahjong-max-faan" />
               </View>
               <View style={styles.setting}>
-                <Text style={styles.settingName}>Flowers and seasons</Text>
-                <Pill label={settings.flowers ? "On" : "Off"} onPress={() => change({ flowers: !settings.flowers })} testID="mahjong-flowers" a11y={`Flowers ${settings.flowers ? "on" : "off"}`} />
+                <Text style={styles.settingName}>Play for SOW coins</Text>
+                <Pill label={settings.coins === true ? "On" : "Off"} primary={settings.coins === true} onPress={() => change({ coins: settings.coins !== true })} testID="mahjong-coins" a11y={`Play for SOW coins: ${settings.coins === true ? "on" : "off"}`} />
               </View>
-              <View style={styles.setting}>
-                <Text style={styles.settingName}>Coins</Text>
-                <Pill
-                  label={stakeWords(settings.stake)}
-                  onPress={() => change({ stake: STAKES[(STAKES.indexOf(settings.stake as (typeof STAKES)[number]) + 1) % STAKES.length] })}
-                  testID="mahjong-stake"
-                />
-              </View>
+              {settings.coins === true ? (
+                <View style={styles.setting}>
+                  <Text style={styles.settingName}>Coins a point</Text>
+                  <Pill
+                    label={stakeWords(settings.stake)}
+                    onPress={() => change({ stake: STAKES[(STAKES.indexOf(settings.stake as (typeof STAKES)[number]) + 1) % STAKES.length] })}
+                    testID="mahjong-stake"
+                  />
+                </View>
+              ) : null}
             </View>
           ) : null}
           <Animated.View style={[styles.startRow, itemStyle(overlay, 6)]}>
+            <Text style={[styles.note, settings.coins === true && styles.coinsNote]} testID="mahjong-coins-note">
+              {settings.coins === true
+                ? `SOW coins on the line: everyone needs ${t.coinsToSit} coins to sit, the most one hand can cost. Coins only move between people, never to or from a bot.`
+                : "For points: no SOW coins move at this table."}
+            </Text>
             {t.isHost ? (
               <>
-                <Pill label="Start game" primary disabled={!t.full} onPress={onStart} testID="mahjong-start" />
+                <Pill label="Start game" primary disabled={!t.full || short.length > 0} onPress={onStart} testID="mahjong-start" />
                 {t.full ? null : <Text style={styles.note}>Fill every seat to start: add bots, or wait for people to sit down.</Text>}
+                {short.length > 0 ? <Text style={[styles.note, styles.coinsNote]}>{`${short.join(", ")} ${short.length === 1 ? "hasn't" : "haven't"} enough coins. Turn coins off, lower the faan cap or the stake, or wait for them to get up.`}</Text> : null}
               </>
             ) : (
               <Text style={styles.note} testID="mahjong-waiting">{`Waiting for ${hostName} to start.`}</Text>
@@ -212,4 +221,5 @@ const styles = StyleSheet.create({
   stepValue: { minWidth: 22, textAlign: "center", fontFamily: fonts.display, fontSize: 16, color: glass.text, fontVariant: ["tabular-nums"] },
   startRow: { alignItems: "center", gap: 8, paddingTop: 6 },
   note: { fontSize: 12.5, fontWeight: "600", color: glass.muted, textAlign: "center", paddingHorizontal: 12 },
+  coinsNote: { color: glass.text },
 });

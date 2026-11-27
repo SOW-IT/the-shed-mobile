@@ -516,4 +516,12 @@ export const mahjong = {
   gain: "#9BF0B4",
   shout: "#FFFFFF",
   shoutEdge: "#C9603A",
+  face: "#FCFCFA",
+  faceEdge: "#D8D8D2",
+  faceSide: "#C9CCC4",
+  backOrange: "#F08419",
+  backOrangeEdge: "#C2620A",
+  inkBlue: "#2B2FA8",
+  inkGreen: "#1F6B45",
+  inkRed: "#C8193C",
 };

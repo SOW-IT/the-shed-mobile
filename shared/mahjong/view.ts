@@ -11,7 +11,7 @@ import { seatWindOf, turnOptions, type Discard, type GameEvent, type Hand, type 
 export const HIDDEN = -1;
 
 export type MeldView = { type: "chow" | "pong" | "kong"; tiles: number[]; concealed: boolean; from: number | null; claimed: number | null };
-export type SeatView = { wind: number; concealed: number; hand: number[] | null; melds: MeldView[]; flowers: number[]; discards: Discard[] };
+export type SeatView = { wind: number; concealed: number; hand: number[] | null; melds: MeldView[]; discards: Discard[] };
 export type StageView =
   | { kind: "intro"; until: number }
   | { kind: "turn"; seat: number; deadline: number; claimed: boolean }
@@ -80,7 +80,6 @@ export const viewHand = (hand: Hand, viewer: number | null): HandView => {
         from: m.from ?? null,
         claimed: m.claimed ?? null,
       })),
-      flowers: s.flowers,
       discards: s.discards,
     })),
     stage: stageView(hand),

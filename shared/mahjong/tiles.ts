@@ -10,12 +10,9 @@
 
 export const KINDS = 34;
 export const SUITED = 27;
-const FLOWER_BASE = 34;
-export const TILE_COUNT = 144;
-const NORMAL_TILES = 136;
+export const TILE_COUNT = 136;
 
-export const kindOf = (tile: number) => (tile < NORMAL_TILES ? tile >> 2 : FLOWER_BASE + (tile - NORMAL_TILES));
-export const isFlowerTile = (tile: number) => tile >= NORMAL_TILES;
+export const kindOf = (tile: number) => tile >> 2;
 
 export type Suit = 0 | 1 | 2;
 const SUIT_NAMES = ["Dots", "Bamboo", "Characters"] as const;
@@ -35,11 +32,6 @@ export const WIND_NAMES = ["East", "South", "West", "North"] as const;
 export const WIND_CHARS = ["東", "南", "西", "北"] as const;
 const DRAGON_NAMES = ["Red Dragon", "Green Dragon", "White Dragon"] as const;
 const DRAGON_CHARS = ["中", "發", "白"] as const;
-const FLOWER_NAMES = ["Plum", "Orchid", "Chrysanthemum", "Bamboo", "Spring", "Summer", "Autumn", "Winter"] as const;
-const FLOWER_CHARS = ["梅", "蘭", "菊", "竹", "春", "夏", "秋", "冬"] as const;
-
-/** Which seat wind a flower belongs to: Plum and Spring are East's, and so on. */
-export const flowerWind = (kind: number) => (kind - FLOWER_BASE) % 4;
 
 export const THIRTEEN_ORPHANS = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33] as const;
 
@@ -47,20 +39,17 @@ export const THIRTEEN_ORPHANS = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33
 export const tileName = (kind: number) => {
   if (isSuited(kind)) return `${rankOf(kind)} ${SUIT_NAMES[suitOf(kind)]}`;
   if (isWind(kind)) return `${WIND_NAMES[kind - 27]} Wind`;
-  if (isDragon(kind)) return DRAGON_NAMES[kind - 31];
-  return FLOWER_NAMES[kind - FLOWER_BASE];
+  return DRAGON_NAMES[kind - 31];
 };
 
 /** The face's characters, for drawing it: a rank over its suit, or one character. */
 export const tileFace = (kind: number): { top: string; bottom?: string } => {
   if (isSuited(kind)) return { top: String(rankOf(kind)), bottom: SUIT_CHARS[suitOf(kind)] };
   if (isWind(kind)) return { top: WIND_CHARS[kind - 27] };
-  if (isDragon(kind)) return { top: DRAGON_CHARS[kind - 31] };
-  return { top: FLOWER_CHARS[kind - FLOWER_BASE], bottom: String(((kind - FLOWER_BASE) % 4) + 1) };
+  return { top: DRAGON_CHARS[kind - 31] };
 };
 
-/** Every tile in the set: 136, plus the 8 flowers when they're played. */
-export const allTiles = (flowers: boolean) => Array.from({ length: flowers ? TILE_COUNT : NORMAL_TILES }, (_, i) => i);
+export const allTiles = () => Array.from({ length: TILE_COUNT }, (_, i) => i);
 
 export const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
   const out = [...items];
@@ -78,8 +67,7 @@ export const sortTiles = (tiles: readonly number[]) => [...tiles].sort((a, b) =>
 export const countsOf = (tiles: readonly number[]) => {
   const counts = Array.from({ length: KINDS }, () => 0);
   for (const tile of tiles) {
-    const kind = kindOf(tile);
-    if (kind < KINDS) counts[kind]++;
+    counts[kindOf(tile)]++;
   }
   return counts;
 };

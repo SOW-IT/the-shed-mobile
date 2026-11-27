@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { isComplete, isThirteenOrphans, readings, shanten, waitsOf } from "./hand";
 import { counts, kinds, seeded, tilesOf } from "./testTiles";
-import { allTiles, countsOf, flowerWind, isFlowerTile, kindOf, shuffled, sortTiles, tileFace, tileName } from "./tiles";
+import { allTiles, countsOf, kindOf, shuffled, sortTiles, tileFace, tileName } from "./tiles";
 
 describe("tiles", () => {
-  it("has 144 tiles with flowers and 136 without", () => {
-    expect(allTiles(true)).toHaveLength(144);
-    expect(allTiles(false)).toHaveLength(136);
-    expect(allTiles(true).filter(isFlowerTile)).toHaveLength(8);
-    expect(countsOf(allTiles(true)).every((n) => n === 4)).toBe(true);
+  it("has 136 tiles, four of each of the 34 kinds, and no flowers or seasons", () => {
+    expect(allTiles()).toHaveLength(136);
+    expect(countsOf(allTiles())).toHaveLength(34);
+    expect(countsOf(allTiles()).every((n) => n === 4)).toBe(true);
   });
 
   it("names and draws every kind", () => {
@@ -17,20 +16,16 @@ describe("tiles", () => {
     expect(tileName(26)).toBe("9 Characters");
     expect(tileName(27)).toBe("East Wind");
     expect(tileName(31)).toBe("Red Dragon");
-    expect(tileName(34)).toBe("Plum");
     expect(tileFace(18)).toEqual({ top: "1", bottom: "萬" });
     expect(tileFace(28)).toEqual({ top: "南" });
     expect(tileFace(32)).toEqual({ top: "發" });
-    expect(tileFace(39)).toEqual({ top: "夏", bottom: "2" });
-    expect(kindOf(140)).toBe(38);
-    expect(flowerWind(38)).toBe(0);
-    expect(flowerWind(37)).toBe(3);
+    expect(kindOf(135)).toBe(33);
   });
 
   it("shuffles every tile once and sorts by kind", () => {
-    const out = shuffled(allTiles(true), seeded(1));
-    expect([...out].sort((a, b) => a - b)).toEqual(allTiles(true));
-    expect(sortTiles([140, 5, 0, 4]).map(kindOf)).toEqual([0, 1, 1, 38]);
+    const out = shuffled(allTiles(), seeded(1));
+    expect([...out].sort((a, b) => a - b)).toEqual(allTiles());
+    expect(sortTiles([132, 5, 0, 4]).map(kindOf)).toEqual([0, 1, 1, 33]);
   });
 
   it("reads test hands", () => {

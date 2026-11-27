@@ -3,7 +3,7 @@ import { INTRO_MS, type Answer, type Offer } from "../../../shared/mahjong/game"
 import { kindOf, tileName, WIND_CHARS, WIND_NAMES } from "../../../shared/mahjong/tiles";
 
 /** Where a seat sits on screen for someone at `viewer`: you at the bottom, the next seat on your right. */
-export type Side = "bottom" | "right" | "top" | "left";
+type Side = "bottom" | "right" | "top" | "left";
 const SIDES: readonly Side[] = ["bottom", "right", "top", "left"];
 export const sideOf = (seat: number, viewer: number): Side => SIDES[(seat - viewer + 4) % 4];
 export const seatAt = (side: Side, viewer: number) => (viewer + SIDES.indexOf(side)) % 4;

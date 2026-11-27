@@ -23,7 +23,7 @@ import {
 import { applyMove, botMove, playBots } from "./play";
 import { DEFAULT_SETTINGS, validSettings, type Settings } from "./table";
 import { counts, kinds, seeded, tilesOf } from "./testTiles";
-import { countsOf, isFlowerTile, kindOf, TILE_COUNT } from "./tiles";
+import { countsOf, kindOf, TILE_COUNT } from "./tiles";
 import { HIDDEN, viewHand } from "./view";
 
 const NOW = 1_000_000;
@@ -48,7 +48,7 @@ const rig = ({
   dealer?: number;
 }): Hand => {
   const used = new Map<number, number>();
-  const seats = hands.map((text) => ({ hand: tilesOf(text, used), melds: [], flowers: [], discards: [], turns: 1 }));
+  const seats = hands.map((text) => ({ hand: tilesOf(text, used), melds: [], discards: [], turns: 1 }));
   return {
     step: 10,
     wall: tilesOf(wall, used),
@@ -100,23 +100,22 @@ describe("settings and payouts", () => {
 });
 
 describe("dealing", () => {
-  it("rolls for the dealer, deals 13 each and 14 to the dealer, and sets flowers aside", () => {
+  it("rolls for the dealer and deals 13 each and 14 to the dealer from the 136 tiles", () => {
     const hand = newHand({ settings: DEFAULT_SETTINGS, dealer: null, roundWind: 0, random: seeded(7), now: NOW });
     const total = hand.dice.reduce((a, b) => a + b, 0);
     expect(hand.dealer).toBe((total - 1) % 4);
     expect(hand.breakAt).toBe(total);
     hand.seats.forEach((s, seat) => {
       expect(s.hand).toHaveLength(seat === hand.dealer ? 14 : 13);
-      expect(s.hand.some(isFlowerTile)).toBe(false);
     });
-    const all = [...hand.wall, ...hand.seats.flatMap((s) => [...s.hand, ...s.flowers])];
+    const all = [...hand.wall, ...hand.seats.flatMap((s) => s.hand)];
     expect(new Set(all).size).toBe(TILE_COUNT);
     expect(hand.stage).toEqual({ kind: "intro", until: NOW + INTRO_MS });
     expect(deadlineOf(hand)).toBe(NOW + INTRO_MS);
   });
 
-  it("keeps a dealer it's given and plays without flowers", () => {
-    const hand = newHand({ settings: { ...DEFAULT_SETTINGS, flowers: false }, dealer: 2, roundWind: 1, random: seeded(3), now: NOW });
+  it("keeps a dealer it's given", () => {
+    const hand = newHand({ settings: DEFAULT_SETTINGS, dealer: 2, roundWind: 1, random: seeded(3), now: NOW });
     expect(hand.dealer).toBe(2);
     expect(hand.wall.length + 13 * 4 + 1).toBe(136);
   });
@@ -149,14 +148,6 @@ describe("turns", () => {
     expect(declareKong(hand, 1, 0, NOW).ok).toBe(false);
   });
 
-  it("sets a drawn flower aside and replaces it from the back", () => {
-    const hand = rig({ hands: ["123p RG", "1m", "2m", "3m"], wall: "9m 5m" });
-    hand.wall.splice(0, 0, 136);
-    const after = ok(discard(hand, 0, tileIn(hand, 0, "R"), NOW));
-    expect(after.seats[1].flowers).toEqual([136]);
-    expect(after.seats[1].hand.map(kindOf)).toContain(kinds("5m")[0]);
-  });
-
   it("ends in a draw when the wall runs out", () => {
     const hand = rig({ hands: ["123p RG", "1m", "2m", "3m"], wall: "" });
     const after = ok(discard(hand, 0, tileIn(hand, 0, "R"), NOW));
@@ -185,18 +176,18 @@ describe("self-drawn wins", () => {
     const result = won.stage.kind === "over" ? won.stage.result : null;
     expect(result).toMatchObject({ kind: "win", winner: 0, from: null });
     if (result?.kind !== "win") throw new Error("no win");
-    expect(result.lines.map((l) => l.id)).toEqual(expect.arrayContaining(["mixedSuit", "dragonPong", "selfDrawn", "concealed", "noFlowers"]));
-    expect(result.faan).toBe(7);
-    expect(result.points).toBe(48);
+    expect(result.lines.map((l) => l.id)).toEqual(expect.arrayContaining(["mixedSuit", "dragonPong", "selfDrawn", "concealed"]));
+    expect(result.faan).toBe(6);
+    expect(result.points).toBe(32);
     expect(result.pays).toHaveLength(3);
   });
 
   it("can't win below the minimum", () => {
-    const hand = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 5 } });
+    const hand = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 4 } });
     expect(turnOptions(hand, 0).win).toBeNull();
-    expect(selfWin(hand, 0)).toEqual({ ok: false, reason: "That hand isn't worth 5 faan." });
-    const enough = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 4 } });
-    expect(turnOptions(enough, 0).win?.total).toBe(4);
+    expect(selfWin(hand, 0)).toEqual({ ok: false, reason: "That hand isn't worth 4 faan." });
+    const enough = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 3 } });
+    expect(turnOptions(enough, 0).win?.total).toBe(3);
     expect(selfWin(enough, 0).ok).toBe(true);
   });
 
@@ -243,7 +234,7 @@ describe("claims", () => {
   });
 
   it("gives a win priority over a pong, and the first winner after the discarder the tile", () => {
-    const hand = rig({ hands: ["5p 9m", "55p 11m 99s", "123p 789p 111s RRR 5p", "46p 123s 789s GGG EE"], wall: "1m 1m" });
+    const hand = rig({ hands: ["5p 9m", "55p 11m 99s", "123p 789p 111s RRR 5p", "46p 123s 789s GGG EE"], wall: "1m 1m", settings: { minFaan: 1 } });
     let after = ok(discard(hand, 0, tileIn(hand, 0, "5p"), NOW));
     if (after.stage.kind !== "claim") throw new Error("no claim");
     expect(after.stage.offers[2]!.hu).toBe(true);
@@ -461,7 +452,7 @@ describe("bots", () => {
         moves++;
         expect(moves).toBeLessThan(400);
       }
-      const tiles = [...hand.wall, ...hand.seats.flatMap((s) => [...s.hand, ...s.flowers, ...s.discards.filter((d) => !d.taken).map((d) => d.tile), ...s.melds.flatMap((m) => m.tiles)])];
+      const tiles = [...hand.wall, ...hand.seats.flatMap((s) => [...s.hand, ...s.discards.filter((d) => !d.taken).map((d) => d.tile), ...s.melds.flatMap((m) => m.tiles)])];
       const won = hand.stage.result.kind === "win" ? hand.stage.result : null;
       // A robbed kong's tile leaves the robbed hand for the winner's.
       if (won && won.from !== null && !tiles.includes(won.tile)) tiles.push(won.tile);
