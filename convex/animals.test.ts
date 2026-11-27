@@ -113,8 +113,28 @@ describe("buildings", () => {
 });
 
 describe("buying animals", () => {
+  test("from Josh in the Garden, or your own backyard on older apps, and nowhere else", async () => {
+    const t = newConvex();
+    await give(t, ANNA, 500);
+    await build(t, ANNA, "coop");
+    const anna = asUser(t, ANNA);
+    await expect(anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" })).rejects.toThrow(/left the garden/);
+    await anna.mutation(api.world.join, { backyard: true });
+    await go(t, ANNA, "beach");
+    await expect(anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" })).rejects.toThrow(/Find Josh Kim in the Garden to buy animals/);
+    await go(t, ANNA, "garden");
+    await anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" });
+    await go(t, ANNA, "home");
+    await expect(anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Dot" })).rejects.toThrow(/Find Josh Kim/);
+    await go(t, ANNA, "backyard", { door: true });
+    await anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Dot" });
+    expect((await t.run((ctx) => ctx.db.query("worldAnimals").collect())).map((a) => a.name)).toEqual(["Pip", "Dot"]);
+    expect(await balanceOf(t, ANNA)).toBe(500 - 2 * ANIMALS.chicken.price);
+  });
+
   test("a chick needs the coop, and a calf the barn", async () => {
     const t = newConvex();
+    await atJosh(t, ANNA);
     await give(t, ANNA, 500);
     const anna = asUser(t, ANNA);
     await expect(anna.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" })).rejects.toThrow(/Buy the coop first/);
@@ -129,6 +149,7 @@ describe("buying animals", () => {
 
   test("4 hens fill the coop and 2 cows the barn", async () => {
     const t = newConvex();
+    await atJosh(t, ANNA);
     await give(t, ANNA, 1000);
     await build(t, ANNA, "coop");
     await build(t, ANNA, "barn");
@@ -142,6 +163,7 @@ describe("buying animals", () => {
 
   test("naming is free when buying, filtered like chat, and at most 16 characters", async () => {
     const t = newConvex();
+    await atJosh(t, ANNA);
     await give(t, ANNA, 100);
     await build(t, ANNA, "barn");
     const anna = asUser(t, ANNA);
@@ -154,6 +176,7 @@ describe("buying animals", () => {
 
   test("short of coins, nothing is bought", async () => {
     const t = newConvex();
+    await atJosh(t, ANNA);
     await give(t, ANNA, 54);
     await build(t, ANNA, "barn");
     await expect(asUser(t, ANNA).mutation(api.animals.buyAnimal, { kind: "cow", name: "Daisy" })).rejects.toThrow(/need 1 more coins/);
@@ -162,6 +185,7 @@ describe("buying animals", () => {
 
   test("an animal that wandered off frees its space, and the owner gets a note", async () => {
     const t = newConvex();
+    await atJosh(t, ANNA);
     await give(t, ANNA, 100);
     await build(t, ANNA, "barn");
     await raise(t, ANNA, "cow", Date.now() - 4 * DAY_MS, [], "Daisy");
@@ -169,6 +193,19 @@ describe("buying animals", () => {
     await asUser(t, ANNA).mutation(api.animals.buyAnimal, { kind: "cow", name: "Clover" });
     expect((await t.run((ctx) => ctx.db.query("worldAnimals").collect())).map((a) => a.name)).toEqual(["Bessie", "Clover"]);
     expect((await farmRow(t, ANNA))?.wandered).toEqual(["Daisy"]);
+  });
+});
+
+describe("Josh's shop", () => {
+  test("sees your own coop, barn and animals from anywhere, and nobody else's", async () => {
+    const t = newConvex();
+    expect(await t.query(api.animals.pens, {})).toBeNull();
+    expect(await asUser(t, ANNA).query(api.animals.pens, {})).toEqual({ buildings: [], animals: [] });
+    await build(t, ANNA, "coop");
+    await build(t, BEN, "barn");
+    const born = Date.now() - HOUR;
+    await raise(t, ANNA, "chicken", born, [born + 60_000], "Pip");
+    expect(await asUser(t, ANNA).query(api.animals.pens, {})).toEqual({ buildings: ["coop"], animals: [{ kind: "chicken", boughtAt: born, feedings: [{ at: born + 60_000 }] }] });
   });
 });
 
@@ -286,7 +323,7 @@ describe("visitors", () => {
     const ben = asUser(t, BEN);
     await expect(ben.mutation(api.animals.collect, { animalId: id })).rejects.toThrow(/Only the owner/);
     await expect(ben.mutation(api.animals.rename, { animalId: id, name: "Mine" })).rejects.toThrow(/isn't here/);
-    await expect(ben.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" })).rejects.toThrow(/Buy the coop first/);
+    await expect(ben.mutation(api.animals.buyAnimal, { kind: "chicken", name: "Pip" })).rejects.toThrow(/Find Josh Kim in the Garden/);
     expect((await animal(t, id))?.name).toBe("Henrietta");
     expect((await farmRow(t, ANNA))?.goods).toBeUndefined();
   });

@@ -2,7 +2,7 @@ import { AppIcon, type AppIconName } from "@/components/ui/icon";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { elsewhereTitle, PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
@@ -229,7 +229,7 @@ export const LeaveDialog = ({ open, onStay, onLeave }: { open: boolean; onStay: 
       <Pressable style={StyleSheet.absoluteFill} onPress={onStay} accessibilityRole="button" accessibilityLabel="Stay" testID="world-leave-scrim">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-leave-dialog" accessibilityViewIsModal>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-leave-dialog" role="dialog" aria-modal aria-label="Leave the World?">
         <Animated.View style={[styles.door, itemStyle(overlay, 0)]}>
           <Ionicons name="exit-outline" size={30} color={glass.text} />
         </Animated.View>
@@ -280,7 +280,7 @@ export const DevotionalPromptDialog = ({
       >
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-devotional-dialog" accessibilityViewIsModal>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-devotional-dialog" role="dialog" aria-modal aria-label="Daily devotional">
         <Animated.View style={[styles.devotionalIcon, itemStyle(overlay, 0)]}>
           <Ionicons name="book-outline" size={30} color={glass.text} />
         </Animated.View>
@@ -312,6 +312,41 @@ export const DevotionalPromptDialog = ({
       </Animated.View>
     </View>
   );
+};
+
+/**
+ * On web, while a dialog is open: focus its first field, keep Tab and Shift+Tab
+ * among its own controls, and when it closes hand focus back to whatever had it
+ * before (the button that opened it), if that is still on the page.
+ */
+const useWebFocusTrap = (open: boolean) => {
+  const box = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !open || typeof document === "undefined") return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const node: unknown = box.current;
+    if (!(node instanceof HTMLElement)) return;
+    const stops = () =>
+      [...node.querySelectorAll<HTMLElement>('input, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+        (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-disabled") !== "true"
+      );
+    stops()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const list = stops();
+      if (list.length === 0) return;
+      const at = document.activeElement instanceof HTMLElement ? list.indexOf(document.activeElement) : -1;
+      const next = e.shiftKey ? (at <= 0 ? list.length - 1 : at - 1) : at === -1 || at === list.length - 1 ? 0 : at + 1;
+      e.preventDefault();
+      list[next].focus();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+  return box;
 };
 
 /** The second step of buying an animal: name it (a default is filled in), then Buy. Closing buys nothing. */
@@ -349,13 +384,14 @@ export const NameAnimalDialog = ({
   onBuy: () => void;
 }) => {
   const overlay = useOverlayClock(open, 4);
+  const box = useWebFocusTrap(open && overlay.mounted);
   if (!overlay.mounted) return null;
   return (
     <View style={[StyleSheet.absoluteFill, styles.topDialog, { paddingTop: top + 24 }]} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} disabled={busy} accessibilityRole="button" accessibilityLabel="Cancel" testID="world-name-animal-scrim">
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" role="dialog" aria-modal aria-label={title}>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" role="dialog" aria-modal aria-label={title} ref={box}>
         <Animated.View style={itemStyle(overlay, 0)}>{art}</Animated.View>
         <Animated.View style={itemStyle(overlay, 1)}>
           <Text style={styles.dialogTitle} accessibilityRole="header">
@@ -368,7 +404,7 @@ export const NameAnimalDialog = ({
             value={name}
             onChangeText={onName}
             maxLength={maxLength}
-            autoFocus
+            autoFocus={Platform.OS !== "web"}
             selectTextOnFocus
             returnKeyType="done"
             accessibilityLabel="Name"

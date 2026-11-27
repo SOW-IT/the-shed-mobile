@@ -104,13 +104,7 @@ export const useAnimals = ({ roomId, inBackyard }: { roomId: Id<"worldRooms"> | 
     }
   }, [collectM]);
   const buyBuilding = useCallback((kind: string) => attempt(async () => ({ ok: (await buyBuildingM({ kind })).balance >= 0 }), "That didn't go through."), [buyBuildingM]);
-  const buyAnimal = useCallback(async (kind: string, name: string): Promise<{ id: string } | string> => {
-    try {
-      return { id: (await buyAnimalM({ kind, name })).id };
-    } catch (e) {
-      return said(e, "That didn't go through.");
-    }
-  }, [buyAnimalM]);
+  const buyAnimal = useCallback((kind: string, name: string) => attempt(async () => ({ ok: (await buyAnimalM({ kind, name })).balance >= 0 }), "That didn't go through."), [buyAnimalM]);
   const rename = useCallback((animalId: string, name: string) => attempt(async () => ({ ok: (await renameM({ animalId, name })).name.length > 0 }), "That didn't rename."), [renameM]);
   const settle = useCallback(async (): Promise<string[]> => {
     try {

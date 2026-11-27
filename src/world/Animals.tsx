@@ -10,7 +10,6 @@ type Kind = "chicken" | "cow";
 type Stage = 0 | 1 | 2;
 type Look = { stage: Stage; progress: number; mood: Mood };
 
-const ARRIVE_MS = 1100;
 const LEAVE_MS = 2600;
 const FEED_MS = 1100;
 
@@ -180,11 +179,13 @@ const GRAINS: readonly [number, number][] = [
   [0.42, 0.72],
 ];
 
-export type PenAnimal = { id: string; kind: Kind; name: string; stage: Stage; progress: number; mood: Mood; ready: boolean; note?: string; fresh: boolean };
+export type PenAnimal = { id: string; kind: Kind; name: string; stage: Stage; progress: number; mood: Mood; ready: boolean; note?: string };
 
 const paceOf = (mood: Mood) => (mood === "frail" || mood === "gone" ? null : mood === "hungry" ? PACE.hungry : PACE.fed);
 const NAME_H = 15;
 const DRAWN_AT: Record<Kind, number> = { chicken: 1.9, cow: 1.4 };
+// Half the width of the gold ring drawn under an animal you're walking to, as a share of its size.
+const RING_OF: Record<Kind, number> = { chicken: 0.62, cow: 0.8 };
 const TOP_OF: Record<Kind, number> = { chicken: -0.62, cow: -0.88 };
 
 const sizeOf = (look: Look) => (look.stage === 2 ? 1 : 0.5 + 0.42 * Math.min(1, look.progress));
@@ -235,6 +236,7 @@ const Critter = ({
   part,
   zone,
   tag,
+  lit,
 }: {
   a: PenAnimal;
   pen: PenCorners;
@@ -250,14 +252,10 @@ const Critter = ({
   part: "body" | "badge" | "name";
   zone: Zone;
   tag: Tag;
+  lit: boolean;
 }) => {
   const seed = useMemo(() => seedOf(a.id), [a.id]);
   const pace = paceOf(a.mood);
-  const arrive = useSharedValue(a.fresh && live ? 0 : 1);
-  useEffect(() => {
-    if (arrive.value >= 1) return;
-    arrive.value = withTiming(1, { duration: ARRIVE_MS, easing: Easing.out(Easing.quad) });
-  }, [arrive]);
   const leaving = a.mood === "gone";
   const leave = useSharedValue(0);
   const id = a.id;
@@ -294,12 +292,7 @@ const Critter = ({
   const place = useAnimatedStyle(() => {
     const w = wanderAt(seed, clock.value, pace, zone);
     let p = penPoint(pen, w.u, w.v);
-    const k = arrive.value;
     let hop = 0;
-    if (k < 1) {
-      p = { x: gate.x + (p.x - gate.x) * k, y: gate.y + (p.y - gate.y) * k, scale: gate.scale + (p.scale - gate.scale) * k };
-      hop = Math.abs(Math.sin(k * Math.PI * 4)) * (1 - k) * 0.35 * p.scale;
-    }
     const l = leave.value;
     let opacity = 1;
     if (l > 0) {
@@ -309,7 +302,7 @@ const Critter = ({
       p = { x: atGate.x + (exit.x - atGate.x) * out, y: atGate.y + (exit.y - atGate.y) * out, scale: atGate.scale + (exit.scale - atGate.scale) * out };
       opacity = 1 - Math.max(0, (l - 0.7) / 0.3);
       hop = Math.abs(Math.sin(l * Math.PI * 10)) * 0.05 * p.scale;
-    } else if (w.walking && k >= 1) {
+    } else if (w.walking) {
       hop = Math.abs(Math.sin(clock.value * WANDER_LOOP_MS * 0.012)) * 0.04 * p.scale;
     }
     return { opacity, transform: [{ translateX: p.x }, { translateY: p.y - hop }, { scale: p.scale / base }] };
@@ -353,6 +346,12 @@ const Critter = ({
   return (
     part === "body" ? (
       <Animated.View pointerEvents="none" style={[styles.abs, place]} testID={`world-animal-${a.kind}-${a.stage}-${a.mood}${a.ready ? "-ready" : ""}`}>
+        {lit ? (
+          <View style={styles.abs} testID={`world-animal-highlight-${a.id}`}>
+            <Ellipse cx={0} cy={0} rx={RING_OF[a.kind] * u * 1.18} ry={RING_OF[a.kind] * u * 0.5} fill={garden.highlightGlow} opacity={0.55} />
+            <Ellipse cx={0} cy={0} rx={RING_OF[a.kind] * u} ry={RING_OF[a.kind] * u * 0.42} fill="transparent" ink={3.5} inkColour={garden.highlight} opacity={1} />
+          </View>
+        ) : null}
         <Animated.View style={[styles.abs, facing]}>
           {a.kind === "cow" ? (
             <>
@@ -405,6 +404,7 @@ export const PenAnimals = memo(function PenAnimals({
   feeding,
   onFed,
   onLeft,
+  highlight = null,
 }: {
   slots: number;
   pen: PenCorners;
@@ -415,6 +415,7 @@ export const PenAnimals = memo(function PenAnimals({
   feeding: { id: string; key: number } | null;
   onFed: () => void;
   onLeft: (id: string) => void;
+  highlight?: string | null;
 }) {
   const clock = usePhase(live);
   const base = (pen.backLeft.scale + pen.frontRight.scale) / 2;
@@ -429,7 +430,7 @@ export const PenAnimals = memo(function PenAnimals({
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {(["body", "badge", "name"] as const).flatMap((part) =>
         animals.map((a, i) => (
-          <Critter key={`${part}-${a.id}`} a={a} part={part} pen={pen} gate={gate} exit={exit} base={base} clock={clock} live={live} feeding={feeding?.id === a.id ? feeding.key : null} onFed={onFed} onLeft={onLeft} others={before[i]} zone={zones[i]} tag={tags[i]} />
+          <Critter key={`${part}-${a.id}`} a={a} part={part} pen={pen} gate={gate} exit={exit} base={base} clock={clock} live={live} feeding={feeding?.id === a.id ? feeding.key : null} onFed={onFed} onLeft={onLeft} others={before[i]} zone={zones[i]} tag={tags[i]} lit={part === "body" && a.id === highlight && a.mood !== "gone"} />
         ))
       )}
     </View>
