@@ -7,18 +7,18 @@
 
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
-| base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 116s |  |
-| unused code (knip) | ✔ pass | 6s |  |
-| typecheck | ✔ pass | 21s |  |
-| related unit tests | ✔ pass | 20s | 1930 passed (1930) |
-| verify lock | ✔ pass | 567s | took it after waiting 567s for pid 10499, fix/ios-sweep-swoop-letterbox in /Users/xtectra/GitHub/worktrees/ios-sweep-swoop, since 2026-11-27T06:14:57.322Z |
+| base tree | ✔ pass | 1s |  |
+| native fingerprint | ✔ pass | 9s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 178s |  |
+| unused code (knip) | ✔ pass | 7s |  |
+| typecheck | ✔ pass | 25s |  |
+| related unit tests | ✔ pass | 18s | 1989 passed (1989) |
+| verify lock | ✔ pass | 2198s | took it after waiting 2198s for pid 27290, feat/world-fullscreen-web in /Users/xtectra/GitHub/worktrees/world-fullscreen, since 2026-11-27T09:56:15.980Z |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 20s | before functions on :3270 |
-| before: web | ⚠ warning | 144s | 12 screens, 0 broken.; check passage-multi failed: ✘ TimeoutError: locator.click: Timeout 60000ms exceeded. |
-| after: local backend | ✔ pass | 20s | after functions on :3270 |
-| after: web | ✔ pass | 91s | 12 screens, 0 broken. Checks passed: passage-picker-close, passage-multi. |
+| before: local backend | ✔ pass | 33s | before functions on :3270 |
+| before: web | ⚠ warning | 279s | 12 screens, 0 broken.; check passage-multi failed: ✘ TimeoutError: locator.click: Timeout 60000ms exceeded. |
+| after: local backend | ✔ pass | 67s | after functions on :3270 |
+| after: web | ✔ pass | 240s | 12 screens, 0 broken. Checks passed: passage-picker-close, passage-multi. |
 
 ## Screenshots
 
