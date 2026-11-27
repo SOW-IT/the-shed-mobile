@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.45] - 2026-11-27
+## [2.13.47] - 2026-11-27
 
 ### Added
 - **Hong Kong mahjong at two tables in the online World's Café.** Sit at
