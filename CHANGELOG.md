@@ -34,6 +34,27 @@ All notable changes to **The SHED** mobile app. This project follows
   nothing saved. Turning a piece, tapping the floor to move it there, and
   putting it away also show at once.
 
+## [2.13.59] - 2026-11-27
+
+### Added
+- **A devotional day can hold more than one passage, from more than one
+  book.** Below the passage lists, "Add another passage" opens the book list
+  for a new row, so a day can be Genesis 1-3 and Psalm 1. Each row has its
+  own book, chapter and verses, and a Remove button once there's more than
+  one. The passage box under the lists shows each one on its own line, and the
+  week list and Groups show them as one line, "Genesis 1-3; Psalm 1". The
+  passage still has a 120-character limit: the button goes once another
+  passage wouldn't fit, and a change to a row that would go over it is
+  refused with a note saying why.
+- **Pick a run of chapters from the lists.** With a chapter chosen and no
+  start verse, the To box now picks the last chapter ("Ch 3"), so Genesis 1
+  to chapter 3 saves as Genesis 1-3. Picking a start verse still makes To the
+  last verse, as before. Before, a run of chapters, or more than one passage,
+  had to be typed, and opening such a day again put it back in the typed box;
+  now the lists show it. A day with one passage looks the way it always did,
+  and nothing saved needed changing: the passage is still stored as the same
+  text. Verse ranges that cross chapters (Romans 8:28-9:5) still stay typed.
+
 ## [2.13.56] - 2026-11-27
 
 ### Fixed

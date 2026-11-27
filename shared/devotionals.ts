@@ -1,10 +1,31 @@
-import { parseBibleReference } from "./bible";
+import { BIBLE_BOOKS, parseBibleReference } from "./bible";
 import { parseDayKey } from "./calendar";
 import { dateInputFromMs, pad2 } from "./datetime";
 
 export const MAX_PASSAGE_LENGTH = 120;
 export const MAX_NOTES_LENGTH = 20_000;
 export const MAX_PRAYER_LENGTH = 20_000;
+
+/**
+ * The most a row of the pickers can add to a passage: "; ", the longest book
+ * name, then a chapter and verse range as long as "150:176-176".
+ */
+const LONGEST_PICKED_REFERENCE =
+  "; ".length + Math.max(...BIBLE_BOOKS.map((book) => book.name.length)) + " 150:176-176".length;
+
+/** Whether another picked passage still fits under the length limit. */
+export const canAddPassage = (passage: string): boolean =>
+  passage.trim().length + LONGEST_PICKED_REFERENCE <= MAX_PASSAGE_LENGTH;
+
+/**
+ * Whether the pickers may write `next` over `current`: it fits under the
+ * length limit, or at least isn't longer than what's there (removing a row
+ * always is), so a passage over the limit can still be shortened.
+ */
+export const passageEditFits = (next: string, current: string): boolean =>
+  next.length <= MAX_PASSAGE_LENGTH || next.length <= current.trim().length;
+
+export const PASSAGE_TOO_LONG_TEXT = `That would make the passage longer than ${MAX_PASSAGE_LENGTH} characters. Choose a shorter one, or remove a passage.`;
 
 export type DevotionalContent = {
   passage: string;
