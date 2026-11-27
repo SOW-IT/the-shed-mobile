@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.59] - 2026-11-27
+
+### Changed
+- **The World fills the whole browser window on web, as it does on a
+  phone.** In a browser at least 700 px wide, the app's sidebar stayed
+  beside the Garden and every other World scene, so the scene took only
+  what was left of the window. The World now hides the sidebar the way the
+  games do, and the Garden and your backyard reach every edge and follow the
+  window as it resizes. The title, coins, chat log and chat box stay pinned
+  to their corners at desktop, tall and ultrawide sizes. Leaving the World
+  brings the sidebar back. Screens the World opens (its calendar, praise list
+  and devotionals) keep the sidebar, and Swoop's black borders are
+  unchanged. A new `world-fullscreen` web check opens the Garden and a
+  backyard at 1280x800, 800x1200 and 1920x900 and checks the scene fills
+  each one with the HUD inside it.
+
 ## [2.13.55] - 2026-11-27
 
 ### Fixed
