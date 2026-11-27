@@ -75,6 +75,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
+import { MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
+import { mahjongTags, mahjongTap, tableToWatch } from "./mahjong/tap";
+import { useMahjong } from "./mahjong/useMahjong";
 
 const KEYBOARD_GAP = 8;
 
@@ -261,6 +264,8 @@ export const WorldScreen = ({
   const world = useWorld(active, awayKind === "arcade", arrival, awayKind === "devotional");
   const wallet = useCoins();
   const cafe = useCafe(world);
+  const mahjong = useMahjong(world);
+  const [mahjongWatch, setMahjongWatch] = useState<Id<"mahjongTables"> | null>(null);
   const inBackyard = world.place === "backyard" && world.status === "in";
   const calm = useBatterySaver();
   const farm = useFarm({ roomId: world.roomId, inBackyard });
@@ -357,6 +362,11 @@ export const WorldScreen = ({
     if (!onlyIfEmpty || draftKept.current === "") draftKept.current = text;
   };
   const [note, setNote] = useState<string | null>(null);
+  const [heardRefusal, setHeardRefusal] = useState(0);
+  if (world.sitRefused && world.sitRefused.at !== heardRefusal) {
+    setHeardRefusal(world.sitRefused.at);
+    setNote(world.sitRefused.text);
+  }
   const [editing, setEditing] = useState(false);
   const online = useWorldOnline() ?? 0;
   // A link to the editor opens it once your look has loaded.
@@ -431,6 +441,7 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  const mahjongCovers = playingAtTable(mahjong.mine, me?.seat) || (world.place === "cafe" && mahjongWatch !== null);
   if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
     setEditing(true);
@@ -458,6 +469,7 @@ export const WorldScreen = ({
   };
 
   const playingNow = playingByPerson(cafe.playing, nameOf);
+  const mahjongTagged = mahjongTags(mahjong.tables);
   const challengeTo = (to: Id<"worldMembers">, kind: string) => {
     setPicking(null);
     void cafe.challenge(to, kind).then((problem) => setNote(problem ?? `Asked ${nameOf(to)} to play ${gameLabel(kind)}.`));
@@ -496,9 +508,9 @@ export const WorldScreen = ({
     if (other) void world.ask(other.memberId, kind).then((problem) => setNote(problem ?? "Asked. They have 10 seconds to say yes."));
   };
 
-  const live = useRef({ world, askFor, worldName, farm, animals });
+  const live = useRef({ world, askFor, worldName, farm, animals, mahjong });
   useEffect(() => {
-    live.current = { world, askFor, worldName, farm, animals };
+    live.current = { world, askFor, worldName, farm, animals, mahjong };
   });
   const aimedAt = useRef<string | null>(null);
   const stepToward = (to: string, since: number, kind: AskKind): boolean => {
@@ -798,7 +810,16 @@ export const WorldScreen = ({
     setDevotionalAsked(false);
     setTray(false);
     const seats = SEATS[world.place];
-    const tapped = seats.find((seat) => seat.id === seatId);
+    const mahjongMove = mahjongTap(seatId, mahjong.tables, me?.memberId ?? null);
+    if (mahjongMove?.kind === "watch") {
+      setMahjongWatch(mahjongMove.tableId);
+      return;
+    }
+    if (mahjongMove?.kind === "taken") {
+      setNote("Those seats are taken.");
+      return;
+    }
+    const tapped = seats.find((seat) => seat.id === (mahjongMove?.kind === "sit" ? mahjongMove.seat : seatId));
     if (!tapped) return;
     const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
     const free = seats
@@ -1323,8 +1344,9 @@ export const WorldScreen = ({
         ];
 
   const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || bagOpen || offerOpen || pickPlot !== null || buildingOffer !== null || penSheet !== null || sheet !== null || editing;
+  const noteOnTop = overlayOpen || mahjongCovers;
   const noteOver =
-    note && overlayOpen ? (
+    note && noteOnTop ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
         <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
           {note}
@@ -1660,7 +1682,7 @@ export const WorldScreen = ({
           reading: p.reading === true,
           seat: p.seat,
           typing: p.isMe ? (typingAt ?? undefined) : p.typing,
-          playing: playingNow.tags.get(p.memberId),
+          playing: playingNow.tags.get(p.memberId) ?? mahjongTagged.get(p.memberId),
         }))}
         serverNow={world.serverNow}
         target={world.target}
@@ -1692,6 +1714,13 @@ export const WorldScreen = ({
           setSeatTrip(null);
           setPlotCard(null);
           setYardCard(null);
+          // Someone playing mahjong: open their game to watch.
+          const atTable = tableToWatch(live.current.mahjong.tables, memberId);
+          if (atTable) {
+            setPerson(null);
+            setMahjongWatch(atTable);
+            return;
+          }
           setPerson((current) => (current === memberId ? null : memberId));
         }}
         selected={person}
@@ -1799,7 +1828,7 @@ export const WorldScreen = ({
             }
           />
         )}
-        {note && !overlayOpen ? (
+        {note && !noteOnTop ? (
           <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
             {note}
           </Text>
@@ -1822,6 +1851,24 @@ export const WorldScreen = ({
         testID="world-under-chat"
       />
       {cafeLayer(true)}
+      <MahjongLayer
+        mahjong={mahjong}
+        people={world.people}
+        muted={muted}
+        serverNow={world.serverNow}
+        top={insets.top + TOP_BAR_GAP}
+        safeTop={insets.top}
+        bottom={chatTop}
+        nameOf={worldName}
+        watch={world.place === "cafe" ? mahjongWatch : null}
+        onNote={setNote}
+        onWatch={setMahjongWatch}
+        onStopWatching={() => setMahjongWatch(null)}
+        onSitBack={world.sitOn}
+        keyboardOpen={keyboard.open}
+        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={2} />}
+      />
+      {keyboard.open && mahjongCovers ? <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessibilityRole="button" accessibilityLabel="Hide keyboard" testID="mahjong-keyboard-dismiss" /> : null}
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
         <DuelCard {...duelProps} />
         {myHome && !decorating ? (
