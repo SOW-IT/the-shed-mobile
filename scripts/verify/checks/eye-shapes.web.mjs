@@ -24,7 +24,10 @@ page.setDefaultTimeout(TIMEOUT_MS);
 
 const failures = [];
 const tile = (i) => page.getByTestId(`world-editor-eyes-${i}`);
-const picked = async (i) => (await tile(i).getAttribute("aria-checked")) === "true";
+// React Native Web drops accessibilityState, so the tile's selected state
+// isn't in the DOM. The picked tile is the one with the tick, an icon glyph
+// and the only text inside a tile.
+const picked = async (i) => (await tile(i).innerText()).trim().length > 0;
 const openEyes = async () => {
   await page.getByTestId("world-editor").waitFor();
   await page.getByTestId("world-editor-tab-eyes").click();

@@ -1265,11 +1265,11 @@ const AvatarView = ({
         </View>
       );
     } else if (eye === "dot" && eyeStyle === 8) {
-      // Cat: an almond tipped up at the outer corner, with a slit pupil.
-      const out = e > 0 ? { borderTopLeftRadius: s, borderBottomLeftRadius: s, borderTopRightRadius: 0.015 * s, borderBottomRightRadius: s } : { borderTopRightRadius: s, borderBottomRightRadius: s, borderTopLeftRadius: 0.015 * s, borderBottomLeftRadius: s };
+      // Cat: a white almond tipped up at the outer corner, round a tall slit of a pupil.
+      const out = e > 0 ? { borderTopLeftRadius: s, borderBottomLeftRadius: s, borderTopRightRadius: 0.012 * s, borderBottomRightRadius: s } : { borderTopRightRadius: s, borderBottomRightRadius: s, borderTopLeftRadius: 0.012 * s, borderBottomLeftRadius: s };
       shape = (
-        <View style={[styles.abs, { left: c - 0.075 * s, top: c - 0.05 * s, width: 0.15 * s, height: 0.1 * s, backgroundColor: iris, alignItems: "center", justifyContent: "center", transform: [{ rotate: `${-0.3 * e}rad` }] }, out]}>
-          <View style={{ width: 0.026 * s, height: 0.085 * s, borderRadius: s, backgroundColor: people.eye }} />
+        <View style={[styles.abs, { left: c - 0.08 * s, top: c - 0.055 * s, width: 0.16 * s, height: 0.11 * s, backgroundColor: people.eyeShine, borderWidth: 0.018 * s, borderColor: people.eye, alignItems: "center", justifyContent: "center", transform: [{ rotate: `${-0.22 * e}rad` }] }, out]}>
+          <View style={{ width: 0.042 * s, height: 0.085 * s, borderRadius: s, backgroundColor: iris }} />
         </View>
       );
     } else if (eye === "dot" && eyeStyle === 9) {
@@ -1280,7 +1280,7 @@ const AvatarView = ({
             <View style={[styles.abs, { right: 0.014 * s, top: 0.02 * s, width: 0.05 * s, height: 0.05 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
             <View style={[styles.abs, { left: 0.02 * s, bottom: 0.03 * s, width: 0.022 * s, height: 0.022 * s, borderRadius: s, backgroundColor: people.eyeShine }]} />
           </View>
-          <View style={[styles.abs, { left: c - 0.065 * s + e * 0.012 * s, top: c - 0.085 * s, width: 0.13 * s, height: 0.024 * s, borderRadius: s, backgroundColor: people.eye, transform: [{ rotate: `${0.35 * e}rad` }] }]} />
+          <View style={[styles.abs, { left: c - 0.065 * s + e * 0.012 * s, top: c - 0.078 * s, width: 0.13 * s, height: 0.026 * s, borderRadius: s, backgroundColor: people.eye, transform: [{ rotate: `${0.35 * e}rad` }] }]} />
         </>
       );
     } else if (eye === "dot" && eyeStyle === 10) {
@@ -1288,7 +1288,7 @@ const AvatarView = ({
       shape = (
         <View style={[styles.abs, { left: c - 0.055 * s, top: c - 0.07 * s, width: 0.11 * s, height: 0.14 * s, borderRadius: s, backgroundColor: iris, alignItems: "center", justifyContent: "center" }]}>
           {[0, 45].map((turn) => (
-            <View key={`star${turn}`} style={[styles.abs, { width: 0.045 * s, height: 0.045 * s, borderRadius: 0.006 * s, backgroundColor: people.eyeShine, transform: [{ rotate: `${turn}deg` }] }]} />
+            <View key={`star${turn}`} style={[styles.abs, { width: 0.055 * s, height: 0.055 * s, borderRadius: 0.006 * s, backgroundColor: people.eyeShine, transform: [{ rotate: `${turn}deg` }] }]} />
           ))}
         </View>
       );
