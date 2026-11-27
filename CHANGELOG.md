@@ -26,6 +26,19 @@ All notable changes to **The SHED** mobile app. This project follows
   out on CI.** All 30 worlds ran as one test, which took 172–230 s on CI
   against a 240 s limit and failed twice. It's now one test per world,
   each with a 60 s limit, checking the same three seeds.
+## [2.13.43] - 2026-11-27
+
+### Fixed
+- **Walking away from the arcade closes its games list as you set off.**
+  Since 2.13.37 the list closed once you were out of the arcade's reach,
+  about a second after the tap: 1.5 steps of walking (0.7s) plus a check
+  every 150ms. It now closes the moment your walk heads out of reach, from
+  the tap itself. A step that ends within reach, to one side of the
+  arcade, still keeps it open, and a list opened from a link elsewhere
+  still stays until you've been to the arcade and left. A walk already
+  under way that passes the arcade closes it once you're out of reach, as
+  before. Verify's arcade check now times the close from the tap.
+
 ## [2.13.42] - 2026-11-27
 
 ### Changed
