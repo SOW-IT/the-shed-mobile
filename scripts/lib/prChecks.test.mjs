@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { requiredNotPassed } from "./prChecks.mjs";
 
-const SWEEP = "Web sweep (every screen, signed out and as three roles)";
+const SWEEP = "Web sweep (affected screens on PRs, every screen on main)";
 
 describe("requiredNotPassed", () => {
   it("is empty once both CI jobs have succeeded", () => {

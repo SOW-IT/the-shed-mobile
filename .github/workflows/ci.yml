@@ -39,7 +39,7 @@ jobs:
         run: npm run test:coverage
 
   web-sweep:
-    name: Web sweep (every screen, signed out and as three roles)
+    name: Web sweep (affected screens on PRs, every screen on main)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -49,16 +49,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 1 }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - name: Plan web sweep
+        id: plan
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node scripts/sweep-plan.mjs --base HEAD^1
+          else
+            node scripts/sweep-plan.mjs --full
+          fi
+      - if: steps.plan.outputs.run == 'true'
+        run: npm ci
       - name: Install Chromium for Playwright
+        if: steps.plan.outputs.run == 'true'
         run: npx playwright install --with-deps chromium
       - name: Start a local Convex backend and seed it
+        if: steps.plan.outputs.run == 'true'
         run: bash scripts/sweep-backend.sh
       - name: Start the web app
+        if: steps.plan.outputs.run == 'true'
         run: |
           nohup npx expo start --web --port 8082 > metro.log 2>&1 &
           for _ in $(seq 1 90); do
@@ -66,10 +79,18 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:8082/ >/dev/null
-      - name: Sweep every screen
-        run: node scripts/sweep.mjs --base http://localhost:8082 --out sweep
+      - name: Sweep screens
+        if: steps.plan.outputs.run == 'true'
+        env:
+          SWEEP_ROUTES: ${{ steps.plan.outputs.routes }}
+        run: |
+          if [ -n "$SWEEP_ROUTES" ]; then
+            node scripts/sweep.mjs --base http://localhost:8082 --out sweep --routes "$SWEEP_ROUTES"
+          else
+            node scripts/sweep.mjs --base http://localhost:8082 --out sweep
+          fi
       - name: Keep the screenshots and logs
-        if: always()
+        if: always() && steps.plan.outputs.run == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-sweep
