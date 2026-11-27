@@ -371,6 +371,7 @@ describe("coins", () => {
     state.stage = { kind: "turn", seat: 0, drawn: winTile, deadline: Date.now() + TURN_MS, replacement: false, claimed: false };
     await t.run((ctx) => ctx.db.patch("mahjongHands", row._id, { state }));
     await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: winTile } });
+    await asUser(t, BEN).mutation(api.mahjong.play, { move: { kind: "answer", answer: { kind: "pass" } } });
     // The bot answers its claim window.
     await tickNow(t);
     const after = await handRow(t);
