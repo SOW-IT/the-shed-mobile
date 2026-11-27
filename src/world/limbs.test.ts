@@ -43,7 +43,8 @@ describe("walking", () => {
     const full = limbsFor(at(0.4), null);
     const half = limbsFor(at(0.4, 0.5), null);
     expect(half.hands[1].fwd).toBeCloseTo(full.hands[1].fwd / 2);
-    expect(half.feet[0].up).toBeCloseTo(full.feet[0].up / 2);
+    expect(full.feet[1].up).toBeGreaterThan(0);
+    expect(half.feet[1].up).toBeCloseTo(full.feet[1].up / 2);
     expect(limbsFor(at(0.4, 0), null)).toBe(RESTING_LIMBS);
     expect(limbsFor(undefined, null)).toBe(RESTING_LIMBS);
   });

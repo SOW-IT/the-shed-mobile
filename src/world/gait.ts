@@ -27,7 +27,10 @@ const turnToward = (from: number, to: number, k: number) =>
 
 const length = (walk: Walk) => walkLength(walk);
 
-const settingOff = (gait: Gait, now: number) => clamp01((now - gait.movingSince) / START_MS);
+// Counted only up to arrival, so a short or zero-length walk never swells
+// into a stride after it has stopped.
+const settingOff = (gait: Gait, now: number, arrivesAt: number) =>
+  clamp01((Math.min(now, arrivesAt) - gait.movingSince) / START_MS);
 
 export const restingGait = (walk: Walk): Gait => {
   const heading = length(walk) < STILL ? (walk.heading ?? 0) : posAt(walk, walk.startedAt).heading;
@@ -44,7 +47,7 @@ export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
       ...pose,
       heading: turnToward(last, walk.heading, easeOut(settling)),
       stridePhase: Math.max(0, now - gait.movingSince) / 1000,
-      strideAmp: Math.min(settingOff(gait, now), clamp01(1 - (now - pose.arrivesAt) / STOP_MS)),
+      strideAmp: settingOff(gait, now, pose.arrivesAt) * clamp01(1 - (now - pose.arrivesAt) / STOP_MS),
       turning: settling < 1 && last !== walk.heading,
     };
   }
@@ -55,7 +58,7 @@ export const drawnPose = (walk: Walk, gait: Gait, now: number): DrawnPose => {
     ...pose,
     heading: turnToward(gait.turnFrom, targetHeading, easeOut(turned)),
     stridePhase: Math.max(0, now - gait.movingSince) / 1000,
-    strideAmp: Math.min(settingOff(gait, now), pose.walking ? 1 : clamp01(1 - (now - pose.arrivesAt) / STOP_MS)),
+    strideAmp: settingOff(gait, now, pose.arrivesAt) * (pose.walking ? 1 : clamp01(1 - (now - pose.arrivesAt) / STOP_MS)),
     turning: turned < 1 && gait.turnFrom !== targetHeading,
   };
 };
