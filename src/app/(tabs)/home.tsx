@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "convex/react";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { DEFAULT_HOME_BLOCKS, HOME_TABS } from "../../../shared/homeContent";
+import { DEFAULT_HOME_BLOCKS, HOME_LINKS, HOME_TAB_SHOWN, HOME_TABS } from "../../../shared/homeContent";
 import { GrievanceCard, HomeBlocks } from "@/components/home/HomeBlocks";
 import { WaitingOnYou } from "@/components/home/WaitingOnYou";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
@@ -16,7 +16,13 @@ const FALLBACK_TABS = HOME_TABS.map(({ key, label }) => ({
   blocks: DEFAULT_HOME_BLOCKS[key],
 }));
 
-export default function HomeScreen() {
+// While Home is hidden, old links to it (emails, notifications, bookmarks)
+// open where the app opens instead.
+export default function HomeRoute() {
+  return HOME_TAB_SHOWN ? <HomeScreen /> : <Redirect href={HOME_LINKS.home} />;
+}
+
+function HomeScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const view = useQuery(api.homeContent.view);

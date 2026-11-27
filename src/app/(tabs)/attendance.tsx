@@ -21,6 +21,7 @@ import { ConfirmDialog, FooterAction, FooterIconActions, LoadingState } from "@/
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { useMergeSuggestions } from "@/components/attendance/MergesTab";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
+import { HOME_LINKS } from "@shared/homeContent";
 
 export default function AttendanceScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -185,7 +186,7 @@ export default function AttendanceScreen() {
     return <LoadingState />;
   }
 
-  if (!me?.profile) return <Redirect href={me === null ? "/home" : "/org"} />;
+  if (!me?.profile) return <Redirect href={me === null ? HOME_LINKS.signedOut : "/org"} />;
 
   const tabs: PagerTab[] = [
     {

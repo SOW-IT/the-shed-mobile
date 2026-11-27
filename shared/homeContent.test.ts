@@ -5,6 +5,7 @@ import {
   emptyHomeBlock,
   HOME_BLOCK_LABELS,
   HOME_TABS,
+  homeLinks,
   type HomeBlock,
   HomeContentError,
   isHomeTabKey,
@@ -14,6 +15,16 @@ import {
   paragraphs,
   sanitizeHomeBlocks,
 } from "./homeContent";
+
+describe("homeLinks", () => {
+  test("shown, every link to Home goes to Home", () => {
+    expect(homeLinks(true)).toEqual({ home: "/home", signedOut: "/home" });
+  });
+
+  test("hidden, links go where the app opens, and signed out that's People", () => {
+    expect(homeLinks(false)).toEqual({ home: "/", signedOut: "/org" });
+  });
+});
 
 describe("homeContent defaults", () => {
   test("every tab has default content that passes its own checks unchanged", () => {

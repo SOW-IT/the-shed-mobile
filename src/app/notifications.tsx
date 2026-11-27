@@ -20,6 +20,7 @@ import {
   Txt,
 } from "@/components/ui";
 import { backOr } from "@/lib/goBack";
+import { HOME_LINKS } from "@shared/homeContent";
 
 const PAGE_SIZE = 30;
 
@@ -58,7 +59,7 @@ export default function NotificationsScreen() {
   const markAllRead = useMutation(api.notifications.markAllRead);
   const reopenCounter = useRef(0);
   const [unreadThisVisit, setUnreadThisVisit] = useState<ReadonlySet<string> | null>(null);
-  const goBack = () => backOr(router, "/home");
+  const goBack = () => backOr(router, HOME_LINKS.home);
 
   useFocusEffect(useCallback(() => () => setUnreadThisVisit(null), []));
 

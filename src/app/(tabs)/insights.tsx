@@ -27,6 +27,7 @@ import { MetricsTab } from "@/components/attendance/MetricsTab";
 import { LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
+import { HOME_LINKS } from "@shared/homeContent";
 
 export default function InsightsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -95,7 +96,7 @@ export default function InsightsScreen() {
   }
 
   // Insights is only for people who are signed in.
-  if (me === null || !me.profile) return <Redirect href="/home" />;
+  if (me === null || !me.profile) return <Redirect href={HOME_LINKS.home} />;
   const isStaff = !!me.profile;
 
   const generalTab: PagerTab = {
