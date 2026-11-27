@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.53] - 2026-11-27
+
+### Changed
+- **CI's web sweep now opens only the screens a pull request can affect, for
+  contributors.** Pull requests previously swept all screens across all four
+  roles on every push, even when a PR only changed one feature or a doc. CI now
+  plans the sweep from `scripts/verify/feature-map.json` (`scripts/sweep-plan.mjs`):
+  feature PRs open the smoke routes plus the changed area's routes (ignoring
+  version-only bumps in `package.json`, `package-lock.json` and `app.json`),
+  docs/tests/static-only PRs skip Playwright, local Convex and Expo altogether,
+  and changes to core files, unmapped files, sweep/CI tooling or pushes to
+  `main` still sweep every screen. Nothing in the app changes.
+
 ## [2.13.52] - 2026-11-27
 
 ### Fixed
