@@ -49,6 +49,8 @@ import {
   LOOK_SIZES,
   lookFor,
   withHeight,
+  CUSTOM_COLOUR,
+  customColour,
 } from "../shared/world";
 
 const ANNA = "anna@sow.org.au";
@@ -1180,7 +1182,7 @@ describe("character editor", () => {
   test("turns away a choice that doesn't exist", async () => {
     const t = newConvex();
     const anna = asUser(t, ANNA);
-    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 12 }, { ...look, backdrop: 10 }]) {
+    for (const bad of [{ ...look, skin: 12 }, { ...look, hat: -1 }, { ...look, shirt: 1.5 }, { ...look, accessory: 8 }, { ...look, eyeY: 7 }, { ...look, mouthTilt: -1 }, { ...look, pants: 4 }, { ...look, favourite: 18 }, { ...look, backdrop: 10 }, { ...look, sleeves: 3 }, { ...look, shirt: CUSTOM_COLOUR * 2 }, { ...look, hairColour: customColour(0x3a9ad9) }]) {
       await expect(anna.mutation(api.world.saveLook, { look: bad })).rejects.toThrow(/doesn't exist/);
     }
     await expect(t.mutation(api.world.saveLook, { look })).rejects.toThrow(/signed in/);
@@ -1192,6 +1194,15 @@ describe("character editor", () => {
     await anna.mutation(api.world.saveLook, { look: { ...look, backdrop: 9 } });
     const saved = await t.run((ctx) => ctx.db.query("worldLooks").first());
     expect(saved?.look.backdrop).toBe(9);
+  });
+
+  test("keeps sleeves and custom top, bottoms and favourite colours", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const custom = { ...look, outfit: 13, sleeves: 2, shirt: customColour(0x3a9ad9), pantsColour: customColour(0x26302e), favourite: customColour(0xffffff) };
+    await anna.mutation(api.world.saveLook, { look: custom });
+    const saved = await t.run((ctx) => ctx.db.query("worldLooks").first());
+    expect(saved?.look).toMatchObject({ outfit: 13, sleeves: 2, shirt: custom.shirt, pantsColour: custom.pantsColour, favourite: custom.favourite });
   });
 });
 

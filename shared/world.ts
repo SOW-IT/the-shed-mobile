@@ -753,7 +753,7 @@ export const LOOK_SIZES = {
   skin: 12,
   hair: 18,
   hairColour: 12,
-  shirt: 10,
+  shirt: 24,
   hat: 10,
   accessory: 8,
   face: 5,
@@ -767,7 +767,7 @@ export const LOOK_SIZES = {
   freckles: 4,
   blush: 5,
   beard: 8,
-  outfit: 12,
+  outfit: 18,
   // Version 3.
   browColour: 13,
   eyeY: 7,
@@ -786,9 +786,11 @@ export const LOOK_SIZES = {
   lipstick: 6,
   mole: 6,
   pants: 4,
-  pantsColour: 8,
-  favourite: 12,
+  pantsColour: 16,
+  favourite: 18,
   backdrop: 10,
+  // Sleeves came after version 3, optional like the rest.
+  sleeves: 3,
 } as const;
 /**
  * The look's shape: version 2 added the face, body and extras; version 3 the
@@ -837,6 +839,8 @@ export type Look = {
   pantsColour?: number;
   favourite?: number;
   backdrop?: number;
+  /** The top's sleeves: none, short or long (see SLEEVES). */
+  sleeves?: number;
 };
 export type LookPart = keyof typeof LOOK_SIZES;
 const LOOK_PARTS = Object.keys(LOOK_SIZES) as LookPart[];
@@ -859,6 +863,22 @@ const LOOK_DEFAULTS: Partial<Record<LookPart, number>> = {
 };
 const inRange = (part: LookPart, value: number | undefined): value is number =>
   value !== undefined && Number.isInteger(value) && value >= 0 && value < LOOK_SIZES[part];
+
+/**
+ * The top, bottoms and favourite colours can be any colour, not just one of
+ * the palette's. A custom one is kept in the same number as this plus its
+ * 0xRRGGBB, far past any palette's end, so an app from before draws its
+ * default, and picking a palette colour there replaces it.
+ */
+export const CUSTOM_COLOUR = 0x1000000;
+export const COLOUR_PARTS = ["shirt", "pantsColour", "favourite"] as const;
+type ColourPart = (typeof COLOUR_PARTS)[number];
+const isColourPart = (part: LookPart): part is ColourPart => (COLOUR_PARTS as readonly LookPart[]).includes(part);
+/** The number a look keeps for a custom colour (0xRRGGBB). */
+export const customColour = (rgb: number): number => CUSTOM_COLOUR + (Math.round(rgb) & 0xffffff);
+/** The 0xRRGGBB of a custom colour, or null when it's a palette colour (or nothing). */
+export const customRgb = (value: number | undefined): number | null =>
+  value !== undefined && Number.isInteger(value) && value >= CUSTOM_COLOUR && value < CUSTOM_COLOUR * 2 ? value - CUSTOM_COLOUR : null;
 
 /**
  * A part of a look, or its default when the look predates it. A choice this
@@ -899,9 +919,37 @@ export const HAIR_STYLES = [
   "Wavy",
 ] as const;
 export const HATS = ["None", "Cap", "Beanie", "Flower crown", "Sun hat", "Beret", "Bow", "Headband", "Party hat", "Crown"] as const;
-export const OUTFITS = ["T-shirt", "Dress", "Skirt", "Overalls", "Striped tee", "Hoodie", "Collared", "Jacket", "Jumper", "Polka dots", "Flannel", "Tie-dye tank"] as const;
+export const OUTFITS = [
+  "T-shirt",
+  "Dress",
+  "Skirt",
+  "Overalls",
+  "Striped tee",
+  "Hoodie",
+  "Collared",
+  "Jacket",
+  "Jumper",
+  "Polka dots",
+  "Flannel",
+  "Tie-dye tank",
+  "Tank top",
+  "Sailor top",
+  "Sweater vest",
+  "Sundress",
+  "Jumpsuit",
+  "Hawaiian shirt",
+] as const;
+export const OUTFIT = Object.fromEntries(OUTFITS.map((name, i) => [name, i])) as Record<(typeof OUTFITS)[number], number>;
 /** Outfits that come with their own bottoms, so the bottoms choice doesn't show. */
-export const FULL_OUTFITS: readonly number[] = [1, 2, 3];
+export const FULL_OUTFITS: readonly number[] = [OUTFIT.Dress, OUTFIT.Skirt, OUTFIT.Overalls, OUTFIT.Sundress, OUTFIT.Jumpsuit];
+export const SLEEVES = ["None", "Short", "Long"] as const;
+/**
+ * Tops that don't take the sleeves choice: the tanks and the sundress have
+ * straps, and the hoodie is drawn on its own.
+ */
+export const SLEEVELESS: readonly number[] = [OUTFIT.Hoodie, OUTFIT["Tie-dye tank"], OUTFIT["Tank top"], OUTFIT.Sundress];
+/** The sleeves someone's top is drawn with: none on a top that has none. */
+export const sleevesOf = (look: Look): number => (SLEEVELESS.includes(lookPart(look, "outfit")) ? 0 : lookPart(look, "sleeves"));
 /** Index 1 was glasses, which are their own part now; the editor doesn't offer it. */
 export const ACCESSORIES = ["None", "Glasses", "Backpack", "Scarf", "Bow tie", "Necklace", "Headphones", "Ear flower"] as const;
 export const OLD_GLASSES = 1;
@@ -960,7 +1008,7 @@ export const isValidLook = (look: Look): boolean =>
   LOOK_PARTS.every((part) => {
     const value = look[part];
     if (value === undefined) return !REQUIRED.includes(part);
-    return inRange(part, value);
+    return inRange(part, value) || (isColourPart(part) && customRgb(value) !== null);
   });
 
 /** A look picked at random, for the editor's Randomise button. */
@@ -1002,6 +1050,7 @@ export const randomLook = (random: () => number = Math.random): Look => {
     pantsColour: pick("pantsColour"),
     favourite: pick("favourite"),
     backdrop: pick("backdrop"),
+    sleeves: pick("sleeves"),
   };
 };
 
