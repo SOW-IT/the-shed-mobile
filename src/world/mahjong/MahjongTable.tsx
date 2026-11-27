@@ -19,8 +19,8 @@ import { Arrive, Pulse, Punch } from "./Motion";
 import { Intro } from "./Intro";
 import { handInTwoRows, useBatterySaver, useWorldSetting } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
-import { ACROSS_SEAT_HEIGHT, acrossRows, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, MELD_GAP, meldSize, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideSpot, TABLE_GAP, tableLayout, TIMER_STRIP, type PileCounts } from "./layout";
-import { isSlideDown, isSlideUp, startsScrub, startsSlide, tileUnder, type TileRect } from "./tap";
+import { ACROSS_SEAT_HEIGHT, acrossHeightOf, acrossRows, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, MELD_GAP, meldSize, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideSpot, TABLE_GAP, tableLayout, TIMER_STRIP, type PileCounts } from "./layout";
+import { isSlideDown, isSlideUp, slideSoFar, startsScrub, startsSlide, tileUnder, type TileRect } from "./tap";
 
 type Person = { memberId: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
 type Settled = { deltas: number[]; fromBank: number[] } | null;
@@ -386,6 +386,7 @@ const ActionBar = ({ hand, mySeat, selected, choices, focus, busy, calm, onFocus
 
 const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing, calm, onTap, onSlide, onSlideDown }: { tile: number; width: number; lifted: boolean; lit: boolean; enabled: boolean; drawn: boolean; drawnFrom: { x: number; y: number }; dealing: boolean; calm: boolean; onTap: () => void; onSlide: () => void; onSlideDown: () => void }) => {
   const [lift] = useState(() => new Animated.Value(0));
+  const taken = useRef({ dx: 0, dy: 0 });
   const live = useRef({ enabled, onSlide, onSlideDown });
   useEffect(() => {
     live.current = { enabled, onSlide, onSlideDown };
@@ -394,14 +395,20 @@ const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing
   const [responder] = useState(() =>
     PanResponder.create({
       // Up or down, a slide is the tile's: a slide down must never end as a tap, which on a picked tile would discard it.
-      onMoveShouldSetPanResponderCapture: (_, g) => live.current.enabled && startsSlide(g.dx, g.dy),
-      onPanResponderMove: (_, g) => lift.setValue(Math.min(0, g.dy)),
+      onMoveShouldSetPanResponderCapture: (_, g) => {
+        const takes = live.current.enabled && startsSlide(g.dx, g.dy);
+        // The responder counts from here once it has the touch; keep how far the slide had already gone.
+        if (takes) taken.current = { dx: g.dx, dy: g.dy };
+        return takes;
+      },
+      onPanResponderMove: (_, g) => lift.setValue(Math.min(0, slideSoFar(taken.current, g).dy)),
       onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_, g) => {
         lift.setValue(0);
         if (!live.current.enabled) return;
-        if (isSlideUp(g.dx, g.dy)) live.current.onSlide();
-        else if (isSlideDown(g.dx, g.dy)) live.current.onSlideDown();
+        const { dx, dy } = slideSoFar(taken.current, g);
+        if (isSlideUp(dx, dy)) live.current.onSlide();
+        else if (isSlideDown(dx, dy)) live.current.onSlideDown();
       },
       onPanResponderTerminate: () => lift.setValue(0),
     })
@@ -427,11 +434,14 @@ type HandShape = { rows: readonly (readonly number[])[]; size: number; drawn: nu
  * Each row is measured on screen when a drag starts, and its tiles are laid
  * out the way the row lays them (centred, a point apart, the drawn tile set
  * off), since on the web a tile's onLayout doesn't fire when it only moves.
+ * The measurement comes back later, so the tile under the finger is picked
+ * again once it's in, in case the hand had moved since the last one.
  */
 const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boolean) => {
   const rowViews = useRef<(ViewInstance | null)[]>([]);
   const rowBoxes = useRef<Box[]>([]);
   const live = useRef({ shape, onPick, enabled });
+  const finger = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     live.current = { shape, onPick, enabled };
   });
@@ -439,6 +449,7 @@ const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boo
     rowViews.current.forEach((view, r) =>
       view?.measureInWindow((x, y, width, height) => {
         rowBoxes.current[r] = { x, y, width, height };
+        if (finger.current) pickAt(finger.current.x, finger.current.y);
       })
     );
   const rects = (): TileRect[] => {
@@ -459,6 +470,7 @@ const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boo
     });
   };
   const pickAt = (pageX: number, pageY: number) => {
+    finger.current = { x: pageX, y: pageY };
     const tile = tileUnder(rects(), pageX, pageY);
     if (tile !== null) live.current.onPick(tile);
   };
@@ -472,6 +484,12 @@ const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boo
       },
       onPanResponderMove: (_, g) => pickAt(g.moveX, g.moveY),
       onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: () => {
+        finger.current = null;
+      },
+      onPanResponderTerminate: () => {
+        finger.current = null;
+      },
     })
   );
   return {
@@ -678,6 +696,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const twoRows = handInTwoRows(rows, screenHeight);
   const layout = tableLayout(screenWidth, screenHeight);
   const handSize = twoRows ? layout.handTwo : layout.hand;
+  // Watching, your seat's tiles are a row of backs this wide (or smaller), and the hand keeps only their room.
+  const backsSize = Math.round(layout.hand * 0.8);
   const [tableHeight, setTableHeight] = useState(0);
   const [chatHeight, setChatHeight] = useState(0);
   const calm = useBatterySaver();
@@ -758,15 +778,17 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   useEffect(() => {
     if (turnKey !== null && Platform.OS === "ios") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
   }, [turnKey]);
-  const middle = Math.max(0, region - 2 * piles.acrossHeight - 2 * TABLE_GAP);
+  // B's pile and yours take the height of the size they're drawn at (it may be kept smaller than this split's), and the middle the rest.
+  const acrossHeight = acrossHeightOf(sizes.across);
+  const middle = Math.max(0, region - 2 * acrossHeight - 2 * TABLE_GAP);
   // Where tiles fly from, roughly: the wall (the compass) for your draw, and each seat for its discard.
   const mineTopHeight = Math.max(44, layout.myMeld * TILE_RATIO + 8);
   const handTop = mineTopHeight + 6 + ACTION_HEIGHT + 6;
-  const compassAbove = handTop + piles.acrossHeight + TABLE_GAP + middle / 2 + handSize * 0.5 + (twoRows ? handSize * TILE_RATIO + 4 : 0);
+  const compassAbove = handTop + acrossHeight + TABLE_GAP + middle / 2 + handSize * 0.5 + (twoRows ? handSize * TILE_RATIO + 4 : 0);
   const lastRow = handRows(handTiles, drawn, twoRows).at(-1) ?? [];
   const lastRowWidth = lastRow.length * (handSize + HAND_GAP) + DRAWN_GAP;
   const drawnFrom = { x: -(lastRowWidth / 2 - handSize / 2), y: -compassAbove };
-  const fromSeat = { mine: { x: 0, y: handTop + piles.acrossHeight / 2 }, across: { x: 0, y: -(ACROSS_SEAT_HEIGHT / 2 + piles.acrossHeight / 2) } };
+  const fromSeat = { mine: { x: 0, y: handTop + acrossHeight / 2 }, across: { x: 0, y: -(ACROSS_SEAT_HEIGHT / 2 + acrossHeight / 2) } };
   const plate = (i: number, vertical: boolean) => (
     <SeatPlate seat={seats[i]} index={i} hand={hand} look={lookOf(seats[i])} active={active === i} concealed={concealedOf(i)} nameOf={nameOf} said={saidOf(seats[i])} emote={actOf(seats[i])} forCoins={forCoins} vertical={vertical} inward={i === right ? "left" : "right"} />
   );
@@ -822,13 +844,13 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             <View style={[styles.region, { height: region }]}>
               {sideSeat(left, 90)}
               <View style={[styles.centreColumn, { width: layout.centre }]}>
-                {intro_ ? <View style={{ height: piles.acrossHeight }} /> : <AcrossRiver {...riverProps(across)} size={sizes.across} width={layout.centre} height={piles.acrossHeight} thrownFrom={fromSeat.across} />}
+                {intro_ ? <View style={{ height: acrossHeight }} /> : <AcrossRiver {...riverProps(across)} size={sizes.across} width={layout.centre} height={acrossHeight} thrownFrom={fromSeat.across} />}
                 <View style={[styles.middle, { height: middle }]}>
                   {intro_ ? <View style={{ width: layout.sideWidth }} /> : <SideRiver {...riverProps(left)} size={sizes.side} width={layout.sideWidth} height={middle} side="left" />}
                   <View style={[styles.centreBox, { width: CENTRE }]}>{intro_ ? null : <Centre hand={{ ...hand, minFaan }} forCoins={forCoins} />}</View>
                   {intro_ ? <View style={{ width: layout.sideWidth }} /> : <SideRiver {...riverProps(right)} size={sizes.side} width={layout.sideWidth} height={middle} side="right" />}
                 </View>
-                {intro_ ? <View style={{ height: piles.acrossHeight }} /> : <AcrossRiver {...riverProps(viewer)} size={sizes.across} width={layout.centre} height={piles.acrossHeight} thrownFrom={fromSeat.mine} />}
+                {intro_ ? <View style={{ height: acrossHeight }} /> : <AcrossRiver {...riverProps(viewer)} size={sizes.across} width={layout.centre} height={acrossHeight} thrownFrom={fromSeat.mine} />}
               </View>
               {sideSeat(right, -90)}
             </View>
@@ -863,12 +885,12 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
           <View
             onLayout={scrub.measure}
             {...scrub.handlers}
-            style={[styles.handRows, myTurn && styles.handTurn, { minHeight: (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.5 }]}
+            style={[styles.handRows, myTurn && styles.handTurn, { minHeight: mySeat === null ? backsSize * TILE_RATIO + 8 : (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.5 }]}
             testID="mahjong-hand"
           >
             {mySeat === null ? (
               <View style={styles.hand}>
-                <Backs count={concealedOf(viewer)} width={Math.round(layout.hand * 0.8)} room={layout.inner} />
+                <Backs count={concealedOf(viewer)} width={backsSize} room={layout.inner} />
               </View>
             ) : (
               shapeRows.map((row, r) => (

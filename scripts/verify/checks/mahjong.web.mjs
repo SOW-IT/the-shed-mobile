@@ -284,6 +284,8 @@ try {
       await shot(host, "picked");
       await expect(host, "the timer runs under ✕ on your turn", shown(host, "mahjong-timer"));
       await expect(host, "your turn is called out over your hand", shown(host, "mahjong-your-turn"));
+      const picked = host.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"][aria-selected="true"]');
+      await expect(host, "a tap picks the tile", (async () => (await picked.count()) === 1)());
       const box = await first.boundingBox();
       await host.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await host.page.mouse.down();
@@ -291,18 +293,22 @@ try {
       await host.page.mouse.up();
       await host.page.waitForTimeout(700);
       await expect(host, "sliding a picked tile down doesn't discard it", (async () => (await tiles.count()) === before && (await shown(host, "mahjong-turn")))());
+      await expect(host, "sliding a picked tile down puts it back (nothing picked)", (async () => (await picked.count()) === 0)());
       // Scrub along the top row: the tile under the pointer is picked as it goes, and lifting keeps it picked (no discard).
       const row = [];
       for (let i = 0; i < Math.min(4, before); i++) row.push(await tiles.nth(i).boundingBox());
+      const lastId = await tiles.nth(row.length - 1).getAttribute("data-testid");
       const y = row[0].y + row[0].height / 2;
       await host.page.mouse.move(row[0].x + row[0].width / 2, y);
       await host.page.mouse.down();
-      for (const box of row) for (let step = 1; step <= 4; step++) await host.page.mouse.move(box.x + (step * box.width) / 4, y);
+      // Along the row, ending on the middle of the last tile.
+      for (const box of row) for (let step = 1; step <= 4; step++) await host.page.mouse.move(box.x + (step * box.width) / 4 - (box === row.at(-1) && step === 4 ? box.width / 2 : 0), y);
       await host.page.waitForTimeout(200);
       await shot(host, "scrub");
       await host.page.mouse.up();
       await host.page.waitForTimeout(500);
       await expect(host, "scrubbing along the hand picks a tile and never discards", (async () => (await tiles.count()) === before && (await shown(host, "mahjong-turn")))());
+      await expect(host, "lifting off after a scrub keeps the last tile under the pointer picked", (async () => (await picked.count()) === 1 && (await picked.first().getAttribute("data-testid")) === lastId)());
     }
     await playTurn(host, seen.host);
     await playTurn(guest, seen.guest);

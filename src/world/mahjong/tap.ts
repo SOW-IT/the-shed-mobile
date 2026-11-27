@@ -63,11 +63,24 @@ const SLIDE_TO_DISCARD = 40;
 
 export const isSlideUp = (dx: number, dy: number) => dy <= -SLIDE_TO_DISCARD && Math.abs(dy) > Math.abs(dx) * 1.5;
 
-/** A tile being dragged up or down: either way the drag is the tile's, so it never also counts as a tap (which could discard). */
-export const startsSlide = (dx: number, dy: number) => Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.5;
+/**
+ * A tile being dragged up or down: either way the drag is the tile's, so it
+ * never also counts as a tap (which could discard). With startsScrub it
+ * splits every direction between them, so no drag (a diagonal one, say) is
+ * left for the tile's press to end as a tap.
+ */
+export const startsSlide = (dx: number, dy: number) => Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx);
 
 /** A drag along the hand (sideways), which picks whichever tile is under the finger as it goes. */
-export const startsScrub = (dx: number, dy: number) => Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2;
+export const startsScrub = (dx: number, dy: number) => Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy);
+
+/**
+ * How far a slide has gone in all: React Native's PanResponder starts
+ * counting again from where the finger was when it took the touch, so the
+ * distance it had already gone then (`taken`) is added to what it reports
+ * since (`since`). On iOS a 60 point flick down reported only 34 at release.
+ */
+export const slideSoFar = (taken: { dx: number; dy: number }, since: { dx: number; dy: number }) => ({ dx: taken.dx + since.dx, dy: taken.dy + since.dy });
 
 export type TileRect = { tile: number; x: number; y: number; width: number; height: number };
 
@@ -90,10 +103,5 @@ export const tileUnder = (rects: readonly TileRect[], x: number, y: number): num
   return row.reduce((best, r) => (Math.abs(r.x + r.width / 2 - x) < Math.abs(best.x + best.width / 2 - x) ? r : best)).tile;
 };
 
-/**
- * A slide down puts a picked tile back. Any slide down the tile took (see
- * startsSlide) counts, however short: on iOS the release can report much less
- * of the drag than the finger moved (a 60 point flick ended at 34), and
- * putting a tile back is harmless.
- */
+/** A slide down puts a picked tile back: any slide down the tile took (see startsSlide), since putting a tile back is harmless. */
 export const isSlideDown = (dx: number, dy: number) => startsSlide(dx, dy) && dy > 0;

@@ -439,6 +439,9 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
   if (!table) {
     const seats = emptySeats();
     seats[target.seat] = { kind: "human", email: member.email, name: member.name };
+    // A host whose saved rules play for coins they no longer have opens the table for points, with the rest of their rules.
+    const saved = await savedSettings(ctx, member.email);
+    const settings = (await shortOf(ctx, member.email, saved, now)) ? { ...saved, coins: false } : saved;
     const tableId = await ctx.db.insert("mahjongTables", {
       roomId: member.roomId,
       table: target.table,
@@ -446,7 +449,7 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
       host: member.email,
       seats,
       net: [0, 0, 0, 0],
-      settings: await savedSettings(ctx, member.email),
+      settings,
       handNo: 0,
       roundWind: 0,
     });
@@ -629,17 +632,22 @@ export const setReady = mutation({
     const email = await requireEmail(ctx);
     const held = await heldSeatOf(ctx, email);
     if (!held || held.table.phase !== "lobby") return refuse("Sit at a table first.");
+    if (held.table.startsAt !== undefined) return refuse("The game's about to start.");
     const seats = held.table.seats.map((s, i) => (i === held.seat && s.kind === "human" ? { ...s, ready: ready || undefined } : s));
     await ctx.db.patch("mahjongTables", held.table._id, { seats });
     return done;
   },
 });
 
-/** The host takes someone off their seat before the game: the seat frees and they get up from the stool. */
+/**
+ * The host takes someone off their seat before the game: the seat frees and
+ * they get up from the stool. `member` is whom the host confirmed taking off
+ * (their World member id); when someone else has the seat by then, nothing happens.
+ */
 export const removePlayer = mutation({
-  args: { seat: seatArg },
+  args: { seat: seatArg, member: v.optional(v.id("worldMembers")) },
   returns: v.union(okReply, refusedReply),
-  handler: async (ctx, { seat }) => {
+  handler: async (ctx, { seat, member: confirmed }) => {
     if (!validSeat(seat)) throw new ConvexError("That isn't a seat.");
     const email = await requireEmail(ctx);
     const { table, problem } = await hostedLobby(ctx, email);
@@ -647,8 +655,9 @@ export const removePlayer = mutation({
     const s = table.seats[seat];
     if (s.kind !== "human") return refuse("Nobody's sitting there.");
     if (s.email === email) return refuse("That's you. Leave the table instead.");
-    await freeSeat(ctx, table, seat);
     const member = await memberByEmail(ctx, s.email);
+    if (confirmed !== undefined && member?._id !== confirmed) return refuse(`${s.name} is sitting there now.`);
+    await freeSeat(ctx, table, seat);
     const state = member
       ? await ctx.db
           .query("worldState")

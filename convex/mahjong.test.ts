@@ -1064,6 +1064,34 @@ describe("starting from the lobby", () => {
     await anna.who.mutation(api.world.sit, { seat: "mahjong-b-2" });
     expect((await tableRows(t))[0]).toMatchObject({ table: "mahjong-b", settings });
   });
+
+  test("a host whose saved rules play for coins they no longer have opens the next table for points", async () => {
+    const { t, anna } = await cafe();
+    await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
+    await anna.who.mutation(api.mahjong.setSettings, { settings: FOR_COINS });
+    await anna.who.mutation(api.mahjong.leave, {});
+    await setWallet(t, ANNA, { balance: 5 });
+    later(REFILL);
+    await anna.who.mutation(api.world.sit, { seat: "mahjong-b-2" });
+    expect((await tableRows(t))[0].settings).toEqual({ ...FOR_COINS, coins: false });
+  });
+
+  test("ready can't change once the countdown has started", async () => {
+    const { anna, ben } = await lobby();
+    await ben.who.mutation(api.mahjong.setReady, { ready: true });
+    await anna.who.mutation(api.mahjong.start, {});
+    expect(await ben.who.mutation(api.mahjong.setReady, { ready: false })).toEqual({ ok: false, reason: "The game's about to start." });
+  });
+
+  test("taking someone off does nothing when someone else has the seat by then", async () => {
+    const { t, anna, ben, cara } = await lobby();
+    await ben.who.mutation(api.mahjong.leave, {});
+    later(REFILL);
+    await cara.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
+    expect(await anna.who.mutation(api.mahjong.removePlayer, { seat: 1, member: ben.memberId })).toEqual({ ok: false, reason: expect.stringContaining("sitting there now") });
+    expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: CARA });
+    expect(await anna.who.mutation(api.mahjong.removePlayer, { seat: 1, member: cara.memberId })).toEqual({ ok: true });
+  });
 });
 
 describe("a bot standing in", () => {

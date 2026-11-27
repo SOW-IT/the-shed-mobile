@@ -12,6 +12,7 @@ import { Animated, Platform, Pressable, StyleSheet, Switch, Text, useWindowDimen
 import { blurBehind, itemStyle, popStyle, useOverlayClock } from "../Overlays";
 import { glass } from "../palette";
 import { SeatFace } from "./Faces";
+import type { Id } from "../../../convex/_generated/dataModel";
 import type { MahjongMine, MahjongSeatView } from "./useMahjong";
 
 const { hud } = worldColours;
@@ -108,7 +109,7 @@ export const MahjongLobby = ({
   onStart: (anyway: boolean) => void;
   onCancelStart: () => void;
   onReady: (ready: boolean) => void;
-  onRemovePlayer: (seat: number) => void;
+  onRemovePlayer: (seat: number, member: Id<"worldMembers"> | null) => void;
   onLeave: () => void;
   now: number;
 }) => {
@@ -116,7 +117,7 @@ export const MahjongLobby = ({
   const { width, height } = useWindowDimensions();
   const [kept, setKept] = useState(table);
   const [editing, setEditing] = useState(false);
-  const [removing, setRemoving] = useState<number | null>(null);
+  const [removing, setRemoving] = useState<{ seat: number; member: Id<"worldMembers"> | null; name: string } | null>(null);
   if (table && table !== kept) setKept(table);
   if (!overlay.mounted || !kept) return null;
   const t = kept;
@@ -128,7 +129,9 @@ export const MahjongLobby = ({
   const waiting = lobbyWaiting(t.seats, t.hostSeat).map((i) => nameOf(t.seats[i].name));
   const me = t.seats[t.mySeat];
   const counting = t.startsAt !== null;
-  const removed = removing !== null && t.seats[removing]?.kind === "human" ? t.seats[removing] : null;
+  // The question only stands while the host still has the person they asked about in that seat.
+  const asked = removing && t.seats[removing.seat];
+  const removed = removing && asked && t.isHost && !counting && asked.kind === "human" && !asked.isMe && asked.member === removing.member && asked.name === removing.name ? removing : null;
   const rows: ReactNode[] = t.seats.map((seat, i) => (
     <MenuRow
       key={seatPlace(i)}
@@ -142,7 +145,7 @@ export const MahjongLobby = ({
         ) : t.isHost && seat.kind === "bot" ? (
           <Pill label="Remove" onPress={() => onRemoveBot(i)} testID={`mahjong-remove-bot-${i}`} a11y={`Take the bot out of the ${seatPlace(i)} seat`} />
         ) : t.isHost && seat.kind === "human" && !seat.isMe && !counting ? (
-          <Pressable onPress={() => setRemoving(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Take ${nameOf(seat.name)} off the table`} testID={`mahjong-remove-player-${i}`} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Pressable onPress={() => setRemoving({ seat: i, member: seat.member, name: seat.name })} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Take ${nameOf(seat.name)} off the table`} testID={`mahjong-remove-player-${i}`} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
             <Ionicons name="close" size={16} color={glass.text} />
           </Pressable>
         ) : i === t.hostSeat ? (
@@ -250,13 +253,13 @@ export const MahjongLobby = ({
             </>
           )}
         </Animated.View>
-        {removed && removing !== null ? (
+        {removed ? (
           <RemoveConfirm
             name={nameOf(removed.name)}
             onKeep={() => setRemoving(null)}
             onRemove={() => {
               setRemoving(null);
-              onRemovePlayer(removing);
+              onRemovePlayer(removed.seat, removed.member);
             }}
           />
         ) : null}

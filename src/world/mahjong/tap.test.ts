@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botSeatUnder, isSlideDown, isSlideUp, mahjongTags, mahjongTap, startsScrub, startsSlide, tableToWatch, takeoverSeats, tileUnder, type TableSummary } from "./tap";
+import { botSeatUnder, isSlideDown, isSlideUp, mahjongTags, mahjongTap, slideSoFar, startsScrub, startsSlide, tableToWatch, takeoverSeats, tileUnder, type TableSummary } from "./tap";
 
 const seat = (kind: "empty" | "human" | "bot", member: string | null = null, name = "") => ({ kind, member, name, away: false });
 const table = (phase: TableSummary["phase"], seats: TableSummary["seats"]): TableSummary => ({ id: "t1", table: "mahjong-a", phase, seats });
@@ -74,11 +74,26 @@ describe("sliding a tile up to discard", () => {
     expect(startsSlide(2, 14)).toBe(true);
     expect(isSlideUp(0, 80)).toBe(false);
     expect(isSlideDown(0, 45)).toBe(true);
-    // Short too: on iOS a 60 point flick down can be released at 34.
     expect(isSlideDown(0, 20)).toBe(true);
     expect(isSlideDown(0, 8)).toBe(false);
     expect(isSlideDown(0, -45)).toBe(false);
     expect(isSlideDown(60, 45)).toBe(false);
+  });
+
+  it("counts the whole slide, adding what it had gone when the tile took the touch to what it reports after", () => {
+    // On iOS a 60 point flick: taken at 26, reported 34 since.
+    expect(slideSoFar({ dx: 1, dy: 26 }, { dx: 0, dy: 34 })).toEqual({ dx: 1, dy: 60 });
+    const up = slideSoFar({ dx: 0, dy: -14 }, { dx: 2, dy: -30 });
+    expect(isSlideUp(up.dx, up.dy)).toBe(true);
+    expect(isSlideUp(2, -30)).toBe(false);
+  });
+
+  it("leaves no drag past the thresholds to end as a tap: it's a slide or a scrub", () => {
+    for (const [dx, dy] of [[30, -30], [-30, 30], [24, -18], [18, -24], [11, 11], [-9, -11], [40, 0], [0, -40]]) {
+      expect(startsSlide(dx, dy) !== startsScrub(dx, dy)).toBe(true);
+    }
+    expect(startsSlide(30, -30)).toBe(true);
+    expect(startsScrub(24, -18)).toBe(true);
   });
 });
 

@@ -191,7 +191,7 @@ export const MahjongLayer = ({
         onStart={(anyway) => void mahjong.start(anyway).then(say)}
         onCancelStart={() => void mahjong.cancelStart().then(say)}
         onReady={(ready) => void mahjong.setReady(ready).then(say)}
-        onRemovePlayer={(seat) => void mahjong.removePlayer(seat).then(say)}
+        onRemovePlayer={(seat, member) => void mahjong.removePlayer(seat, member).then(say)}
         onLeave={() => void mahjong.leave().then(say)}
         now={now}
       />

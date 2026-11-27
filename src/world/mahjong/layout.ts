@@ -48,6 +48,16 @@ export const acrossFit = (count: number, width: number, height: number) => {
   return Math.floor(Math.min((width - (perRow - 1) * RIVER_GAP) / perRow, (height - RIVER_GAP) / 2 / TILE_TALL));
 };
 
+/** How tall B's pile and yours are, two rows of `size` tiles. */
+export const acrossHeightOf = (size: number) => 2 * (Math.round(size * TILE_TALL) + RIVER_GAP) - RIVER_GAP;
+
+/** The biggest tile whose two rows fit in `height`, however few discards there are. */
+const acrossFitIn = (height: number) => {
+  let size = Math.floor((height - RIVER_GAP) / 2 / TILE_TALL);
+  while (size > 0 && acrossHeightOf(size) > height) size--;
+  return size;
+};
+
 /** A side pile's columns hold at least this many (or the whole pile), so it always reads as running down (A) or up (C). */
 const SIDE_RUN = 3;
 
@@ -95,7 +105,8 @@ export const pileSizes = ({ layout, height, counts, cap }: { layout: TableLayout
   let best = -Infinity;
   for (let rows = 16; avail - 2 * rows >= MIDDLE_MIN; rows++) {
     const middle = avail - 2 * rows;
-    const a = Math.min(cap, acrossFit(counts.across, layout.centre, rows), acrossFit(counts.mine, layout.centre, rows));
+    // An empty pile still takes the rows its size needs, so it can't claim more height than this split gives it.
+    const a = Math.min(cap, acrossFitIn(rows), acrossFit(counts.across, layout.centre, rows), acrossFit(counts.mine, layout.centre, rows));
     const b = Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle));
     const score = Math.min(a, b) * 1000 - Math.abs(a - b);
     if (score > best) {
@@ -104,7 +115,7 @@ export const pileSizes = ({ layout, height, counts, cap }: { layout: TableLayout
     }
   }
   across = Math.max(PILE_MIN, across);
-  const acrossHeight = 2 * (Math.round(across * TILE_TALL) + RIVER_GAP) - RIVER_GAP;
+  const acrossHeight = acrossHeightOf(across);
   const middle = Math.max(MIDDLE_MIN, avail - 2 * acrossHeight);
   const side = Math.max(PILE_MIN, Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle)));
   return { across, side, acrossHeight, middle };

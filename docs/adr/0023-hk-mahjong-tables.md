@@ -113,7 +113,12 @@ abandoned (no coins move) if nobody comes back within two minutes.
 
 - A host's rules are kept on their wallet (`worldWallets.mahjongSettings`)
   and used for the next table they open; the claim window defaults to 10 s
-  and can be 3 to 20 s.
+  and can be 3 to 20 s. If those rules play for coins the host can no
+  longer cover, the table opens playing for points, with the rest of their
+  rules.
+- Taking someone off a seat names whom the host confirmed (`member`), so a
+  confirmation can't take off someone who sat down in that seat since.
+  Ready can't change once the countdown has started.
 - The table's layout: A (the seat on your left) and C (on your right) run
   the full height of the table with their melds face up and their
   concealed tiles shown only as a count; B's and your discards sit between

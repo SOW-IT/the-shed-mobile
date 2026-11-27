@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acrossFit, acrossRows, DRAWN_GAP, HAND_GAP, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
+import { acrossFit, acrossHeightOf, acrossRows, DRAWN_GAP, HAND_GAP, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
 
 const PHONE = { width: 402, height: 874 };
 // The table's height below the across seat on that phone with the two-row hand, as the mockup measured it.
@@ -101,6 +101,19 @@ describe("the discard piles", () => {
       const perColumn = Math.floor((s.middle + RIVER_GAP) / (s.side + RIVER_GAP));
       expect(perColumn).toBeGreaterThanOrEqual(Math.min(n, 3));
     }
+  });
+
+  it.each([
+    ["only A has discarded", { mine: 0, across: 0, left: 1, right: 0 }],
+    ["B and you haven't discarded", { mine: 0, across: 0, left: 9, right: 9 }],
+    ["nobody has discarded", { mine: 0, across: 0, left: 0, right: 0 }],
+  ])("leaves the middle its share when %s", (_, c) => {
+    const s = pileSizes({ layout, height: PHONE_TABLE, counts: c, cap });
+    expect(s.acrossHeight).toBe(acrossHeightOf(s.across));
+    expect(2 * s.acrossHeight + s.middle + 2 * TABLE_GAP).toBeLessThanOrEqual(PHONE_TABLE);
+    expect(s.middle).toBeGreaterThan(MIDDLE_MIN);
+    // A side pile is as big as when B's pile and yours hold a tile each.
+    expect(s.side).toBeGreaterThanOrEqual(pileSizes({ layout, height: PHONE_TABLE, counts: { ...c, mine: 1, across: 1 }, cap }).side);
   });
 
   it("fits nothing to an empty pile", () => {
