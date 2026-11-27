@@ -439,6 +439,33 @@ describe("decorating", () => {
     expect((await ben.query(api.worldHome.home, { roomId }))?.items).toEqual([]);
   });
 
+  test("you can sit on a chair or sofa you've placed, a visitor sees you there, and a table is no seat", async () => {
+    const t = newConvex();
+    const anna = await atHome(t);
+    await anna.mutation(api.worldHome.buy, { item: "sofa" });
+    await anna.mutation(api.worldHome.buy, { item: "table" });
+    await goTo(t, ANNA, "home");
+    const sofa = await anna.mutation(api.worldHome.placeItem, { item: "sofa", x: 0, z: -6, turn: 0 });
+    const table = await anna.mutation(api.worldHome.placeItem, { item: "table", x: 2, z: -3, turn: 0 });
+    if (!sofa.ok || !table.ok) throw new Error("didn't place");
+    await expect(anna.mutation(api.world.sit, { seat: `${table.key}-0` })).rejects.toThrow(/somewhere you can sit/);
+    await expect(anna.mutation(api.world.sit, { seat: "couch-0" })).rejects.toThrow(/somewhere you can sit/);
+    const sat = await anna.mutation(api.world.sit, { seat: `${sofa.key}-1` });
+    expect(sat).toMatchObject({ ok: true, toX: expect.closeTo(0.42, 2), toZ: expect.closeTo(-5.9, 2) });
+    const { member, state } = await memberOf(t, ANNA);
+    expect(state?.seat).toBe(`${sofa.key}-1`);
+    const ben = asUser(t, BEN);
+    const { memberId: benId } = await ben.mutation(api.world.join, {});
+    await anna.mutation(api.world.invite, { memberId: benId });
+    const [card] = await ben.query(api.world.invites, {});
+    await ben.mutation(api.world.travel, { to: "home", invite: card.id });
+    const seen = await ben.query(api.world.state, { memberId: member!._id });
+    expect(seen?.seat).toBe(`${sofa.key}-1`);
+    // A seat in Anna's home is no seat once you're elsewhere.
+    await goTo(t, ANNA, "garden");
+    await expect(anna.mutation(api.world.sit, { seat: `${sofa.key}-0` })).rejects.toThrow(/somewhere you can sit/);
+  });
+
   test("keeps furniture inside the room and out of the doorway", async () => {
     const t = newConvex();
     const anna = await atHome(t);

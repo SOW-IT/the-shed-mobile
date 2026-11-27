@@ -23,7 +23,6 @@ import {
   NPC,
   FARMER,
   DUEL_PICKS,
-  seatIn,
   type Place,
   type Look,
   type Walk,
@@ -35,7 +34,7 @@ import { Builder, itemAt, type Prim, type Prop } from "./gardenScene";
 import { farm as farmPalette, garden, hud, places } from "./palette";
 import { popShadow } from "./popShadow";
 import { buildScene, type HomeLook } from "./placeScenes";
-import { footprint, isFurniture } from "@shared/home";
+import { fitInRoom, footprint, FURNITURE, isFurniture, isTurn, seatsHere } from "@shared/home";
 import { Avatar, figureFor, headTop, hitBox, palmHeight, sitRise, swimSink, Tag, touchK, type Doing } from "./Person";
 import { accepted } from "./announce";
 import type { DrawnPose, Gait } from "./gait";
@@ -229,6 +228,8 @@ export const Garden = ({
     selected: string | null;
     onItem: (key: string) => void;
     onFloor: (x: number, z: number) => void;
+    /** A piece dragged and let go at (x, z): put it down there. */
+    onDrop: (key: string, x: number, z: number) => void;
     actions: HudAction[];
     hudTop: number;
   } | null;
@@ -251,7 +252,17 @@ export const Garden = ({
   const plots = farm?.plots ?? FREE_PLOTS;
   const coop = yard?.coop === true;
   const barn = yard?.barn === true;
-  const scene = useMemo(() => cam && buildScene(place, cam, home ?? undefined, { plots, coop, barn }), [cam, place, home, plots, coop, barn]);
+  // A piece being dragged is drawn under the finger; nothing is saved until it's let go.
+  const [drag, setDrag] = useState<{ key: string; x: number; z: number } | null>(null);
+  if (drag && !decor) setDrag(null);
+  const shownHome = useMemo(
+    () => (home && drag ? { ...home, items: home.items.map((p) => (p.key === drag.key ? { ...p, x: drag.x, z: drag.z } : p)) } : home),
+    [home, drag]
+  );
+  const scene = useMemo(() => cam && buildScene(place, cam, shownHome ?? undefined, { plots, coop, barn }), [cam, place, shownHome, plots, coop, barn]);
+  const homeItems = home?.items;
+  const seats = useMemo(() => seatsHere(place, homeItems), [place, homeItems]);
+  const seatOf = (id: string | undefined) => (id === undefined ? null : (seats.find((seat) => seat.id === id) ?? null));
   const pens = useMemo(() => (cam && place === BACKYARD ? penScreens(cam) : null), [cam, place]);
   const yardAnimals = yard?.animals;
   const penHerds = useMemo(() => ({ coop: (yardAnimals ?? []).filter((a) => a.kind === "chicken"), barn: (yardAnimals ?? []).filter((a) => a.kind === "cow") }), [yardAnimals]);
@@ -327,7 +338,7 @@ export const Garden = ({
   if (!sameStarts(currentStarts, firstStarts)) setFirstStarts(currentStarts);
   const sitting = people.map((p, i) => {
     const pose = poses[i];
-    const seat = seatIn(place, p.seat);
+    const seat = seatOf(p.seat);
     return seat && pose && !pose.walking && Math.hypot(pose.x - seat.x, pose.z - seat.z) < SEATED_WITHIN ? seat : null;
   });
   const me = people.findIndex((p) => p.me);
@@ -481,6 +492,8 @@ export const Garden = ({
     timer: ReturnType<typeof setTimeout> | null;
     /** The last point of this press that was on the ground. */
     spot: { x: number; z: number } | null;
+    /** A piece held while decorating: how far it sits from the finger's ground point, and where it's been dragged to. */
+    grab?: { dx: number; dz: number; at: { x: number; z: number } | null };
   }>({ x: 0, y: 0, hit: { kind: "ground" }, walking: false, timer: null, spot: null });
 
   /** Where a touch is on the stage. Children don't take touches, so it's the stage's own. */
@@ -534,7 +547,7 @@ export const Garden = ({
       if (item) return { kind: "item", key: item };
       if (decor.selected) return { kind: "floor" };
     }
-    const seat = seatAt(place, cam, x, y);
+    const seat = seatAt(place, cam, x, y, homeItems);
     if (seat) return { kind: "seat", id: seat };
     const spot = cam.ground(x, y);
     if (spot) {
@@ -570,7 +583,10 @@ export const Garden = ({
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
     if (hit.kind === "item" || hit.kind === "floor") {
-      press.current = { ...at, hit, walking: false, timer: null, spot: null };
+      const piece = hit.kind === "item" ? shownHome?.items.find((p) => p.key === hit.key) : undefined;
+      const under = cam?.ground(at.x, at.y);
+      const grab = piece ? { dx: under ? piece.x - under.x : 0, dz: under ? piece.z - under.z : 0, at: null } : undefined;
+      press.current = { ...at, hit, walking: false, timer: null, spot: null, grab };
       return;
     }
     // The World has no swipe back (you leave from its menu), so a touch at the
@@ -589,6 +605,7 @@ export const Garden = ({
   const onMove = (e: GestureResponderEvent) => {
     const at = where(e);
     const p = press.current;
+    if (at && p.hit.kind === "item" && p.grab) return dragItem(p.hit.key, p.grab, at);
     if (!at || p.hit.kind === "item" || p.hit.kind === "floor") return;
     if (!p.walking) {
       if (Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
@@ -621,7 +638,11 @@ export const Garden = ({
       const dir = kickDirection(placed, rolled);
       onKick?.(dir.x, dir.z);
     }
-    else if (p.hit.kind === "item") decor?.onItem(p.hit.key);
+    else if (p.hit.kind === "item" && p.grab?.at) {
+      // Let go after a drag: put it down where it is, the one save.
+      setDrag(null);
+      decor?.onDrop(p.hit.key, p.grab.at.x, p.grab.at.z);
+    } else if (p.hit.kind === "item" && !p.grab?.at && Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) decor?.onItem(p.hit.key);
     else if (p.hit.kind === "floor") {
       const spot = cam?.ground(at.x, at.y);
       if (spot) decor?.onFloor(spot.x, spot.z);
@@ -634,8 +655,23 @@ export const Garden = ({
     if (p.timer) clearTimeout(p.timer);
     p.timer = null;
     if (p.walking && p.spot) onHoldEnd(p.spot.x, p.spot.z);
+    // A drag the system took away is no drop: the piece stays where it was.
+    if (p.grab?.at) setDrag(null);
     p.walking = false;
     p.hit = { kind: "ground" };
+    p.grab = undefined;
+  };
+  /** Moves a held piece with the finger, kept inside the room; drawn here only, nothing sent. */
+  const dragItem = (key: string, grab: NonNullable<typeof press.current.grab>, at: { x: number; y: number }) => {
+    const p = press.current;
+    if (!grab.at && Math.hypot(at.x - p.x, at.y - p.y) < TAP_SLOP) return;
+    const piece = home?.items.find((item) => item.key === key);
+    const under = cam?.ground(at.x, at.y);
+    if (!piece || !under || !isFurniture(piece.item) || !isTurn(piece.turn)) return;
+    const spot = fitInRoom(piece.item, under.x + grab.dx, under.z + grab.dz, piece.turn);
+    if (!spot) return;
+    grab.at = spot;
+    setDrag({ key, x: spot.x, z: spot.z });
   };
 
   if (!cam || !scene) return <View style={styles.fill} onLayout={onLayout} />;
@@ -772,7 +808,7 @@ export const Garden = ({
         });
       }
     } else {
-      const seat = seatIn(place, highlighted.id);
+      const seat = seatOf(highlighted.id);
       if (seat) {
         const at = cam.project([seat.x, seat.height + 0.03, seat.z]);
         const rx = 0.58 * at.scale * pulse;
@@ -790,7 +826,7 @@ export const Garden = ({
       }
     }
   }
-  const selectedItem = decor?.selected ? home?.items.find((p) => p.key === decor.selected) : undefined;
+  const selectedItem = decor?.selected ? shownHome?.items.find((p) => p.key === decor.selected) : undefined;
   if (selectedItem && isFurniture(selectedItem.item)) {
     const { hw, hd } = footprint(selectedItem.item, selectedItem.turn);
     const at = cam.project([selectedItem.x, 0, selectedItem.z]);
@@ -940,6 +976,15 @@ export const Garden = ({
     if (!at) continue;
     const point = cam.project([seat.x, seat.height + 0.2, seat.z]);
     targets.push({ key: `a11y-${seat.id}`, label: `Mahjong ${MAHJONG_TABLE_NAMES[at.table]}, ${seatPlace(at.seat)} seat`, x: point.x, y: point.y, onActivate: () => onTapSeat(seat.id) });
+  }
+  // A home's chairs, beanbags, sofas and bed, for VoiceOver (a tap there sits you); while decorating a tap picks it up instead.
+  if (!decor) {
+    for (const p of homeItems ?? []) {
+      const first = seatOf(`${p.key}-0`);
+      if (!first || !isFurniture(p.item)) continue;
+      const point = cam.project([first.x, first.height + 0.2, first.z]);
+      targets.push({ key: `a11y-sit-${p.key}`, label: `${FURNITURE[p.item].label}, sit down`, x: point.x, y: point.y, onActivate: () => onTapSeat(first.id) });
+    }
   }
   if (yard && pens && place === BACKYARD) {
     for (const id of BUILDING_IDS) {
