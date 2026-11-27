@@ -4,6 +4,7 @@ import { useOffline } from "@/hooks/useOffline";
 import { useRestartHold } from "@/hooks/useRestartHold";
 import { useAccountEmail, useBests, recordRun } from "@/lib/games/gameStorage";
 import { OnlineBanner } from "./OnlineBanner";
+import { FocusedStatusBar } from "./FocusedStatusBar";
 import { CoinGain } from "./CoinGain";
 import { LeaveGameDialog } from "./LeaveGameDialog";
 import { PICKER_WIDTH } from "./GameCharacter";
@@ -16,7 +17,6 @@ import { savedNote } from "@/lib/games/savedNote";
 import { fixedColours, fonts, radius, spacing, typography } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth } from "convex/react";
-import { StatusBar } from "expo-status-bar";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   GestureResponderHandlers,
@@ -323,7 +323,7 @@ export const GameFrame = ({
       >
       <View style={content}>
       {/* Full screen while playing; the safe area still keeps clear of the notch. */}
-      <StatusBar hidden={phase === "playing"} style={phase === "over" ? "light" : statusBar} animated />
+      <FocusedStatusBar hidden={phase === "playing"} style={phase === "over" ? "light" : statusBar} animated />
       <View onLayout={onChromeLayout}>
       <View style={styles.bar}>
         <Pressable
