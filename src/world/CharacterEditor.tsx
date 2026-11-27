@@ -36,7 +36,7 @@ import {
   type LookPart,
   type NudgePart,
 } from "@shared/world";
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentRef } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ColourPicker } from "./ColourPicker";
@@ -643,9 +643,15 @@ const Choices = memo(function Choices({
   );
 });
 
+/** The step slider's thumb, and how far the track sits in from each end so the thumb never covers the end labels. */
+const STEP_THUMB = 26;
+/** Tall enough to take a finger anywhere on the thumb or around the line, and as tall as the row was. */
+const STEP_HEIGHT = 34;
+
 /**
- * A step slider: drag the thumb or tap a step. Takes the touch so a drag here
- * doesn't scroll the choices.
+ * A step slider: drag the thumb or tap a step. Its whole row between the end
+ * labels takes the touch, so a press on the thumb or just off the line drags
+ * it, and the choices under it don't scroll while you drag.
  */
 const Steps = ({
   value,
@@ -665,10 +671,23 @@ const Steps = ({
   testID?: string;
 }) => {
   const t = useAppTheme();
+  const holdScroll = useContext(HoldScroll);
+  // The track's width: the slider less half a thumb each end.
   const [width, setWidth] = useState(0);
-  const pickAt = (x: number) => {
+  // Where the track starts on the page, from the press that began the drag.
+  // A finger that strays off the slider keeps its place along it.
+  const trackLeft = useRef(0);
+  const pickAt = (pageX: number) => {
     if (width <= 0) return;
-    onPick(Math.max(0, Math.min(count - 1, Math.round((x / width) * (count - 1)))));
+    const next = Math.max(0, Math.min(count - 1, Math.round(((pageX - trackLeft.current) / width) * (count - 1))));
+    if (next !== value) onPick(next);
+  };
+  const onGrant = (e: GestureResponderEvent) => {
+    trackLeft.current = e.nativeEvent.pageX - e.nativeEvent.locationX + STEP_THUMB / 2;
+    holdScroll(true);
+    pickAt(e.nativeEvent.pageX);
+    // Asks Android's native scroll view not to take the touch.
+    return true;
   };
   const at = (value / (count - 1)) * width;
   const step = (by: number) => onPick(Math.max(0, Math.min(count - 1, value + by)));
@@ -690,8 +709,11 @@ const Steps = ({
     <View style={styles.stepsRow}>
       <Text style={[typography.caption, styles.edge, { color: t.muted }]}>{low}</Text>
       <View
-        style={[styles.track, { backgroundColor: hud.primarySoft }]}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        style={[styles.steps, noBrowserGestures]}
+        // The slider is the target of every touch on it, never the thumb or a
+        // stop, so locationX is always from its own left edge.
+        pointerEvents="box-only"
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width - STEP_THUMB)}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={label}
@@ -703,16 +725,41 @@ const Steps = ({
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponderCapture={() => true}
         onResponderTerminationRequest={() => false}
-        onResponderGrant={(e) => pickAt(e.nativeEvent.locationX)}
-        onResponderMove={(e) => pickAt(e.nativeEvent.locationX)}
+        onResponderGrant={onGrant}
+        onResponderMove={(e) => pickAt(e.nativeEvent.pageX)}
+        onResponderRelease={() => holdScroll(false)}
+        onResponderTerminate={() => holdScroll(false)}
       >
-        {Array.from({ length: count }, (_, i) => (
-          <View key={`step${i}`} pointerEvents="none" style={[styles.stop, { left: (i / (count - 1)) * width - 3 }]} />
-        ))}
-        <View pointerEvents="none" style={[styles.thumb, { left: at - 13 }]} />
+        <View style={[styles.track, { backgroundColor: hud.primarySoft }]}>
+          {Array.from({ length: count }, (_, i) => (
+            <View key={`step${i}`} style={[styles.stop, { left: (i / (count - 1)) * width - 3 }]} />
+          ))}
+          <View style={[styles.thumb, { left: at - STEP_THUMB / 2 }]} />
+        </View>
       </View>
       <Text style={[typography.caption, styles.edge, styles.edgeHigh, { color: t.muted }]}>{high}</Text>
     </View>
+  );
+};
+
+/**
+ * Stops the choices scrolling while a slider in them is dragged. On iOS the
+ * scroll view otherwise takes a drag that moves up or down a little and ends
+ * it. The web needs none of this: the slider's touch-action keeps the page
+ * still, and turning the scroll off there would hide its scroll bar and
+ * change the slider's width mid-drag.
+ */
+const HoldScroll = createContext<(holding: boolean) => void>(() => {});
+
+const ChoicesScroll = ({ children, ...props }: ComponentProps<typeof SharpScrollView>) => {
+  const [holding, setHolding] = useState(false);
+  const hold = useCallback((next: boolean) => setHolding(Platform.OS !== "web" && next), []);
+  return (
+    <HoldScroll.Provider value={hold}>
+      <SharpScrollView {...props} scrollEnabled={!holding}>
+        {children}
+      </SharpScrollView>
+    </HoldScroll.Provider>
   );
 };
 
@@ -887,7 +934,7 @@ export const CharacterEditor = ({
     </View>
   );
   const choices = (
-    <SharpScrollView
+    <ChoicesScroll
       style={styles.grow}
       contentContainerStyle={styles.stack}
       automaticallyAdjustKeyboardInsets
@@ -1008,7 +1055,7 @@ export const CharacterEditor = ({
           <Choices names={ACCESSORIES} part="accessory" framing="body" value={part("accessory")} blank={choiceBlank} onPick={pickPart} tile={tile} testID="world-editor-extra" hidden={[OLD_GLASSES]} />
         </>
       ) : null}
-    </SharpScrollView>
+    </ChoicesScroll>
   );
   const footer = (
     <View style={styles.footer}>
@@ -1097,11 +1144,11 @@ const styles = StyleSheet.create({
   edge: { width: 42 },
   edgeHigh: { textAlign: "right" },
   swatchIcon: { textAlign: "center", lineHeight: 30 },
-  stepsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
-  // Inset by half the thumb, so the thumb never covers the end labels.
-  track: { flex: 1, height: 8, borderRadius: 4, justifyContent: "center", marginHorizontal: 13 },
+  stepsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  steps: { flex: 1, height: STEP_HEIGHT, justifyContent: "center", paddingHorizontal: STEP_THUMB / 2 },
+  track: { height: 8, borderRadius: 4, justifyContent: "center" },
   stop: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: hud.cream },
-  thumb: { position: "absolute", width: 26, height: 26, borderRadius: 13, backgroundColor: hud.accent, borderWidth: 2.5, borderColor: hud.forest },
+  thumb: { position: "absolute", width: STEP_THUMB, height: STEP_THUMB, borderRadius: STEP_THUMB / 2, backgroundColor: hud.accent, borderWidth: 2.5, borderColor: hud.forest },
   footer: { gap: spacing.sm, paddingTop: spacing.sm },
   preview: { borderRadius: 18, overflow: "hidden" },
   zoom: {
