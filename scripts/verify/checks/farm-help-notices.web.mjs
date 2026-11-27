@@ -168,9 +168,11 @@ try {
   await open.click();
   await shown(guide);
   await page.waitForTimeout(500);
-  const ground = await id("world-stage").boundingBox();
-  await page.mouse.click(ground.x + ground.width * 0.25, ground.y + ground.height * 0.72);
+  // A tap on the backyard above the card, clear of the chat lines under the coins.
+  const above = await guide.boundingBox();
+  await page.mouse.click(stage.width * 0.6, above.y - 24);
   expect("tapping the backyard didn't close How to farm", await gone(guide));
+  await page.waitForTimeout(1500);
 
   // The coop still opens (built, its sheet; not yet, its offer).
   const coop = page.getByLabel(/^Coop, /).first();

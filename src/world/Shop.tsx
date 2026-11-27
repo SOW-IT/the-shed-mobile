@@ -293,7 +293,7 @@ export const ShopPanel = ({
             })}
             <Animated.View style={[styles.full, itemStyle(overlay, 2 + ANIMAL_IDS.length)]}>
               <Text style={styles.section} accessibilityRole="header">
-                Feed
+                Feed and name tags
               </Text>
             </Animated.View>
             {FEED_IDS.map((id) => (

@@ -11,11 +11,18 @@ import { glass, hud } from "./palette";
 
 const ART = 52;
 
+/**
+ * The backyard draws a young plant small (40% of a ripe one's size, growing
+ * to 90%). Here every stage is drawn about the same height, so a seed or a
+ * sprout is big enough to see.
+ */
+const plantScale = (stage: string, progress: number) => Math.min(ART * 1.4, (ART * 0.9) / (stage === "ripe" ? 1 : 0.4 + 0.5 * Math.min(progress, 1)));
+
 /** A plant drawn the way the backyard draws it, standing in a little square. */
 const Plant = ({ stage, progress, wilted = false, thirsty = false, label }: { stage: "seed" | "sprout" | "half" | "ripe"; progress: number; wilted?: boolean; thirsty?: boolean; label?: string }) => (
   <View style={styles.frame}>
     <View style={styles.plant}>
-      <PlantView x={ART / 2} y={ART - 8} scale={ART * 0.95} crop="tomato" stage={stage} progress={progress} wilted={wilted} thirsty={thirsty} live={false} />
+      <PlantView x={ART / 2} y={ART - 6} scale={plantScale(stage, progress)} crop="tomato" stage={stage} progress={progress} wilted={wilted} thirsty={thirsty} live={false} />
     </View>
     {label ? <Text style={styles.caption}>{label}</Text> : null}
   </View>
@@ -27,7 +34,7 @@ const pictureOf = (part: GuidePart): ReactNode => ({
   plant: (
     <View style={styles.row}>
       <View style={[styles.frame, styles.soil]}>
-        <SeedCluster crop="carrot" size={30} />
+        <SeedCluster crop="carrot" size={38} />
       </View>
       <Arrow />
       <Plant stage="seed" progress={0.03} label="Planted" />
@@ -100,7 +107,7 @@ export const BackyardGuide = ({ open, onClose }: { open: boolean; onClose: () =>
   if (!overlay.mounted) return null;
   return (
     <Animated.View
-      style={[styles.card, blurBehind, { width: Math.min(380, width - 28), maxHeight: Math.max(240, Math.min(560, height * 0.58)) }, popStyle(overlay)]}
+      style={[styles.card, blurBehind, { width: Math.min(380, width - 28), maxHeight: Math.max(240, Math.min(540, height * 0.5)) }, popStyle(overlay)]}
       pointerEvents={open ? "auto" : "none"}
       accessibilityRole="summary"
       testID="world-backyard-guide"
