@@ -111,12 +111,14 @@ const MELD_EDGE = ["flex-end", "flex-end", "flex-start", "flex-start"] as const;
  * tile lies across the others, on the side of the seat it came from (see
  * meldOrder).
  */
-const SeatMelds = ({ melds, size, turn, calm, seat, wrap = false, testID }: { melds: readonly MeldView[]; size: number; turn: number; calm: boolean; seat: MeldSeat; wrap?: boolean; testID: string }) => {
+const SeatMelds = ({ melds, size, turn, calm, seat, wrap = false, onOpen, testID }: { melds: readonly MeldView[]; size: number; turn: number; calm: boolean; seat: MeldSeat; wrap?: boolean; onOpen?: (seat: number) => void; testID: string }) => {
   if (melds.length === 0) return null;
   const across = turn === 0;
   const where = (seat.owner - seat.viewer + 4) % 4;
+  const style = across ? (wrap ? styles.melds : styles.meldsAcross) : styles.meldsDown;
+  // Tapping another seat's melds opens their tiles; the seat's plate is the same button for a screen reader, so the melds keep their own labels.
   return (
-    <View style={across ? (wrap ? styles.melds : styles.meldsAcross) : styles.meldsDown} testID={testID}>
+    <Pressable onPress={onOpen ? () => onOpen(seat.owner) : undefined} disabled={!onOpen} accessible={false} style={style} testID={testID}>
       {keyedMelds(melds).map(({ meld, key }) => {
         const { tiles, sideways } = meldOrder(meld, seat.owner, seat.viewer);
         return (
@@ -129,7 +131,7 @@ const SeatMelds = ({ melds, size, turn, calm, seat, wrap = false, testID }: { me
           </Arrive>
         );
       })}
-    </View>
+    </Pressable>
   );
 };
 
@@ -146,20 +148,23 @@ type PlateProps = {
   forCoins: boolean;
   vertical: boolean;
   /** Which way the seat's bubble grows: away from the screen's edge. */
-  inward?: "left" | "right";
+  inward?: "left" | "right";  /** Opens this seat's tiles (shown and let go). */
+  onOpen: (seat: number) => void;
 };
 
 /** A seat's face, name, wind and score, and how many tiles they hold (which the table no longer draws). */
-const SeatPlate = ({ seat, index, hand, look, active, concealed, nameOf, said, emote, forCoins, vertical, inward }: PlateProps) => {
+const SeatPlate = ({ seat, index, hand, look, active, concealed, nameOf, said, emote, forCoins, vertical, inward, onOpen }: PlateProps) => {
   const wind = hand.seats[index].wind;
   const name = plateName(seat, nameOf);
   const dealer = index === hand.dealer;
   const away = seat.away ? `, away, ${seat.standIn ? nameOf(seat.standIn) : "a bot"} is playing for ${nameOf(seat.name)}` : "";
   return (
-    <View
-      style={[vertical ? styles.sideHead : styles.acrossHead, active && styles.seatActive]}
-      accessible
-      accessibilityLabel={`${name}, ${windWords(wind)}${dealer ? ", dealer" : ""}${away}, ${concealed} tiles in hand, ${forCoins ? "coins" : "points"} ${coinsWords(seat.net)}${active ? ", their turn" : ""}`}
+    <Pressable
+      onPress={() => onOpen(index)}
+      style={({ pressed }) => [vertical ? styles.sideHead : styles.acrossHead, active && styles.seatActive, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${windWords(wind)}${dealer ? ", dealer" : ""}${away}, ${concealed} tiles in hand, ${forCoins ? "coins" : "points"} ${coinsWords(seat.net)}${active ? ", their turn" : ""}. Show their tiles`}
+      testID={`mahjong-plate-${index}`}
     >
       <View>
         <SeatFace kind={faceKind(seat)} look={look} name={seat.name} size={vertical ? 26 : 28} />
@@ -175,7 +180,7 @@ const SeatPlate = ({ seat, index, hand, look, active, concealed, nameOf, said, e
           <Text style={[styles.score, seat.net > 0 ? styles.up : seat.net < 0 ? styles.down : null]}>{coinsWords(seat.net)}</Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 };
 
@@ -247,8 +252,8 @@ const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, meldSeat
   return (
     <View style={styles.resultWrap} testID="mahjong-zoom">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-zoom-backdrop" />
-      <View style={[styles.result, styles.resultBody]}>
-        <View style={styles.zoomHead}>
+      <View style={styles.result}>
+        <View style={[styles.zoomHead, styles.zoomHeadPad]}>
           <Text style={[styles.resultTitle, styles.zoomTitle]} accessibilityRole="header" numberOfLines={1}>
             {`${name} · ${windBadge(seat.wind)}${index === hand.dealer ? " · dealer" : ""}`}
           </Text>
@@ -256,14 +261,18 @@ const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, meldSeat
             <Ionicons name="close" size={18} color={m.text} />
           </Pressable>
         </View>
-        <Text style={styles.resultNote}>{`${concealed} tiles in hand · ${shown.length} let go`}</Text>
-        <SeatMelds melds={seat.melds} size={Math.round(width * 0.8)} turn={0} calm seat={meldSeat} wrap testID="mahjong-zoom-melds" />
-        <View style={styles.zoomTiles}>
-          {shown.map((d) => (
-            <Tile key={d.tile} tile={d.tile} width={width} lit={isLast(lastDiscard, index, d.tile)} />
-          ))}
-        </View>
-        {shown.length === 0 ? <Text style={styles.resultNote}>Nothing let go yet.</Text> : null}
+        <ScrollView style={styles.zoomScroll} contentContainerStyle={styles.zoomBody}>
+          <Text style={styles.resultNote}>{`${concealed} ${concealed === 1 ? "tile" : "tiles"} in hand · ${seat.melds.length === 0 ? "nothing shown" : `${seat.melds.length} shown`} · ${shown.length} let go`}</Text>
+          {seat.melds.length > 0 ? <Text style={styles.zoomLabel}>Shown</Text> : null}
+          <SeatMelds melds={seat.melds} size={Math.round(width * 0.8)} turn={0} calm seat={meldSeat} wrap testID="mahjong-zoom-melds" />
+          <Text style={styles.zoomLabel}>Let go</Text>
+          <View style={styles.zoomTiles} testID="mahjong-zoom-discards">
+            {shown.map((d) => (
+              <Tile key={d.tile} tile={d.tile} width={width} lit={isLast(lastDiscard, index, d.tile)} />
+            ))}
+          </View>
+          {shown.length === 0 ? <Text style={styles.resultNote}>Nothing let go yet.</Text> : null}
+        </ScrollView>
       </View>
     </View>
   );
@@ -542,7 +551,7 @@ const useEscape = (onEscape: () => void) => {
 };
 
 /** The table's options, built like the World's settings: a glass card of rows with switches. */
-const TableOptions = ({ open, top, twoRows, labels, onRows, onLabels, onClose }: { open: boolean; top: number; twoRows: boolean; labels: boolean; onRows: (on: boolean) => void; onLabels: (on: boolean) => void; onClose: () => void }) => {
+const TableOptions = ({ open, top, twoRows, rowsMatter, labels, onRows, onLabels, onClose }: { open: boolean; top: number; twoRows: boolean; rowsMatter: boolean; labels: boolean; onRows: (on: boolean) => void; onLabels: (on: boolean) => void; onClose: () => void }) => {
   const overlay = useOverlayClock(open, 3);
   const { width } = useWindowDimensions();
   useEscape(onClose);
@@ -566,9 +575,12 @@ const TableOptions = ({ open, top, twoRows, labels, onRows, onLabels, onClose }:
           </Pressable>
         </Animated.View>
         <View style={styles.optionsRows}>
-          <Row icon="🀄" title="Bigger hand" note="Your tiles in two rows" style={itemStyle(overlay, 1)}>
-            <Toggle on={twoRows} label="Bigger hand in two rows" onChange={onRows} testID="mahjong-option-rows" />
-          </Row>
+          {/* Where a whole hand fits in one row at the bigger size (a tablet, a desktop window), there's nothing to choose. */}
+          {rowsMatter ? (
+            <Row icon="🀄" title="Bigger hand" note="Your tiles in two rows" style={itemStyle(overlay, 1)}>
+              <Toggle on={twoRows} label="Bigger hand in two rows" onChange={onRows} testID="mahjong-option-rows" />
+            </Row>
+          ) : null}
           <Row icon="🔢" title="Numbers on tiles" note="1–9, E S W N, C F P" style={itemStyle(overlay, 2)}>
             <Toggle on={labels} label="Numbers and letters on tiles" onChange={onLabels} testID="mahjong-option-labels" />
           </Row>
@@ -710,8 +722,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const [rows, setRows] = useWorldSetting("mahjongRows");
   const [labels, setLabels] = useWorldSetting("mahjongLabels");
   const [options, setOptions] = useState(false);
-  const twoRows = handInTwoRows(rows, screenHeight);
   const layout = tableLayout(screenWidth, screenHeight);
+  // One row whenever the whole hand fits in one at the bigger size; otherwise your choice (two rows by default, but one on a short screen).
+  const twoRows = !layout.oneRow && handInTwoRows(rows, screenHeight);
   const handSize = twoRows ? layout.handTwo : layout.hand;
   // Watching, your seat's tiles are a row of backs this wide (or smaller), and the hand keeps only their room.
   const backsSize = Math.round(layout.hand * 0.8);
@@ -812,12 +825,12 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const drawnFrom = { x: -(lastRowWidth / 2 - handSize / 2), y: -compassAbove };
   const fromSeat = { mine: { x: 0, y: handTop + acrossHeight / 2 }, across: { x: 0, y: -(ACROSS_SEAT_HEIGHT / 2 + acrossHeight / 2) } };
   const plate = (i: number, vertical: boolean) => (
-    <SeatPlate seat={seats[i]} index={i} hand={hand} look={lookOf(seats[i])} active={active === i} concealed={concealedOf(i)} nameOf={nameOf} said={saidOf(seats[i])} emote={actOf(seats[i])} forCoins={forCoins} vertical={vertical} inward={i === right ? "left" : "right"} />
+    <SeatPlate seat={seats[i]} index={i} hand={hand} look={lookOf(seats[i])} active={active === i} concealed={concealedOf(i)} nameOf={nameOf} said={saidOf(seats[i])} emote={actOf(seats[i])} forCoins={forCoins} vertical={vertical} inward={i === right ? "left" : "right"} onOpen={setZoomed} />
   );
   const sideSeat = (i: number, turn: number) => (
     <View style={[styles.sideSeat, { height: region }]} testID={`mahjong-player-${i}`}>
       {plate(i, true)}
-      <SeatMelds melds={hand.seats[i].melds} size={melds} turn={turn} calm={calm} seat={meldSeat(i)} testID={`mahjong-melds-${i}`} />
+      <SeatMelds melds={hand.seats[i].melds} size={melds} turn={turn} calm={calm} seat={meldSeat(i)} onOpen={setZoomed} testID={`mahjong-melds-${i}`} />
     </View>
   );
   const riverProps = (i: number) => ({ seat: hand.seats[i], index: i, name: names[i], lastDiscard, from: stage.kind === "claim" && stage.from === i, calm, onOpen: setZoomed });
@@ -861,7 +874,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
         <View style={styles.table} onLayout={(e) => setTableHeight(Math.floor(e.nativeEvent.layout.height))}>
           <View style={styles.acrossSeat} testID={`mahjong-player-${across}`}>
             {plate(across, false)}
-            <SeatMelds melds={hand.seats[across].melds} size={melds} turn={0} calm={calm} seat={meldSeat(across)} testID={`mahjong-melds-${across}`} />
+            <SeatMelds melds={hand.seats[across].melds} size={melds} turn={0} calm={calm} seat={meldSeat(across)} onOpen={setZoomed} testID={`mahjong-melds-${across}`} />
           </View>
           {region > 0 ? (
             <View style={[styles.region, { height: region }]}>
@@ -950,7 +963,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       </View>
       <Callout hand={hand} names={names} calm={calm} />
       {shownZoom !== null ? (
-        <View style={[styles.zoomArea, { bottom: mineHeight }]} pointerEvents="box-none">
+        // Above your own pile, never over it: the claim chips float there, and your hand is below, so a popup never gets in the way of claiming or of your turn.
+        <View style={[styles.zoomArea, { bottom: mineHeight + acrossHeight + TABLE_GAP }]} pointerEvents="box-none">
           <Zoom seat={hand.seats[shownZoom]} index={shownZoom} name={names[shownZoom]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(shownZoom)} meldSeat={meldSeat(shownZoom)} onClose={() => setZoomed(null)} />
         </View>
       ) : null}
@@ -965,7 +979,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
           }}
         />
       ) : null}
-      <TableOptions open={options} top={headerBottom} twoRows={twoRows} labels={labels === "on"} onRows={(on) => setRows(on ? "two" : "one")} onLabels={(on) => setLabels(on ? "on" : "off")} onClose={() => setOptions(false)} />
+      <TableOptions open={options} top={headerBottom} twoRows={twoRows} rowsMatter={!layout.oneRow} labels={labels === "on"} onRows={(on) => setRows(on ? "two" : "one")} onLabels={(on) => setLabels(on ? "on" : "off")} onClose={() => setOptions(false)} />
     </View>
     </TileLabels.Provider>
   );
@@ -1035,6 +1049,10 @@ const styles = StyleSheet.create({
   timerMine: { color: m.lit },
   zoomArea: { position: "absolute", left: 0, right: 0, top: 0 },
   zoomHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  zoomHeadPad: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  zoomScroll: { flexGrow: 0 },
+  zoomBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  zoomLabel: { fontSize: 12, fontWeight: "800", color: m.muted, textTransform: "uppercase", letterSpacing: 0.6 },
   zoomTitle: { flex: 1, textAlign: "left" },
   zoomTiles: { flexDirection: "row", flexWrap: "wrap", gap: RIVER_GAP, justifyContent: "center" },
   mine: { gap: 6, paddingHorizontal: PAD },

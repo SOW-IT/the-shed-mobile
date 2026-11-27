@@ -135,6 +135,11 @@ abandoned (no coins move) if nobody comes back within two minutes.
   (the root layout then drops the sidebar and the drawer, whatever the
   route) and hides the status bar the way a game in play does
   (`FocusedStatusBar`), keeping to the safe area.
+- Your hand is sized to the width (`tableLayout`): one row whenever all
+  14 tiles fit at BIG_TILE (52) or more, else two rows of seven; tiles can
+  grow to a tenth of the window's height (96 at most), and the table to
+  1440 points wide. Another seat's plate, melds and discards all open the
+  same popup (`Zoom`), kept above your own pile where the claim chips float.
 - A claimed meld lays its claimed tile sideways toward the seat it came
   from (`meldOrder`): the giver's side on screen, for every seat.
 

@@ -38,6 +38,16 @@ All notable changes to **The SHED** mobile app. This project follows
   sidebar or navigation drawer beside it on any window, and on iPhone the
   status bar hides too (the table keeps to the safe area). ✕ still leaves,
   and everything comes back when you do.
+- **Your tiles are bigger, and one row wherever they fit.** The hand is
+  sized to the width: two rows of seven on a phone (bigger than before),
+  and on a tablet or a desktop window, where a whole hand fits in one row
+  at that size, one row of much bigger tiles (up to about 96 points on a
+  wide screen; the table now widens to 1440 points). The two-row option
+  only shows where it makes a difference.
+- **Tap an opponent to see their tiles.** Tapping another player's melds,
+  discards or face opens what they've shown and let go. It sits above your
+  own discards, so Pong, Pass and your hand stay free, and ✕, a tap outside
+  or Escape closes it.
 - **Melds show who you claimed from.** In a claimed pung, kong or chow the
   claimed tile lies sideways, on the side of the player it came from: the
   left player's at the left end, the opposite player's in the middle, the

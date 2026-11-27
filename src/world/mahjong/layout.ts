@@ -1,6 +1,10 @@
 /** The table can't be narrower than this unless the screen is; on a wide screen it grows with the window's height. */
 const TABLE_MIN_WIDTH = 560;
-export const TABLE_MAX_WIDTH = 1000;
+export const TABLE_MAX_WIDTH = 1440;
+/** How wide the table may be for its height, on a wide window: room for a big one-row hand. */
+const TABLE_ASPECT = 1.4;
+/** The two-row hand's tile on a phone, about: once a whole hand fits in one row at this size, one row it is. */
+export const BIG_TILE = 52;
 export const PAD = 8;
 export const HAND_GAP = 1;
 export const DRAWN_GAP = 6;
@@ -23,16 +27,28 @@ const MELD_MIN = 8;
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
+/** The biggest hand tile that fits `perRow` tiles (the drawn one set apart) across `inner`. */
+const handFit = (inner: number, perRow: number) => Math.floor((inner - DRAWN_GAP - (perRow - 1) * HAND_GAP) / perRow);
+
+/**
+ * The table's sizes. Your hand is as big as the width allows, up to a
+ * limit that grows with the window's height (so a tablet or a desktop
+ * window gets much bigger tiles than a phone). When the whole hand fits in
+ * one row at BIG_TILE or more (`oneRow`), it's one row; otherwise two rows
+ * of seven (`handTwo`) are bigger.
+ */
 export const tableLayout = (screenWidth: number, screenHeight: number) => {
-  const width = Math.min(screenWidth, clamp(Math.round(screenHeight * 1.1), TABLE_MIN_WIDTH, TABLE_MAX_WIDTH));
+  const width = Math.min(screenWidth, clamp(Math.round(screenHeight * TABLE_ASPECT), TABLE_MIN_WIDTH, TABLE_MAX_WIDTH));
   const inner = width - PAD * 2;
-  const hand = clamp(Math.floor((inner - DRAWN_GAP - 13 * HAND_GAP) / 14), 18, 40);
-  const handTwo = clamp(Math.floor((inner - DRAWN_GAP - 7 * HAND_GAP) / 8), 18, 52);
+  const most = clamp(Math.round(screenHeight * 0.1), BIG_TILE, 96);
+  const oneRow = handFit(inner, 14) >= BIG_TILE;
+  const hand = clamp(handFit(inner, 14), 18, most);
+  const handTwo = clamp(handFit(inner, 7), 18, most);
   const zoom = clamp(Math.floor((Math.min(inner, 400) - 32 - 7 * RIVER_GAP) / 7), 30, 48);
   // A's and C's seat columns run the table's full height; B's and your discards sit between them.
   const centre = inner - 2 * (SIDE_COLUMN + TABLE_GAP);
   const sideWidth = Math.floor((centre - CENTRE - 2 * TABLE_GAP) / 2);
-  return { width, inner, hand, handTwo, zoom, centre, sideWidth, myMeld: clamp(Math.round(hand * 0.7), 14, 26) };
+  return { width, inner, hand, handTwo, oneRow, zoom, centre, sideWidth, myMeld: clamp(Math.round(hand * 0.7), 14, 36) };
 };
 
 type TableLayout = ReturnType<typeof tableLayout>;

@@ -326,7 +326,9 @@ try {
       await shot(host, "table");
       await shot(guest, "table");
       // The table is full screen: at a desktop window and an iPhone SE's it covers the whole window (no app sidebar beside it), with ✕ on screen to leave.
-      for (const [width, height] of [[1280, 800], [375, 667]]) {
+      // From a tablet up the whole hand fits in one row at the bigger size, so it's one row, and the tiles grow with the window.
+      let lastTile = 0;
+      for (const [width, height] of [[375, 667], [820, 1180], [1280, 800], [1920, 1080]]) {
         await host.page.setViewportSize({ width, height });
         await host.page.waitForTimeout(700);
         await shot(host, `table-${width}x${height}`);
@@ -334,9 +336,30 @@ try {
         const leave = await id(host, "mahjong-leave").boundingBox();
         const whole = table && Math.round(table.x) <= 0 && Math.round(table.y) <= 0 && Math.round(table.x + table.width) >= width && Math.round(table.y + table.height) >= height;
         await expect(host, `the table fills the ${width}x${height} window, with ✕ to leave on screen`, Promise.resolve(Boolean(whole && leave && leave.x >= 0 && leave.y >= 0 && leave.x + leave.width <= width && leave.y + leave.height <= height)));
+        const rows = await host.page.locator('[data-testid="mahjong-hand"] > div').count();
+        const tile = (await host.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"]').first().boundingBox())?.width ?? 0;
+        await expect(host, `the hand is one row at ${width}x${height}`, Promise.resolve(rows === 1));
+        if (width > 375) await expect(host, `the hand's tiles grow with the window (${Math.round(tile)} at ${width}x${height})`, Promise.resolve(tile > lastTile));
+        lastTile = tile;
       }
       await host.page.setViewportSize({ width: 430, height: 900 });
       await host.page.waitForTimeout(500);
+      // Tapping an opponent's plate opens their tiles (shown and let go), above your own pile so it never covers your claim chips or hand; ✕ or Escape closes it.
+      const opponent = host.page.locator('[data-testid^="mahjong-plate-"]').first();
+      await opponent.click();
+      await expect(host, "tapping an opponent opens their tiles", appears(host, "mahjong-zoom", 5_000));
+      await expect(host, "the popup shows what they've let go", shown(host, "mahjong-zoom-discards"));
+      await shot(host, "opponent-popup");
+      const popup = await host.page.getByTestId("mahjong-zoom-discards").boundingBox();
+      const hand = await id(host, "mahjong-hand").boundingBox();
+      await expect(host, "the popup stays clear of your hand", Promise.resolve(Boolean(popup && hand && popup.y + popup.height <= hand.y)));
+      await id(host, "mahjong-zoom-close").click();
+      await expect(host, "✕ closes the popup", (async () => (await host.page.getByTestId("mahjong-zoom").count()) === 0)());
+      await opponent.click();
+      await id(host, "mahjong-zoom").waitFor({ timeout: 5_000 }).catch(() => {});
+      await host.page.keyboard.press("Escape");
+      await host.page.waitForTimeout(300);
+      await expect(host, "Escape closes the popup", (async () => (await host.page.getByTestId("mahjong-zoom").count()) === 0)());
     }
     // Midway, the watcher sits in a bot's stool (bots aren't drawn, so it looks free) and is asked to take over.
     if (!tookTable && seen.tableShot && (await host.page.locator('[data-testid^="mahjong-river-"] [aria-label]').count()) > 10) {

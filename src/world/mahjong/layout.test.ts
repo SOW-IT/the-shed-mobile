@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acrossFit, acrossHeightOf, acrossRows, DRAWN_GAP, HAND_GAP, meldOrder, meldRun, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
+import { acrossFit, acrossHeightOf, acrossRows, BIG_TILE, DRAWN_GAP, HAND_GAP, meldOrder, meldRun, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
 
 const PHONE = { width: 402, height: 874 };
 // The table's height below the across seat on that phone with the two-row hand, as the mockup measured it.
@@ -8,9 +8,25 @@ const counts = (n: number) => ({ mine: n, across: n, left: n, right: n });
 
 describe("the table's width", () => {
   it.each([360, 375, 402, 430])("fits a two-row hand of 7 and 7 with the drawn tile apart, bigger than one row, across a %ipx phone", (width) => {
-    const { handTwo, hand } = tableLayout(width, 874);
-    expect(PAD * 2 + 8 * handTwo + 7 * HAND_GAP + DRAWN_GAP).toBeLessThanOrEqual(width);
+    const { handTwo, hand, oneRow } = tableLayout(width, 874);
+    expect(PAD * 2 + 7 * handTwo + 6 * HAND_GAP + DRAWN_GAP).toBeLessThanOrEqual(width);
     expect(handTwo).toBeGreaterThan(hand * 1.5);
+    expect(handTwo).toBeGreaterThanOrEqual(width >= 402 ? 52 : 46);
+    expect(oneRow).toBe(false);
+  });
+
+  it.each([
+    ["a tablet", 820, 1180, 56],
+    ["a tablet on its side", 1180, 820, 78],
+    ["a laptop window", 1280, 800, 76],
+    ["a wide desktop window", 1920, 1080, 96],
+  ])("lays the hand in one row on %s, the tiles much bigger than a phone's", (_, width, height, least) => {
+    const l = tableLayout(width, height);
+    expect(l.oneRow).toBe(true);
+    expect(l.hand).toBeGreaterThanOrEqual(least);
+    expect(PAD * 2 + 14 * l.hand + 13 * HAND_GAP + DRAWN_GAP).toBeLessThanOrEqual(l.width);
+    // Never taller than a tenth of the window (or the two-row size on a phone), so the board keeps its room.
+    expect(l.hand).toBeLessThanOrEqual(Math.max(BIG_TILE, Math.round(height * 0.1)));
   });
 
   it.each([360, 375, 402, 430])("fits a full hand of 14, the drawn tile apart, across a %ipx phone", (width) => {
@@ -19,7 +35,7 @@ describe("the table's width", () => {
   });
 
   it("grows past 560 points on a wide screen, with the window's height, up to a limit", () => {
-    expect(tableLayout(1280, 800).width).toBe(880);
+    expect(tableLayout(1280, 800).width).toBe(1120);
     expect(tableLayout(1920, 1200).width).toBe(TABLE_MAX_WIDTH);
     expect(tableLayout(1280, 400).width).toBe(560);
     expect(tableLayout(PHONE.width, PHONE.height).width).toBe(PHONE.width);
