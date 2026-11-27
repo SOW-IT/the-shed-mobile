@@ -192,9 +192,12 @@ describe("self-drawn wins", () => {
   });
 
   it("can't win below the minimum", () => {
-    const hand = rig({ hands: ["123p 456s 789m 234s 11m 5s", "1m", "2m", "3m"], settings: { minFaan: 5 } });
+    const hand = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 5 } });
     expect(turnOptions(hand, 0).win).toBeNull();
     expect(selfWin(hand, 0)).toEqual({ ok: false, reason: "That hand isn't worth 5 faan." });
+    const enough = rig({ hands: ["123p 456s 789m 234s 11m", "1m", "2m", "3m"], wall: "9p", settings: { minFaan: 4 } });
+    expect(turnOptions(enough, 0).win?.total).toBe(4);
+    expect(selfWin(enough, 0).ok).toBe(true);
   });
 
   it("counts a heavenly hand on the dealer's first 14", () => {

@@ -218,6 +218,7 @@ try {
   await shot(host, "result");
   await shot(guest, "result");
   if (!seen.host.claim && !seen.guest.claim) notes.push("no claim prompt came up for either person this hand");
+  if (!tookTable) notes.push("the hand ended before the watcher could take over a bot, so taking over wasn't checked");
 
   // Play another round: the host asks, then the guest.
   await id(host, "mahjong-again").click();
