@@ -36,6 +36,9 @@ const useClock = (serverNow: () => number, on: boolean) => {
   return now;
 };
 
+/** Whether the lobby is open for you: seated at a table that hasn't started. */
+export const inLobbyAt = (mine: MahjongMine | null, mySeat: string | undefined) => mine !== null && mine.phase === "lobby" && mySeat === mahjongSeatId(mine.table as MahjongTableId, mine.mySeat);
+
 export const playingAtTable = (mine: MahjongMine | null, mySeat: string | undefined) => {
   if (mine === null || mine.phase === "lobby" || mine.hand === null) return false;
   return mine.phase === "ended" || mySeat === mahjongSeatId(mine.table as MahjongTableId, mine.mySeat);
@@ -139,7 +142,7 @@ export const MahjongLayer = ({
   const againM = useMutation(api.mahjong.again);
   const mySeatId = mine ? mahjongSeatId(mine.table as MahjongTableId, mine.mySeat) : null;
   const seatedHere = mine !== null && me?.seat === mySeatId;
-  const inLobby = mine !== null && mine.phase === "lobby" && seatedHere;
+  const inLobby = inLobbyAt(mine, me?.seat);
   const playing = playingAtTable(mine, me?.seat);
   const gotUp = mine !== null && mine.phase === "playing" && !seatedHere && mahjong.inCafe;
   const watched = useQuery(api.mahjong.watching, watch && !playing ? { tableId: watch } : "skip");

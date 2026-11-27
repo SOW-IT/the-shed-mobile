@@ -48,6 +48,22 @@ appId: au.org.sow.theshed
             - tapOn:
                 id: world-menu-close
                 waitToSettleTimeoutMs: 2000
+      # A tap on ✕ while the menu is still opening can miss, and the menu then covers the Café's pad (its Settings
+      # row sits there since the menu grew a Home and a Backyard row). Make sure it's shut before going on.
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-close
+          commands:
+            - waitForAnimationToEnd:
+                timeout: 1500
+            - tapOn:
+                id: world-menu-close
+                waitToSettleTimeoutMs: 2000
+      - extendedWaitUntil:
+          notVisible:
+            id: world-menu-close
+          timeout: 5000
       - extendedWaitUntil:
           visible: "Go to The Café"
           timeout: 30000

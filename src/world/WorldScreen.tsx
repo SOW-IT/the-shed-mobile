@@ -77,7 +77,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
-import { MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
+import { inLobbyAt, MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
 import { mahjongTags, mahjongTap, tableToWatch, takeoverSeats } from "./mahjong/tap";
 import { useMahjong } from "./mahjong/useMahjong";
 
@@ -451,6 +451,8 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  // Sitting down at a mahjong table opens its lobby, which closes the arcade: the arcade's card would cover the lobby's buttons (Table 2 is beside the cabinet).
+  if (arcadeOpen && inLobbyAt(mahjong.mine, me?.seat)) setArcadeOpen(false);
   const mahjongCovers = playingAtTable(mahjong.mine, me?.seat) || (world.place === "cafe" && mahjongWatch !== null);
   if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
