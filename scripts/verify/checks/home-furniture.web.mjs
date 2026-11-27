@@ -3,7 +3,9 @@
 // on it, and a tap on the floor stands you up. Then, decorating, the sofa is
 // dragged with the mouse: nothing is sent while it moves, one moveItem when
 // it's let go, and it stays where it was dropped. A chair taken from the tray
-// is sent nowhere until it's dragged and dropped: then one placeItem.
+// is sent nowhere until it's dragged and dropped: then one placeItem. While
+// decorating, taps just around the beanbag (inside its seat's tap area, which
+// is a little bigger than the piece) never sit you down.
 // The seed (scripts/sweep-seed.mjs) furnishes the admin's home and leaves a
 // second chair in the tray. Mutations are counted from the Convex
 // websocket's frames. The World's accessible targets don't take clicks
@@ -30,10 +32,12 @@ const page = await browser.newPage({ viewport: { width: 430, height: 900 } });
 page.setDefaultTimeout(TIMEOUT_MS);
 
 const sent = [];
+const sat = [];
 page.on("websocket", (ws) =>
   ws.on("framesent", (frame) => {
     const found = /"udfPath":"worldHome:([a-zA-Z]+)"/.exec(String(frame.payload));
     if (found) sent.push(found[1]);
+    if (/"udfPath":"world:sit"/.test(String(frame.payload))) sat.push(Date.now());
   })
 );
 const sentOf = (name) => sent.filter((fn) => fn === name).length;
@@ -101,12 +105,25 @@ try {
 
   // Decorating: drag the sofa. The sofa's first seat, before the tray covers the labels.
   const sofa = await page.getByLabel("Sofa, sit down").boundingBox();
+  const beanbag = await page.getByLabel("Beanbag, sit down").boundingBox();
   const from = { x: sofa.x + sofa.width / 2 + 15, y: sofa.y + sofa.height / 2 + 10 };
   await page.getByTestId("world-decorate-open").click();
   await page.getByTestId("world-decorate").waitFor();
   await page.waitForTimeout(800);
   if ((await page.getByLabel(/, sit down$/).count()) > 0) failures.push("decorating: furniture still offered as seats");
   await shot("decorate");
+  // Taps around the beanbag pick it up or walk, never sit.
+  const sits = sat.length;
+  const middle = { x: beanbag.x + beanbag.width / 2, y: beanbag.y + beanbag.height / 2 };
+  for (const [dx, dy] of [[0, -30], [-35, 0], [35, 0], [0, 25]]) {
+    await page.mouse.click(middle.x + dx, middle.y + dy);
+    await page.waitForTimeout(500);
+    if ((await page.getByLabel("Done moving it").count()) > 0) await page.getByLabel("Done moving it").click();
+  }
+  await page.waitForTimeout(800);
+  if (sat.length !== sits) failures.push(`decorating: a tap by the beanbag sat you down (${sat.length - sits} sit sent)`);
+  if ((await page.getByTestId("world-decorate").count()) === 0) failures.push("decorating: a tap by the beanbag closed the tray");
+  await shot("decorate-taps");
   const moves = sentOf("moveItem");
   const letGo = await drag(from, { x: from.x + 20, y: from.y + 130 }, "sofa");
   await shot("sofa-held");
@@ -150,7 +167,7 @@ console.log(`Sent: ${sent.join(", ")}`);
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Home: a chair, beanbag, sofa and bed each seat you and a floor tap stands you up; a dragged sofa sends one moveItem when let go, and a chair from the tray one placeItem when put down."
+    ? "Home: a chair, beanbag, sofa and bed each seat you and a floor tap stands you up; decorating, taps by the beanbag don't; a dragged sofa sends one moveItem when let go, and a chair from the tray one placeItem when put down."
     : `${failures.length} step(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);
