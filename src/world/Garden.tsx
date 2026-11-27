@@ -42,6 +42,7 @@ import type { DrawnPose, Gait } from "./gait";
 import { Marker } from "./Marker";
 import { HUD_HEIGHT, PersonHud, type HudAction } from "./PersonHud";
 import { Ellipse, Shape } from "./Shapes";
+import type { HighlightTarget, InteractivePropId } from "./tripTarget";
 import type { PlayingTag } from "./cafe";
 import { duelLookFor, type DuelView } from "./duel";
 import { AMBIENT_FRAME_MS, planClock, shouldRefreshClock, useFrameTicks } from "./frameClock";
@@ -113,8 +114,6 @@ export type GardenYard = {
   onLeft: (id: string) => void;
 };
 
-export type InteractivePropId = "arcade" | "noticeboard" | "notices" | "piano" | "lectern";
-export type HighlightTarget = { kind: "prop"; id: InteractivePropId } | { kind: "seat"; id: string };
 
 const INTERACTIVE_PROPS = new Set<string>(["arcade", "noticeboard", "notices", "piano", "lectern"]);
 const isInteractiveProp = (value: string | undefined): value is InteractivePropId =>
@@ -743,7 +742,7 @@ export const Garden = ({
       actors.push({
         depth: pen.middle.depth,
         key: `animals-${id}`,
-        node: <PenAnimals slots={BUILDINGS[id].capacity} pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} />,
+        node: <PenAnimals slots={BUILDINGS[id].capacity} pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} highlight={highlighted?.kind === "animal" ? highlighted.id : null} />,
       });
     }
     // With onYardCardAt the World draws the animal card itself, in front of its chat log.
@@ -791,7 +790,24 @@ export const Garden = ({
           ),
         });
       }
-    } else {
+    } else if (highlighted.kind === "plot") {
+      const spot = place === BACKYARD ? PLOTS[highlighted.plot] : undefined;
+      if (spot) {
+        const at = cam.project([spot.x, 0.03, spot.z]);
+        const rx = (PLOT_SIZE.w / 2 + 0.22) * at.scale * pulse;
+        const ry = (PLOT_SIZE.d / 2 + 0.22) * at.scale * 0.58 * pulse;
+        actors.push({
+          depth: at.depth + 0.5,
+          key: "highlight",
+          node: (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="world-highlight">
+              <Ellipse cx={at.x} cy={at.y} rx={rx * 1.18} ry={ry * 1.18} fill={garden.highlightGlow} opacity={glowOpacity} />
+              <Ellipse cx={at.x} cy={at.y} rx={rx} ry={ry} fill="transparent" ink={saver ? 2 : 3} inkColour={garden.highlight} opacity={ringOpacity} />
+            </View>
+          ),
+        });
+      }
+    } else if (highlighted.kind === "seat") {
       const seat = seatIn(place, highlighted.id);
       if (seat) {
         const at = cam.project([seat.x, seat.height + 0.03, seat.z]);

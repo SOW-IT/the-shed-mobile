@@ -2,19 +2,19 @@ import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SharpScrollView } from "@/components/ui/SharpScrollView";
 import { FURNITURE, FURNITURE_IDS, MAX_OWNED_EACH, WALLPAPER_IDS, WALLPAPERS, type FurnitureId, type WallpaperId } from "@shared/home";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { GoldCoin } from "@/components/games/GoldCoin";
-import { blurBehind, Bust, itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
+import { blurBehind, Bust, itemStyle, NameAnimalDialog, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
 import { glass, gold, hud } from "./palette";
 import { FurnitureThumb, WallpaperSwatch } from "./Thumb";
 import { bagStacks, CROP_IDS, CROPS, MAX_SEED_BUY, sellAllTotal, stackLabel, type CropId } from "@shared/farm";
 import { CropThumb, SeedCluster } from "./Farm";
-import { FEED_BUYS, FEED_IDS, FEEDS, GOODS, goodsList, goodsTotal, NAME_TAG_PRICE, type FeedId } from "@shared/animals";
-import { FeedThumb, GoodThumb, TagThumb } from "./Animals";
+import { ANIMALS, BUILDINGS, buildingFor, cleanName, FEED_BUYS, FEED_IDS, FEEDS, GOODS, goodsList, goodsTotal, life, NAME_MAX, NAME_TAG_PRICE, type AnimalId, type FeedId } from "@shared/animals";
+import { AnimalThumb, FeedThumb, GoodThumb, TagThumb } from "./Animals";
 import { KEEPERS, SHOP_TABS, type Keeper, type Tab } from "./shopTabs";
 import { Days } from "./FarmPanels";
 
@@ -28,10 +28,13 @@ type FarmShop = {
   buySeeds: (crop: string, count: number) => Promise<string | null>;
   buyFeed: (feed: string, count: number) => Promise<string | null>;
   buyNameTag: () => Promise<string | null>;
+  buyAnimal: (kind: AnimalId, name: string) => Promise<string | null>;
+  suggestName: (kind: AnimalId) => string;
+  serverNow: () => number;
   sell: (stack?: string) => Promise<{ coins: number } | string>;
 };
 
-
+const ANIMAL_IDS = Object.keys(ANIMALS) as AnimalId[];
 
 const Price = ({ amount }: { amount: number }) => (
   <View style={styles.price}>
@@ -70,6 +73,8 @@ export const ShopPanel = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [many, setMany] = useState(1);
+  const [naming, setNaming] = useState<{ kind: AnimalId; open: boolean }>({ kind: "chicken", open: false });
+  const [name, setName] = useState("");
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -77,9 +82,11 @@ export const ShopPanel = ({
       setError(null);
       setPicked(null);
       setMany(1);
+      setNaming((was) => ({ ...was, open: false }));
     }
   }
   const buy = useMutation(api.worldHome.buy);
+  const pens = useQuery(api.animals.pens, open && keeper === "josh" ? {} : "skip");
   if (!overlay.mounted) return null;
   const panelWidth = Math.min(440, width - 28);
   const tile = Math.floor((panelWidth - 24 - 16 - 6) / 3);
@@ -113,6 +120,32 @@ export const ShopPanel = ({
     if (problem) setError(problem);
     else onBought("Name tag bought.");
   };
+  const now = farm.serverNow();
+  const stock = (id: AnimalId) => {
+    const building = BUILDINGS[buildingFor(id)];
+    const built = pens?.buildings.includes(buildingFor(id)) ?? false;
+    const here = (pens?.animals ?? []).filter((a) => a.kind === id && life(a, now).mood !== "gone").length;
+    const note = pens === undefined ? "" : !built ? `Needs a ${building.short.toLowerCase()} in your backyard` : `${here} / ${building.capacity} in your ${building.short.toLowerCase()}`;
+    return { building, room: built && here < building.capacity, note };
+  };
+  const pickAnimal = (id: AnimalId) => {
+    setError(null);
+    setName(farm.suggestName(id));
+    setNaming({ kind: id, open: true });
+  };
+  const sendAnimal = async (id: AnimalId) => {
+    setBusy(true);
+    setError(null);
+    const problem = await farm.buyAnimal(id, name);
+    setBusy(false);
+    if (problem) setError(problem);
+    else {
+      setNaming({ kind: id, open: false });
+      onBought(`${cleanName(name) ?? name} is in your ${stock(id).building.short.toLowerCase()}.`);
+    }
+  };
+  const namingYoung = ANIMALS[naming.kind].stages[0].toLowerCase();
+  const namingPrice = ANIMALS[naming.kind].price;
   const seedCost = (id: string) => CROPS[id as CropId].seed * many;
   const sendSeeds = async (id: string) => {
     setBusy(true);
@@ -272,6 +305,43 @@ export const ShopPanel = ({
               </Pressable>
             </View>
             {error && !choice ? (
+              <Text style={[styles.error, styles.full]} numberOfLines={2}>
+                {error}
+              </Text>
+            ) : null}
+          </SharpScrollView>
+        ) : tab === "animals" ? (
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+            {ANIMAL_IDS.map((id, i) => {
+              const { room, note } = stock(id);
+              const price = ANIMALS[id].price;
+              const off = busy || pens === undefined || !room || balance < price;
+              return (
+                <Animated.View key={id} style={[styles.stack, itemStyle(overlay, 2 + i)]} testID={`world-shop-animal-${id}`}>
+                  <AnimalThumb kind={id} stage={0} size={40} />
+                  <View style={styles.feedText}>
+                    <Text style={styles.stackName} numberOfLines={1}>
+                      {ANIMALS[id].label}
+                    </Text>
+                    <Text style={styles.stockText} numberOfLines={1}>
+                      {note}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => pickAnimal(id)}
+                    disabled={off}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Buy a ${ANIMALS[id].stages[0].toLowerCase()} for ${price} coins`}
+                    testID={`world-shop-animal-${id}-buy`}
+                    style={({ pressed }) => [styles.animalBuy, off && styles.buyOff, pressed && styles.pressed]}
+                  >
+                    <GoldCoin size={16} />
+                    <Text style={styles.plusText}>{price}</Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+            {error && !naming.open ? (
               <Text style={[styles.error, styles.full]} numberOfLines={2}>
                 {error}
               </Text>
@@ -447,6 +517,31 @@ export const ShopPanel = ({
           </View>
         ) : null}
       </Animated.View>
+      <NameAnimalDialog
+        open={open && naming.open}
+        top={top}
+        title={`Name your ${namingYoung}`}
+        text="Pick a name, or keep this one."
+        art={<AnimalThumb kind={naming.kind} stage={0} size={56} />}
+        name={name}
+        maxLength={NAME_MAX}
+        price={
+          <>
+            <GoldCoin size={16} />
+            <Text style={styles.buyText}>Buy · {namingPrice}</Text>
+          </>
+        }
+        buyLabel={`Buy for ${namingPrice} coins`}
+        canBuy={!busy && stock(naming.kind).room && balance >= namingPrice && cleanName(name) !== null}
+        busy={busy}
+        error={naming.open ? error : null}
+        onName={setName}
+        onCancel={() => {
+          setError(null);
+          setNaming((was) => ({ ...was, open: false }));
+        }}
+        onBuy={() => void sendAnimal(naming.kind)}
+      />
     </View>
   );
 };
@@ -472,6 +567,8 @@ const styles = StyleSheet.create({
   feedText: { flex: 1, gap: 2, alignItems: "flex-start" },
   plus: { minWidth: 40, height: 32, paddingHorizontal: 8, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: hud.accent },
   plusText: { color: hud.onAccent, fontWeight: "800", fontSize: 14 },
+  stockText: { color: glass.muted, fontSize: 12, fontWeight: "600" },
+  animalBuy: { flexDirection: "row", alignItems: "center", gap: 5, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: hud.accent },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   list: { gap: 6, paddingHorizontal: 12, paddingBottom: 12 },
   empty: { color: glass.muted, fontSize: 14, fontWeight: "600", textAlign: "center", paddingVertical: 18 },
