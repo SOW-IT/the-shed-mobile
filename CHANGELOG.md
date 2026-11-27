@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.41] - 2026-11-27
+## [2.13.44] - 2026-11-27
 
 ### Fixed
 - **The web sweep builds the World's screen before it starts timing
@@ -23,6 +23,39 @@ All notable changes to **The SHED** mobile app. This project follows
   out on CI.** All 30 worlds ran as one test, which took 172–230 s on CI
   against a 240 s limit and failed twice. It's now one test per world,
   each with a 60 s limit, checking the same three seeds.
+## [2.13.42] - 2026-11-27
+
+### Changed
+- **Café Games asks "Are you sure you want to leave?" before you go back.**
+  Two players sharing a phone could lose a game of Four in a Row to one
+  stray tap on the back arrow. Every way back out of Café Games now asks
+  first, with Leave and Stay, in all four games and in the picker, during a
+  game and after it: the back arrow, the swipe back from the left edge on
+  iOS, the browser's back button, and Escape on web. During a game the
+  dialog adds "This game ends if you leave." Stay keeps everything as it
+  was. Leave goes back one step, as the back arrow always has: from a game
+  to the picker, and from the picker to the Games list. Offline, Escape
+  used to close the whole offline games window from inside a Café game;
+  now it asks too, and while the question is up Escape answers Stay. On the
+  Café Games page, reloading or closing the browser tab now gets the
+  browser's own leave-page prompt. The online Café tables in the World
+  aren't changed.
+
+## [2.13.41] - 2026-11-27
+
+### Changed
+- **Home is hidden for now.** It's gone from the bottom tabs and from the
+  sidebar on wide screens, for everyone. Signed out, the app opens on People.
+  Signed in, it opens where it did before: People if you don't have a staff
+  role, Attendance for campus leaders, and Reimbursements for other staff.
+  Anything that used to lead to Home goes to one of those screens instead.
+  That covers the sign-out and Delete account landings, "Go home" on Page not
+  found, Back when there's nowhere to go back to, the "Waiting on you"
+  reminder email and notification, and old links to `/home`. While Home is
+  hidden, its pages (Home, Resources, Connect, Partner), the contact form,
+  "Waiting on you" and Edit Home can't be reached. Nothing is deleted, and
+  setting `HOME_TAB_SHOWN` in `shared/homeContent.ts` back to true brings
+  Home back.
 
 ## [2.13.40] - 2026-11-27
 

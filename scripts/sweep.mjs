@@ -119,7 +119,7 @@ const screenshot = async (name) => {
 };
 
 const WARM_UP_TIMEOUT_MS = 180_000;
-await openPage(`${BASE}/home`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
+await openPage(`${BASE}/org`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
 await page
   .waitForFunction(() => document.body.innerText.trim().length > 0, null, { timeout: WARM_UP_TIMEOUT_MS })
   .catch(() => {});

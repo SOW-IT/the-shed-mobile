@@ -65,7 +65,7 @@
     "convex/{environment,schema,auth,auth.config,http,crons,model,pagination,googleAuth,appleIdentity,appleRevoke,userLink,emails,comments,history,presence,actingAs,actingAsData,profile}.ts",
     "shared/{datetime,numbers,deepLinks,appLinks,typedConfirm,staffOnly,actingAs,appPresence}.ts"
   ],
-  "smoke": ["/", "/home"],
+  "smoke": ["/", "/org"],
   "areas": {
     "home": {
       "files": [
@@ -258,7 +258,7 @@
         "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
       "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"],
-      "checks": ["arcade-podium", "game-over-back"]
+      "checks": ["arcade-podium", "game-over-back", "cafe-back-confirm"]
     },
     "world": {
       "files": [

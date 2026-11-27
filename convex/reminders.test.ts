@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { SYDNEY_TIME_ZONE, staffYearStartMs } from "../shared/flow";
 import { MARKETING_TEAM_EMAIL, type DesignAnswers } from "../shared/designRequests";
 import { type FormAnswers } from "../shared/forms";
+import { HOME_LINKS } from "../shared/homeContent";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
@@ -704,7 +705,7 @@ describe("unread comment reminders", () => {
 });
 
 describe("the daily digest", () => {
-  test("one person with several kinds waiting gets one notification and one email, pointing at Home", async () => {
+  test("one person with several kinds waiting gets one notification and one email, pointing at Home (or where the app opens while Home is hidden)", async () => {
     const t = await setup();
     await asUser(t, MARY).mutation(api.requests.submit, { description: "Paint", amount: 40 });
     await submitDesign(t);
@@ -717,7 +718,7 @@ describe("the daily digest", () => {
     expect(notes[0]).toMatchObject({
       title: "Waiting on you",
       body: "1 reimbursement request and 1 design request are waiting on you.",
-      url: "/home",
+      url: HOME_LINKS.home,
     });
     const mail = await emailsTo(t, HENRY);
     expect(mail).toHaveLength(1);
