@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.51] - 2026-11-27
+## [2.13.53] - 2026-11-27
 
 ### Changed
 - **CI's web sweep now opens only the screens a pull request can affect, for
@@ -18,6 +18,22 @@ All notable changes to **The SHED** mobile app. This project follows
   docs/tests/static-only PRs skip Playwright, local Convex and Expo altogether,
   and changes to core files, unmapped files, sweep/CI tooling or pushes to
   `main` still sweep every screen. Nothing in the app changes.
+
+## [2.13.52] - 2026-11-27
+
+### Fixed
+- **Swoop in a tall browser window has even black borders again, with no
+  band left above the board.** Since 2.13.6 (#557), a screen outside Swoop's
+  shapes, such as a desktop browser window taller than it is wide, gets plain
+  black borders around the board. The sky kept to the board, but the ground
+  kept drawing down to the world's floor, and the far hills hung below the
+  board, past it to the bottom of the window, so the only black border left
+  was a band above the game. The whole scene now stops where the scenery
+  does, so the borders above and below match, like Mystic Man's. Phones are
+  unchanged: Swoop is turned sideways there, and the ground still fills the
+  safe areas to the screen's edge. A normal desktop window is still filled
+  edge to edge. A new `swoop-letterbox` verify check measures both windows on
+  web.
 
 ## [2.13.50] - 2026-11-27
 
