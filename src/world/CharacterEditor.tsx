@@ -98,6 +98,7 @@ const EXTRAS_SHOT = 170;
 /** How far below the feet the soles of the shoes reach (times the scale). */
 const SOLES = 0.06;
 const CLOSEST = 320;
+const FACE_FOCUS = 0.12;
 const ZOOM_THUMB = 24;
 
 type Shot = PreviewShot;
@@ -116,7 +117,7 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
   if (shot === "face") {
     // Close up on the face while you work on it, so a slider's step shows.
     const s = CLOSE_UP * zoom;
-    return { s, y: height * 0.56 + neck * s };
+    return { s, y: height * 0.56 + neck * s, focus: neck - FACE_FOCUS };
   }
   if (shot === "eyes" || shot === "brows" || shot === "mouth") {
     // Closer still, on the one part. The camera stays put while a slider

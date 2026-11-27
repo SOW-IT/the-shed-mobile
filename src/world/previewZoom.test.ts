@@ -54,6 +54,19 @@ describe("previewZoom", () => {
     expect(focus(closer)).toBeCloseTo(focus(eyes));
   });
 
+  it("zooming in on a shot with its own focus keeps that point where the shot put it", () => {
+    const face = { s: 280, y: 400, focus: 0.9 };
+    const faceView = { full, tab: face, height: HEIGHT, limits: zoomLimits(full, face, 640) };
+    const at = (frame: { s: number; y: number }) => frame.y - 0.9 * frame.s;
+    const closer = zoomFrame(faceView, 1);
+    expect(closer.s).toBeCloseTo(640);
+    expect(at(closer)).toBeCloseTo(at(face));
+    const own = zoomFrame(faceView, zoomOf(face.s, faceView.limits));
+    expect(own.y).toBeCloseTo(face.y);
+    const out = zoomFrame(faceView, 0);
+    expect(out.y).toBeCloseTo(full.y);
+  });
+
   it("zooming out moves smoothly from the part toward the whole character", () => {
     const start = zoomOf(eyes.s, limits);
     const frames = [1, 0.75, 0.5, 0.25, 0].map((k) => zoomFrame(view, start * k));

@@ -1,6 +1,6 @@
 import type { PreviewShot } from "./previewMotion";
 
-type ZoomFrame = { s: number; y: number };
+type ZoomFrame = { s: number; y: number; focus?: number };
 type ZoomLimits = { low: number; high: number };
 export type ManualZoom = { shot: PreviewShot; zoom: number } | null;
 
@@ -32,12 +32,14 @@ export const zoomFrame = (
   if (zoom === null) return tab;
   const s = scaleOf(zoom, limits);
   const middle = height / 2;
-  const tabFocus = (tab.y - middle) / tab.s;
+  const tabFocus = tab.focus ?? (tab.y - middle) / tab.s;
+  const tabFocusAt = tab.y - tabFocus * tab.s;
   const fullFocus = (full.y - middle) / full.s;
   const widerThanTab = Math.log(tab.s / limits.low);
   const towardTab = s >= tab.s || widerThanTab <= 0 ? 1 : Math.log(s / limits.low) / widerThanTab;
   const focus = fullFocus + (tabFocus - fullFocus) * towardTab;
-  return { s, y: middle + focus * s };
+  const focusAt = middle + (tabFocusAt - middle) * towardTab;
+  return { s, y: focusAt + focus * s };
 };
 
 export const pinchZoom = (start: number, ratio: number, limits: ZoomLimits) => {
