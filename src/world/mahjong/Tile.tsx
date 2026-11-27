@@ -79,7 +79,7 @@ export const Tile = memo(function Tile({
     );
   }
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tileLabel(tile)} accessibilityState={{ selected: lifted }} testID={testID} hitSlop={2}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tileLabel(tile)} aria-selected={lifted} testID={testID} hitSlop={2}>
       {body}
     </Pressable>
   );

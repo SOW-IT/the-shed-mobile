@@ -825,7 +825,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
               <Text style={styles.watchText}>Watching</Text>
             </View>
           ) : null}
-          <Pressable onPress={() => setOptions((was) => !was)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Table options" accessibilityState={{ expanded: options }} testID="mahjong-options" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Pressable onPress={() => setOptions((was) => !was)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Table options" aria-expanded={options} testID="mahjong-options" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
             <Ionicons name="options" size={18} color={m.text} />
           </Pressable>
           <Pressable onPress={leave} hitSlop={8} accessibilityRole="button" accessibilityLabel={mySeat === null ? "Stop watching" : "Leave the table"} testID="mahjong-leave" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
