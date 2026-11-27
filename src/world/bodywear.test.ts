@@ -4,6 +4,10 @@ import {
   bodyHalfWidth,
   bodySurface,
   bowTiePose,
+  HOOD,
+  HOODIE_POCKET,
+  hoodPose,
+  hoodRim,
   necklacePose,
   PLAID_ANGLES,
   POLKA_DOTS,
@@ -122,6 +126,90 @@ describe("backpackPose", () => {
     expect(diag.pocket).not.toBeNull();
     expect(diag.pocket!.left).toBeGreaterThanOrEqual(diag.left);
     expect(diag.pocket!.left + diag.pocket!.width).toBeLessThanOrEqual(diag.left + diag.width);
+  });
+});
+
+describe("the hoodie", () => {
+  const CHIN = 0.6;
+
+  test("the hood is one pouch on the back: centred from the front and behind, behind the spine side-on", () => {
+    const f = hoodPose(FRONT, CHIN);
+    const b = hoodPose(BACK, CHIN);
+    const r = hoodPose(RIGHT, CHIN);
+    const l = hoodPose(LEFT, CHIN);
+    expect(f.centre.x).toBeCloseTo(100);
+    expect(b.centre.x).toBeCloseTo(100);
+    // Facing right, the back (and the hood) is on the left, and the other way round.
+    expect(r.centre.x).toBeLessThan(100 - bodyHalfWidth(CHIN) * 50);
+    expect(l.centre.x).toBeGreaterThan(100 + bodyHalfWidth(CHIN) * 50);
+    expect(r.rx).toBeLessThan(f.rx);
+    expect(f.rx).toBeCloseTo(b.rx);
+  });
+
+  test("it is drawn behind the head and body until it turns to the near side, and only then shows its opening and seam", () => {
+    const f = hoodPose(FRONT, CHIN);
+    const b = hoodPose(BACK, CHIN);
+    expect(f.layer).toBe("behind");
+    expect(f.opening).toBeNull();
+    expect(f.seam).toBeNull();
+    expect(b.layer).toBe("over");
+    expect(b.opening).not.toBeNull();
+    expect(b.seam).not.toBeNull();
+    expect(b.opening!.centre.y).toBeLessThan(b.centre.y);
+  });
+
+  test("turning all the way round, the hood slides smoothly, with no jump to a second hood", () => {
+    let prev = hoodPose(view(-Math.PI), CHIN);
+    for (let i = 1; i <= 720; i++) {
+      const next = hoodPose(view(-Math.PI + (i / 720) * Math.PI * 2), CHIN);
+      expect(Math.abs(next.centre.x - prev.centre.x)).toBeLessThan(1);
+      expect(Math.abs(next.centre.y - prev.centre.y)).toBeLessThan(1e-9);
+      expect(Math.abs(next.rx - prev.rx)).toBeLessThan(1);
+      prev = next;
+    }
+  });
+
+  test("it moves with the body when it leans, bobs or grows", () => {
+    const still = hoodPose(BACK, CHIN);
+    const leaning = hoodPose({ ...BACK, dx: 0.08 }, CHIN);
+    const bobbing = hoodPose({ ...BACK, bob: 0.05 }, CHIN);
+    const tall = hoodPose(view(Math.PI, 1, 1.2), CHIN);
+    // Like every point on the body, it leans in proportion to its height.
+    expect(leaning.centre.x - still.centre.x).toBeCloseTo(0.08 * (CHIN - HOOD.drop) * 50);
+    expect(bobbing.centre.y - still.centre.y).toBeCloseTo(-0.05 * 43);
+    expect(tall.centre.y).toBeLessThan(still.centre.y);
+    expect(tall.ry).toBeGreaterThan(still.ry);
+  });
+
+  test("the hood's edge and drawstrings are on the front of the body and hide from behind", () => {
+    const f = hoodRim(FRONT, CHIN);
+    const b = hoodRim(BACK, CHIN);
+    expect(f.rim.length).toBe(8);
+    expect(f.strings.map((x) => x.side)).toEqual([-1, 1]);
+    // Low in the middle of the front, rising to the sides.
+    const mid = f.rim[3].b;
+    expect(mid.x).toBeCloseTo(100);
+    expect(mid.y).toBeGreaterThan(f.rim[0].a.y);
+    expect(b.rim).toEqual([]);
+    expect(b.strings).toEqual([]);
+  });
+
+  test("side-on, the edge and strings move to the side the body faces", () => {
+    const r = hoodRim(RIGHT, CHIN);
+    // Only the near drawstring shows.
+    expect(r.strings.map((x) => x.side)).toEqual([-1]);
+    for (const str of r.strings) expect(str.a.x).toBeGreaterThan(100);
+    expect(r.rim.length).toBeGreaterThan(0);
+    expect(r.rim.length).toBeLessThan(8);
+  });
+
+  test("the pocket is on the front: whole from the front, to one side side-on, gone from behind", () => {
+    const strip = (v: BodyView) => surfaceStrip(v, 0.38, 0.29, HOODIE_POCKET.top, HOODIE_POCKET.bottom);
+    const f = strip(FRONT)!;
+    expect((f[0].x + f[1].x) / 2).toBeCloseTo(100);
+    const r = strip(RIGHT)!;
+    expect(r[0].x).toBeGreaterThan(100);
+    expect(strip(BACK)).toBeNull();
   });
 });
 
