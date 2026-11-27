@@ -22,7 +22,6 @@ import {
   glassesTemples,
   HAT_PITCH,
   headPoint,
-  hoodLayer,
   mohawkPoints,
   ponytailPose,
   projectOnHead,
@@ -38,6 +37,9 @@ import {
   backpackPose,
   bodyHalfWidth,
   bowTiePose,
+  HOODIE_POCKET,
+  hoodPose,
+  hoodRim,
   necklacePose,
   PLAID_ANGLES,
   POLKA_DOTS,
@@ -52,6 +54,7 @@ import {
 import { FACE_MIN } from "./talk";
 import { AFRO_RISE, sitsOnAfro, tagRise } from "./hatHeight";
 import { strideBob, strideSwing } from "./gait";
+import { limbsFor } from "./limbs";
 import { seatedFoot } from "./sitFoot";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -155,6 +158,10 @@ const SWIM_SINK = 0.4;
 const LAP_HEIGHT = 0.24;
 const SHOULDER_HEIGHT = 0.6;
 const ARM_RAISED = 0.85;
+/** How much a hand or foot moving forward (toward the camera, facing it) drops on screen. */
+const FORESHORTEN = 0.5;
+/** How much of a hand's forward swing shows across the screen, seen side on. */
+const SWING_ACROSS = 0.3;
 
 export const sitRise = (seatHeight: number | undefined, look: Look) =>
   seatHeight === undefined
@@ -468,6 +475,7 @@ const AvatarView = ({
   shadow = true,
   swim = false,
   talk,
+  sway = false,
 }: {
   figure: Figure;
   pose: Pose;
@@ -480,9 +488,14 @@ const AvatarView = ({
   shadow?: boolean;
   swim?: boolean;
   talk?: boolean;
+  /** Breathe and sway gently while standing still (t keeps ticking). */
+  sway?: boolean;
 }) => {
   const { foot, s, up } = figure;
   const move = motion(doing, t);
+  // Arms and feet move with the body: they swing and step on the stride
+  // that bobs it, and follow its sway standing still.
+  const limbs = limbsFor(swim ? undefined : stride, sway && !swim && !doing ? { t, seed } : null);
   if (swim && !move.hands.l && !move.hands.r) {
     const reach = pose.walking ? 1 : 0.3;
     for (const e of [-1, 1] as const) {
@@ -493,9 +506,9 @@ const AvatarView = ({
     }
     move.hands.front = true;
   }
-  const bob = figure.bob + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
+  const bob = figure.bob + limbs.breath + move.lift - move.sink + sitRise(sit, look) - (swim ? swimSink(look) : 0);
   const ink = Math.max(1.2, 0.035 * s);
-  const dx = move.shake + move.lean;
+  const dx = move.shake + move.lean + limbs.sway;
   // Height and build stretch the body; the head stays the same size.
   const body = bodyScale(look);
   const at = (x: number, y: number) => ({
@@ -708,8 +721,10 @@ const AvatarView = ({
   const seated = sit !== undefined;
   const feet = () => {
     for (const e of [-1, 1] as const) {
+      const step = limbs.feet[e < 0 ? 0 : 1];
       const p = !seated
-        ? { x: foot.x + 0.12 * e * s, y: foot.y - (0.08 + move.lift) * up }
+        ? // Side on, the feet close up so a step crosses one past the other.
+          { x: foot.x + (0.12 * e * (0.5 + 0.5 * Math.abs(facing)) + side * step.fwd) * s, y: foot.y - (0.08 + move.lift + step.up - facing * step.fwd * FORESHORTEN) * up }
         : seatedFoot({ foot, s, up, sit, facing, side, e });
       parts.push(<Ellipse key={`foot${e}`} cx={p.x} cy={p.y} rx={0.1 * s} ry={0.09 * s} fill={people.favourites[favourite]} ink={ink * 0.8} inkColour={garden.ink} />);
     }
@@ -786,7 +801,9 @@ const AvatarView = ({
       const rest = at(hand[0], hand[1]);
       return [shoulder, { x: rest.x + (doing.reach.x - rest.x) * k, y: rest.y + (doing.reach.y - rest.y) * k }] as const;
     }
-    return [shoulder, hand ? at(hand[0], hand[1]) : at(0.4 * e, 0.34 + swing * e)] as const;
+    if (hand) return [shoulder, at(hand[0], hand[1])] as const;
+    const { fwd, up: rise } = limbs.hands[e < 0 ? 0 : 1];
+    return [shoulder, at(0.4 * e + limbs.handsAcross + side * fwd * SWING_ACROSS, 0.34 + rise - facing * fwd * FORESHORTEN)] as const;
   };
   const arms = (layer: "back" | "front" | "over") => {
     for (const e of [-1, 1]) {
@@ -799,15 +816,20 @@ const AvatarView = ({
     }
   };
   const outfit = lookPart(look, "outfit");
-  const hood = outfit === 5 ? hoodLayer(facing) : null;
+  // A hoodie's hood: one pouch on the back of the neck that turns with the
+  // body, drawn here (behind the head and body) or after the hair (seen from behind).
+  const hood = outfit === 5 ? hoodPose(bodyView, chin) : null;
   const hoodFill = shade(shirt, -0.18);
-  if (hood === "behind") ball("hood", head.x - side * 0.1 * s, head.y + r * 0.72, r * 0.98, hoodFill);
+  const drawHood = () => {
+    if (!hood) return;
+    parts.push(<Ellipse key="hood" cx={hood.centre.x} cy={hood.centre.y} rx={hood.rx} ry={hood.ry} fill={hoodFill} ink={ink * 1.1} inkColour={garden.ink} ramp />);
+    const open = hood.opening;
+    if (open) parts.push(<Ellipse key="hoodInside" cx={open.centre.x} cy={open.centre.y} rx={open.rx} ry={open.ry} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
+    if (hood.seam) parts.push(capsule(hood.seam.a, hood.seam.b, 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
+  };
+  if (hood?.layer === "behind") drawHood();
   arms("back");
   if (pack && !pack.over) drawBackpack("packBehind");
-  if (hood && Math.abs(side) > 0.35) {
-    const nape = at(-Math.sign(side) * 0.27, chin + 0.02);
-    parts.push(<Ellipse key="hoodCurve" cx={nape.x} cy={nape.y} rx={0.15 * s} ry={0.2 * body.height * up} fill={hoodFill} ink={ink * 0.8} inkColour={garden.ink} ramp />);
-  }
   // Bottoms, unless the outfit has its own (a dress, a skirt, overalls). With
   // them the top stops at the waist.
   const pants = FULL_OUTFITS.includes(outfit) ? 0 : lookPart(look, "pants");
@@ -983,13 +1005,19 @@ const AvatarView = ({
   if (hood) {
     const hemTop = Math.max(chin, 0.36);
     if (pants > 0) piece("hoodieHem", shirt, hemTop, 0.27, halfWidth(hemTop), halfWidth(0.27) + 0.02, 10);
-    if (hood === "behind") {
-      const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
-      piece("pocket", shade(shirt, -0.14), pocketBottom + 0.09, pocketBottom, halfWidth(pocketBottom + 0.09) - 0.05, halfWidth(pocketBottom) - 0.04, 8);
-      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s + ink * 2, garden.ink, "hoodRimInk"));
-      parts.push(capsule(at(-0.14, chin), at(0.14, chin), 0.05 * s, hoodFill, "hoodRim"));
-      for (const e of [-1, 1]) parts.push(capsule(at(0.05 * e, chin - 0.01), at(0.06 * e, chin - 0.13), 0.03 * s, people.drawstring, `string${e}`));
+    // The front pocket, the hood's edge round the neck and the drawstrings
+    // all sit on the body, so they turn with it and hide from behind.
+    const pocketBottom = pants > 0 ? 0.29 : hem + 0.03;
+    const pocketInk = surfaceStrip(bodyView, pocketBottom + 0.09, pocketBottom, HOODIE_POCKET.top, HOODIE_POCKET.bottom, ink);
+    const pocketFill = surfaceStrip(bodyView, pocketBottom + 0.09, pocketBottom, HOODIE_POCKET.top, HOODIE_POCKET.bottom, 0);
+    if (pocketInk && pocketFill) {
+      parts.push(quad(pocketInk, garden.ink, "pocketInk", 8));
+      parts.push(quad(pocketFill, shade(shirt, -0.14), "pocket", 8));
     }
+    const { rim, strings } = hoodRim(bodyView, chin);
+    rim.forEach((seg, i) => parts.push(capsule(seg.a, seg.b, 0.05 * s + ink * 2, garden.ink, `hoodRimInk${i}`)));
+    rim.forEach((seg, i) => parts.push(capsule(seg.a, seg.b, 0.05 * s, hoodFill, `hoodRim${i}`)));
+    for (const str of strings) parts.push(capsule(str.a, str.b, 0.03 * s, people.drawstring, `string${str.side}`));
   }
   if (pack) {
     BACKPACK_STRAPS.forEach(([t0, y0, t1, y1], i) => {
@@ -1646,12 +1674,7 @@ const AvatarView = ({
       />
     );
   }
-  if (hood === "over") {
-    const drape = at(-side * 0.03, chin + 0.04);
-    parts.push(<Ellipse key="hood" cx={drape.x} cy={drape.y} rx={0.27 * body.width * s} ry={0.17 * body.height * up} fill={hoodFill} ink={ink * 1.2} inkColour={garden.ink} ramp />);
-    parts.push(<Ellipse key="hoodInside" cx={drape.x} cy={drape.y - 0.08 * body.height * up} rx={0.17 * body.width * s} ry={0.055 * body.height * up} fill={shade(shirt, -0.4)} ink={ink * 0.6} inkColour={garden.ink} />);
-    parts.push(capsule(at(-side * 0.03, chin - 0.01), at(-side * 0.03, chin - 0.1), 0.025 * s, shade(shirt, -0.35), "hoodSeam"));
-  }
+  if (hood?.layer === "over") drawHood();
   if (wavyEnds) {
     for (const w of wavyEnds) if (w.front) ball(`waveFront${w.index}`, w.at.x, w.at.y, 0.1 * s, hair);
   }
@@ -1875,6 +1898,7 @@ export const Avatar = memo(
     a.shadow === b.shadow &&
     a.swim === b.swim &&
     a.talk === b.talk &&
+    a.sway === b.sway &&
     sameDoing(a.doing ?? null, b.doing ?? null)
 );
 
