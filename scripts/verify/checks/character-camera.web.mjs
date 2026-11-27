@@ -56,6 +56,33 @@ try {
       if (shots.get(a).equals(shots.get(b))) failures.push(`the ${a} and ${b} tabs frame the character the same`);
     }
   }
+  const zoom = page.getByTestId("world-editor-zoom");
+  const zoomNow = async () => Number(await zoom.getAttribute("aria-valuenow"));
+  const previewShot = async (name) => page.screenshot({ path: `${OUT}/zoom-${name}.png`, clip: await preview.boundingBox() });
+  await page.getByTestId("world-editor-tab-eyes").click();
+  await page.waitForTimeout(SETTLE_MS);
+  const eyesZoom = await zoomNow();
+  const eyesShot = await previewShot("eyes");
+  await zoom.focus();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(300);
+  if ((await zoomNow()) !== 100) failures.push(`End zooms the slider to ${await zoomNow()}, not 100`);
+  const closest = await previewShot("closest");
+  await page.keyboard.press("ArrowUp");
+  if ((await zoomNow()) !== 100) failures.push("the slider zooms past its closest");
+  await page.keyboard.press("Home");
+  await page.waitForTimeout(300);
+  if ((await zoomNow()) !== 0) failures.push(`Home zooms the slider to ${await zoomNow()}, not 0`);
+  const widest = await previewShot("widest");
+  await page.keyboard.press("ArrowDown");
+  if ((await zoomNow()) !== 0) failures.push("the slider zooms out past the whole character");
+  await page.keyboard.press("ArrowUp");
+  if ((await zoomNow()) !== 5) failures.push(`an arrow key steps the zoom to ${await zoomNow()}, not 5`);
+  if (closest.equals(eyesShot) || widest.equals(eyesShot) || closest.equals(widest)) failures.push("the zoom slider doesn't change the preview");
+  await page.getByTestId("world-editor-tab-mouth").click();
+  await page.getByTestId("world-editor-tab-eyes").click();
+  await page.waitForTimeout(SETTLE_MS);
+  if ((await zoomNow()) !== eyesZoom) failures.push(`back on Eyes the zoom is ${await zoomNow()}, not the tab's own ${eyesZoom}`);
   await page.getByTestId("world-editor-close").click();
 } catch (error) {
   failures.push(String(error).split("\n")[0]);

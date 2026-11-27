@@ -19,6 +19,14 @@ All notable changes to **The SHED** mobile app. This project follows
   like the whole body, so you see a backpack. Moving a part with its slider
   doesn't move the camera, so you still see the part move. Verify has a new
   check that screenshots the preview on every tab, on web and iOS.
+- **Zoom the character editor's preview yourself.** Pinch the preview with
+  two fingers, or drag the zoom slider on its right edge: from the whole
+  character up to closer than the eyes' close-up. The slider follows a pinch.
+  Zooming in keeps the part the tab is about in the middle; zooming all the
+  way out shows the whole character. Changing tabs zooms back to that tab's
+  own shot. A pinch doesn't turn the character. On the web the slider takes
+  the arrow keys, Page Up and Down, Home and End, and a trackpad pinch (or
+  ctrl and the scroll wheel) on the preview zooms too.
 
 ## [2.13.45] - 2026-11-27
 

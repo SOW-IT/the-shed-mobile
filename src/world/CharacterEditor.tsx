@@ -32,7 +32,7 @@ import {
   type LookPart,
   type NudgePart,
 } from "@shared/world";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { garden, hud, lightToDark, people, shade } from "./palette";
@@ -52,6 +52,19 @@ import {
   type PreviewShot,
   type PreviewSpin,
 } from "./previewMotion";
+import {
+  clampZoom,
+  keyZoom,
+  manualZoomFor,
+  pinchZoom,
+  sliderZoom,
+  wheelZoom,
+  ZOOM_A11Y_STEP,
+  zoomFrame,
+  zoomLimits,
+  zoomOf,
+  type ManualZoom,
+} from "./previewZoom";
 import { useBatterySaver } from "./settings";
 import { Ellipse } from "./Shapes";
 import { useForeground } from "./useForeground";
@@ -79,6 +92,8 @@ const OUTFIT_SHOT = 200;
 const EXTRAS_SHOT = 170;
 /** How far below the feet the soles of the shoes reach (times the scale). */
 const SOLES = 0.06;
+const CLOSEST = 320;
+const ZOOM_THUMB = 24;
 
 type Shot = PreviewShot;
 
@@ -142,12 +157,28 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const foreground = useForeground();
   const running = active && foreground;
   const [width, setWidth] = useState(0);
-  const goal = shotFor(shot, look, height);
+  const [manual, setManual] = useState<ManualZoom>(null);
+  const [zoomFor, setZoomFor] = useState({ active, shot });
+  if (zoomFor.active !== active || zoomFor.shot !== shot) {
+    setZoomFor({ active, shot });
+    setManual(null);
+  }
+  const manualZoom = manualZoomFor(manual, shot);
+  const tabGoal = shotFor(shot, look, height);
+  const fullGoal = shotFor("full", look, height);
+  const limits = zoomLimits(fullGoal, tabGoal, CLOSEST * (height / BASE_PREVIEW));
+  const goal = zoomFrame({ full: fullGoal, tab: tabGoal, height, limits }, manualZoom);
+  const tabZoom = zoomOf(tabGoal.s, limits);
+  const zoom = manualZoom ?? tabZoom;
+  const snap = manualZoom !== null;
   const [frame, setFrame] = useState({ heading: 0, s: goal.s, y: goal.y });
   const spin = useRef<PreviewSpin>({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
+  const pinch = useRef<{ spread: number; zoom: number } | null>(null);
+  const grabbedHeading = useRef(0);
+  const box = useRef<ComponentRef<typeof View>>(null);
   const closeUpNow = useRef(previewCloseUp(shot));
   const shotNow = useRef(shot);
-  const goalNow = useRef({ s: goal.s, y: goal.y, still: reduceMotion });
+  const goalNow = useRef({ s: goal.s, y: goal.y, still: reduceMotion, snap });
   const glideRef = useRef<PreviewGlide>({
     from: { s: goal.s, y: goal.y },
     to: { s: goal.s, y: goal.y },
@@ -207,7 +238,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
         glide.to = { s: target.s, y: target.y };
         glide.at = now;
       }
-      const k = target.still ? 1 : previewEaseInOut(Math.min(1, (now - glide.at) / PREVIEW_GLIDE_MS));
+      const k = target.still || target.snap ? 1 : previewEaseInOut(Math.min(1, (now - glide.at) / PREVIEW_GLIDE_MS));
       glide.now = {
         s: glide.from.s + (glide.to.s - glide.from.s) * k,
         y: glide.from.y + (glide.to.y - glide.from.y) * k,
@@ -262,9 +293,24 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   useEffect(() => {
     closeUpNow.current = previewCloseUp(shot);
     shotNow.current = shot;
-    goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion };
+    goalNow.current = { s: goal.s, y: goal.y, still: reduceMotion, snap };
     wakeRef.current();
-  }, [shot, goal.s, goal.y, reduceMotion]);
+  }, [shot, goal.s, goal.y, reduceMotion, snap]);
+
+  const { low, high } = limits;
+  useEffect(() => {
+    const node = box.current as unknown as HTMLElement | null;
+    if (Platform.OS !== "web" || !node) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setManual((cur) => ({ shot, zoom: wheelZoom(manualZoomFor(cur, shot) ?? tabZoom, e.deltaY, { low, high }) }));
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [shot, tabZoom, low, high]);
+
+  const pickZoom = (next: number) => setManual({ shot, zoom: next });
 
   const onGrant = (e: GestureResponderEvent) => {
     const d = spin.current;
@@ -273,9 +319,25 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     d.lastAt = Date.now();
     d.velocity = 0;
     d.touched = true;
+    grabbedHeading.current = d.heading;
+    pinch.current = null;
   };
   const onMove = (e: GestureResponderEvent) => {
     const d = spin.current;
+    const touches = e.nativeEvent.touches ?? [];
+    if (touches.length >= 2) {
+      const spread = Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
+      if (pinch.current === null) {
+        pinch.current = { spread, zoom };
+        d.heading = grabbedHeading.current;
+        d.velocity = 0;
+        setFrame((cur) => (cur.heading === d.heading ? cur : { ...cur, heading: d.heading }));
+      } else if (pinch.current.spread > 0) {
+        pickZoom(pinchZoom(pinch.current.zoom, spread / pinch.current.spread, limits));
+      }
+      return;
+    }
+    if (pinch.current !== null) return;
     const now = Date.now();
     const dx = e.nativeEvent.pageX - d.lastX;
     d.heading += dx * TURN_PER_PX;
@@ -289,39 +351,95 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const onEnd = () => {
     const d = spin.current;
     d.down = false;
-    if (Date.now() - d.lastAt > 80) d.velocity = 0;
+    if (pinch.current !== null || Date.now() - d.lastAt > 80) d.velocity = 0;
+    pinch.current = null;
     if (Math.abs(d.velocity) > PREVIEW_SPIN_STOP) wakeRef.current();
   };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
   const s = frame.s;
   const foot = { x: width / 2, y: frame.y, depth: 1, scale: s };
   return (
-    <View
-      style={[styles.preview, { height, backgroundColor: garden.sky }, noBrowserGestures]}
-      onLayout={onLayout}
-      testID="world-editor-preview"
-      accessible
-      accessibilityLabel="Your character. Swipe left or right to turn it."
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponderCapture={() => true}
-      onResponderTerminationRequest={() => false}
-      onResponderGrant={onGrant}
-      onResponderMove={onMove}
-      onResponderRelease={onEnd}
-      onResponderTerminate={onEnd}
-    >
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Ellipse cx={width / 2} cy={foot.y + 0.02 * s} rx={Math.min(width * 0.42, 1.5 * s)} ry={0.34 * s} fill={garden.lawn} />
-        {width > 0 ? (
-          <Avatar
-            figure={{ foot, s, up: s * 0.86, bob: 0 }}
-            pose={{ x: 0, z: 0, walking: false, heading: frame.heading, arrivesAt: 0 }}
-            look={look}
-            t={0}
-            seed={0}
-          />
-        ) : null}
+    <View style={{ height }}>
+      <View
+        ref={box}
+        style={[styles.preview, { height, backgroundColor: garden.sky }, noBrowserGestures]}
+        onLayout={onLayout}
+        testID="world-editor-preview"
+        accessible
+        accessibilityLabel="Your character. Swipe left or right to turn it, or pinch to zoom."
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponderCapture={() => true}
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={onGrant}
+        onResponderMove={onMove}
+        onResponderRelease={onEnd}
+        onResponderTerminate={onEnd}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Ellipse cx={width / 2} cy={foot.y + 0.02 * s} rx={Math.min(width * 0.42, 1.5 * s)} ry={0.34 * s} fill={garden.lawn} />
+          {width > 0 ? (
+            <Avatar
+              figure={{ foot, s, up: s * 0.86, bob: 0 }}
+              pose={{ x: 0, z: 0, walking: false, heading: frame.heading, arrivesAt: 0 }}
+              look={look}
+              t={0}
+              seed={0}
+            />
+          ) : null}
+        </View>
       </View>
+      <ZoomSlider zoom={zoom} onPick={pickZoom} />
+    </View>
+  );
+};
+
+const ZoomSlider = ({ zoom, onPick }: { zoom: number; onPick: (zoom: number) => void }) => {
+  const [length, setLength] = useState(0);
+  const pickAt = (y: number) => {
+    const next = sliderZoom(y, length);
+    if (next !== null) onPick(next);
+  };
+  const keys =
+    Platform.OS === "web"
+      ? ({
+          tabIndex: 0,
+          "aria-orientation": "vertical",
+          onKeyDown: (e: { key: string; preventDefault: () => void }) => {
+            const next = keyZoom(zoom, e.key);
+            if (next === null) return;
+            e.preventDefault();
+            onPick(next);
+          },
+        } as object)
+      : {};
+  const percent = Math.round(zoom * 100);
+  return (
+    <View style={[styles.zoom, noBrowserGestures]} pointerEvents="box-none">
+      <Ionicons name="add" size={16} color={hud.primary} accessibilityElementsHidden importantForAccessibility="no" />
+      <View
+        style={styles.zoomTrack}
+        onLayout={(e) => setLength(e.nativeEvent.layout.height)}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Zoom"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={`${percent}%`}
+        accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+        onAccessibilityAction={(e) => onPick(clampZoom(zoom + (e.nativeEvent.actionName === "increment" ? ZOOM_A11Y_STEP : -ZOOM_A11Y_STEP)))}
+        {...keys}
+        testID="world-editor-zoom"
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponderCapture={() => true}
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={(e) => pickAt(e.nativeEvent.locationY)}
+        onResponderMove={(e) => pickAt(e.nativeEvent.locationY)}
+      >
+        <View pointerEvents="none" style={styles.zoomBar} />
+        <View pointerEvents="none" style={[styles.zoomThumb, { top: (1 - zoom) * length - ZOOM_THUMB / 2 }]} />
+      </View>
+      <Ionicons name="remove" size={16} color={hud.primary} accessibilityElementsHidden importantForAccessibility="no" />
     </View>
   );
 };
@@ -925,6 +1043,28 @@ const styles = StyleSheet.create({
   thumb: { position: "absolute", width: 26, height: 26, borderRadius: 13, backgroundColor: hud.accent, borderWidth: 2.5, borderColor: hud.forest },
   footer: { gap: spacing.sm, paddingTop: spacing.sm },
   preview: { borderRadius: 18, overflow: "hidden" },
+  zoom: {
+    position: "absolute",
+    right: 6,
+    top: 6,
+    bottom: 6,
+    width: 34,
+    alignItems: "center",
+    paddingVertical: 4,
+    borderRadius: 17,
+    backgroundColor: hud.nameBg,
+  },
+  zoomTrack: { flex: 1, alignSelf: "stretch", alignItems: "center", marginVertical: ZOOM_THUMB / 2 - 4 },
+  zoomBar: { flex: 1, width: 6, borderRadius: 3, backgroundColor: hud.primarySoft },
+  zoomThumb: {
+    position: "absolute",
+    width: ZOOM_THUMB,
+    height: ZOOM_THUMB,
+    borderRadius: ZOOM_THUMB / 2,
+    backgroundColor: hud.accent,
+    borderWidth: 2.5,
+    borderColor: hud.forest,
+  },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: TILE_GAP },
   swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: hud.primarySoft },
   swatchOn: { borderWidth: 3.5 },
