@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.48] - 2026-11-27
+## [2.13.50] - 2026-11-27
 
 ### Added
 - **Hong Kong mahjong at two tables in the online World's Café.** Sit at
@@ -63,6 +63,20 @@ All notable changes to **The SHED** mobile app. This project follows
   melds, score and all. If you get up or drop out mid-hand, a bot plays
   your seat until you sit back down, and the Café room keeps your table
   while you're away.
+
+## [2.13.48] - 2026-11-27
+
+### Added
+- **Eight more eye shapes for your World character.** The Eyes tab now has
+  16 shapes. The new ones are Cat (a white almond tipped up at the outer
+  corner, round a slit pupil), Puppy (big and round under a drooping lid),
+  Starry (a twinkle for a pupil), Hearts, Tiny, Anime (a tall white eye with
+  a big iris and a heavy top lash), Wink (one eye closed in a smiling arc)
+  and Sharp (a flat-topped half moon that slopes down to the nose). They take
+  your eye colour, eye shadow and the eye sliders like the others, and
+  smiles, surprise and the other expressions still change them. Saved
+  characters keep their eyes. Someone on an older version of the app sees a
+  new shape as plain dots until they update.
 
 ## [2.13.47] - 2026-11-27
 
