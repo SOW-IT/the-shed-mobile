@@ -8,6 +8,7 @@ import { Btn, EmptyState, LoadingState, ReadableColumn, Screen } from "@/compone
 import { appVersion } from "@/hooks/useReportAppVersion";
 import { openExternalLink } from "@/lib/openExternalLink";
 import { spacing } from "@/theme";
+import { HOME_LINKS } from "@shared/homeContent";
 
 export default function NotFoundScreen() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function NotFoundScreen() {
     )
   ).toString();
   const webUrl = `${link.web}${pathname}${query ? `?${query}` : ""}${WEB_ONLY_MARKER}`;
-  const goHome = () => router.replace("/home");
+  const goHome = () => router.replace(HOME_LINKS.home);
 
   if (platform && version && check === undefined) {
     return (

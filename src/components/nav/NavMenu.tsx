@@ -44,6 +44,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { notify } from "@/lib/notify";
+import { HOME_LINKS } from "@shared/homeContent";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -477,7 +478,7 @@ export const NavMenu = ({
             onConfirm={() => {
               onNavigate?.();
               void signOut()
-                .then(() => router.replace("/home"))
+                .then(() => router.replace(HOME_LINKS.signedOut))
                 .catch(() => {
                   notify(
                     "Sign-out failed",

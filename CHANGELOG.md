@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.41] - 2026-11-27
+## [2.13.42] - 2026-11-27
 
 ### Fixed
 - **The hoodie is one hoodie from every side, and it turns with the body.**
@@ -21,6 +21,22 @@ All notable changes to **The SHED** mobile app. This project follows
   the neck, the drawstrings and the pocket sit on the body like the
   collared shirt's and the jacket's pieces: they turn with it, and hide
   from behind. It leans, bobs and stretches with the body, not the head.
+
+## [2.13.41] - 2026-11-27
+
+### Changed
+- **Home is hidden for now.** It's gone from the bottom tabs and from the
+  sidebar on wide screens, for everyone. Signed out, the app opens on People.
+  Signed in, it opens where it did before: People if you don't have a staff
+  role, Attendance for campus leaders, and Reimbursements for other staff.
+  Anything that used to lead to Home goes to one of those screens instead.
+  That covers the sign-out and Delete account landings, "Go home" on Page not
+  found, Back when there's nowhere to go back to, the "Waiting on you"
+  reminder email and notification, and old links to `/home`. While Home is
+  hidden, its pages (Home, Resources, Connect, Partner), the contact form,
+  "Waiting on you" and Edit Home can't be reached. Nothing is deleted, and
+  setting `HOME_TAB_SHOWN` in `shared/homeContent.ts` back to true brings
+  Home back.
 
 ## [2.13.40] - 2026-11-27
 

@@ -11,6 +11,19 @@ export const HOME_TABS = [
   { key: "partner", label: "Partner" },
 ] as const;
 
+// Home is hidden (27 Nov 2026). Set this to true to bring its bottom tab and
+// sidebar entry back. The /home route and everything on it stay either way.
+export const HOME_TAB_SHOWN: boolean = false;
+
+// Where a link to Home goes. While Home is hidden, `home` is where the app
+// opens (People signed out, otherwise as before) and `signedOut` is People.
+export const homeLinks = (shown: boolean) =>
+  shown
+    ? ({ home: "/home", signedOut: "/home" } as const)
+    : ({ home: "/", signedOut: "/org" } as const);
+
+export const HOME_LINKS = homeLinks(HOME_TAB_SHOWN);
+
 export type HomeTabKey = (typeof HOME_TABS)[number]["key"];
 
 export const isHomeTabKey = (key: string): key is HomeTabKey =>
