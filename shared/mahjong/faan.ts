@@ -97,10 +97,8 @@ const scoreReading = (ctx: WinContext, pair: number, sets: Set[]): Omit<Scored, 
   if (limits.length > 0) return { lines: limits, limit: true };
   const lines: FaanLine[] = [];
   if (sets.every((s) => s.type === "chow")) lines.push(line("allChows"));
-  if (pongs.length === 4) {
-    const concealedPongs = pongs.every((s) => s.concealed);
-    lines.push(line(concealedPongs ? "concealedPongs" : "allPongs"));
-  }
+  const concealedPongs = pongs.length === 4 && pongs.every((s) => s.concealed);
+  if (pongs.length === 4) lines.push(line(concealedPongs ? "concealedPongs" : "allPongs"));
   if (suits.size === 1) lines.push(line(honours ? "mixedSuit" : "pureSuit"));
   if (dragonPongs === 3) lines.push(line("greatDragons"));
   else if (dragonPongs === 2 && isDragon(pair)) lines.push(line("smallDragons"));
@@ -111,7 +109,7 @@ const scoreReading = (ctx: WinContext, pair: number, sets: Set[]): Omit<Scored, 
     if (pongs.some((s) => s.kind === windKind(ctx.roundWind))) lines.push(line("roundWind"));
   }
   if (honours && kinds.every(isTerminalOrHonour)) lines.push(line("mixedTerminals"));
-  return { lines: [...lines, ...situationLines(ctx, concealedHand)], limit: false };
+  return { lines: [...lines, ...situationLines(ctx, concealedHand && !concealedPongs)], limit: false };
 };
 
 /**

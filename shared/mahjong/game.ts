@@ -390,7 +390,7 @@ export const timeOut = (hand: Hand, now: number): Step => {
 
 /** Who deals next, and in which round: the dealer stays after winning or a drawn hand. */
 export const nextDealer = (dealer: number, result: Result, firstDealer: number, roundWind: number) => {
-  if (result.kind === "draw" || result.winner === dealer) return { dealer, roundWind };
+  if (result.kind === "win" && result.winner === dealer) return { dealer, roundWind };
   const next = nextSeat(dealer);
   return { dealer: next, roundWind: next === firstDealer ? (roundWind + 1) % SEATS : roundWind };
 };

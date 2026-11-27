@@ -22,6 +22,10 @@ describe("faan", () => {
     expect(scoreWin(ctx("123p 456s 789m RRR EW"))).toBeNull();
   });
 
+  it("doesn't count seven pairs, a house rule outside Hong Kong Old Style", () => {
+    expect(scoreWin(ctx("11p 55p 99s 22m 66m EE RR"))).toBeNull();
+  });
+
   it("scores a chicken hand at nothing", () => {
     const scored = scoreWin(ctx("123p 456s 789m 111p EE", { melds: [{ type: "pong", kind: 0 }], counts: counts("123p 456s 789m EE"), winKind: 0 }));
     expect(scored).toEqual({ lines: [], total: 0, limit: false });
@@ -47,6 +51,8 @@ describe("faan", () => {
     expect(ids("111p 333p 555p 777p 99s", { winKind: 0 })).toContain("allPongs");
     expect(ids("111p 333p 555p 777p 99s", { winKind: 0, selfDrawn: true })).toContain("concealedPongs");
     expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).toContain("concealedPongs");
+    expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).not.toContain("concealed");
+    expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).not.toContain("allPongs");
     // The win tile could finish a chow instead, so the pong was concealed.
     expect(ids("111p 123s 555p 777p 99s", { winKind: 0 })).not.toContain("concealedPongs");
   });

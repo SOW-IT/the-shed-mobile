@@ -385,7 +385,7 @@ const ResultCard = ({
             </View>
           </>
         ) : (
-          <Text style={styles.resultNote}>The wall ran out (流局). Nobody scores, and the dealer stays.</Text>
+          <Text style={styles.resultNote}>The wall ran out (流局). Nobody scores, and the deal passes on.</Text>
         )}
         {settled ? (
           <View style={styles.transfers} testID="mahjong-transfers">

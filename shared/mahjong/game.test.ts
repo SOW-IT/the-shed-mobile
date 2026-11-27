@@ -337,9 +337,10 @@ describe("kongs", () => {
 });
 
 describe("dealer rotation", () => {
-  it("keeps the dealer on a dealer win or a draw, and passes it otherwise", () => {
+  it("keeps the dealer only when the dealer wins, and passes it on a draw or anyone else's win", () => {
     const win = (winner: number) => ({ kind: "win" as const, winner, from: null, tile: 0, lines: [], faan: 3, points: 8, pays: [], hand: [] });
-    expect(nextDealer(1, { kind: "draw" }, 1, 0)).toEqual({ dealer: 1, roundWind: 0 });
+    expect(nextDealer(1, { kind: "draw" }, 1, 0)).toEqual({ dealer: 2, roundWind: 0 });
+    expect(nextDealer(0, { kind: "draw" }, 1, 0)).toEqual({ dealer: 1, roundWind: 1 });
     expect(nextDealer(1, win(1), 1, 0)).toEqual({ dealer: 1, roundWind: 0 });
     expect(nextDealer(1, win(2), 1, 0)).toEqual({ dealer: 2, roundWind: 0 });
     expect(nextDealer(0, win(2), 1, 0)).toEqual({ dealer: 1, roundWind: 1 });
