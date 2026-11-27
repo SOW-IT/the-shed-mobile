@@ -2,8 +2,8 @@ import { AppIcon, type AppIconName } from "@/components/ui/icon";
 import { fonts } from "@/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { elsewhereTitle, PLACE_TITLES, type Look, type Place } from "@shared/world";
-import { memo, useEffect, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { memo, useEffect, useState, type ReactNode } from "react";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from "react-native";
 import { glass, hud, signal, signalColour } from "./palette";
 import { Avatar } from "./Person";
 import { backdropOf, BUST_BORDER, bustFigure } from "./bust";
@@ -307,6 +307,84 @@ export const DevotionalPromptDialog = ({
   );
 };
 
+/** The second step of buying an animal: name it (a default is filled in), then Buy. Closing buys nothing. */
+export const NameAnimalDialog = ({
+  open,
+  top,
+  title,
+  art,
+  name,
+  maxLength,
+  price,
+  canBuy,
+  error,
+  onName,
+  onCancel,
+  onBuy,
+}: {
+  open: boolean;
+  top: number;
+  title: string;
+  art: ReactNode;
+  name: string;
+  maxLength: number;
+  price: ReactNode;
+  canBuy: boolean;
+  error: string | null;
+  onName: (name: string) => void;
+  onCancel: () => void;
+  onBuy: () => void;
+}) => {
+  const overlay = useOverlayClock(open, 4);
+  if (!overlay.mounted) return null;
+  return (
+    <View style={[StyleSheet.absoluteFill, styles.topDialog, { paddingTop: top + 24 }]} pointerEvents={open ? "box-none" : "none"}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel" testID="world-name-animal-scrim">
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrimDeep, scrimStyle(overlay)]} />
+      </Pressable>
+      <Animated.View style={[styles.dialog, blurBehind, popStyle(overlay)]} testID="world-name-animal-dialog" accessibilityViewIsModal>
+        <Animated.View style={itemStyle(overlay, 0)}>{art}</Animated.View>
+        <Animated.View style={itemStyle(overlay, 1)}>
+          <Text style={styles.dialogTitle} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={styles.dialogText}>Pick a name, or keep this one.</Text>
+        </Animated.View>
+        <Animated.View style={[styles.nameField, itemStyle(overlay, 2)]}>
+          <TextInput
+            value={name}
+            onChangeText={onName}
+            maxLength={maxLength}
+            autoFocus
+            selectTextOnFocus
+            onSubmitEditing={() => canBuy && onBuy()}
+            returnKeyType="done"
+            accessibilityLabel="Name"
+            style={styles.nameInput}
+            testID="world-name-animal-input"
+          />
+          {error ? <Text style={styles.nameError}>{error}</Text> : null}
+        </Animated.View>
+        <Animated.View style={[styles.dialogButtons, itemStyle(overlay, 3)]}>
+          <Pressable onPress={onCancel} accessibilityRole="button" testID="world-name-animal-cancel" style={({ pressed }) => [styles.dialogButton, pressed && styles.rowPressed]}>
+            <Text style={styles.dialogButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={onBuy}
+            disabled={!canBuy}
+            accessibilityRole="button"
+            accessibilityLabel="Buy"
+            testID="world-name-animal-buy"
+            style={({ pressed }) => [styles.dialogButton, styles.dialogLeave, !canBuy && styles.dialogOff, pressed && styles.rowPressed]}
+          >
+            {price}
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+};
+
 export const GlassPill = ({
   label,
   icon,
@@ -383,6 +461,11 @@ const styles = StyleSheet.create({
   dialogButtonText: { color: glass.text, fontFamily: fonts.display, fontSize: 16 },
   place: { flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 8, borderRadius: 16, backgroundColor: glass.row },
   rowPressed: { opacity: 0.7 },
+  topDialog: { alignItems: "center" },
+  dialogOff: { opacity: 0.45 },
+  nameField: { alignSelf: "stretch", gap: 6 },
+  nameInput: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: glass.rowPressed, color: glass.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
+  nameError: { color: glass.error, fontSize: 12.5, textAlign: "center" },
   placeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   placeTitle: { flex: 1, fontFamily: fonts.display, fontSize: 16, color: glass.text },
   pill: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: glass.row, borderWidth: 1, borderColor: glass.edge },

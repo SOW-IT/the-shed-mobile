@@ -16,6 +16,14 @@ All notable changes to **The SHED** mobile app. This project follows
   tags it can't be tapped, and the sheet says that renaming uses a name tag
   from Josh. With a tag, it opens the name field as before, and saving still
   uses one tag. The server still refuses a rename without a tag.
+- **Buying an animal is two steps: Buy, then name it.** The coop or barn's
+  last row had a name field already filled in next to the price, so one tap
+  bought the animal under whatever name was there. The row now says "New
+  chick" (or calf) with its price. Tapping it opens a dialog that asks you
+  to name your animal, with a suggested name filled in that you can change.
+  Only that dialog's Buy spends the coins. Cancel, or tapping outside,
+  buys nothing. Naming at purchase is free and needs no name tag, and the
+  name is checked the same way as a rename.
 
 ## [2.13.56] - 2026-11-27
 

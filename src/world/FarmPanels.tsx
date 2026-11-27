@@ -9,7 +9,7 @@ import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, 
 import { AnimalThumb, FeedThumb, GoodThumb, TagThumb } from "./Animals";
 import { GoldCoin } from "@/components/games/GoldCoin";
 import { CropThumb, SeedCluster } from "./Farm";
-import { blurBehind, Bust, itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
+import { blurBehind, Bust, itemStyle, NameAnimalDialog, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
 import { glass, gold, hud } from "./palette";
 
 type Bag = { seeds: Record<string, number>; crops: Record<string, number>; feed?: Record<string, number>; goods?: Record<string, number>; nameTags?: number };
@@ -472,6 +472,7 @@ export const PenSheet = ({
   const [wasOpen, setWasOpen] = useState(kind !== null);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [naming, setNaming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (kind !== null && kind !== shown) setShown(kind);
@@ -480,7 +481,7 @@ export const PenSheet = ({
     if (kind !== null) {
       setError(null);
       setRenaming(null);
-      setName(suggest(BUILDINGS[kind].animal));
+      setNaming(false);
     }
   }
   const building = BUILDINGS[shown];
@@ -498,132 +499,162 @@ export const PenSheet = ({
     return problem;
   };
   const josh = FARMER.name.split(" ")[0];
+  const young = animal.stages[0].toLowerCase();
+  const canBuy = !busy && !short && cleanName(name) !== null;
+  const buy = () =>
+    void run(() => onBuy(animalKind, name)).then((problem) => {
+      if (!problem) setNaming(false);
+    });
   return (
-    <Panel
-      open={kind !== null}
-      top={top}
-      testID="world-pen-sheet"
-      closeLabel="Close"
-      onClose={onClose}
-      items={2 + here.length}
-      head={(style) => (
-        <Animated.View style={[styles.header, style]}>
-          <View style={styles.icon}>
-            <Text style={styles.iconText}>{animalKind === "cow" ? "🐄" : "🐔"}</Text>
-          </View>
-          <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
-            {building.short}
-          </Text>
-          <View style={styles.days}>
-            <Text style={styles.daysText}>
-              {here.length} / {building.capacity}
+    <>
+      <Panel
+        open={kind !== null}
+        top={top}
+        testID="world-pen-sheet"
+        closeLabel="Close"
+        onClose={onClose}
+        items={2 + here.length}
+        head={(style) => (
+          <Animated.View style={[styles.header, style]}>
+            <View style={styles.icon}>
+              <Text style={styles.iconText}>{animalKind === "cow" ? "🐄" : "🐔"}</Text>
+            </View>
+            <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
+              {building.short}
             </Text>
-          </View>
-          <View style={styles.grow} />
-          <Close onPress={onClose} />
-        </Animated.View>
-      )}
-    >
-      {(overlay) => (
-        <SharpScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          {here.map((a, i) => (
-            <Animated.View key={a.id} style={[styles.animalRow, itemStyle(overlay, 1 + i)]} testID={`world-pen-animal-${a.id}`}>
-              <AnimalThumb kind={animalKind} stage={a.stage} mood={a.mood} size={44} />
-              {renaming?.id === a.id ? (
-                <View style={styles.renameBox}>
-                  <TextInput
-                    value={renaming.name}
-                    onChangeText={(text) => setRenaming({ id: a.id, name: text })}
-                    maxLength={NAME_MAX}
-                    autoFocus
-                    accessibilityLabel={`New name for ${a.name}`}
-                    style={styles.input}
-                    testID="world-rename-input"
-                  />
-                  <Pressable
-                    onPress={() =>
-                      void run(() => onRename(a.id, renaming.name)).then((problem) => {
-                        if (!problem) setRenaming((current) => (current?.id === a.id ? null : current));
-                      })
-                    }
-                    disabled={busy || nameTags < 1 || !changed(a.name, renaming.name)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Rename, uses one name tag"
-                    testID="world-rename-save"
-                    style={({ pressed }) => [styles.tagButton, (busy || nameTags < 1 || !changed(a.name, renaming.name)) && styles.buyOff, pressed && styles.pressed]}
-                  >
-                    <TagThumb size={22} />
-                    <Text style={styles.tagButtonText}>{nameTags}</Text>
-                  </Pressable>
-                  <Close onPress={() => setRenaming(null)} />
-                </View>
-              ) : (
-                <>
-                  <View style={styles.animalText}>
-                    <Text style={styles.name} numberOfLines={1}>
-                      {a.name}
-                    </Text>
-                    <Text style={styles.muted} numberOfLines={1}>
-                      {a.status}
-                    </Text>
+            <View style={styles.days}>
+              <Text style={styles.daysText}>
+                {here.length} / {building.capacity}
+              </Text>
+            </View>
+            <View style={styles.grow} />
+            <Close onPress={onClose} />
+          </Animated.View>
+        )}
+      >
+        {(overlay) => (
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+            {here.map((a, i) => (
+              <Animated.View key={a.id} style={[styles.animalRow, itemStyle(overlay, 1 + i)]} testID={`world-pen-animal-${a.id}`}>
+                <AnimalThumb kind={animalKind} stage={a.stage} mood={a.mood} size={44} />
+                {renaming?.id === a.id ? (
+                  <View style={styles.renameBox}>
+                    <TextInput
+                      value={renaming.name}
+                      onChangeText={(text) => setRenaming({ id: a.id, name: text })}
+                      maxLength={NAME_MAX}
+                      autoFocus
+                      accessibilityLabel={`New name for ${a.name}`}
+                      style={styles.input}
+                      testID="world-rename-input"
+                    />
+                    <Pressable
+                      onPress={() =>
+                        void run(() => onRename(a.id, renaming.name)).then((problem) => {
+                          if (!problem) setRenaming((current) => (current?.id === a.id ? null : current));
+                        })
+                      }
+                      disabled={busy || nameTags < 1 || !changed(a.name, renaming.name)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rename, uses one name tag"
+                      testID="world-rename-save"
+                      style={({ pressed }) => [styles.tagButton, (busy || nameTags < 1 || !changed(a.name, renaming.name)) && styles.buyOff, pressed && styles.pressed]}
+                    >
+                      <TagThumb size={22} />
+                      <Text style={styles.tagButtonText}>{nameTags}</Text>
+                    </Pressable>
+                    <Close onPress={() => setRenaming(null)} />
                   </View>
-                  <Pressable
-                    onPress={() => {
-                      setError(null);
-                      setRenaming({ id: a.id, name: a.name });
-                    }}
-                    disabled={nameTags < 1}
-                    hitSlop={6}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Rename ${a.name}`}
-                    accessibilityHint={nameTags < 1 ? `Needs a name tag from ${josh}` : undefined}
-                    testID={`world-rename-${a.id}`}
-                    style={({ pressed }) => [styles.renameButton, nameTags < 1 && styles.buyOff, pressed && styles.pressed]}
-                  >
-                    <Ionicons name="pricetag-outline" size={14} color={glass.text} />
-                    <Text style={styles.renameText}>Rename</Text>
-                  </Pressable>
-                </>
-              )}
-            </Animated.View>
-          ))}
-          {here.length > 0 && nameTags < 1 ? (
-            <Text style={styles.muted} testID="world-rename-hint">
-              Renaming uses a name tag. Get one from {josh}.
-            </Text>
-          ) : null}
-          {space ? (
-            <Animated.View style={[styles.newRow, itemStyle(overlay, 1 + here.length)]}>
-              <AnimalThumb kind={animalKind} stage={0} size={44} />
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                maxLength={NAME_MAX}
-                accessibilityLabel={`Name for the new ${animal.stages[0].toLowerCase()}`}
-                style={[styles.input, styles.grow]}
-                testID="world-new-animal-name"
-              />
-              <Pressable
-                onPress={() =>
-                  void run(() => onBuy(animalKind, name)).then((problem) => {
-                    if (!problem) setName(suggest(animalKind));
-                  })
-                }
-                disabled={busy || short}
-                accessibilityRole="button"
-                accessibilityLabel={`Buy a ${animal.stages[0].toLowerCase()} called ${name} for ${animal.price} coins`}
-                testID="world-buy-animal"
-                style={({ pressed }) => [styles.buySmall, (busy || short) && styles.buyOff, pressed && styles.pressed]}
-              >
-                <GoldCoin size={16} />
-                <Text style={styles.buyText}>{animal.price}</Text>
-              </Pressable>
-            </Animated.View>
-          ) : null}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-        </SharpScrollView>
-      )}
-    </Panel>
+                ) : (
+                  <>
+                    <View style={styles.animalText}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {a.name}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {a.status}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setError(null);
+                        setRenaming({ id: a.id, name: a.name });
+                      }}
+                      disabled={nameTags < 1}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename ${a.name}`}
+                      accessibilityHint={nameTags < 1 ? `Needs a name tag from ${josh}` : undefined}
+                      testID={`world-rename-${a.id}`}
+                      style={({ pressed }) => [styles.renameButton, nameTags < 1 && styles.buyOff, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="pricetag-outline" size={14} color={glass.text} />
+                      <Text style={styles.renameText}>Rename</Text>
+                    </Pressable>
+                  </>
+                )}
+              </Animated.View>
+            ))}
+            {here.length > 0 && nameTags < 1 ? (
+              <Text style={styles.muted} testID="world-rename-hint">
+                Renaming uses a name tag. Get one from {josh}.
+              </Text>
+            ) : null}
+            {space ? (
+              <Animated.View style={[styles.newRow, itemStyle(overlay, 1 + here.length)]}>
+                <AnimalThumb kind={animalKind} stage={0} size={44} />
+                <View style={styles.animalText}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    New {young}
+                  </Text>
+                  <Text style={styles.muted} numberOfLines={1}>
+                    You name it next
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    setError(null);
+                    setName(suggest(animalKind));
+                    setNaming(true);
+                  }}
+                  disabled={busy || short}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Buy a ${young} for ${animal.price} coins`}
+                  testID="world-buy-animal"
+                  style={({ pressed }) => [styles.buySmall, (busy || short) && styles.buyOff, pressed && styles.pressed]}
+                >
+                  <GoldCoin size={16} />
+                  <Text style={styles.buyText}>{animal.price}</Text>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+            {error && !naming ? <Text style={styles.error}>{error}</Text> : null}
+          </SharpScrollView>
+        )}
+      </Panel>
+      <NameAnimalDialog
+        open={kind !== null && naming}
+        top={top}
+        title={`Name your ${young}`}
+        art={<AnimalThumb kind={animalKind} stage={0} size={64} />}
+        name={name}
+        maxLength={NAME_MAX}
+        price={
+          <>
+            <GoldCoin size={16} />
+            <Text style={styles.buyText}>Buy · {animal.price}</Text>
+          </>
+        }
+        canBuy={canBuy}
+        error={naming ? error : null}
+        onName={setName}
+        onCancel={() => {
+          setError(null);
+          setNaming(false);
+        }}
+        onBuy={buy}
+      />
+    </>
   );
 };
 
