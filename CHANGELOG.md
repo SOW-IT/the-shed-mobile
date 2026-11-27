@@ -17,8 +17,9 @@ All notable changes to **The SHED** mobile app. This project follows
   - Dragging another piece while one from the tray is still waiting puts
     the waiting one down where it is, the same as tapping another piece
     already did.
-  - A seat no longer counts as taken by someone who was sitting on it before
-    you moved the piece. The seat at its new spot is free until they get up.
+  - Moving a piece frees its seats from anyone left sitting at its old spot.
+    A seat at the new spot counts as taken only once someone sits on it or
+    heads there.
 
 ## [2.13.65] - 2026-11-28
 

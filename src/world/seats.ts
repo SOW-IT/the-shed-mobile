@@ -40,9 +40,9 @@ export const seatAt = (place: Place, cam: Camera, x: number, y: number, items?: 
 const ON_SEAT = 0.05;
 
 /**
- * The seats other people hold: those they're sitting on or walking to. A seat
- * whose piece of furniture has since moved isn't held by someone left behind
- * at its old spot, so it's free until they get up.
+ * The seats other people hold: those they're sitting on or walking to, where
+ * the seat is now. Moving a piece of furniture frees its seats from anyone
+ * left sitting at its old spot.
  */
 export const seatsTaken = (others: readonly { seat?: string; walk: { toX: number; toZ: number } | null }[], seats: readonly Seat[]): Set<string> =>
   new Set(
