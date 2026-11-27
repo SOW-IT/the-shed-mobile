@@ -41,6 +41,8 @@ export const Tile = memo(function Tile({
   const radius = Math.max(2, width * 0.16);
   const side = Math.max(2, width * 0.13);
   const faceH = height - side - 2;
+  // The tile you've picked to let go: lifted, bigger and lit, so it's plain which one goes.
+  const edge = lit || lifted;
   const body = (
     <View
       style={[
@@ -50,13 +52,14 @@ export const Tile = memo(function Tile({
           height,
           borderRadius: radius,
           backgroundColor: hidden ? m.backOrange : m.face,
-          borderColor: lit ? m.lit : hidden ? m.backOrangeEdge : m.faceEdge,
-          borderWidth: lit ? Math.max(1.5, width * 0.08) : 1,
+          borderColor: edge ? m.lit : hidden ? m.backOrangeEdge : m.faceEdge,
+          borderWidth: lifted ? Math.max(2, width * 0.1) : lit ? Math.max(1.5, width * 0.08) : 1,
           borderBottomWidth: side,
-          borderBottomColor: lit ? m.lit : hidden ? m.backOrangeEdge : m.faceSide,
+          borderBottomColor: edge ? m.lit : hidden ? m.backOrangeEdge : m.faceSide,
           opacity: dim ? 0.5 : 1,
-          transform: [{ translateY: lifted ? -width * 0.32 : 0 }, { scale: lifted ? 1.08 : 1 }],
+          transform: [{ translateY: lifted ? -width * 0.36 : 0 }, { scale: lifted ? 1.2 : 1 }],
         },
+        lifted && styles.picked,
         style,
       ]}
     >
@@ -84,5 +87,6 @@ export const Tile = memo(function Tile({
 
 const styles = StyleSheet.create({
   tile: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  picked: { zIndex: 2, boxShadow: `0 0 10px 3px ${m.lit}` },
   index: { position: "absolute", fontWeight: "900", color: m.honour },
 });

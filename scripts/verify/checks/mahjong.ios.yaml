@@ -3,10 +3,17 @@ appId: au.org.sow.theshed
 # Mahjong on iOS, one person and three bots: to the Café, sit at Table 2's
 # East stool, the lobby opens (the arcade list's panel), the host adds a bot
 # to each other seat and starts, and the table opens full screen with the
-# dice, then the dealt hand. The web check (three people) runs first on this
+# dice, then the dealt hand. Starting counts down 3 seconds first (bots are
+# always ready). At the table, the timer runs under ✕ and the table's options
+# open as a settings card. The web check (three people) runs first on this
 # backend and uses Table 1, so this one sits at Table 2.
 #
 # Each stool is a VoiceOver target: "Mahjong Table 2, East seat".
+#
+# The World never stops moving (people walking, the animals), so after a tap
+# there Maestro would wait up to about 45 s for the screen to settle, and the
+# check ran past verify's 5 minutes. The World's taps cap that wait at 2 s
+# (waitToSettleTimeoutMs); the waits after each tap say what to wait for.
 - openLink: "theshedmobile://world"
 - extendedWaitUntil:
     visible:
@@ -22,6 +29,7 @@ appId: au.org.sow.theshed
     commands:
       - tapOn:
           id: world-title
+          waitToSettleTimeoutMs: 2000
       - waitForAnimationToEnd:
           timeout: 2000
       - runFlow:
@@ -31,6 +39,7 @@ appId: au.org.sow.theshed
           commands:
             - tapOn:
                 id: world-menu-garden
+                waitToSettleTimeoutMs: 2000
       - runFlow:
           when:
             visible:
@@ -38,12 +47,15 @@ appId: au.org.sow.theshed
           commands:
             - tapOn:
                 id: world-menu-close
+                waitToSettleTimeoutMs: 2000
       - extendedWaitUntil:
           visible: "Go to The Café"
           timeout: 30000
       - waitForAnimationToEnd:
           timeout: 3000
-      - tapOn: "Go to The Café"
+      - tapOn:
+          text: "Go to The Café"
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-title
@@ -75,6 +87,11 @@ appId: au.org.sow.theshed
     id: mahjong-start
 - extendedWaitUntil:
     visible:
+      id: mahjong-countdown
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-mahjong-countdown"
+- extendedWaitUntil:
+    visible:
       id: mahjong-table
     timeout: 30000
 - waitForAnimationToEnd:
@@ -87,9 +104,37 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 2000
 - takeScreenshot: "${OUT}/check-mahjong-table"
-# Leave the table: a bot takes the seat, and the World is back.
+- extendedWaitUntil:
+    visible:
+      id: mahjong-timer
+    timeout: 30000
+- takeScreenshot: "${OUT}/check-mahjong-timer"
+- tapOn:
+    id: mahjong-options
+    waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    visible:
+      id: mahjong-options-panel
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${OUT}/check-mahjong-options"
+- tapOn:
+    id: mahjong-options
+    waitToSettleTimeoutMs: 2000
+# Leave the table: it asks first (a bot plays your seat), then a bot takes
+# the seat, and the World is back.
 - tapOn:
     id: mahjong-leave
+    waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    visible:
+      id: mahjong-give-up-confirm
+    timeout: 10000
+- takeScreenshot: "${OUT}/check-mahjong-leave-question"
+- tapOn:
+    id: mahjong-give-up-confirm
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: mahjong-sit-back

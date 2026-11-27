@@ -4,6 +4,7 @@ import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CLAIM_SECONDS, FAAN_LIMITS, MIN_FAAN_CHOICES, TURN_SECONDS, type Settings } from "@shared/mahjong/table";
+import { lobbyWaiting, secondsLeft } from "./tableWords";
 import { isMahjongTable, MAHJONG_TABLE_NAMES, seatPlace } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
@@ -53,11 +54,25 @@ const Stepper = ({ value, min, max, onChange, label, testID }: { value: number; 
 
 const seatDetail = (seat: MahjongSeatView, index: number, hostSeat: number) => {
   const place = `${seatPlace(index)} seat`;
-  const host = index === hostSeat ? " · Host" : "";
   if (seat.kind === "empty") return `${place} · Free`;
-  if (seat.kind === "bot") return `${place} · Bot`;
-  return `${place}${host}`;
+  if (seat.kind === "bot") return `${place} · Bot · Ready`;
+  if (index === hostSeat) return `${place} · Host`;
+  return `${place} · ${seat.ready ? "Ready" : "Not ready"}`;
 };
+
+/** Asks the host before taking someone off their seat. */
+const RemoveConfirm = ({ name, onRemove, onKeep }: { name: string; onRemove: () => void; onKeep: () => void }) => (
+  <View style={styles.confirmWrap} testID="mahjong-remove-confirm" accessibilityViewIsModal>
+    <View style={styles.confirm}>
+      <Text style={styles.confirmTitle} accessibilityRole="header">{`Take ${name} off the table?`}</Text>
+      <Text style={styles.note}>Their seat frees up, and they get up from the table. They can sit down again.</Text>
+      <View style={styles.confirmButtons}>
+        <Pill label="Keep them" onPress={onKeep} testID="mahjong-remove-keep" />
+        <Pill label="Take off" primary onPress={onRemove} testID="mahjong-remove-go" a11y={`Take ${name} off the table`} />
+      </View>
+    </View>
+  </View>
+);
 
 /**
  * The table's waiting room, built like the arcade's games list: the same
@@ -75,7 +90,11 @@ export const MahjongLobby = ({
   onRemoveBot,
   onSettings,
   onStart,
+  onCancelStart,
+  onReady,
+  onRemovePlayer,
   onLeave,
+  now,
 }: {
   table: MahjongMine | null;
   open: boolean;
@@ -86,13 +105,18 @@ export const MahjongLobby = ({
   onAddBot: (seat: number) => void;
   onRemoveBot: (seat: number) => void;
   onSettings: (settings: Settings) => void;
-  onStart: () => void;
+  onStart: (anyway: boolean) => void;
+  onCancelStart: () => void;
+  onReady: (ready: boolean) => void;
+  onRemovePlayer: (seat: number) => void;
   onLeave: () => void;
+  now: number;
 }) => {
   const overlay = useOverlayClock(open && table !== null, ROWS);
   const { width, height } = useWindowDimensions();
   const [kept, setKept] = useState(table);
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState<number | null>(null);
   if (table && table !== kept) setKept(table);
   if (!overlay.mounted || !kept) return null;
   const t = kept;
@@ -101,6 +125,10 @@ export const MahjongLobby = ({
   const hostName = t.hostSeat >= 0 ? nameOf(t.seats[t.hostSeat].name) : "the host";
   const short = t.seats.filter((s) => s.short).map((s) => (s.isMe ? "You" : nameOf(s.name)));
   const title = `Mahjong · ${isMahjongTable(t.table) ? MAHJONG_TABLE_NAMES[t.table] : "Table"}`;
+  const waiting = lobbyWaiting(t.seats, t.hostSeat).map((i) => nameOf(t.seats[i].name));
+  const me = t.seats[t.mySeat];
+  const counting = t.startsAt !== null;
+  const removed = removing !== null && t.seats[removing]?.kind === "human" ? t.seats[removing] : null;
   const rows: ReactNode[] = t.seats.map((seat, i) => (
     <MenuRow
       key={seatPlace(i)}
@@ -113,6 +141,10 @@ export const MahjongLobby = ({
           <Pill label="Add bot" onPress={() => onAddBot(i)} testID={`mahjong-add-bot-${i}`} a11y={`Add a bot in the ${seatPlace(i)} seat`} />
         ) : t.isHost && seat.kind === "bot" ? (
           <Pill label="Remove" onPress={() => onRemoveBot(i)} testID={`mahjong-remove-bot-${i}`} a11y={`Take the bot out of the ${seatPlace(i)} seat`} />
+        ) : t.isHost && seat.kind === "human" && !seat.isMe && !counting ? (
+          <Pressable onPress={() => setRemoving(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Take ${nameOf(seat.name)} off the table`} testID={`mahjong-remove-player-${i}`} style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+            <Ionicons name="close" size={16} color={glass.text} />
+          </Pressable>
         ) : i === t.hostSeat ? (
           <Ionicons name="star" size={16} color={worldColours.gold.light} accessibilityElementsHidden />
         ) : (
@@ -172,7 +204,7 @@ export const MahjongLobby = ({
               </View>
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Seconds to chow, pong or win</Text>
-                <Pill label={`${claimOf(settings)} s`} onPress={() => change({ claimSeconds: nextOf(CLAIM_SECONDS.choices, claimOf(settings)) })} testID="mahjong-claim-seconds" a11y={`Seconds to claim a discard: ${claimOf(settings)}. Tap to change`} />
+                <Stepper value={claimOf(settings)} min={CLAIM_SECONDS.min} max={CLAIM_SECONDS.max} label="seconds to claim" onChange={(claimSeconds) => change({ claimSeconds })} testID="mahjong-claim-seconds" />
               </View>
               <View style={styles.setting}>
                 <Text style={styles.settingName}>Play for SOW coins</Text>
@@ -189,23 +221,45 @@ export const MahjongLobby = ({
 
             </View>
           ) : null}
-          <Animated.View style={[styles.startRow, itemStyle(overlay, 6)]}>
-            <Text style={[styles.note, settings.coins === true && styles.coinsNote]} testID="mahjong-coins-note">
-              {settings.coins === true
-                ? `SOW coins on the line: everyone needs ${t.coinsToSit} coins to sit, the most one hand can cost. Coins only move between people, never to or from a bot.`
-                : "For points: no SOW coins move at this table."}
-            </Text>
-            {t.isHost ? (
-              <>
-                <Pill label="Start game" primary disabled={!t.full || short.length > 0} onPress={onStart} testID="mahjong-start" />
-                {t.full ? null : <Text style={styles.note}>Fill every seat to start: add bots, or wait for people to sit down.</Text>}
-                {short.length > 0 ? <Text style={[styles.note, styles.coinsNote]}>{`${short.join(", ")} ${short.length === 1 && short[0] !== "You" ? "hasn't" : "haven't"} enough coins. Turn coins off, lower the faan cap or the stake, or wait for them to get up.`}</Text> : null}
-              </>
-            ) : (
-              <Text style={styles.note} testID="mahjong-waiting">{`Waiting for ${hostName} to start.`}</Text>
-            )}
-          </Animated.View>
         </SharpScrollView>
+        <Animated.View style={[styles.startRow, itemStyle(overlay, 6)]}>
+          <Text style={[styles.note, settings.coins === true && styles.coinsNote]} testID="mahjong-coins-note">
+            {settings.coins === true
+              ? `SOW coins on the line: everyone needs ${t.coinsToSit} coins to sit, the most one hand can cost. Coins only move between people, never to or from a bot.`
+              : "For points: no SOW coins move at this table."}
+          </Text>
+          {counting ? (
+            <View style={styles.countdown} testID="mahjong-countdown" accessibilityLiveRegion="assertive">
+              <Text style={styles.countdownLabel}>Starting in</Text>
+              <Text style={styles.countdownValue} testID="mahjong-countdown-seconds">
+                {secondsLeft(t.startsAt ?? now, now)}
+              </Text>
+              {t.isHost ? <Pill label="Cancel" onPress={onCancelStart} testID="mahjong-cancel-start" /> : null}
+            </View>
+          ) : t.isHost ? (
+            <>
+              <Pill label={waiting.length > 0 ? "Start anyway" : "Start game"} primary disabled={!t.full || short.length > 0} onPress={() => onStart(waiting.length > 0)} testID="mahjong-start" a11y={waiting.length > 0 ? "Start anyway, in 10 seconds" : "Start game"} />
+              {t.full ? null : <Text style={styles.note}>Fill every seat to start: add bots, or wait for people to sit down.</Text>}
+              {t.full && waiting.length > 0 ? <Text style={styles.note} testID="mahjong-not-ready">{`${waiting.join(" and ")} ${waiting.length === 1 ? "isn't" : "aren't"} ready. Start anyway (a 10 second countdown), or take them off with ✕.`}</Text> : null}
+              {short.length > 0 ? <Text style={[styles.note, styles.coinsNote]}>{`${short.join(", ")} ${short.length === 1 && short[0] !== "You" ? "hasn't" : "haven't"} enough coins. Turn coins off, lower the faan cap or the stake, or wait for them to get up.`}</Text> : null}
+            </>
+          ) : (
+            <>
+              <Pill label={me?.ready ? "Ready ✓" : "I'm ready"} primary={!me?.ready} onPress={() => onReady(!me?.ready)} testID="mahjong-ready" a11y={me?.ready ? "Ready. Tap if you're not ready after all" : "Tell the host you're ready"} />
+              <Text style={styles.note} testID="mahjong-waiting">{`Waiting for ${hostName} to start.`}</Text>
+            </>
+          )}
+        </Animated.View>
+        {removed && removing !== null ? (
+          <RemoveConfirm
+            name={nameOf(removed.name)}
+            onKeep={() => setRemoving(null)}
+            onRemove={() => {
+              setRemoving(null);
+              onRemovePlayer(removing);
+            }}
+          />
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -225,7 +279,7 @@ const styles = StyleSheet.create({
   },
   close: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: glass.row },
   pressed: { opacity: 0.7 },
-  scroll: { flexGrow: 0 },
+  scroll: { flexGrow: 0, flexShrink: 1 },
   rows: { gap: 6, paddingHorizontal: 8, paddingBottom: 12 },
   pill: { height: 30, paddingHorizontal: 12, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: glass.rowPressed },
   pillPrimary: { height: 40, paddingHorizontal: 22, borderRadius: 20, backgroundColor: hud.accent },
@@ -238,7 +292,14 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center", gap: 8 },
   step: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: glass.rowPressed },
   stepValue: { minWidth: 22, textAlign: "center", fontFamily: fonts.display, fontSize: 16, color: glass.text, fontVariant: ["tabular-nums"] },
-  startRow: { alignItems: "center", gap: 8, paddingTop: 6 },
+  startRow: { alignItems: "center", gap: 8, paddingTop: 8, paddingBottom: 12, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: glass.edge },
   note: { fontSize: 12.5, fontWeight: "600", color: glass.muted, textAlign: "center", paddingHorizontal: 12 },
   coinsNote: { color: glass.text },
+  countdown: { alignItems: "center", gap: 4 },
+  countdownLabel: { fontSize: 13.5, fontWeight: "700", color: glass.muted },
+  countdownValue: { fontFamily: fonts.display, fontSize: 40, color: glass.text, fontVariant: ["tabular-nums"] },
+  confirmWrap: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: glass.scrimDeep },
+  confirm: { width: "100%", gap: 10, padding: 16, borderRadius: 20, backgroundColor: Platform.OS === "web" ? glass.panel : glass.panelSolid, borderWidth: 1.5, borderColor: glass.edge },
+  confirmTitle: { fontFamily: fonts.display, fontSize: 17, color: glass.text, textAlign: "center" },
+  confirmButtons: { flexDirection: "row", gap: 8, justifyContent: "center" },
 });

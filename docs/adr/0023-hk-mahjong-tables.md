@@ -49,6 +49,10 @@ The 1v1 games (`convex/cafeGames.ts`) set the pattern this follows:
    │   humans sit in empty seats           abandoned
    │                   │ host: Start (4 seats filled)
    │                   ▼
+   │             COUNTDOWN  ── 3 s when everyone seated is ready, 10 s when
+   │                   │       the host starts anyway; a seat emptying or
+   │                   │       the host's Cancel stops it (startsAt)
+   │                   ▼
    │                 DICE  ── dice pick the first dealer and the wall break
    │                   │ (timed, ~2.5 s)
    │                   ▼
@@ -60,7 +64,8 @@ The 1v1 games (`convex/cafeGames.ts`) set the pattern this follows:
    │     │             │    drawn tile is discarded for them)
    │     │             │ discard / promoted kong
    │     │             ▼
-   │     │         CLAIM WINDOW (only when someone can claim; 5 s;
+   │     │         CLAIM WINDOW (only when someone can claim; 10 s by
+   │     │             │  default, 3 to 20 s;
    │     │             │  Hu > Pong/Kong > Chow, Hu goes to the first
    │     │             │  winner after the discarder)
    │     │ next seat   │
@@ -95,6 +100,29 @@ abandoned (no coins move) if nobody comes back within two minutes.
   which returns every seat's melds, flowers, discards and tile count but no
   concealed tiles and no wall.
 - Before a hand starts, the lobby works as before: sit in a free seat.
+  Seated people say they're ready (the lobby's `ready`, which the
+  between-hands "Play another round" already used); bots and the host
+  always are. The host can take someone off their seat (they get up from
+  the stool), or start without them, which counts down 10 seconds instead
+  of 3.
+- While someone has walked away mid-hand, their seat shows the bot playing
+  for them by the bot's name (`standIn` in the seat view), and their own
+  again when they sit back down.
+
+## Follow-ups (2.13.66)
+
+- A host's rules are kept on their wallet (`worldWallets.mahjongSettings`)
+  and used for the next table they open; the claim window defaults to 10 s
+  and can be 3 to 20 s.
+- The table's layout: A (the seat on your left) and C (on your right) run
+  the full height of the table with their melds face up and their
+  concealed tiles shown only as a count; B's and your discards sit between
+  them in two rows; A's discards fill columns downward and C's upward,
+  each starting at their own seat. Discards are as big as every pile still
+  fits (never bigger than your hand's tiles), so they start big and shrink
+  as the piles grow, and never grow back within a hand. On the web the
+  table widens with the window (up to 1000 points). The clock moved under
+  ✕, off the board.
 
 ## Coins
 

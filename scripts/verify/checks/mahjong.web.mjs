@@ -8,6 +8,13 @@
 // (no concealed tiles) and then sits in a bot's seat, which asks to take it
 // over. Each person plays their own turns by discarding the tile they drew.
 //
+// Around that: the host takes the leader off a seat in the lobby (✕, then
+// a confirmation), the guest says they're ready, and the start counts
+// down. At the table, the timer runs under ✕, a picked tile slid down stays
+// in the hand, a claim lights the tiles it would take, the table's options
+// open as a settings card, and when the leader gives back the bot they took
+// over, the seat shows the bot's name again.
+//
 // The World's accessible targets don't take clicks themselves (the stage
 // above them does), so a click lands at a target's middle, as a finger would.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -96,6 +103,36 @@ const sitAt = async (who, place) => {
   await clickMiddle(who, target);
 };
 
+/**
+ * Sits in a bot's stool mid-hand, and says which. Someone seated beside a
+ * stool can cover it on screen, and a tap on a person playing opens their
+ * game to watch, so this tries each bot's stool, its middle and then its
+ * corners.
+ */
+const BOT_PLACES = { West: 2, North: 3 };
+const sitInBotSeat = async (who) => {
+  for (const [place, index] of Object.entries(BOT_PLACES)) if (await sitInStool(who, place)) return index;
+  return null;
+};
+const sitInStool = async (who, place) => {
+  const target = seat(who, place);
+  await target.waitFor({ state: "attached" });
+  const box = await target.boundingBox();
+  for (const [fx, fy] of [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) {
+    await who.page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+    // Walking to the stool takes a while; either the take-over card comes up, or the game opens to watch.
+    const outcome = await who.page
+      .waitForFunction(() => ["mahjong-replace", "mahjong-watching"].find((t) => document.querySelector(`[data-testid="${t}"]`)), null, { timeout: 15_000 })
+      .then((handle) => handle.jsonValue(), () => null);
+    if (outcome === "mahjong-replace") return true;
+    if (outcome === "mahjong-watching") {
+      await id(who, "mahjong-leave").click();
+      await who.page.waitForTimeout(800);
+    }
+  }
+  return false;
+};
+
 /** Plays this person's turn if it's theirs: tap the drawn tile (the last), then tap it again. Passes claims after a shot. */
 const playTurn = async (who, seen) => {
   if (await shown(who, "mahjong-claim")) {
@@ -132,6 +169,18 @@ try {
   // The host sits: the lobby, built like the arcade's list.
   await sitAt(host, "East");
   await expect(host, "sitting at an empty table opens its lobby", appears(host, "mahjong-lobby"));
+  // The lobby opens under the chat log, so the log stays readable, and its Start button is on screen.
+  await host.page.waitForTimeout(800);
+  await expect(
+    host,
+    "the lobby opens below the chat log, with its start button on screen",
+    host.page.evaluate(() => {
+      const log = document.querySelector('[data-testid="world-chat-log"]')?.getBoundingClientRect();
+      const lobby = document.querySelector('[data-testid="mahjong-lobby"]')?.getBoundingClientRect();
+      const start = document.querySelector('[data-testid="mahjong-start"]')?.getBoundingClientRect();
+      return Boolean(lobby && start && (!log || log.bottom <= lobby.top + 1) && start.bottom <= window.innerHeight);
+    })
+  );
   await host.page.waitForTimeout(800);
   await shot(host, "lobby");
   await id(host, "mahjong-lobby").screenshot({ path: `${OUT}/mahjong-lobby-panel.png` });
@@ -148,19 +197,41 @@ try {
     await appears(host, "mahjong-lobby");
   }
 
-  // The guest sits in the South seat; the host sees them, adds two bots and opens the rules.
+  // The guest sits in the North seat first, and the host takes them off it: ✕, then a confirmation.
+  await sitAt(guest, "North");
+  await expect(guest, "the guest's lobby opens", appears(guest, "mahjong-lobby"));
+  await expect(host, "the host can take a seated person off", appears(host, "mahjong-remove-player-3"));
+  await id(host, "mahjong-remove-player-3").click();
+  await expect(host, "taking someone off asks first", appears(host, "mahjong-remove-confirm"));
+  await host.page.waitForTimeout(400);
+  await shot(host, "remove-confirm");
+  await id(host, "mahjong-remove-go").click();
+  await expect(guest, "the guest's lobby closes once they're taken off", id(guest, "mahjong-lobby").waitFor({ state: "hidden", timeout: 15_000 }).then(() => true, () => false));
+  await expect(host, "the North seat is free again", appears(host, "mahjong-add-bot-3"));
+  await guest.page.waitForTimeout(1200);
+  await shot(guest, "removed");
+
+  // The guest sits down again, in the South seat; the host sees them, adds two bots and opens the rules.
   await sitAt(guest, "South");
   await expect(guest, "the guest's lobby opens", appears(guest, "mahjong-lobby"));
   await expect(guest, "the guest waits for the host", appears(guest, "mahjong-waiting"));
   await id(host, "mahjong-add-bot-2").click();
   await id(host, "mahjong-add-bot-3").click();
+  await expect(host, "the host is told who isn't ready", appears(host, "mahjong-not-ready"));
+  await host.page.waitForTimeout(600);
+  await shot(host, "lobby-not-ready");
+  await id(guest, "mahjong-ready").click();
+  await expect(host, "the host's button says Start game once everyone's ready", host.page.waitForFunction(() => !document.querySelector('[data-testid="mahjong-not-ready"]'), null, { timeout: 15_000 }).then(() => true, () => false));
   await id(host, "mahjong-rules").click();
   await host.page.waitForTimeout(800);
   await shot(host, "lobby-full");
   await shot(guest, "lobby-full");
 
-  // Start: the dice and the deal, then the table full screen.
+  // Start: a countdown for everyone seated, then the dice and the deal, and the table full screen.
   await id(host, "mahjong-start").click();
+  await expect(guest, "the guest sees the countdown", appears(guest, "mahjong-countdown", 5_000));
+  await shot(guest, "countdown");
+  await shot(host, "countdown");
   await expect(host, "the table opens full screen", appears(host, "mahjong-table"));
   await expect(guest, "the table opens for the guest", appears(guest, "mahjong-table"));
   await host.page.waitForTimeout(700);
@@ -175,6 +246,8 @@ try {
   await host.page.getByTestId("world-emote-wave").click().catch(() => notes.push("no wave emote"));
   await host.page.waitForTimeout(900);
   await shot(host, "chat");
+  // Every seat's bubble stays on screen: the guest sits on the host's right, so theirs grows leftward.
+  await expect(host, "the chat bubbles stay on screen", host.page.evaluate(() => [...document.querySelectorAll('[data-testid="mahjong-bubble"]')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.top >= 0; })));
 
   // The watcher taps the guest's stool: the game opens read-only.
   await sitAt(watcher, "South");
@@ -184,11 +257,53 @@ try {
   await expect(watcher, "a watcher sees no concealed tiles", (async () => (await watcher.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"]').count()) === 0)());
   await id(watcher, "mahjong-leave").click();
 
+  // The table's options, a settings card.
+  await id(host, "mahjong-options").click();
+  await expect(host, "the table's options open", appears(host, "mahjong-options-panel"));
+  await host.page.waitForTimeout(600);
+  await shot(host, "options");
+  await id(host, "mahjong-options-close").click({ position: { x: 20, y: 300 } }).catch(() => notes.push("couldn't close the options"));
+  await host.page.waitForTimeout(500);
+
   // Play the hand out: each person plays their own turns.
   const seen = { host: {}, guest: {} };
+  let slid = false;
+  let tookSeat = null;
+  let gaveBack = false;
   const until = Date.now() + HAND_MS;
   let tookTable = false;
   while (Date.now() < until && !(await shown(host, "mahjong-result"))) {
+    // Once: on the host's turn, pick a tile and slide it down. It stays in the hand, and the turn stays the host's.
+    if (!slid && (await shown(host, "mahjong-turn"))) {
+      slid = true;
+      const tiles = host.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"]');
+      const before = await tiles.count();
+      const first = tiles.first();
+      await first.click();
+      await host.page.waitForTimeout(250);
+      await shot(host, "picked");
+      await expect(host, "the timer runs under ✕ on your turn", shown(host, "mahjong-timer"));
+      await expect(host, "your turn is called out over your hand", shown(host, "mahjong-your-turn"));
+      const box = await first.boundingBox();
+      await host.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await host.page.mouse.down();
+      for (let step = 1; step <= 8; step++) await host.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + step * 10);
+      await host.page.mouse.up();
+      await host.page.waitForTimeout(700);
+      await expect(host, "sliding a picked tile down doesn't discard it", (async () => (await tiles.count()) === before && (await shown(host, "mahjong-turn")))());
+      // Scrub along the top row: the tile under the pointer is picked as it goes, and lifting keeps it picked (no discard).
+      const row = [];
+      for (let i = 0; i < Math.min(4, before); i++) row.push(await tiles.nth(i).boundingBox());
+      const y = row[0].y + row[0].height / 2;
+      await host.page.mouse.move(row[0].x + row[0].width / 2, y);
+      await host.page.mouse.down();
+      for (const box of row) for (let step = 1; step <= 4; step++) await host.page.mouse.move(box.x + (step * box.width) / 4, y);
+      await host.page.waitForTimeout(200);
+      await shot(host, "scrub");
+      await host.page.mouse.up();
+      await host.page.waitForTimeout(500);
+      await expect(host, "scrubbing along the hand picks a tile and never discards", (async () => (await tiles.count()) === before && (await shown(host, "mahjong-turn")))());
+    }
     await playTurn(host, seen.host);
     await playTurn(guest, seen.guest);
     if (!tookTable && !seen.tableShot && (await shown(host, "mahjong-last-discard"))) {
@@ -199,18 +314,33 @@ try {
     // Midway, the watcher sits in a bot's stool (bots aren't drawn, so it looks free) and is asked to take over.
     if (!tookTable && seen.tableShot && (await host.page.locator('[data-testid^="mahjong-river-"] [aria-label]').count()) > 10) {
       tookTable = true;
-      await sitAt(watcher, "West");
-      if (await appears(watcher, "mahjong-replace", 15_000)) {
+      tookSeat = await sitInBotSeat(watcher);
+      if (tookSeat !== null) {
         await watcher.page.waitForTimeout(500);
         await shot(watcher, "replace");
         await id(watcher, "mahjong-replace-take").click();
         await expect(watcher, "taking over a bot opens its hand", appears(watcher, "mahjong-table"));
         await watcher.page.waitForTimeout(600);
         await shot(watcher, "took-over");
+        await host.page.waitForTimeout(800);
+        await shot(host, "sees-takeover");
         seen.watcher = {};
-      } else failures.push("watcher: sitting in a bot's seat didn't ask to take it over");
+      } else {
+        failures.push("watcher: sitting in a bot's seat didn't ask to take it over");
+        await shot(watcher, "replace-missing");
+      }
     }
     if (seen.watcher) await playTurn(watcher, seen.watcher);
+    // A few turns later the leader gets up: the bot plays the seat again, under the bot's own name.
+    if (seen.watcher && !gaveBack && (await host.page.locator('[data-testid^="mahjong-river-"] [aria-label]').count()) > 20) {
+      gaveBack = true;
+      await id(watcher, "mahjong-leave").click();
+      if (await appears(watcher, "mahjong-give-up", 3_000)) await id(watcher, "mahjong-give-up-confirm").click();
+      delete seen.watcher;
+      await host.page.waitForTimeout(1500);
+      await expect(host, "the seat shows the bot's name while it plays for the leader", host.page.getByTestId(`mahjong-player-${tookSeat}`).getByText(tookSeat === 2 ? /^Dragon B/ : /^Lotus B/).first().isVisible().catch(() => false));
+      await shot(host, "stand-in");
+    }
     await host.page.waitForTimeout(250);
   }
   await expect(host, "the hand reaches its breakdown", appears(host, "mahjong-result", 5_000));

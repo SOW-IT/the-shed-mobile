@@ -31,7 +31,7 @@ export type TableSeat =
 /** A table's rules, which the host sets in the lobby: 3 to 10 faan, flowers, 1 coin a point. */
 export type Settings = { minFaan: number; maxFaan: number; stake: number; coins?: boolean; turnSeconds?: number; claimSeconds?: number };
 export const TURN_SECONDS = { choices: [10, 15, 20, 30, 45, 60], fallback: 30, min: 10, max: 60 } as const;
-export const CLAIM_SECONDS = { choices: [3, 5, 8, 10, 15], fallback: 5, min: 3, max: 15 } as const;
+export const CLAIM_SECONDS = { fallback: 10, min: 3, max: 20 } as const;
 export const DEFAULT_SETTINGS: Settings = { minFaan: 0, maxFaan: 10, stake: 1, coins: false, turnSeconds: TURN_SECONDS.fallback, claimSeconds: CLAIM_SECONDS.fallback };
 export const turnMsOf = (s: Settings) => (s.turnSeconds ?? TURN_SECONDS.fallback) * 1000;
 export const claimMsOf = (s: Settings) => (s.claimSeconds ?? CLAIM_SECONDS.fallback) * 1000;
@@ -83,6 +83,15 @@ export const everyoneAway = (seats: readonly TableSeat[]) => {
   const humans = seats.filter((s) => s.kind === "human");
   return humans.length > 0 && humans.every((s) => s.away !== undefined);
 };
+
+/** How long the lobby counts down before the first deal: short when everyone's ready, longer when the host starts anyway. */
+export const START_COUNTDOWN_MS = { ready: 3000, anyway: 10_000 } as const;
+
+/** Whether a seat is ready to start: bots always are, and so is the host (starting says so). */
+const seatReady = (seat: TableSeat, host: string | undefined) => seat.kind === "bot" || (seat.kind === "human" && (seat.ready === true || seat.email === host));
+
+/** The seats the host would be starting without: people who haven't said they're ready. */
+export const notReadySeats = (seats: readonly TableSeat[], host: string | undefined) => seats.flatMap((s, i) => (s.kind === "human" && !seatReady(s, host) ? [i] : []));
 
 /** Whether the next round can start: everyone seated is here and has asked for it. */
 export const allReady = (seats: readonly TableSeat[]) => {

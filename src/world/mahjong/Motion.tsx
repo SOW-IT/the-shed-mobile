@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { type ViewStyle } from "react-native";
-import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from "react-native-reanimated";
+import Reanimated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 
 /**
  * Comes into place once, when it first shows: from an offset (and a
@@ -40,6 +40,22 @@ export const Arrive = ({
     };
   });
   return <Reanimated.View style={[style, moved]}>{children}</Reanimated.View>;
+};
+
+/** Breathes gently while it's shown, to catch the eye (your turn); with `calm` it's still. Never takes a touch. */
+export const Pulse = ({ children, calm, style }: { children: ReactNode; calm: boolean; style?: ViewStyle }) => {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (calm) return;
+    t.set(withRepeat(withTiming(1, { duration: 650, easing: Easing.inOut(Easing.quad) }), -1, true));
+    return () => cancelAnimation(t);
+  }, [calm, t]);
+  const breathing = useAnimatedStyle(() => ({ opacity: 0.75 + 0.25 * t.get(), transform: [{ scale: 1 + 0.06 * t.get() }] }));
+  return (
+    <Reanimated.View style={[style, breathing]} pointerEvents="none">
+      {children}
+    </Reanimated.View>
+  );
 };
 
 /** A shout across the table (PONG!, HU!): it punches in, holds, and fades. */

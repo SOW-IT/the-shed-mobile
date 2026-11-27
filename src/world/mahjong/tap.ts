@@ -32,6 +32,10 @@ export const mahjongTap = <T extends TableSummary>(seatId: string, tables: reado
 export const tableToWatch = <T extends TableSummary>(tables: readonly T[], memberId: string | undefined): T["id"] | null =>
   memberId === undefined ? null : (tables.find((t) => live(t) && t.seats.some((s) => s.kind === "human" && s.member === memberId))?.id ?? null);
 
+/** Every stool a bot is playing during a hand: a tap there should sit you down to take it over, whoever is drawn over it. */
+export const takeoverSeats = (tables: readonly TableSummary[]) =>
+  new Set(tables.flatMap((t) => (live(t) ? t.seats.flatMap((s, i) => (s.kind === "bot" ? [mahjongSeatId(t.table as MahjongTableId, i)] : [])) : [])));
+
 /** The bot seat you're sitting in during a hand, which you could take over. */
 export const botSeatUnder = <T extends TableSummary>(tables: readonly T[], seatId: string | undefined): { tableId: T["id"]; table: MahjongTableId; seat: number; name: string } | null => {
   const at = mahjongSeatOf(seatId);
@@ -59,4 +63,37 @@ const SLIDE_TO_DISCARD = 40;
 
 export const isSlideUp = (dx: number, dy: number) => dy <= -SLIDE_TO_DISCARD && Math.abs(dy) > Math.abs(dx) * 1.5;
 
-export const startsSlideUp = (dx: number, dy: number) => dy < -10 && Math.abs(dy) > Math.abs(dx) * 1.5;
+/** A tile being dragged up or down: either way the drag is the tile's, so it never also counts as a tap (which could discard). */
+export const startsSlide = (dx: number, dy: number) => Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.5;
+
+/** A drag along the hand (sideways), which picks whichever tile is under the finger as it goes. */
+export const startsScrub = (dx: number, dy: number) => Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2;
+
+export type TileRect = { tile: number; x: number; y: number; width: number; height: number };
+
+/**
+ * The tile under a point of the hand, scrubbing: the row nearest the point
+ * (so a finger a little above or below the tiles still counts), then the
+ * tile across it, gaps going to the nearer tile. Null when the point is
+ * well off the hand.
+ */
+export const tileUnder = (rects: readonly TileRect[], x: number, y: number): number | null => {
+  if (rects.length === 0) return null;
+  const rowOf = (r: TileRect) => r.y + r.height / 2;
+  const height = Math.max(...rects.map((r) => r.height));
+  const nearestRow = rects.reduce((best, r) => (Math.abs(rowOf(r) - y) < Math.abs(rowOf(best) - y) ? r : best));
+  if (Math.abs(rowOf(nearestRow) - y) > height * 1.5) return null;
+  const row = rects.filter((r) => Math.abs(rowOf(r) - rowOf(nearestRow)) < height / 2);
+  const left = Math.min(...row.map((r) => r.x));
+  const right = Math.max(...row.map((r) => r.x + r.width));
+  if (x < left - height / 2 || x > right + height / 2) return null;
+  return row.reduce((best, r) => (Math.abs(r.x + r.width / 2 - x) < Math.abs(best.x + best.width / 2 - x) ? r : best)).tile;
+};
+
+/**
+ * A slide down puts a picked tile back. Any slide down the tile took (see
+ * startsSlide) counts, however short: on iOS the release can report much less
+ * of the drag than the finger moved (a 60 point flick ended at 34), and
+ * putting a tile back is harmless.
+ */
+export const isSlideDown = (dx: number, dy: number) => startsSlide(dx, dy) && dy > 0;

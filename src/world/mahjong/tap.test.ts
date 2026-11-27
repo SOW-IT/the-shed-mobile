@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botSeatUnder, isSlideUp, mahjongTags, mahjongTap, startsSlideUp, tableToWatch, type TableSummary } from "./tap";
+import { botSeatUnder, isSlideDown, isSlideUp, mahjongTags, mahjongTap, startsScrub, startsSlide, tableToWatch, takeoverSeats, tileUnder, type TableSummary } from "./tap";
 
 const seat = (kind: "empty" | "human" | "bot", member: string | null = null, name = "") => ({ kind, member, name, away: false });
 const table = (phase: TableSummary["phase"], seats: TableSummary["seats"]): TableSummary => ({ id: "t1", table: "mahjong-a", phase, seats });
@@ -17,6 +17,13 @@ describe("tapping a mahjong seat", () => {
     const full = table("lobby", [seat("human", "ann"), seat("bot"), seat("bot"), seat("human", "ben")]);
     expect(mahjongTap("mahjong-a-1", [full], "me")).toEqual({ kind: "taken" });
     expect(mahjongTap("mahjong-a-1", [full], "ben")).toEqual({ kind: "sit", seat: "mahjong-a-3" });
+  });
+
+  it("lists the stools bots are playing during a hand, which a tap prefers over someone drawn over them", () => {
+    const playing = table("playing", [seat("human", "ann"), seat("bot"), seat("bot"), seat("human", "ben")]);
+    const lobby = { ...table("lobby", [seat("human", "cy"), seat("bot"), seat("empty"), seat("empty")]), id: "t2", table: "mahjong-b" };
+    expect([...takeoverSeats([playing, lobby])]).toEqual(["mahjong-a-1", "mahjong-a-2"]);
+    expect(takeoverSeats([]).size).toBe(0);
   });
 
   it("during a hand, sits in a bot's seat and watches anyone else's", () => {
@@ -58,8 +65,60 @@ describe("sliding a tile up to discard", () => {
   it("never counts a sideways or sloppy move", () => {
     expect(isSlideUp(50, -45)).toBe(false);
     expect(isSlideUp(-80, -50)).toBe(false);
-    expect(startsSlideUp(30, -12)).toBe(false);
-    expect(startsSlideUp(2, -4)).toBe(false);
-    expect(startsSlideUp(2, -14)).toBe(true);
+    expect(startsSlide(30, -12)).toBe(false);
+    expect(startsSlide(2, -4)).toBe(false);
+    expect(startsSlide(2, -14)).toBe(true);
+  });
+
+  it("takes a slide down as the tile's too, so it never also taps (and discards) it, and puts the tile back", () => {
+    expect(startsSlide(2, 14)).toBe(true);
+    expect(isSlideUp(0, 80)).toBe(false);
+    expect(isSlideDown(0, 45)).toBe(true);
+    // Short too: on iOS a 60 point flick down can be released at 34.
+    expect(isSlideDown(0, 20)).toBe(true);
+    expect(isSlideDown(0, 8)).toBe(false);
+    expect(isSlideDown(0, -45)).toBe(false);
+    expect(isSlideDown(60, 45)).toBe(false);
+  });
+});
+
+describe("scrubbing along your hand to pick a tile", () => {
+  // Two rows of 40-wide tiles with a 1-point gap: 0, 1, 2 on top (y 0), 3, 4 and the drawn 5 below (y 60), 5 set apart.
+  const rects = [
+    { tile: 0, x: 0, y: 0, width: 40, height: 54 },
+    { tile: 1, x: 41, y: 0, width: 40, height: 54 },
+    { tile: 2, x: 82, y: 0, width: 40, height: 54 },
+    { tile: 3, x: 0, y: 60, width: 40, height: 54 },
+    { tile: 4, x: 41, y: 60, width: 40, height: 54 },
+    { tile: 5, x: 88, y: 60, width: 40, height: 54 },
+  ];
+
+  it("starts on a sideways drag, never on an up or down one (those slide a tile)", () => {
+    expect(startsScrub(12, 2)).toBe(true);
+    expect(startsScrub(-20, 10)).toBe(true);
+    expect(startsScrub(4, 0)).toBe(false);
+    expect(startsScrub(10, 30)).toBe(false);
+    expect(startsSlide(12, 2)).toBe(false);
+  });
+
+  it("picks the tile under the finger, one at a time, row by row", () => {
+    expect(tileUnder(rects, 20, 27)).toBe(0);
+    expect(tileUnder(rects, 60, 27)).toBe(1);
+    expect(tileUnder(rects, 100, 27)).toBe(2);
+    expect(tileUnder(rects, 60, 90)).toBe(4);
+    expect(tileUnder(rects, 108, 90)).toBe(5);
+  });
+
+  it("gives a gap to the nearer tile, and still counts a finger a little off the tiles", () => {
+    expect(tileUnder(rects, 86, 90)).toBe(5);
+    expect(tileUnder(rects, 83, 90)).toBe(4);
+    expect(tileUnder(rects, 60, -20)).toBe(1);
+    expect(tileUnder(rects, 140, 90)).toBe(5);
+  });
+
+  it("finds nothing well off the hand", () => {
+    expect(tileUnder(rects, 60, 300)).toBeNull();
+    expect(tileUnder(rects, 400, 27)).toBeNull();
+    expect(tileUnder([], 0, 0)).toBeNull();
   });
 });

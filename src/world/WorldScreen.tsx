@@ -41,7 +41,7 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type GardenFarm, type GardenYard, type HighlightTarget, type InteractivePropId } from "./Garden";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
-import { CropThumb, GainChip, type FarmCardData } from "./Farm";
+import { CropThumb, GainChip, PlotCard, type FarmCardData } from "./Farm";
 import { AnimalThumb } from "./Animals";
 import { useAnimals, useFarm, useMinuteClock } from "./useFarm";
 import { hud } from "./palette";
@@ -55,6 +55,7 @@ import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
+import { lobbyChatLines, tableChatLog, worldChatLog } from "./chatLogSize";
 import { STATUS_CARD_MS } from "./cards";
 import { SettingsPanel } from "./SettingsPanel";
 import { useBatterySaver, useWorldName, useWorldSetting } from "./settings";
@@ -76,7 +77,7 @@ import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
 import { MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
-import { mahjongTags, mahjongTap, tableToWatch } from "./mahjong/tap";
+import { mahjongTags, mahjongTap, tableToWatch, takeoverSeats } from "./mahjong/tap";
 import { useMahjong } from "./mahjong/useMahjong";
 
 const KEYBOARD_GAP = 8;
@@ -288,6 +289,7 @@ export const WorldScreen = ({
   const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
   const [plotTrip, setPlotTrip] = useState<{ plot: number; since: number } | null>(null);
   const [plotCard, setPlotCard] = useState<{ plot: number; key: number } | null>(null);
+  const [yardCardAt, setYardCardAt] = useState<{ x: number; y: number; stageWidth: number } | null>(null);
   const [watering, setWatering] = useState<{ plot: number; key: number } | null>(null);
   const [flying, setFlying] = useState<{ plot: number; crop: CropId; key: number } | null>(null);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
@@ -413,7 +415,13 @@ export const WorldScreen = ({
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
   const worldName = useWorldName();
-  const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
+  const screen = useWindowDimensions();
+  const coinsBeside = screen.width >= COINS_BESIDE_FROM;
+  const worldLog = worldChatLog(screen.width, screen.height);
+  const tableLog = tableChatLog(screen.width, screen.height);
+  // The mahjong lobby opens under the chat log; on a short screen the log gives up lines for it.
+  const inMahjongLobby = mahjong.mine !== null && mahjong.mine.phase === "lobby";
+  const worldLines = inMahjongLobby ? lobbyChatLines(screen.width, screen.height) : worldLog.lines;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
   const chatLift = useAnimatedStyle(() => ({ transform: [{ translateY: -keyboard.lift.get() }] }));
 
@@ -470,6 +478,7 @@ export const WorldScreen = ({
 
   const playingNow = playingByPerson(cafe.playing, nameOf);
   const mahjongTagged = mahjongTags(mahjong.tables);
+  const botStools = takeoverSeats(mahjong.tables);
   const challengeTo = (to: Id<"worldMembers">, kind: string) => {
     setPicking(null);
     void cafe.challenge(to, kind).then((problem) => setNote(problem ?? `Asked ${nameOf(to)} to play ${gameLabel(kind)}.`));
@@ -1763,6 +1772,8 @@ export const WorldScreen = ({
         paused={!foreground || editing}
         farm={inBackyard ? gardenFarm : null}
         yard={inBackyard ? gardenYard : null}
+        onYardCardAt={setYardCardAt}
+        takeoverSeats={botStools}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.left}>
@@ -1811,7 +1822,7 @@ export const WorldScreen = ({
           <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
-      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104), maxWidth: worldLog.maxWidth }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
         {/* The chat log sits where the arcade opens; it steps aside while the arcade is open. */}
         {decorating || arcadeOpen ? null : (
           <ChatLog
@@ -1819,6 +1830,8 @@ export const WorldScreen = ({
             onLine={openSpeaker}
             muted={muted}
             serverNow={world.serverNow}
+            lines={worldLines}
+            text={worldLog.text}
             status={
               world.status === "joining"
                 ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
@@ -1836,6 +1849,12 @@ export const WorldScreen = ({
         {inviteCard}
         {knockCard}
       </View>
+      {/* The animals' card sits in front of the chat log, where it points, rather than being pushed down under it. */}
+      {inBackyard && yardView && yardCard && yardCardData && yardCardAt ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="world-yard-card-layer">
+          <PlotCard x={yardCardAt.x} y={yardCardAt.y} card={yardCardData} stageWidth={yardCardAt.stageWidth} minTop={insets.top + (coinsBeside ? 66 : 104)} />
+        </View>
+      ) : null}
       {keyboard.open ? (
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -1857,6 +1876,7 @@ export const WorldScreen = ({
         muted={muted}
         serverNow={world.serverNow}
         top={insets.top + TOP_BAR_GAP}
+        lobbyTop={logBottom + CARD_GAP}
         safeTop={insets.top}
         bottom={chatTop}
         nameOf={worldName}
@@ -1866,7 +1886,7 @@ export const WorldScreen = ({
         onStopWatching={() => setMahjongWatch(null)}
         onSitBack={world.sitOn}
         keyboardOpen={keyboard.open}
-        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={2} />}
+        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={tableLog.lines} text={tableLog.text} />}
       />
       {keyboard.open && mahjongCovers ? <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessibilityRole="button" accessibilityLabel="Hide keyboard" testID="mahjong-keyboard-dismiss" /> : null}
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
