@@ -119,6 +119,11 @@ export const MahjongLobby = ({
   const [editing, setEditing] = useState(false);
   const [removing, setRemoving] = useState<{ seat: number; member: Id<"worldMembers"> | null; name: string } | null>(null);
   if (table && table !== kept) setKept(table);
+  // A closed lobby forgets an open question and the rules it was editing, so neither comes back when it opens again.
+  if (!open && (removing !== null || editing)) {
+    setRemoving(null);
+    setEditing(false);
+  }
   if (!overlay.mounted || !kept) return null;
   const t = kept;
   const settings = t.settings;
