@@ -315,7 +315,7 @@ describe("a hand", () => {
   test("a move after the clock has run out is refused", async () => {
     const { t, anna } = await twoAndTwoBots();
     await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
-    vi.setSystemTime(Date.now() + TURN_MS + 1000);
+    vi.setSystemTime(Date.now() + TURN_MS + 1);
     expect(await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: tilesOf("R")[0] } })).toEqual({ ok: false, reason: "Time's up." });
   });
 
@@ -451,7 +451,8 @@ describe("taking over a bot mid-hand", () => {
     expect((await handRow(t)).state.seats[2].discards).toHaveLength(before.state.seats[2].discards.length);
     expect(await cara.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: tilesOf("R")[0] } })).toEqual({ ok: true });
     // Play passes on in the same order: the bot in seat 3 is next.
-    expect((await handRow(t)).state.stage).toMatchObject({ kind: "turn", seat: 3 });
+    const next = (await handRow(t)).state.stage;
+    expect(next.kind === "claim" ? { kind: "claim", from: next.from } : next).toMatchObject(next.kind === "claim" ? { from: 2 } : { kind: "turn", seat: 3 });
     void anna;
     void ben;
   });

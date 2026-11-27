@@ -298,7 +298,7 @@ export const play = mutation({
     const row = await handRowOf(ctx, held.table._id);
     if (!row) return refuse("There's no hand being played.");
     const deadline = deadlineOf(row.state);
-    if (deadline !== null && now > deadline + TICK_SLACK_MS) return refuse("Time's up.");
+    if (deadline !== null && now > deadline) return refuse("Time's up.");
     const step = applyMove(row.state, held.seat, move as Move, now);
     if (!step.ok) return refuse(step.reason);
     await saveHand(ctx, held.table, row, step.hand, now);
