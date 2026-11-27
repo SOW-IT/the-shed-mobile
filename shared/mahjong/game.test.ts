@@ -324,6 +324,18 @@ describe("kongs", () => {
     expect(after.stage).toMatchObject({ kind: "turn", seat: 0, replacement: true });
   });
 
+  it("a concealed kong ends the untouched first turn, so its replacement can't be an earthly hand", () => {
+    const hand = rig({ hands: ["2m", "1111m 123p 456p 78s 55s", "3m", "4m"], wall: "2m 9s", turn: 1 });
+    hand.calls = 0;
+    for (const s of hand.seats) s.turns = 0;
+    const after = ok(declareKong(hand, 1, kinds("1m")[0], NOW));
+    expect(after.calls).toBe(1);
+    const won = ok(selfWin(after, 1));
+    const lines = won.stage.kind === "over" && won.stage.result.kind === "win" ? won.stage.result.lines.map((l) => l.id) : [];
+    expect(lines).toContain("kongWin");
+    expect(lines).not.toContain("earthly");
+  });
+
   it("can't kong with an empty wall", () => {
     const hand = rig({ hands: ["1111p 23p RG", "1m", "2m", "3m"], wall: "" });
     expect(turnOptions(hand, 0).kongs).toEqual([]);

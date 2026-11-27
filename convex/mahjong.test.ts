@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { asUser, newConvex, PINNED_NOW, type T } from "../test/convexFixture";
 import { coinDay } from "../shared/coins";
 import { MAHJONG_BANK_DAILY_CAP } from "../shared/mahjong/coins";
@@ -522,6 +523,41 @@ describe("walking away and coming back", () => {
     later(REFILL);
     await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
     expect((await ben.who.query(api.mahjong.mine, {}))?.seats[1]).toMatchObject({ isMe: true, away: false });
+  });
+
+  const soloWithBots = async () => {
+    const t = newConvex();
+    const anna = await inCafe(t, ANNA);
+    later(REFILL);
+    await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
+    for (const seat of [1, 2, 3]) await anna.who.mutation(api.mahjong.addBot, { seat });
+    expect(await anna.who.mutation(api.mahjong.start, {})).toEqual({ ok: true });
+    return { t, anna };
+  };
+  const roomRow = (t: T, roomId: Id<"worldRooms">) => t.run((ctx) => ctx.db.get("worldRooms", roomId));
+
+  test("the last person out of the Café mid-hand keeps the room, and comes back to their seat", async () => {
+    const { t, anna } = await soloWithBots();
+    later(REFILL);
+    await anna.who.mutation(api.world.leave, {});
+    expect(await roomRow(t, anna.roomId)).toMatchObject({ memberCount: 0 });
+    later(REFILL);
+    expect(await anna.who.mutation(api.world.join, {})).toMatchObject({ roomId: anna.roomId, place: "cafe" });
+    later(REFILL);
+    await anna.who.mutation(api.world.sit, { seat: "mahjong-a-0" });
+    expect((await anna.who.query(api.mahjong.mine, {}))?.seats[0]).toMatchObject({ isMe: true, away: false });
+  });
+
+  test("an empty Café room goes with its hand when nobody comes back", async () => {
+    const { t, anna } = await soloWithBots();
+    later(REFILL);
+    await anna.who.mutation(api.world.travel, { to: "garden" });
+    expect(await roomRow(t, anna.roomId)).toMatchObject({ memberCount: 0 });
+    const [table] = await tableRows(t);
+    vi.setSystemTime(Date.now() + ABANDON_MS);
+    await t.mutation(internal.mahjong.tick, { tableId: table._id, beat: (await handRow(t)).beat });
+    expect(await tableRows(t)).toEqual([]);
+    expect(await roomRow(t, anna.roomId)).toBeNull();
   });
 
   test("the hand waits when everyone has gone, and is given up if nobody comes back", async () => {

@@ -86,7 +86,7 @@ import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFi
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
 import { CAFE_PLACE } from "../shared/cafeGames";
 import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
-import { heldRoomOf, mahjongMoved, mahjongSit, mahjongStood } from "./mahjong";
+import { handOnIn, heldRoomOf, mahjongMoved, mahjongSit, mahjongStood } from "./mahjong";
 import { IN_APP_MS, IN_APP_SCAN } from "../shared/appPresence";
 import { appPresenceOf } from "./presence";
 import { giveStarterSeeds } from "./farmData";
@@ -290,6 +290,17 @@ const deleteRoom = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
   await ctx.db.delete("worldRooms", roomId);
 };
 
+const leaveRoom = async (ctx: MutationCtx, room: Doc<"worldRooms">) => {
+  if (room.memberCount > 1) await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
+  else if (await handOnIn(ctx, room._id)) await ctx.db.patch("worldRooms", room._id, { memberCount: 0 });
+  else await deleteRoom(ctx, room._id);
+};
+
+export const dropRoomIfEmpty = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
+  const room = await ctx.db.get("worldRooms", roomId);
+  if (room && room.memberCount === 0 && !(await handOnIn(ctx, roomId))) await deleteRoom(ctx, roomId);
+};
+
 const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
 
 const backWithinGrace = (visitor: Doc<"worldVisitors"> | null, now: number) =>
@@ -362,9 +373,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   if (ping) await ctx.db.delete("worldPings", ping._id);
   await ctx.db.delete("worldMembers", member._id);
   const room = await ctx.db.get("worldRooms", member.roomId);
-  if (!room) return;
-  if (room.memberCount <= 1) await deleteRoom(ctx, room._id);
-  else await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
+  if (room) await leaveRoom(ctx, room);
 };
 
 const sweeperMeta = (ctx: Ctx) =>
@@ -509,8 +518,7 @@ const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"wor
 
 const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: Doc<"worldRooms">, room: Doc<"worldRooms">, place: Place) => {
   await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
-  if (here.memberCount <= 1) await deleteRoom(ctx, here._id);
-  else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
+  await leaveRoom(ctx, here);
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
   await cafeMoved(ctx, member.email, room._id, Date.now());
   await mahjongMoved(ctx, member.email, room._id, Date.now());

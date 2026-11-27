@@ -118,9 +118,9 @@ const Melds = ({ melds, flowers, width, side, calm, vertical = false, testID }: 
   if (melds.length === 0 && flowers.length === 0) return null;
   return (
     <View style={[styles.melds, vertical && styles.meldsColumn]} testID={testID}>
-      {melds.map((meld) => (
+      {keyedMelds(melds).map(({ meld, key }) => (
         // A claimed tile moves out of the river into the meld: the meld comes in from the middle.
-        <Arrive key={meld.tiles.map(String).join("-") + meld.type} from={fromMiddle(side, 70)} scale={1.3} calm={calm}>
+        <Arrive key={key} from={fromMiddle(side, 70)} scale={1.3} calm={calm}>
           <View style={styles.meld} accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}`}>
             {keyedTiles(meld.tiles).map(({ tile, key, end }) => (
               <Tile key={key} tile={tile} width={width} back={meld.concealed && end && tile >= 0} lit={tile === meld.claimed} />
@@ -138,6 +138,8 @@ const Melds = ({ melds, flowers, width, side, calm, vertical = false, testID }: 
     </View>
   );
 };
+
+const keyedMelds = (melds: readonly MeldView[]) => melds.map((meld, i) => ({ meld, key: `${i}:${meld.tiles.map(String).join("-")}${meld.type}` }));
 
 /** Each tile of a meld with a key, and whether it's an end (a concealed kong shows its ends face down). */
 const keyedTiles = (tiles: readonly number[]) => tiles.map((tile, i) => ({ tile, key: tile >= 0 ? `t${tile}` : `h${i}`, end: i === 0 || i === tiles.length - 1 }));

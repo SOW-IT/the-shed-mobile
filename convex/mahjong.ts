@@ -31,7 +31,7 @@ import { clampTarget, DUEL_WINNER_EMOTE, seatIn } from "../shared/world";
 import { ensureWallet } from "./coins";
 import { mahjongHandViewValidator, mahjongMoveValidator, mahjongPhaseValidator, mahjongSettingsValidator, mahjongSettledValidator } from "./mahjongData";
 import { Ctx, optionalEmail, requireEmail } from "./model";
-import { memberByEmail, placeOf, requireMe } from "./world";
+import { dropRoomIfEmpty, memberByEmail, placeOf, requireMe } from "./world";
 
 type Table = Doc<"mahjongTables">;
 
@@ -258,6 +258,7 @@ export const tick = internalMutation({
       await ctx.db.delete("mahjongHands", row._id);
       for (const s of table.seats) if (s.kind === "human") await dropPlayer(ctx, s.email, table._id);
       await deleteTable(ctx, table);
+      await dropRoomIfEmpty(ctx, table.roomId);
       return null;
     }
     if (hand.stage.kind === "intro") {
@@ -387,6 +388,14 @@ export const mahjongStood = async (ctx: MutationCtx, email: string, now: number)
 export const mahjongMoved = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms"> | null, now: number) => {
   const held = await heldSeatOf(ctx, email);
   if (held && held.table.roomId !== roomId) await mahjongStood(ctx, email, now);
+};
+
+export const handOnIn = async (ctx: Ctx, roomId: Id<"worldRooms">) => {
+  const rows = await ctx.db
+    .query("mahjongTables")
+    .withIndex("by_roomId_and_table", (q) => q.eq("roomId", roomId))
+    .take(MAHJONG_TABLES.length);
+  return rows.some((row) => row.phase === "playing");
 };
 
 /** The Café room someone's table is in, to put them back there when they come back mid-hand. */

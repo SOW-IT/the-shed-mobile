@@ -14,7 +14,7 @@ import { BotFace } from "./Faces";
 import { MahjongLobby } from "./MahjongLobby";
 import { MahjongTable } from "./MahjongTable";
 import { botSeatUnder } from "./tap";
-import type { Mahjong } from "./useMahjong";
+import type { Mahjong, MahjongMine } from "./useMahjong";
 
 const { hud } = worldColours;
 const TICK_MS = 250;
@@ -34,6 +34,11 @@ const useClock = (serverNow: () => number, on: boolean) => {
     };
   }, [on, serverNow]);
   return now;
+};
+
+export const playingAtTable = (mine: MahjongMine | null, mySeat: string | undefined) => {
+  if (mine === null || mine.phase === "lobby" || mine.hand === null) return false;
+  return mine.phase === "ended" || mySeat === mahjongSeatId(mine.table as MahjongTableId, mine.mySeat);
 };
 
 /** A glass card over the World, like the arcade's panel: a face, a line, and buttons. */
@@ -128,13 +133,14 @@ export const MahjongLayer = ({
   const mySeatId = mine ? mahjongSeatId(mine.table as MahjongTableId, mine.mySeat) : null;
   const seatedHere = mine !== null && me?.seat === mySeatId;
   const inLobby = mine !== null && mine.phase === "lobby" && seatedHere;
-  const playing = mine !== null && mine.phase !== "lobby" && mine.hand !== null && (seatedHere || mine.phase === "ended");
+  const playing = playingAtTable(mine, me?.seat);
   const gotUp = mine !== null && mine.phase === "playing" && !seatedHere && mahjong.inCafe;
   const watched = useQuery(api.mahjong.watching, watch && !playing ? { tableId: watch } : "skip");
   const watching = !playing && watch !== null && watched ? watched : null;
   const goneNoted = useRef<string | null>(null);
   useEffect(() => {
-    if (watch && watched === null && goneNoted.current !== watch) {
+    if (watched) goneNoted.current = null;
+    else if (watch && watched === null && goneNoted.current !== watch) {
       goneNoted.current = watch;
       onStopWatching();
       onNote("That game's over.");
@@ -144,6 +150,7 @@ export const MahjongLayer = ({
   const bot = mine === null ? botSeatUnder(tables, me?.seat) : null;
   const [dismissed, setDismissed] = useState<string | null>(null);
   const botKey = bot ? `${bot.tableId}:${bot.seat}` : null;
+  if (botKey === null && dismissed !== null) setDismissed(null);
   const move = (m: Move) => {
     if (busy) return;
     setBusy(true);

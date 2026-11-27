@@ -75,7 +75,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
-import { MahjongLayer } from "./mahjong/MahjongLayer";
+import { MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
 import { mahjongTags, mahjongTap, tableToWatch } from "./mahjong/tap";
 import { useMahjong } from "./mahjong/useMahjong";
 
@@ -441,6 +441,7 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  const mahjongCovers = playingAtTable(mahjong.mine, me?.seat) || (world.place === "cafe" && mahjongWatch !== null);
   if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
     setEditing(true);
@@ -1338,8 +1339,9 @@ export const WorldScreen = ({
         ];
 
   const overlayOpen = shopOpen || coinsOpen || boardOpen || peopleOpen || arcadeOpen || bagOpen || offerOpen || pickPlot !== null || buildingOffer !== null || penSheet !== null || sheet !== null || editing;
+  const noteOnTop = overlayOpen || mahjongCovers;
   const noteOver =
-    note && overlayOpen ? (
+    note && noteOnTop ? (
       <View style={[styles.noteOver, { top: insets.top + 8 }]} pointerEvents="none">
         <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
           {note}
@@ -1821,7 +1823,7 @@ export const WorldScreen = ({
             }
           />
         )}
-        {note && !overlayOpen ? (
+        {note && !noteOnTop ? (
           <Text style={styles.note} accessibilityLiveRegion={NOTE_LIVE_REGION}>
             {note}
           </Text>

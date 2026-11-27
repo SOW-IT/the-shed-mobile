@@ -304,7 +304,7 @@ export const declareKong = (hand: Hand, seat: number, kind: number, now: number)
   const s = hand.seats[seat];
   const tiles = s.hand.filter((t) => kindOf(t) === kind);
   if (tiles.length === 4) {
-    const changed = withSeat(hand, seat, (x) => ({
+    const changed = withSeat({ ...hand, calls: hand.calls + 1 }, seat, (x) => ({
       ...x,
       hand: x.hand.filter((t) => kindOf(t) !== kind),
       melds: [...x.melds, { type: "kong", kind, tiles, concealed: true }],
