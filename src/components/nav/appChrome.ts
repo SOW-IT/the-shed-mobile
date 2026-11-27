@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Screens that want the whole window (the mahjong table, while you play or
@@ -33,8 +33,3 @@ export const holdAppChrome = () => {
 
 /** Whether something on screen has asked for the app's chrome to go. */
 export const useAppChromeHidden = () => useSyncExternalStore(subscribeAppChrome, appChromeHidden, appChromeHidden);
-
-/** Hides the app's chrome while `on` (and this is mounted). */
-export const useHideAppChrome = (on: boolean) => {
-  useEffect(() => (on ? holdAppChrome() : undefined), [on]);
-};

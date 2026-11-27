@@ -4,12 +4,12 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { isMahjongTable, MAHJONG_TABLE_NAMES } from "@shared/mahjong/table";
 import { BUBBLE_MS, EMOTE_MS, EMOTES, isEmote, type Look } from "@shared/world";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from "react-native";
+import { AccessibilityInfo, Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from "react-native";
 import type { Move } from "@shared/mahjong/play";
 import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/view";
 import { gradientStyle } from "@/components/ui/Grid";
 import { FocusedStatusBar } from "@/components/games/FocusedStatusBar";
-import { useHideAppChrome } from "@/components/nav/appChrome";
+import { useHideAppChrome } from "@/components/nav/useHideAppChrome";
 import { useEscape } from "../useEscape";
 import { glass, hud, mahjong as m } from "../palette";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock } from "../Overlays";
@@ -450,7 +450,7 @@ const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing
 };
 
 type Box = { x: number; y: number; width: number; height: number };
-type HandShape = { rows: readonly (readonly number[])[]; size: number; drawn: number | null };
+type HandShape = { rows: readonly (readonly number[])[]; size: number; drawn: number | null; /** Changes whenever the rows can move (tile size, row count, window): boxes measured under another key are stale. */ key: string };
 
 /**
  * Scrubbing along your hand: a sideways drag owns the touch (a tile's own
@@ -466,7 +466,7 @@ type HandShape = { rows: readonly (readonly number[])[]; size: number; drawn: nu
  */
 const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boolean) => {
   const rowViews = useRef<(ViewInstance | null)[]>([]);
-  const rowBoxes = useRef<Box[]>([]);
+  const rowBoxes = useRef<({ key: string } & Box)[]>([]);
   const live = useRef({ shape, onPick, enabled });
   const finger = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
@@ -475,16 +475,17 @@ const useScrub = (shape: HandShape, onPick: (tile: number) => void, enabled: boo
   const measure = () =>
     rowViews.current.forEach((view, r) =>
       view?.measureInWindow((x, y, width, height) => {
-        rowBoxes.current[r] = { x, y, width, height };
+        rowBoxes.current[r] = { key: live.current.shape.key, x, y, width, height };
         if (finger.current) pickAt(finger.current.x, finger.current.y);
       })
     );
   const rects = (): TileRect[] => {
-    const { rows, size, drawn } = live.current.shape;
+    const { rows, size, drawn, key } = live.current.shape;
     const height = Math.round(size * TILE_RATIO);
     return rows.flatMap((row, r) => {
+      // Only a box measured for the current layout counts: a row still waiting for its new box adds no tiles, so nothing is picked from where it used to be.
       const box = rowBoxes.current[r];
-      if (!box) return [];
+      if (!box || box.key !== key) return [];
       const lead = (tile: number) => (tile === drawn ? DRAWN_GAP : 0);
       const content = row.reduce((sum, tile) => sum + size + lead(tile), 0) + Math.max(0, row.length - 1) * HAND_GAP;
       let x = box.x + (box.width - content) / 2;
@@ -544,14 +545,19 @@ const Backs = ({ count, width, room }: { count: number; width: number; room: num
 const TableOptions = ({ open, top, twoRows, rowsMatter, labels, onRows, onLabels, onClose }: { open: boolean; top: number; twoRows: boolean; rowsMatter: boolean; labels: boolean; onRows: (on: boolean) => void; onLabels: (on: boolean) => void; onClose: () => void }) => {
   const overlay = useOverlayClock(open, 3);
   const { width } = useWindowDimensions();
+  const close = useRef<ViewInstance | null>(null);
   useEscape(onClose);
+  // Keyboard focus moves into the panel when it opens (the table behind is inert meanwhile; see MahjongTable).
+  useEffect(() => {
+    if (open && overlay.mounted) close.current?.focus();
+  }, [open, overlay.mounted]);
   if (!overlay.mounted) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={open ? "box-none" : "none"}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close table options" testID="mahjong-options-close">
         <Animated.View style={[StyleSheet.absoluteFill, styles.optionsScrim, scrimStyle(overlay)]} />
       </Pressable>
-      <Animated.View style={[styles.optionsPanel, blurBehind, { top, right: 14, width: Math.min(360, width - 28) }, popStyle(overlay)]} testID="mahjong-options-panel">
+      <Animated.View style={[styles.optionsPanel, blurBehind, { top, right: 14, width: Math.min(360, width - 28) }, popStyle(overlay)]} accessibilityViewIsModal role="dialog" aria-label="Table options" testID="mahjong-options-panel">
         <Animated.View style={[styles.optionsHeader, itemStyle(overlay, 0)]}>
           <View style={styles.optionsGear}>
             <Ionicons name="options" size={18} color={hud.onAccent} />
@@ -560,7 +566,7 @@ const TableOptions = ({ open, top, twoRows, rowsMatter, labels, onRows, onLabels
             Table options
           </Text>
           <View style={styles.grow} />
-          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" style={({ pressed }) => [styles.optionsClose, pressed && styles.pressed]}>
+          <Pressable ref={close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-options-x" style={({ pressed }) => [styles.optionsClose, pressed && styles.pressed]}>
             <Ionicons name="close" size={18} color={glass.text} />
           </Pressable>
         </Animated.View>
@@ -712,6 +718,20 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const [rows, setRows] = useWorldSetting("mahjongRows");
   const [labels, setLabels] = useWorldSetting("mahjongLabels");
   const [options, setOptions] = useState(false);
+  const column = useRef<ViewInstance | null>(null);
+  const optionsButton = useRef<ViewInstance | null>(null);
+  const hadOptions = useRef(false);
+  // While the options are open the table behind them is inert on the web (no tabbing to a tile and discarding it behind the
+  // scrim); when they close, focus goes back to the Options button.
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const node = column.current as unknown as HTMLElement | null;
+      if (options) node?.setAttribute("inert", "");
+      else node?.removeAttribute("inert");
+    }
+    if (!options && hadOptions.current) optionsButton.current?.focus();
+    hadOptions.current = options;
+  }, [options]);
   const layout = tableLayout(screenWidth, screenHeight);
   // One row whenever the whole hand fits in one at the bigger size; otherwise your choice (two rows by default, but one on a short screen).
   const twoRows = !layout.oneRow && handInTwoRows(rows, screenHeight);
@@ -762,7 +782,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const claimLit = new Set(focusChoice && stage.kind === "claim" && myHand ? claimUses(focusChoice, myHand, stage.tile) : []);
   const shapeRows = handRows(handTiles, drawn, twoRows);
   const scrub = useScrub(
-    { rows: shapeRows, size: handSize, drawn },
+    { rows: shapeRows, size: handSize, drawn, key: `${handSize}:${shapeRows.length}:${screenWidth}x${screenHeight}` },
     (tile) => {
       if (myTurn && (chosen?.tile !== tile || chosen.step !== hand.step)) setSelected({ tile, step: hand.step });
     },
@@ -799,9 +819,14 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const melds = meldSize({ layout, height: region, across: runOf(across), left: runOf(left), right: runOf(right) });
   const meldSeat = (owner: number): MeldSeat => ({ owner, viewer, names });
   // Your turn: a light tap on iOS as it starts (once a turn), besides the glow, the pill and the lit drawn tile.
-  const turnKey = myTurn ? `${handNo}:${hand.step}` : null;
+  // Keyed on the turn itself, not on `busy`, so a move that fails and clears `busy` doesn't play the cue again.
+  const yourTurnNow = mySeat !== null && stage.kind === "turn" && stage.seat === mySeat;
+  const turnKey = yourTurnNow ? `${handNo}:${hand.step}` : null;
   useEffect(() => {
-    if (turnKey !== null && Platform.OS === "ios") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (turnKey === null || Platform.OS !== "ios") return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    // iOS has no live regions; VoiceOver hears it as an announcement (the web uses the polite region below).
+    AccessibilityInfo.announceForAccessibility("Your turn");
   }, [turnKey]);
   // B's pile and yours take the height of the size they're drawn at (it may be kept smaller than this split's), and the middle the rest.
   const acrossHeight = acrossHeightOf(sizes.across);
@@ -840,7 +865,11 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       accessibilityViewIsModal
     >
       <FocusedStatusBar hidden style="light" animated />
-      <View style={[styles.column, { width: layout.width }]}>
+      {/* Always mounted, so a screen reader hears "Your turn" when it starts, wherever its focus is (the timer isn't in here). */}
+      <Text style={styles.offscreen} accessibilityLiveRegion="polite" testID="mahjong-turn-announce">
+        {yourTurnNow ? "Your turn" : ""}
+      </Text>
+      <View ref={column} style={[styles.column, { width: layout.width }]}>
         <View style={[styles.header, { paddingTop: top }]}>
           <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
             {title}
@@ -851,7 +880,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
               <Text style={styles.watchText}>Watching</Text>
             </View>
           ) : null}
-          <Pressable onPress={() => setOptions((was) => !was)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Table options" aria-expanded={options} testID="mahjong-options" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
+          <Pressable ref={optionsButton} onPress={() => setOptions((was) => !was)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Table options" aria-expanded={options} testID="mahjong-options" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
             <Ionicons name="options" size={18} color={m.text} />
           </Pressable>
           <Pressable onPress={leave} hitSlop={8} accessibilityRole="button" accessibilityLabel={mySeat === null ? "Stop watching" : "Leave the table"} testID="mahjong-leave" style={({ pressed }) => [styles.close, pressed && styles.pressed]}>
@@ -990,6 +1019,7 @@ const styles = StyleSheet.create({
   region: { marginTop: TABLE_GAP, flexDirection: "row", gap: TABLE_GAP },
   sideSeat: { width: SIDE_COLUMN, alignItems: "center", gap: 6 },
   centreColumn: { gap: TABLE_GAP },
+  offscreen: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   turnGlow: { position: "absolute", top: -3, left: -3, right: -3, bottom: -3, backgroundColor: m.litSoft, borderWidth: 2, borderColor: m.lit, boxShadow: `0 0 12px 3px ${m.lit}` },
   chatLog: { paddingHorizontal: PAD, minHeight: 8 },
   handRows: { gap: 4, justifyContent: "flex-end", borderRadius: 14, borderWidth: 2, borderColor: "transparent", marginHorizontal: -4, paddingHorizontal: 2, paddingBottom: 2 },

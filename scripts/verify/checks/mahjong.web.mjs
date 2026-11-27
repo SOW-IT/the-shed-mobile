@@ -143,9 +143,11 @@ const playTurn = async (who, seen) => {
       // The chips float over a discard pile (yours) instead of taking a row above the hand.
       const chips = await id(who, "mahjong-claim").boundingBox();
       const hand = await id(who, "mahjong-hand").boundingBox();
-      const rivers = await Promise.all((await who.page.locator('[data-testid^="mahjong-river-"]').all()).map((r) => r.boundingBox()));
+      // Your own pile is the river nearest your hand (the lowest on screen).
+      const rivers = (await Promise.all((await who.page.locator('[data-testid^="mahjong-river-"]').all()).map((r) => r.boundingBox()))).filter(Boolean);
+      const own = rivers.reduce((low, r) => (!low || r.y + r.height > low.y + low.height ? r : low), null);
       const middle = chips && { x: chips.x + chips.width / 2, y: chips.y + chips.height / 2 };
-      await expect(who, "the claim chips lie over the discards, not in a row of their own", Promise.resolve(Boolean(chips && hand && chips.y + chips.height <= hand.y && rivers.some((r) => r && middle.x >= r.x && middle.x <= r.x + r.width && middle.y >= r.y && middle.y <= r.y + r.height))));
+      await expect(who, "the claim chips lie over your own discards, not in a row of their own", Promise.resolve(Boolean(chips && hand && own && chips.y + chips.height <= hand.y && middle.x >= own.x && middle.x <= own.x + own.width && middle.y >= own.y && middle.y <= own.y + own.height)));
     }
     await id(who, "mahjong-claim-pass").click().catch(() => {});
     return;
@@ -287,8 +289,14 @@ try {
   await expect(host, "the table's options open", appears(host, "mahjong-options-panel"));
   await host.page.waitForTimeout(600);
   await shot(host, "options");
+  // Keyboard focus is in the options, and the table behind can't be tabbed to (it's inert) until they close; then focus is back on the Options button.
+  const focusInPanel = () => host.page.evaluate(() => Boolean(document.activeElement?.closest('[data-testid="mahjong-options-panel"]')));
+  await expect(host, "opening the options moves focus into them", focusInPanel());
+  for (let i = 0; i < 4; i++) await host.page.keyboard.press("Tab");
+  await expect(host, "Tab can't reach the table behind the options", host.page.evaluate(() => !document.activeElement?.closest('[data-testid="mahjong-hand"]') && Boolean(document.querySelector('[data-testid="mahjong-hand"]')?.closest("[inert]"))));
   await id(host, "mahjong-options-close").click({ position: { x: 20, y: 300 } }).catch(() => notes.push("couldn't close the options"));
   await host.page.waitForTimeout(500);
+  await expect(host, "closing the options puts focus back on their button", host.page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "mahjong-options"));
 
   // Play the hand out: each person plays their own turns.
   const seen = { host: {}, guest: {} };

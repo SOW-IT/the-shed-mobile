@@ -22,6 +22,8 @@ export const MELD_GAP = 4;
 /** The compass between A's and C's discards needs this much height. */
 export const MIDDLE_MIN = 84;
 const PILE_MIN = 10;
+/** The smallest a discard gets on a table too short for PILE_MIN. */
+const COMPACT_MIN = 5;
 const MELD_MAX = 40;
 const MELD_MIN = 8;
 
@@ -126,10 +128,13 @@ export const pileSizes = ({ layout, height, counts, cap }: { layout: TableLayout
       across = a;
     }
   }
-  across = Math.max(PILE_MIN, across);
+  // On a table too short for the usual minimums, everything goes compact rather than being sized for room it doesn't have.
+  const roomy = avail - 2 * acrossHeightOf(PILE_MIN) >= MIDDLE_MIN;
+  across = Math.max(roomy ? PILE_MIN : COMPACT_MIN, across);
   const acrossHeight = acrossHeightOf(across);
-  const middle = Math.max(MIDDLE_MIN, avail - 2 * acrossHeight);
-  const side = Math.max(PILE_MIN, Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle)));
+  // The middle the table renders: what's left between B's pile and yours.
+  const middle = Math.max(0, avail - 2 * acrossHeight);
+  const side = Math.max(roomy ? PILE_MIN : COMPACT_MIN, Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle)));
   return { across, side, acrossHeight, middle };
 };
 

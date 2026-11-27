@@ -28,6 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavMenu } from "@/components/nav/NavMenu";
 import { useWideLayout } from "@/components/nav/layout";
+import { useAppChromeHidden } from "@/components/nav/appChrome";
 import { spacing, useAppTheme, fixedColours } from "@/theme";
 
 const DRAWER_WIDTH_FRACTION = 0.8;
@@ -82,6 +83,8 @@ export const NavDrawerProvider = ({ children }: { children: ReactNode }) => {
   const width = Math.min(Math.round(windowWidth * DRAWER_WIDTH_FRACTION), DRAWER_MAX_WIDTH);
   const wide = useWideLayout();
   const { isAuthenticated } = useConvexAuth();
+  // A full-screen table hides the drawer; it stays closed when the table goes, rather than coming back open.
+  const chromeHidden = useAppChromeHidden();
   const progress = useSharedValue(0);
   const [shown, setShown] = useState(false);
   const show = useCallback(() => setShown(true), []);
@@ -98,11 +101,11 @@ export const NavDrawerProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [progress, hide]);
   useEffect(() => {
-    if (isAuthenticated && !wide) return;
+    if (isAuthenticated && !wide && !chromeHidden) return;
     progress.value = 0;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on sign-out / layout change
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on sign-out / layout change / a full-screen table
     setShown(false);
-  }, [isAuthenticated, wide, progress]);
+  }, [isAuthenticated, wide, chromeHidden, progress]);
   /* eslint-enable react-hooks/immutability */
   const value = useMemo(
     () => ({ progress, width, shown, show, hide, open, close }),

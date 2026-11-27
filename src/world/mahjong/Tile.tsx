@@ -79,7 +79,8 @@ export const Tile = memo(function Tile({
     );
   }
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tileLabel(tile)} aria-selected={lifted} testID={testID} hitSlop={2}>
+    // "picked" is in the name: a button can't carry a selected state, and the next press discards it rather than unpicking it.
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={lifted ? `${tileLabel(tile)}, picked` : tileLabel(tile)} aria-selected={lifted} testID={testID} hitSlop={2}>
       {body}
     </Pressable>
   );

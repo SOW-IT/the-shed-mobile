@@ -132,6 +132,17 @@ describe("the discard piles", () => {
     expect(s.side).toBeGreaterThanOrEqual(pileSizes({ layout, height: PHONE_TABLE, counts: { ...c, mine: 1, across: 1 }, cap }).side);
   });
 
+  it("sizes the side piles against the middle the table renders, going compact on a very short table", () => {
+    const se = tableLayout(375, 667);
+    const s = pileSizes({ layout: se, height: 130, counts: { mine: 0, across: 0, left: 24, right: 0 }, cap: pileCap(se, se.hand) });
+    const rendered = 130 - 2 * TABLE_GAP - 2 * acrossHeightOf(s.across);
+    expect(s.middle).toBe(rendered);
+    expect(s.acrossHeight).toBe(acrossHeightOf(s.across));
+    const last = sideSpot(23, s.side, { width: se.sideWidth, height: s.middle }, "left");
+    expect(last.y + s.side).toBeLessThanOrEqual(s.middle);
+    expect(last.x + Math.round(s.side * TILE_TALL)).toBeLessThanOrEqual(se.sideWidth);
+  });
+
   it("fits nothing to an empty pile", () => {
     expect(acrossFit(0, 100, 100)).toBe(Infinity);
     expect(sideFit(0, 100, 100)).toBe(Infinity);
