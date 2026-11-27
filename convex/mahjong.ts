@@ -69,9 +69,9 @@ const putPlayer = async (ctx: MutationCtx, email: string, tableId: Id<"mahjongTa
   else await ctx.db.insert("mahjongPlayers", { email, tableId, seat });
 };
 
-const dropPlayer = async (ctx: MutationCtx, email: string) => {
+const dropPlayer = async (ctx: MutationCtx, email: string, tableId?: Id<"mahjongTables">) => {
   const row = await playerOf(ctx, email);
-  if (row) await ctx.db.delete("mahjongPlayers", row._id);
+  if (row && (tableId === undefined || row.tableId === tableId)) await ctx.db.delete("mahjongPlayers", row._id);
 };
 
 const deleteTable = async (ctx: MutationCtx, table: Table) => {
@@ -100,7 +100,7 @@ const saveSeats = async (ctx: MutationCtx, table: Table, seats: TableSeat[], fie
 const freeSeat = async (ctx: MutationCtx, table: Table, seat: number) => {
   const left = table.seats[seat];
   const seats = table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s));
-  if (left.kind === "human") await dropPlayer(ctx, left.email);
+  if (left.kind === "human") await dropPlayer(ctx, left.email, table._id);
   await saveSeats(ctx, table, seats);
 };
 
@@ -233,7 +233,7 @@ const finishHand = async (ctx: MutationCtx, table: Table, row: HandRow, result: 
   const gone = table.seats.flatMap((s, i) => (s.kind === "human" && s.away !== undefined ? [i] : []));
   for (const i of gone) {
     const s = table.seats[i];
-    if (s.kind === "human") await dropPlayer(ctx, s.email);
+    if (s.kind === "human") await dropPlayer(ctx, s.email, table._id);
   }
   const seats = table.seats.map((s, i) => (gone.includes(i) ? EMPTY_SEAT : s.kind === "human" ? { ...s, ready: undefined } : s));
   await saveSeats(ctx, table, seats, { phase: "ended", dealer: next.dealer, roundWind: next.roundWind, net, allAwayAt: undefined });
@@ -256,7 +256,7 @@ export const tick = internalMutation({
       if (now < (table.allAwayAt ?? now) + ABANDON_MS - TICK_SLACK_MS) return null;
       // Nobody came back: the hand is given up and the table cleared.
       await ctx.db.delete("mahjongHands", row._id);
-      for (const s of table.seats) if (s.kind === "human") await dropPlayer(ctx, s.email);
+      for (const s of table.seats) if (s.kind === "human") await dropPlayer(ctx, s.email, table._id);
       await deleteTable(ctx, table);
       return null;
     }
@@ -361,6 +361,7 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
     if (seat.away !== undefined) {
       const seats = table.seats.map((s, i) => (i === target.seat && s.kind === "human" ? { ...s, away: undefined } : s));
       await ctx.db.patch("mahjongTables", table._id, { seats, allAwayAt: undefined });
+      await putPlayer(ctx, member.email, table._id, target.seat);
       await controlChanged(ctx, table._id, now);
     }
     return;

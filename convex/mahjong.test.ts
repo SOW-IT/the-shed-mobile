@@ -552,6 +552,30 @@ describe("walking away and coming back", () => {
     void anna;
   });
 
+  test("walking from a hand to the other table keeps the new seat when the hand ends", async () => {
+    const { t, ben } = await twoAndTwoBots();
+    later(REFILL);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
+    expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: BEN, away: Date.now() });
+    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-b", mySeat: 0, isHost: true });
+    while ((await tableRows(t))[0].phase === "playing") await tickNow(t);
+    const [a, b] = await tableRows(t);
+    expect(a.seats[1]).toEqual({ kind: "empty" });
+    expect(b.seats[0]).toMatchObject({ kind: "human", email: BEN });
+    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-b", mySeat: 0 });
+  });
+
+  test("walking back from the other table to a kept seat plays it again", async () => {
+    const { t, ben } = await twoAndTwoBots();
+    later(REFILL);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
+    later(REFILL);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
+    expect((await tableRows(t)).map((r) => r.table)).toEqual(["mahjong-a"]);
+    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-a", mySeat: 1, seats: expect.arrayContaining([expect.objectContaining({ isMe: true, away: false })]) });
+    expect(botControlled((await tableRows(t))[0].seats)).toEqual([false, false, true, true]);
+  });
+
   test("someone coming back stops the wait", async () => {
     const { t, anna, ben } = await twoAndTwoBots();
     later(REFILL);
