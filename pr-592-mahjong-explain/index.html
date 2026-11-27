@@ -20,12 +20,12 @@ ul { padding-left: 20px; }
 <body>
 <h1>PR #592: Hong Kong mahjong at two Café tables, with bots, coins and spectating</h1>
 <p><a href="https://github.com/SOW-IT/the-shed-mobile/pull/592">github.com/SOW-IT/the-shed-mobile/pull/592</a></p>
-<p>iOS Simulator (iPhone 17, 402 x 874 pt) and headless Chromium at 402 px, against an isolated local Convex backend with the seeded sweep accounts only. All screenshots are from commit <code>4b040fc7</code> (2.13.50). The recorded clips from earlier builds are in <a href="old/shots/">old/shots</a> and will be replaced after the owner's hands-on test.</p>
+<p>iOS Simulator (iPhone 17, 402 x 874 pt) and headless Chromium at 402 px, against an isolated local Convex backend with the seeded sweep accounts only. Screenshots are from commit <code>4b040fc7</code> (2.13.50) unless the caption names <code>ebeb92d6</code>. The recorded clips from earlier builds are in <a href="old/shots/">old/shots</a> and will be replaced after the owner's hands-on test.</p>
 
 <h2>Lobby and SOW coins</h2>
 <div class="row">
-<figure><img src="shots/ios-s01-lobby-coins-off.png" alt="Lobby with coins off"><figcaption>Lobby, coins off (the default): for points only</figcaption></figure>
-<figure><img src="shots/ios-s02-lobby-coins-on.png" alt="Lobby with coins on"><figcaption>Coins on: everyone needs the most one hand can cost (128 at a 10 faan cap)</figcaption></figure>
+<figure><img src="shots/ios-l1-lobby-switch-off.png" alt="Lobby with the coins switch off"><figcaption>ebeb92d6: the Play for SOW coins switch, off by default, and a 0 faan (chicken hand) minimum</figcaption></figure>
+<figure><img src="shots/ios-l2-lobby-switch-on-min3.png" alt="Lobby with coins on"><figcaption>ebeb92d6: coins on (8 points a coin), minimum 3: everyone needs 16 coins to sit</figcaption></figure>
 <figure><img src="shots/web-refused.png" alt="A player refused a seat"><figcaption>Web: a second player with 100 coins is refused the seat, and told why</figcaption></figure>
 <figure><img src="shots/ios-s03-lobby-short.png" alt="Host short of coins"><figcaption>The lobby marks who is short and won't start</figcaption></figure>
 <figure><img src="shots/ios-s04-lobby-ready.png" alt="Lobby ready"><figcaption>Cap lowered to 8 (64 coins), the second player sits, two bots added</figcaption></figure>
@@ -51,8 +51,8 @@ ul { padding-left: 20px; }
 <div class="row">
 <figure><img src="shots/ios-s11-chat-keyboard.png" alt="Chat with keyboard"><figcaption>Typing with the software keyboard: the input floats over the table, which doesn't move</figcaption></figure>
 <figure><img src="shots/ios-s12-bubble.png" alt="Bubble"><figcaption>The room's chat in two lines at the top, and the bubble above the speaker (shot before its width fix)</figcaption></figure>
-<figure><img src="shots/ios-s14-give-up.png" alt="Give up"><figcaption>Leaving with coins on asks first: 8 coins at a 3 faan minimum and 1 coin a point</figcaption></figure>
-<figure><img src="shots/ios-coins-result-1.png" alt="Result"><figcaption>A drawn hand with coins on and two bots: nothing moves</figcaption></figure>
+<figure><img src="shots/ios-l4-give-up.png" alt="Give up"><figcaption>ebeb92d6: leaving with coins on asks first: 1 coin at a 3 faan minimum (8 points)</figcaption></figure>
+<figure><img src="shots/ios-coins-result-2.png" alt="Result"><figcaption>ebeb92d6: a drawn hand with coins on: points and coins per player, nothing moves</figcaption></figure>
 <figure><img src="shots/web-cafe-tag.png" alt="Mahjong tag"><figcaption>Web: the 🀄 tag over the players in the Café</figcaption></figure>
 </div>
 </body>
