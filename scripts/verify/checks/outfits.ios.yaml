@@ -49,28 +49,120 @@ appId: au.org.sow.theshed
 - assertNotVisible:
     id: world-editor-sleeves-0
 - takeScreenshot: "${OUT}/check-outfits-tank-top"
+# Into view either way: picking a top that has its own bottoms (or no
+# sleeves) drops rows below, and the list's scroll moves.
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-13
+    times: 4
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-13
+    times: 8
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-13
 - takeScreenshot: "${OUT}/check-outfits-sailor-top"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-14
+    times: 4
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-14
+    times: 8
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-14
 - takeScreenshot: "${OUT}/check-outfits-sweater-vest"
 - repeat:
     while:
       notVisible:
-        id: world-editor-outfit-17
-    times: 12
+        id: world-editor-outfit-15
+    times: 4
     commands:
       - swipe:
           start: "50%, 80%"
           end: "50%, 58%"
           duration: 400
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-15
+    times: 8
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-15
 - takeScreenshot: "${OUT}/check-outfits-sundress"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-16
+    times: 4
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-16
+    times: 8
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-16
 - takeScreenshot: "${OUT}/check-outfits-jumpsuit"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-17
+    times: 4
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-outfit-17
+    times: 8
+    commands:
+      - swipe:
+          start: "50%, 58%"
+          end: "50%, 80%"
+          duration: 400
 - tapOn:
     id: world-editor-outfit-17
 - takeScreenshot: "${OUT}/check-outfits-hawaiian-shirt"
