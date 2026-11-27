@@ -530,6 +530,10 @@ export const mahjong = {
   text: "#F5F3E3",
   muted: "rgba(245, 243, 227, 0.7)",
   chip: "rgba(0, 0, 0, 0.28)",
+  /** A chip floating over the discards (Chow, Pong, Pass): see-through, but dark enough to read over the tiles. */
+  overlayChip: "rgba(14, 38, 28, 0.72)",
+  /** The timer's backing where it lies over the chat log. */
+  timerBacking: "rgba(0, 0, 0, 0.55)",
   win: "#F6D365",
   lose: "#FFB4A6",
   gain: "#9BF0B4",

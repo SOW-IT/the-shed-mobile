@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acrossFit, acrossHeightOf, acrossRows, DRAWN_GAP, HAND_GAP, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
+import { acrossFit, acrossHeightOf, acrossRows, DRAWN_GAP, HAND_GAP, meldOrder, meldRun, meldSize, MIDDLE_MIN, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideFit, sideSpot, TABLE_GAP, TABLE_MAX_WIDTH, tableLayout, TILE_TALL } from "./layout";
 
 const PHONE = { width: 402, height: 874 };
 // The table's height below the across seat on that phone with the two-row hand, as the mockup measured it.
@@ -124,19 +124,67 @@ describe("the discard piles", () => {
 
 describe("the melds of A, B and C", () => {
   const layout = tableLayout(PHONE.width, PHONE.height);
-  const none = { tiles: 0, melds: 0 };
+  const none = { tiles: 0, melds: 0, sideways: 0 };
 
   it("share one size, bigger than the old concealed stack's, and fit B's row and A's and C's columns", () => {
-    const size = meldSize({ layout, height: PHONE_TABLE, across: { tiles: 6, melds: 2 }, left: { tiles: 3, melds: 1 }, right: { tiles: 7, melds: 2 } });
+    const size = meldSize({ layout, height: PHONE_TABLE, across: { tiles: 6, melds: 2, sideways: 2 }, left: { tiles: 3, melds: 1, sideways: 1 }, right: { tiles: 7, melds: 2, sideways: 2 } });
     expect(size).toBeGreaterThanOrEqual(22);
     expect(Math.round(size * TILE_TALL)).toBeLessThanOrEqual(SIDE_COLUMN);
-    expect(7 * (size + 1) + 4).toBeLessThanOrEqual(PHONE_TABLE - 74);
+    expect(7 * (size + 1) + 2 * Math.ceil(size * (TILE_TALL - 1)) + 4).toBeLessThanOrEqual(PHONE_TABLE - 74);
   });
 
   it("shrinks for four kongs, but never below a readable size", () => {
-    const kongs = { tiles: 16, melds: 4 };
+    const kongs = { tiles: 16, melds: 4, sideways: 4 };
     const size = meldSize({ layout, height: PHONE_TABLE, across: kongs, left: kongs, right: kongs });
     expect(size).toBeGreaterThanOrEqual(8);
     expect(size).toBeLessThan(meldSize({ layout, height: PHONE_TABLE, across: none, left: none, right: none }));
+  });
+});
+
+describe("a claimed tile, laid sideways", () => {
+  // You're seat 0: C (on your right) is 1, B (across) 2, A (on your left) 3.
+  const pong = (from: number | null, concealed = false) => ({ tiles: [40, 41, 42], from, claimed: 42, concealed });
+  const kong = (from: number) => ({ tiles: [80, 81, 82, 83], from, claimed: 80, concealed: false });
+
+  it("goes on the side of the seat it came from, for your melds", () => {
+    expect(meldOrder(pong(3), 0, 0)).toEqual({ tiles: [42, 40, 41], sideways: 0 });
+    expect(meldOrder(pong(2), 0, 0)).toEqual({ tiles: [40, 42, 41], sideways: 1 });
+    expect(meldOrder(pong(1), 0, 0)).toEqual({ tiles: [40, 41, 42], sideways: 2 });
+  });
+
+  it("goes on the side of the giver for B's row, which runs against B's own left to right", () => {
+    // B's left is C, on your right; B's right is A, on your left.
+    expect(meldOrder(pong(1), 2, 0).sideways).toBe(2);
+    expect(meldOrder(pong(3), 2, 0).sideways).toBe(0);
+    expect(meldOrder(pong(0), 2, 0).sideways).toBe(1);
+  });
+
+  it("goes toward the giver down A's and C's columns", () => {
+    // A's left is B, at the top; A's right is you, at the bottom.
+    expect(meldOrder(pong(2), 3, 0).sideways).toBe(0);
+    expect(meldOrder(pong(0), 3, 0).sideways).toBe(2);
+    // C's left is you, at the bottom; C's right is B, at the top.
+    expect(meldOrder(pong(0), 1, 0).sideways).toBe(2);
+    expect(meldOrder(pong(2), 1, 0).sideways).toBe(0);
+    expect(meldOrder(kong(3), 1, 0)).toEqual({ tiles: [81, 82, 80, 83], sideways: 2 });
+  });
+
+  it("is the same seen from any seat, and from a watcher's", () => {
+    expect(meldOrder(pong(3), 0, 2).sideways).toBe(2);
+    expect(meldOrder(pong(3), 0, 1).sideways).toBe(meldOrder(pong(2), 3, 0).sideways);
+  });
+
+  it("isn't there for a concealed kong, or a meld nobody gave", () => {
+    expect(meldOrder(pong(null), 0, 0)).toEqual({ tiles: [40, 41, 42], sideways: null });
+    expect(meldOrder(pong(3, true), 0, 0).sideways).toBeNull();
+    expect(meldOrder({ tiles: [40, 41, 42], from: 3, claimed: 99, concealed: false }, 0, 0).sideways).toBeNull();
+  });
+
+  it("makes a seat's melds a little longer, so they fit smaller", () => {
+    const layout = tableLayout(PHONE.width, PHONE.height);
+    const run = meldRun([pong(3), pong(null)], 0, 0);
+    expect(run).toEqual({ tiles: 6, melds: 2, sideways: 1 });
+    const flat = { ...run, sideways: 0 };
+    expect(meldSize({ layout, height: 150, across: run, left: run, right: run })).toBeLessThanOrEqual(meldSize({ layout, height: 150, across: flat, left: flat, right: flat }));
   });
 });

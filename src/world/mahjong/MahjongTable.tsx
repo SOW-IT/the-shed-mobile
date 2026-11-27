@@ -15,11 +15,12 @@ import { SeatFace } from "./Faces";
 import { claimChoices, claimUses, coinsWords, dealtCount, firstClaim, handRows, INTRO, introElapsed, faanLine, leaveQuestion, resultTitle, roundWords, secondsLeft, tileLabel, windBadge, windWords, zoomShown } from "./tableWords";
 import { Tile, TILE_RATIO, TileLabels } from "./Tile";
 import { pointsOnly } from "@shared/mahjong/coins";
-import { Arrive, Pulse, Punch } from "./Motion";
+import { Arrive, Glow, Punch, useBeat } from "./Motion";
+import type { SharedValue } from "react-native-reanimated";
 import { Intro } from "./Intro";
 import { handInTwoRows, useBatterySaver, useWorldSetting } from "../settings";
 import type { MahjongSeatView } from "./useMahjong";
-import { ACROSS_SEAT_HEIGHT, acrossHeightOf, acrossRows, ACTION_HEIGHT, CENTRE, DRAWN_GAP, HAND_GAP, MELD_GAP, meldSize, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideSpot, TABLE_GAP, tableLayout, TIMER_STRIP, type PileCounts } from "./layout";
+import { ACROSS_SEAT_HEIGHT, acrossHeightOf, acrossRows, CENTRE, DRAWN_GAP, HAND_GAP, MELD_GAP, meldOrder, meldRun, meldSize, PAD, pileCap, pileSizes, RIVER_GAP, SIDE_COLUMN, sideSpot, TABLE_GAP, tableLayout, type PileCounts } from "./layout";
 import { isSlideDown, isSlideUp, slideSoFar, startsScrub, startsSlide, tileUnder, type TileRect } from "./tap";
 
 type Person = { memberId: string; look: Look; say?: { text: string; at: number }; act?: { emote: string; at: number } };
@@ -81,7 +82,6 @@ const keyedMelds = (melds: readonly MeldView[]) => melds.map((meld, i) => ({ mel
 
 const keyedTiles = (tiles: readonly number[]) => tiles.map((tile, i) => ({ tile, key: tile >= 0 ? `t${tile}` : `h${i}`, end: i === 0 || i === tiles.length - 1 }));
 
-const meldRun = (melds: readonly MeldView[]) => ({ tiles: melds.reduce((n, meld) => n + meld.tiles.length, 0), melds: melds.length });
 
 /** A tile turned to face a side seat: `turn` 90 for the seat on your left, -90 for the one on your right. */
 const Turned = ({ tile, width, turn, back, lit, testID }: { tile: number; width: number; turn: number; back?: boolean; lit?: boolean; testID?: string }) =>
@@ -95,38 +95,41 @@ const Turned = ({ tile, width, turn, back, lit, testID }: { tile: number; width:
     </View>
   );
 
-/** Your own melds, beside your plate. */
-const Melds = ({ melds, width, calm, testID }: { melds: readonly MeldView[]; width: number; calm: boolean; testID: string }) => {
+type MeldSeat = { owner: number; viewer: number; names: readonly string[] };
+
+const meldWords = (meld: MeldView, names: readonly string[]) =>
+  `${meld.concealed ? "Concealed " : ""}${meld.type}${meld.from !== null && !meld.concealed ? ` from ${names[meld.from]}` : ""}: ${meld.tiles.map(tileLabel).join(", ")}`;
+
+/** Which way a meld's tiles sit against the meld's line, so a sideways tile lines up with its owner's edge: yours and B's along a row, A's and C's down a column. */
+const MELD_EDGE = ["flex-end", "flex-end", "flex-start", "flex-start"] as const;
+
+/**
+ * Melds, face up: yours beside your plate, B's along B's row, A's and C's
+ * down their columns with each tile turned to its seat (`turn`). A claimed
+ * tile lies across the others, on the side of the seat it came from (see
+ * meldOrder).
+ */
+const SeatMelds = ({ melds, size, turn, calm, seat, wrap = false, testID }: { melds: readonly MeldView[]; size: number; turn: number; calm: boolean; seat: MeldSeat; wrap?: boolean; testID: string }) => {
   if (melds.length === 0) return null;
+  const across = turn === 0;
+  const where = (seat.owner - seat.viewer + 4) % 4;
   return (
-    <View style={styles.melds} testID={testID}>
-      {keyedMelds(melds).map(({ meld, key }) => (
-        <Arrive key={key} from={{ x: 0, y: 40 }} scale={1.3} calm={calm}>
-          <View style={styles.meld} accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}`}>
-            {keyedTiles(meld.tiles).map(({ tile, key: tileKey, end }) => (
-              <Tile key={tileKey} tile={tile} width={width} back={meld.concealed && end && tile >= 0} lit={tile === meld.claimed} />
-            ))}
-          </View>
-        </Arrive>
-      ))}
+    <View style={across ? (wrap ? styles.melds : styles.meldsAcross) : styles.meldsDown} testID={testID}>
+      {keyedMelds(melds).map(({ meld, key }) => {
+        const { tiles, sideways } = meldOrder(meld, seat.owner, seat.viewer);
+        return (
+          <Arrive key={key} from={{ x: 0, y: across ? (where === 0 ? 40 : 30) : 0 }} scale={1.3} calm={calm}>
+            <View style={[across ? styles.meld : styles.meldDown, { alignItems: MELD_EDGE[where] }]} accessible accessibilityLabel={meldWords(meld, seat.names)} testID={`${testID}-${key}`}>
+              {keyedTiles(tiles).map(({ tile, key: tileKey, end }, i) => (
+                <Turned key={tileKey} tile={tile} width={size} turn={i === sideways ? (across ? 90 : 0) : turn} back={meld.concealed && end && tile >= 0} testID={i === sideways ? `${testID}-sideways` : undefined} />
+              ))}
+            </View>
+          </Arrive>
+        );
+      })}
     </View>
   );
 };
-
-/** Another seat's melds, face up: along B's row, or down A's and C's columns with each tile turned to its seat. */
-const SeatMelds = ({ melds, size, turn, calm, testID }: { melds: readonly MeldView[]; size: number; turn: number; calm: boolean; testID: string }) => (
-  <View style={turn === 0 ? styles.meldsAcross : styles.meldsDown} testID={testID}>
-    {keyedMelds(melds).map(({ meld, key }) => (
-      <Arrive key={key} from={{ x: 0, y: turn === 0 ? 30 : 0 }} scale={1.3} calm={calm}>
-        <View style={turn === 0 ? styles.meld : styles.meldDown} accessible accessibilityLabel={`${meld.concealed ? "Concealed " : ""}${meld.type}: ${meld.tiles.map(tileLabel).join(", ")}`}>
-          {keyedTiles(meld.tiles).map(({ tile, key: tileKey, end }) => (
-            <Turned key={tileKey} tile={tile} width={size} turn={turn} back={meld.concealed && end && tile >= 0} lit={tile === meld.claimed} />
-          ))}
-        </View>
-      </Arrive>
-    ))}
-  </View>
-);
 
 type PlateProps = {
   seat: MahjongSeatView;
@@ -181,6 +184,8 @@ type RiverProps = { seat: HandSeat; index: number; name: string; lastDiscard: { 
 
 /** How long a tile takes to fly: drawn into your hand, or thrown into a pile. */
 const FLY_MS = 300;
+/** Between your plate and melds and your hand, now the action row is gone. */
+const HAND_SPACER = 8;
 
 const riverLabel = (name: string, count: number) => `${name === "You" ? "Your" : `${name}'s`} discards, ${count} ${count === 1 ? "tile" : "tiles"}. Show them bigger`;
 
@@ -234,7 +239,7 @@ const SideRiver = ({ seat, index, name, lastDiscard, from, calm, onOpen, size, w
   );
 };
 
-const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, onClose }: { seat: HandSeat; index: number; name: string; hand: HandView; lastDiscard: { seat: number; tile: number } | null; width: number; concealed: number; onClose: () => void }) => {
+const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, meldSeat, onClose }: { seat: HandSeat; meldSeat: MeldSeat; index: number; name: string; hand: HandView; lastDiscard: { seat: number; tile: number } | null; width: number; concealed: number; onClose: () => void }) => {
   const shown = seat.discards.filter((d) => !d.taken);
   useEscape(onClose);
   return (
@@ -250,7 +255,7 @@ const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, onClose 
           </Pressable>
         </View>
         <Text style={styles.resultNote}>{`${concealed} tiles in hand · ${shown.length} let go`}</Text>
-        {seat.melds.length > 0 ? <Melds melds={seat.melds} width={Math.round(width * 0.8)} calm testID="mahjong-zoom-melds" /> : null}
+        <SeatMelds melds={seat.melds} size={Math.round(width * 0.8)} turn={0} calm seat={meldSeat} wrap testID="mahjong-zoom-melds" />
         <View style={styles.zoomTiles}>
           {shown.map((d) => (
             <Tile key={d.tile} tile={d.tile} width={width} lit={isLast(lastDiscard, index, d.tile)} />
@@ -293,19 +298,24 @@ const Centre = ({ hand, forCoins }: { hand: HandView & { minFaan: number }; forC
   </View>
 );
 
-/** The clock, under ✕ and off the board: the seconds on top, a bar running down beneath, and whose it is. */
-const Timer = ({ deadline, total, now, who, mine, height }: { deadline: number; total: number; now: number; who: string; mine: boolean; height: number }) => {
+/**
+ * The clock, lying over the top of the chat log rather than taking a row of
+ * its own: a bar across the log's top edge that runs down from the right,
+ * and the seconds in a small tag at its right end, over the end of the
+ * oldest line (the newest is at the log's foot). Whose clock it is shows on
+ * the table (the lit seat, or your claim chips) and is read out with it.
+ */
+const Timer = ({ deadline, total, now, who, mine }: { deadline: number; total: number; now: number; who: string; mine: boolean }) => {
   const left = Math.max(0, Math.min(1, (deadline - now) / total));
   const seconds = secondsLeft(deadline, now);
   return (
     <View style={styles.timer} pointerEvents="none" accessible accessibilityLabel={`${seconds} seconds left, ${who}`} accessibilityLiveRegion={mine && seconds <= 3 ? "polite" : "none"} testID="mahjong-timer">
-      <Text style={[styles.timerSeconds, mine && styles.timerMine]} testID="mahjong-timer-seconds">{`${seconds}s`}</Text>
-      <View style={[styles.timerTrack, { height }]}>
-        <View style={[styles.timerFill, mine && styles.timerFillMine, { height: `${left * 100}%` }]} />
+      <View style={styles.timerTrack}>
+        <View style={[styles.timerFill, mine && styles.timerFillMine, { width: `${left * 100}%` }]} />
       </View>
-      <Text style={styles.timerWho} numberOfLines={1}>
-        {who}
-      </Text>
+      <View style={styles.timerTag}>
+        <Text style={[styles.timerSeconds, mine && styles.timerMine]} testID="mahjong-timer-seconds">{`${seconds}s`}</Text>
+      </View>
     </View>
   );
 };
@@ -328,11 +338,16 @@ const Chip = ({ label, onPress, onFocus, primary = false, lit = false, children,
 
 type Choices = ReturnType<typeof claimChoices>;
 
-/** What you can do right now, above your hand: claim a discard (Pass, or let the clock run out), or win, kong or discard on your turn. */
-const ActionBar = ({ hand, mySeat, selected, choices, focus, busy, calm, onFocus, onMove }: { hand: HandView; mySeat: number; selected: number | null; choices: Choices | null; focus: string | null; busy: boolean; calm: boolean; onFocus: (key: string) => void; onMove: (move: Move) => void }) => {
+/**
+ * What you can do right now besides discarding: claim a discard (Chow,
+ * Pong, Kong, Hu or Pass, or let the clock run out), or win or kong on your
+ * turn. The chips float, see-through, over your own discards (never the
+ * pile the claimed tile is in), so they take no row of their own.
+ */
+const Actions = ({ hand, mySeat, choices, focus, busy, onFocus, onMove }: { hand: HandView; mySeat: number; choices: Choices | null; focus: string | null; busy: boolean; onFocus: (key: string) => void; onMove: (move: Move) => void }) => {
   const mine = hand.mine;
   const stage = hand.stage;
-  if (!mine || busy) return <View style={styles.actionBar} />;
+  if (!mine || busy) return null;
   if (stage.kind === "claim" && choices) {
     return (
       <View style={styles.actionRow} testID="mahjong-claim" accessibilityLiveRegion="polite">
@@ -360,9 +375,9 @@ const ActionBar = ({ hand, mySeat, selected, choices, focus, busy, calm, onFocus
       </View>
     );
   }
-  if (stage.kind === "turn" && stage.seat === mySeat) {
+  if (stage.kind === "turn" && stage.seat === mySeat && (mine.win || mine.kongs.length > 0)) {
     return (
-      <View style={styles.actionRow} testID="mahjong-turn">
+      <View style={styles.actionRow} testID="mahjong-turn-actions">
         {mine.win ? <Chip label={`Hu · ${mine.win.faan} faan`} primary onPress={() => onMove({ kind: "win" })} testID="mahjong-self-win" /> : null}
         {mine.kongs.map((kind) => (
           <Chip key={kind} onPress={() => onMove({ kind: "kong", tileKind: kind })} testID={`mahjong-kong-${kind}`} a11y={`Kong ${tileLabel(kind * 4)}`}>
@@ -372,19 +387,18 @@ const ActionBar = ({ hand, mySeat, selected, choices, focus, busy, calm, onFocus
             </View>
           </Chip>
         ))}
-        <Pulse calm={calm} style={styles.turnPill}>
-          <Text style={styles.turnPillText} testID="mahjong-your-turn">
-            Your turn
-          </Text>
-        </Pulse>
-        <Text style={styles.hint}>{selected === null ? "Tap a tile, or slide one up to discard" : "Tap it again (or slide it up) to discard"}</Text>
       </View>
     );
   }
-  return <View style={styles.actionBar} />;
+  return null;
 };
 
-const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing, calm, onTap, onSlide, onSlideDown }: { tile: number; width: number; lifted: boolean; lit: boolean; enabled: boolean; drawn: boolean; drawnFrom: { x: number; y: number }; dealing: boolean; calm: boolean; onTap: () => void; onSlide: () => void; onSlideDown: () => void }) => {
+/**
+ * One tile of your hand. On your turn (`beat`) each tile glows, flashing
+ * with the beat, so the whole hand says it's your go; the drawn tile keeps
+ * its lit edge on top of that, and the picked one its own bigger glow.
+ */
+const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing, calm, onTap, onSlide, onSlideDown, beat }: { tile: number; width: number; lifted: boolean; lit: boolean; enabled: boolean; drawn: boolean; drawnFrom: { x: number; y: number }; dealing: boolean; calm: boolean; onTap: () => void; onSlide: () => void; onSlideDown: () => void; beat: SharedValue<number> | null }) => {
   const [lift] = useState(() => new Animated.Value(0));
   const taken = useRef({ dx: 0, dy: 0 });
   const live = useRef({ enabled, onSlide, onSlideDown });
@@ -416,6 +430,7 @@ const HandTile = ({ tile, width, lifted, lit, enabled, drawn, drawnFrom, dealing
   return (
     <Arrive from={drawn ? drawnFrom : dealing ? { x: 0, y: -90 } : { x: 0, y: 0 }} scale={drawn ? 0.7 : 1} duration={drawn ? FLY_MS : 240} calm={calm || (!drawn && !dealing)} style={{ ...(drawn ? { marginLeft: DRAWN_GAP } : {}), ...(lifted ? { zIndex: 2 } : {}) }}>
       <Animated.View style={{ transform: [{ translateY: lift }] }} {...responder.panHandlers}>
+        {beat && !lifted ? <Glow beat={beat} style={{ ...styles.turnGlow, borderRadius: Math.max(3, width * 0.2) }} testID="mahjong-turn-glow" /> : null}
         <Tile tile={tile} width={width} lifted={lifted} lit={lit} onPress={enabled ? onTap : undefined} testID={`mahjong-tile-${tile}`} />
       </Animated.View>
     </Arrive>
@@ -699,7 +714,6 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   // Watching, your seat's tiles are a row of backs this wide (or smaller), and the hand keeps only their room.
   const backsSize = Math.round(layout.hand * 0.8);
   const [tableHeight, setTableHeight] = useState(0);
-  const [chatHeight, setChatHeight] = useState(0);
   const calm = useBatterySaver();
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
@@ -713,6 +727,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const [mineHeight, setMineHeight] = useState(0);
   const stage = hand.stage;
   const myTurn = mySeat !== null && stage.kind === "turn" && stage.seat === mySeat && !busy;
+  // Your turn flashes your tiles' glow (steady with battery saver or reduce-motion).
+  const beat = useBeat(myTurn, calm);
   const selected = myTurn && chosen?.step === hand.step ? chosen.tile : null;
   const person = (seat: MahjongSeatView) => (seat.member ? people.find((p) => p.memberId === seat.member) : undefined);
   const lookOf = (seat: MahjongSeatView) => person(seat)?.look ?? null;
@@ -772,7 +788,9 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const floor = kept?.key === sizesKey ? kept : null;
   const sizes = { across: Math.min(piles.across, floor?.across ?? Infinity), side: Math.min(piles.side, floor?.side ?? Infinity) };
   if (region > 0 && (floor === null || sizes.across < floor.across || sizes.side < floor.side)) setKept({ key: sizesKey, ...sizes });
-  const melds = meldSize({ layout, height: region, across: meldRun(hand.seats[across].melds), left: meldRun(hand.seats[left].melds), right: meldRun(hand.seats[right].melds) });
+  const runOf = (i: number) => meldRun(hand.seats[i].melds, i, viewer);
+  const melds = meldSize({ layout, height: region, across: runOf(across), left: runOf(left), right: runOf(right) });
+  const meldSeat = (owner: number): MeldSeat => ({ owner, viewer, names });
   // Your turn: a light tap on iOS as it starts (once a turn), besides the glow, the pill and the lit drawn tile.
   const turnKey = myTurn ? `${handNo}:${hand.step}` : null;
   useEffect(() => {
@@ -783,7 +801,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const middle = Math.max(0, region - 2 * acrossHeight - 2 * TABLE_GAP);
   // Where tiles fly from, roughly: the wall (the compass) for your draw, and each seat for its discard.
   const mineTopHeight = Math.max(44, layout.myMeld * TILE_RATIO + 8);
-  const handTop = mineTopHeight + 6 + ACTION_HEIGHT + 6;
+  const handTop = mineTopHeight + 6 + HAND_SPACER;
   const compassAbove = handTop + acrossHeight + TABLE_GAP + middle / 2 + handSize * 0.5 + (twoRows ? handSize * TILE_RATIO + 4 : 0);
   const lastRow = handRows(handTiles, drawn, twoRows).at(-1) ?? [];
   const lastRowWidth = lastRow.length * (handSize + HAND_GAP) + DRAWN_GAP;
@@ -795,7 +813,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const sideSeat = (i: number, turn: number) => (
     <View style={[styles.sideSeat, { height: region }]} testID={`mahjong-player-${i}`}>
       {plate(i, true)}
-      <SeatMelds melds={hand.seats[i].melds} size={melds} turn={turn} calm={calm} testID={`mahjong-melds-${i}`} />
+      <SeatMelds melds={hand.seats[i].melds} size={melds} turn={turn} calm={calm} seat={meldSeat(i)} testID={`mahjong-melds-${i}`} />
     </View>
   );
   const riverProps = (i: number) => ({ seat: hand.seats[i], index: i, name: names[i], lastDiscard, from: stage.kind === "claim" && stage.from === i, calm, onOpen: setZoomed });
@@ -832,13 +850,13 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
             <Ionicons name="close" size={18} color={m.text} />
           </Pressable>
         </View>
-        <View style={styles.chatLog} pointerEvents="box-none" onLayout={(e) => setChatHeight(Math.ceil(e.nativeEvent.layout.height))}>
+        <View style={styles.chatLog} pointerEvents="box-none">
           {chatLog}
         </View>
         <View style={styles.table} onLayout={(e) => setTableHeight(Math.floor(e.nativeEvent.layout.height))}>
           <View style={styles.acrossSeat} testID={`mahjong-player-${across}`}>
             {plate(across, false)}
-            <SeatMelds melds={hand.seats[across].melds} size={melds} turn={0} calm={calm} testID={`mahjong-melds-${across}`} />
+            <SeatMelds melds={hand.seats[across].melds} size={melds} turn={0} calm={calm} seat={meldSeat(across)} testID={`mahjong-melds-${across}`} />
           </View>
           {region > 0 ? (
             <View style={[styles.region, { height: region }]}>
@@ -851,6 +869,11 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
                   {intro_ ? <View style={{ width: layout.sideWidth }} /> : <SideRiver {...riverProps(right)} size={sizes.side} width={layout.sideWidth} height={middle} side="right" />}
                 </View>
                 {intro_ ? <View style={{ height: acrossHeight }} /> : <AcrossRiver {...riverProps(viewer)} size={sizes.across} width={layout.centre} height={acrossHeight} thrownFrom={fromSeat.mine} />}
+                {mySeat !== null && !intro_ ? (
+                  <View style={[styles.actionsOver, { minHeight: acrossHeight }]} pointerEvents="box-none">
+                    <Actions hand={hand} mySeat={mySeat} choices={choices} focus={focusKey} busy={busy} onFocus={(key) => setFocused({ key, step: hand.step })} onMove={onMove} />
+                  </View>
+                ) : null}
               </View>
               {sideSeat(right, -90)}
             </View>
@@ -862,8 +885,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
           ) : null}
         </View>
         {deadline !== null ? (
-          <View style={[styles.timerAt, { top: headerBottom, right: PAD + 4 }]} pointerEvents="none">
-            <Timer deadline={deadline} total={(stage.kind === "claim" ? claimSeconds : turnSeconds) * 1000} now={now} who={timerWho} mine={myTurn || choices !== null} height={Math.max(24, chatHeight + ACROSS_SEAT_HEIGHT - 34)} />
+          <View style={[styles.timerAt, { top: headerBottom }]} pointerEvents="none">
+            <Timer deadline={deadline} total={(stage.kind === "claim" ? claimSeconds : turnSeconds) * 1000} now={now} who={timerWho} mine={myTurn || choices !== null} />
           </View>
         ) : null}
         <View style={[styles.mine, { paddingBottom: bottom }]} onLayout={(e) => setMineHeight(Math.ceil(e.nativeEvent.layout.height))}>
@@ -877,15 +900,15 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
               <Text style={[styles.wind, viewer === hand.dealer && styles.dealer]}>{windBadge(hand.seats[viewer].wind)}</Text>
               <Text style={[styles.score, seats[viewer].net > 0 ? styles.up : seats[viewer].net < 0 ? styles.down : null]}>{coinsWords(seats[viewer].net)}</Text>
             </View>
-            <Melds melds={hand.seats[viewer].melds} width={layout.myMeld} calm={calm} testID="mahjong-melds-bottom" />
+            <SeatMelds melds={hand.seats[viewer].melds} size={layout.myMeld} turn={0} calm={calm} seat={meldSeat(viewer)} wrap testID="mahjong-melds-bottom" />
           </View>
-          <View style={{ height: mySeat === null ? 8 : ACTION_HEIGHT, justifyContent: "center" }}>
-            {mySeat !== null ? <ActionBar hand={hand} mySeat={mySeat} selected={selected} choices={choices} focus={focusKey} busy={busy} calm={calm} onFocus={(key) => setFocused({ key, step: hand.step })} onMove={onMove} /> : null}
-          </View>
+          <View style={{ height: HAND_SPACER }} />
+          {/* Your turn lights your tiles (see HandTile); this wrapper only names it, and is always here so the tiles never remount when it starts. */}
+          <View testID={myTurn ? "mahjong-turn" : undefined} accessibilityLabel={myTurn ? "Your turn: tap a tile to pick it, then tap it again or slide it up to discard" : undefined}>
           <View
             onLayout={scrub.measure}
             {...scrub.handlers}
-            style={[styles.handRows, myTurn && styles.handTurn, { minHeight: mySeat === null ? backsSize * TILE_RATIO + 8 : (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.5 }]}
+            style={[styles.handRows, { minHeight: mySeat === null ? backsSize * TILE_RATIO + 8 : (twoRows ? 2 : 1) * (handSize * TILE_RATIO + 4) + handSize * 0.5 }]}
             testID="mahjong-hand"
           >
             {mySeat === null ? (
@@ -910,18 +933,20 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
                       onTap={() => pick(tile)}
                       onSlide={() => discard(tile)}
                       onSlideDown={() => setSelected(null)}
+                      beat={myTurn ? beat : null}
                     />
                   ))}
                 </View>
               ))
             )}
           </View>
+          </View>
         </View>
       </View>
       <Callout hand={hand} names={names} calm={calm} />
       {shownZoom !== null ? (
         <View style={[styles.zoomArea, { bottom: mineHeight }]} pointerEvents="box-none">
-          <Zoom seat={hand.seats[shownZoom]} index={shownZoom} name={names[shownZoom]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(shownZoom)} onClose={() => setZoomed(null)} />
+          <Zoom seat={hand.seats[shownZoom]} index={shownZoom} name={names[shownZoom]} hand={hand} lastDiscard={lastDiscard} width={layout.zoom} concealed={concealedOf(shownZoom)} meldSeat={meldSeat(shownZoom)} onClose={() => setZoomed(null)} />
         </View>
       ) : null}
       <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} minFaan={minFaan} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
@@ -951,14 +976,14 @@ const styles = StyleSheet.create({
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: m.chip },
   pressed: { opacity: 0.7 },
   table: { flex: 1, paddingHorizontal: PAD },
-  acrossSeat: { height: ACROSS_SEAT_HEIGHT, marginHorizontal: TIMER_STRIP - PAD, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  acrossSeat: { height: ACROSS_SEAT_HEIGHT, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   acrossHead: { flexDirection: "row", alignItems: "center", gap: 6, padding: 3, borderRadius: 10 },
   region: { marginTop: TABLE_GAP, flexDirection: "row", gap: TABLE_GAP },
   sideSeat: { width: SIDE_COLUMN, alignItems: "center", gap: 6 },
   centreColumn: { gap: TABLE_GAP },
-  chatLog: { paddingHorizontal: PAD, marginRight: TIMER_STRIP, minHeight: 4 },
+  turnGlow: { position: "absolute", top: -3, left: -3, right: -3, bottom: -3, backgroundColor: m.litSoft, borderWidth: 2, borderColor: m.lit, boxShadow: `0 0 12px 3px ${m.lit}` },
+  chatLog: { paddingHorizontal: PAD, minHeight: 8 },
   handRows: { gap: 4, justifyContent: "flex-end", borderRadius: 14, borderWidth: 2, borderColor: "transparent", marginHorizontal: -4, paddingHorizontal: 2, paddingBottom: 2 },
-  handTurn: { borderColor: m.lit, backgroundColor: m.litSoft, boxShadow: `0 0 14px 2px ${m.litSoft}` },
   sideHead: { alignItems: "center", gap: 2, padding: 3, borderRadius: 10, alignSelf: "stretch" },
   sideText: { alignItems: "center" },
   seatActive: { borderColor: m.lit, backgroundColor: m.litSoft },
@@ -995,14 +1020,14 @@ const styles = StyleSheet.create({
   centreLeft: { fontFamily: fonts.display, fontSize: 18, color: m.text, fontVariant: ["tabular-nums"] },
   centreStake: { fontSize: 11, fontWeight: "800", color: m.muted },
   centreCoins: { color: m.win },
-  timerAt: { position: "absolute", width: 32, alignItems: "center" },
-  timer: { alignItems: "center", gap: 3 },
-  timerSeconds: { fontFamily: fonts.display, fontSize: 15, color: m.text, fontVariant: ["tabular-nums"] },
-  timerMine: { color: m.lit },
-  timerTrack: { width: 8, borderRadius: 4, backgroundColor: m.chip, overflow: "hidden", justifyContent: "flex-end" },
-  timerFill: { width: 8, borderRadius: 4, backgroundColor: m.muted },
+  timerAt: { position: "absolute", left: PAD, right: PAD },
+  timer: { alignItems: "flex-end" },
+  timerTrack: { alignSelf: "stretch", height: 4, borderRadius: 2, backgroundColor: m.timerBacking, overflow: "hidden", alignItems: "flex-end" },
+  timerFill: { height: 4, borderRadius: 2, backgroundColor: m.muted },
   timerFillMine: { backgroundColor: m.lit },
-  timerWho: { fontSize: 9.5, fontWeight: "800", color: m.muted, maxWidth: 40 },
+  timerTag: { marginTop: 2, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 9, backgroundColor: m.timerBacking },
+  timerSeconds: { fontFamily: fonts.display, fontSize: 13, color: m.text, fontVariant: ["tabular-nums"] },
+  timerMine: { color: m.lit },
   zoomArea: { position: "absolute", left: 0, right: 0, top: 0 },
   zoomHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   zoomTitle: { flex: 1, textAlign: "left" },
@@ -1012,17 +1037,14 @@ const styles = StyleSheet.create({
   myPlate: { flexDirection: "row", alignItems: "center", gap: 6, padding: 4, borderRadius: 12, borderWidth: 2, borderColor: m.chip },
   hand: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center" },
   backs: { flexDirection: "row", gap: 1 },
-  actionBar: { minHeight: 8 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 },
-  action: { height: 30, paddingHorizontal: 10, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: m.chip, borderWidth: 1.5, borderColor: m.muted },
+  actionsOver: { position: "absolute", left: 0, right: 0, bottom: 0, justifyContent: "center", paddingHorizontal: 4 },
+  action: { height: 30, paddingHorizontal: 10, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: m.overlayChip, borderWidth: 1.5, borderColor: m.muted },
   actionPrimary: { backgroundColor: m.shoutEdge, borderColor: m.lit },
   actionLit: { borderColor: m.lit, backgroundColor: m.litSoft },
   actionText: { fontFamily: fonts.display, fontSize: 13.5, color: m.text },
   actionTextPrimary: { color: m.shout },
   chowTiles: { flexDirection: "row", alignItems: "center", gap: 2 },
-  hint: { fontSize: 12.5, fontWeight: "700", color: m.muted },
-  turnPill: { paddingHorizontal: 10, height: 24, borderRadius: 12, justifyContent: "center", backgroundColor: m.lit },
-  turnPillText: { fontFamily: fonts.display, fontSize: 13, color: m.honour },
   calloutWrap: { position: "absolute", left: 0, right: 0, top: "38%", alignItems: "center" },
   callout: {
     fontFamily: fonts.display,

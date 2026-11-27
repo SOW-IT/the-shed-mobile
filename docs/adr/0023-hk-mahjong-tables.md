@@ -126,8 +126,13 @@ abandoned (no coins move) if nobody comes back within two minutes.
   each starting at their own seat. Discards are as big as every pile still
   fits (never bigger than your hand's tiles), so they start big and shrink
   as the piles grow, and never grow back within a hand. On the web the
-  table widens with the window (up to 1000 points). The clock moved under
-  ✕, off the board.
+  table widens with the window (up to 1000 points).
+- Nothing takes a row of its own that the board could use: the clock is a
+  bar over the top of the chat log, the claim and win/kong chips float
+  over your own discards (never the pile a claimed tile sits in), and your
+  turn shows as a flashing glow on your tiles instead of a "Your turn" row.
+- A claimed meld lays its claimed tile sideways toward the seat it came
+  from (`meldOrder`): the giver's side on screen, for every seat.
 
 ## Coins
 

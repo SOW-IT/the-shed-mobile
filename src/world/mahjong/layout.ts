@@ -10,10 +10,6 @@ export const CENTRE = 44;
 export const TABLE_GAP = 4;
 export const TILE_TALL = 1.36;
 export const ACROSS_SEAT_HEIGHT = 58;
-/** The row above your hand for the claim chips and the hint (the timer lives under ✕ now). */
-export const ACTION_HEIGHT = 36;
-/** The strip down the right, under ✕, where the timer runs; the across seat keeps clear of it (and of the same on the left, to stay centred). */
-export const TIMER_STRIP = 40;
 /** A side seat's avatar, name and badges, above its melds. */
 const SIDE_PLATE = 80;
 /** The across seat's avatar, name and badges, before its melds. */
@@ -124,8 +120,10 @@ export const pileSizes = ({ layout, height, counts, cap }: { layout: TableLayout
 /** Discards are never bigger than your own hand's tiles. */
 export const pileCap = (layout: TableLayout, handSize: number) => Math.min(handSize, clamp(Math.floor(layout.inner / 7), 40, 64));
 
-type MeldRun = { tiles: number; melds: number };
-const runFit = (run: MeldRun, length: number) => (run.tiles === 0 ? Infinity : Math.floor((length - (run.melds - 1) * MELD_GAP) / run.tiles) - 1);
+/** A seat's melds end to end: how many tiles, in how many melds, and how many of those tiles lie sideways (each a tile and a third long). */
+type MeldRun = { tiles: number; melds: number; sideways: number };
+const runFit = (run: MeldRun, length: number) =>
+  run.tiles === 0 ? Infinity : Math.floor((length - (run.melds - 1) * MELD_GAP - run.tiles) / (run.tiles + run.sideways * (TILE_TALL - 1)));
 
 /**
  * One size for A's, B's and C's melds (their concealed tiles aren't drawn,
@@ -133,8 +131,38 @@ const runFit = (run: MeldRun, length: number) => (run.tiles === 0 ? Infinity : M
  * fit down their seat columns.
  */
 export const meldSize = ({ layout, height, across, left, right }: { layout: TableLayout; height: number; across: MeldRun; left: MeldRun; right: MeldRun }) => {
-  const acrossLength = layout.inner - 2 * TIMER_STRIP - ACROSS_PLATE - 8;
+  const acrossLength = layout.inner - ACROSS_PLATE - 8;
   const sideLength = height - SIDE_PLATE;
   const fit = Math.min(MELD_MAX, Math.floor(SIDE_COLUMN / TILE_TALL), runFit(across, acrossLength), runFit(left, sideLength), runFit(right, sideLength));
   return Math.max(MELD_MIN, fit);
 };
+
+/** Where a seat is, seen from yours: 0 you, 1 on your right (C), 2 across (B), 3 on your left (A). */
+const placeOf = (seat: number, viewer: number) => (seat - viewer + 4) % 4;
+
+/**
+ * A claimed meld's tiles in the order they're drawn, with the claimed tile
+ * laid sideways on the side of the seat it came from, as at a real table:
+ * from the owner's left, it's their leftmost tile; from across, the middle;
+ * from their right, the rightmost. On screen that's always the side the
+ * giver sits on (B's row and C's column run against their owner's own left
+ * to right). A concealed meld, or one nobody gave, has nothing sideways.
+ */
+export const meldOrder = (meld: { tiles: readonly number[]; from: number | null; claimed: number | null; concealed: boolean }, owner: number, viewer: number) => {
+  const at = meld.claimed === null || meld.concealed || meld.from === null ? -1 : meld.tiles.indexOf(meld.claimed);
+  if (at < 0 || meld.from === null) return { tiles: [...meld.tiles], sideways: null };
+  const n = meld.tiles.length;
+  const giver = placeOf(meld.from, owner);
+  const ownersOrder = giver === 3 ? 0 : giver === 2 ? 1 : n - 1;
+  const where = placeOf(owner, viewer);
+  const sideways = where === 1 || where === 2 ? n - 1 - ownersOrder : ownersOrder;
+  const rest = meld.tiles.filter((_, i) => i !== at);
+  return { tiles: [...rest.slice(0, sideways), meld.claimed as number, ...rest.slice(sideways)], sideways };
+};
+
+/** The run for a seat's melds (see meldSize). */
+export const meldRun = (melds: readonly { tiles: readonly number[]; from: number | null; claimed: number | null; concealed: boolean }[], owner: number, viewer: number): MeldRun => ({
+  tiles: melds.reduce((n, meld) => n + meld.tiles.length, 0),
+  melds: melds.length,
+  sideways: melds.filter((meld) => meldOrder(meld, owner, viewer).sideways !== null).length,
+});

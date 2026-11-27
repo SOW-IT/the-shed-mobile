@@ -140,6 +140,12 @@ const playTurn = async (who, seen) => {
       seen.claim = true;
       await who.page.waitForTimeout(300);
       await shot(who, "claim");
+      // The chips float over a discard pile (yours) instead of taking a row above the hand.
+      const chips = await id(who, "mahjong-claim").boundingBox();
+      const hand = await id(who, "mahjong-hand").boundingBox();
+      const rivers = await Promise.all((await who.page.locator('[data-testid^="mahjong-river-"]').all()).map((r) => r.boundingBox()));
+      const middle = chips && { x: chips.x + chips.width / 2, y: chips.y + chips.height / 2 };
+      await expect(who, "the claim chips lie over the discards, not in a row of their own", Promise.resolve(Boolean(chips && hand && chips.y + chips.height <= hand.y && rivers.some((r) => r && middle.x >= r.x && middle.x <= r.x + r.width && middle.y >= r.y && middle.y <= r.y + r.height))));
     }
     await id(who, "mahjong-claim-pass").click().catch(() => {});
     return;
@@ -282,8 +288,11 @@ try {
       await first.click();
       await host.page.waitForTimeout(250);
       await shot(host, "picked");
-      await expect(host, "the timer runs under ✕ on your turn", shown(host, "mahjong-timer"));
-      await expect(host, "your turn is called out over your hand", shown(host, "mahjong-your-turn"));
+      await expect(host, "the timer runs over the chat log on your turn", shown(host, "mahjong-timer"));
+      const glows = host.page.locator('[data-testid="mahjong-hand"] [data-testid="mahjong-turn-glow"]');
+      // Every tile but the picked one (which has its own glow) is lit for your turn, and there's no "Your turn" row any more.
+      await expect(host, "your turn lights the tiles in your hand", (async () => (await glows.count()) === before - 1)());
+      await expect(host, "there's no \"Your turn\" row above the hand", (async () => !(await shown(host, "mahjong-your-turn")))());
       const picked = host.page.locator('[data-testid="mahjong-hand"] [data-testid^="mahjong-tile-"][aria-selected="true"]');
       await expect(host, "a tap picks the tile", (async () => (await picked.count()) === 1)());
       const box = await first.boundingBox();
@@ -349,6 +358,11 @@ try {
     }
     await host.page.waitForTimeout(250);
   }
+  // Each claimed meld lays the claimed tile sideways (toward whoever let it go); a concealed kong has none.
+  const claimedMelds = await host.page.locator('[data-testid^="mahjong-melds-"][aria-label*=" from "]').count();
+  const sideways = await host.page.locator('[data-testid^="mahjong-melds-"][data-testid$="-sideways"]').count();
+  if (claimedMelds === 0) notes.push("nobody claimed a meld this hand, so the sideways tile wasn't checked");
+  else await expect(host, `each claimed meld lays one tile sideways (${sideways} of ${claimedMelds})`, Promise.resolve(sideways === claimedMelds));
   await expect(host, "the hand reaches its breakdown", appears(host, "mahjong-result", 5_000));
   await host.page.waitForTimeout(800);
   await shot(host, "result");

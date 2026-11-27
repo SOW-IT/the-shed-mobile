@@ -34,11 +34,19 @@ All notable changes to **The SHED** mobile app. This project follows
   (across) are two rows; A's run down their columns and C's up theirs,
   each starting at their own seat. On the web the table widens with the
   window, up to 1000 points, instead of stopping at 560.
-- **The timer moved under ✕**: the seconds on top and a bar running down
-  beneath, off the board. The bar above your hand and the seconds in the
-  compass and on the seats are gone.
-- **Smaller Chow, Pong and Pass buttons, and a taller chat log at the
-  table** (three lines, up from two). The World's chat log shows seven
+- **Melds show who you claimed from.** In a claimed pung, kong or chow the
+  claimed tile lies sideways, on the side of the player it came from: the
+  left player's at the left end, the opposite player's in the middle, the
+  right player's at the right end, for every seat's melds. B's melds sit
+  in one row beside B's seat.
+- **The timer lies over the chat log**: a bar along the log's top edge that
+  runs down, with the seconds at its right end, instead of a strip of its
+  own. The bar above your hand and the seconds in the compass and on the
+  seats are gone.
+- **Chow, Pong and Pass float over your discards** as see-through buttons
+  (Hu and Kong too, on your turn), so they no longer take a row above
+  your hand, and the discards get that height back. The table's chat log
+  is taller (three lines, up from two). The World's chat log shows seven
   lines, up from five.
 - **The chat log grows on bigger screens.** On a large phone, an iPad or a
   wide browser window the World's log (and the backyard's) shows more
@@ -57,9 +65,11 @@ All notable changes to **The SHED** mobile app. This project follows
   tapped it (lift off past the hand and the last tile you were on stays
   picked). Tapping works as before, and sliding a tile up still discards
   it: a sideways slide picks, an up or down one is the tile's.
-- **Your turn is hard to miss.** Your hand glows, a "Your turn" pill
-  pulses above it, the tile you drew is lit, and on iPhone there's a light
-  tap as it starts. Nothing covers your tiles or takes a touch.
+- **Your turn is hard to miss.** Every tile in your hand glows and the
+  glow flashes (steady with Battery saver or Reduce Motion), the tile you
+  drew is lit, and on iPhone there's a light tap as it starts. The "Your
+  turn" row above the hand is gone. Nothing covers your tiles or takes a
+  touch.
 - **Tiles fly.** The tile you draw comes from the middle of the table into
   your hand, and every discard flies from its player's seat into their
   pile, in about a third of a second (Battery saver turns it off).
