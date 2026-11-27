@@ -8,6 +8,9 @@ A PR merged into `main` goes live straight away. Nothing else needs running:
   integration (project `the-shed-web`).
 - **Prod Convex**: `.github/workflows/convex-deploy.yml` runs `npx convex deploy`.
 - **Dev web** (<https://the-shed-web-dev.vercel.app>): `deploy-web-dev.yml`.
+- **Version**: `release-version.yml` pushes `chore(release): x.y.z` with the
+  next patch version and the merged `changelog.d/` notes. That push is what
+  the over-the-air update below publishes from.
 - **Phones, JavaScript only**: `eas-update.yml` publishes an over-the-air
   update after the prod Convex deploy, to builds whose native fingerprint
   matches, then raises the update policy's `latestOta` to it so phones on

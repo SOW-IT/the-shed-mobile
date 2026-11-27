@@ -43,8 +43,8 @@ cd ~/GitHub/worktrees/the-shed-mobile-<slug>
 npm install   # if node_modules missing
 ```
 
-Branch names: `feat/<slug>`, `fix/<slug>`, optionally with version
-(`feat/1.8.9-whatever`). Keep unrelated WIP out of the branch.
+Branch names: `feat/<slug>` or `fix/<slug>`, never with a version. Keep
+unrelated WIP out of the branch.
 
 If already inside a feature worktree, stay there — do not bounce to the main
 checkout at `~/GitHub/the-shed-mobile`.
@@ -57,7 +57,8 @@ checkout at `~/GitHub/the-shed-mobile`.
   CI otherwise.
 - User-facing copy and changelog voice: plain English, behavior-first (see
   `CHANGELOG.md`).
-- Do not bump version / changelog until ready to open the PR (`create-pr` skill).
+- Never change the version. The changelog note goes in a `changelog.d/`
+  file when you open the PR (`create-pr` skill, AGENTS.md).
 
 ## 3. Verify while building
 
@@ -80,7 +81,7 @@ worktree before using it, and never restart it.
 
 When the feature is done, follow the **`create-pr`** skill. That skill
 **requires baguette + web verification before `gh pr create`** (CI alone is
-not enough). It also covers version bump, changelog, coverage, and the
+not enough). It also covers the changelog note, coverage, and the
 Netlify phone explain page.
 
 Do not open a PR with failing lint/typecheck/coverage, and do not skip the

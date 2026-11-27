@@ -27,19 +27,25 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
 
       - name: Skip a commit a newer merge has replaced
         id: current
         env:
           DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_CONFIGURED: ${{ secrets.RELEASE_DEPLOY_KEY != '' || secrets.RELEASE_PUSH_TOKEN != '' }}
         run: |
           main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          if [ "$main_sha" = "$DEPLOYED_SHA" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "$main_sha" != "$DEPLOYED_SHA" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is superseded, so its own Convex Deploy run will publish the update."
+          elif [ "$EVENT_NAME" = "workflow_run" ] && [ "$RELEASE_CONFIGURED" = "true" ] && [ "$(node scripts/release-version.mjs pending)" = "true" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${DEPLOYED_SHA} hasn't been given its version yet. Release version pushes a commit that does, and that commit's Convex Deploy run publishes the update."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

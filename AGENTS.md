@@ -57,6 +57,30 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
    CodeRabbit has reviewed the head with nothing left open, then mark it
    ready. `node scripts/pr-status.mjs <number>` says where it stands.
 
+## Versions and the changelog
+
+PRs never change the version. After each merge, `release-version.yml` gives
+`main` the next patch version (`package.json`, both `package-lock.json`
+version lines, `app.json`) and turns the merged notes into a
+`## [x.y.z] - date` section of `CHANGELOG.md`. Convex Deploy and EAS Update
+publish from that release commit, so the app reports the new version.
+
+- Write the PR's notes in a new file, `changelog.d/<branch name, / as ->.md`
+  (e.g. `changelog.d/feat-more-eye-shapes.md`), in `CHANGELOG.md`'s voice
+  under its headings (`### Added`, `### Removed`, `### Changed`,
+  `### Fixed`). A file per PR is what keeps PRs from conflicting; don't
+  edit `CHANGELOG.md` itself. A merge with no notes gets its title as the
+  entry.
+- Leave `package.json`, `package-lock.json` and `app.json` versions alone,
+  and keep the version out of the PR title and branch name. The release
+  number isn't known until the PR merges.
+- A minor or major release (only when the user asks): set the new version in
+  all four places by hand and give it its own `## [x.y.0] - date` section.
+  A merge that raised the version itself is left as it is.
+- Two merges close together can share one version. If a release run fails,
+  rerun it from Actions; it numbers everything merged since the last
+  release.
+
 ## CodeRabbit reviews
 
 Automatic CodeRabbit reviews are off. Comment `@coderabbitai review` only
