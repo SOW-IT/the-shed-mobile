@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.61] - 2026-11-27
+## [2.13.63] - 2026-11-27
 
 ### Changed
 - **The World fills the whole browser window on web, as it does on a
@@ -21,6 +21,24 @@ All notable changes to **The SHED** mobile app. This project follows
   unchanged. A new `world-fullscreen` web check opens the Garden and a
   backyard at 1280x800, 800x1200 and 1920x900 and checks the scene fills
   each one with the HUD inside it.
+
+## [2.13.62] - 2026-11-27
+
+### Fixed
+- **The character editor's sliders drag from anywhere on the thumb.** Height
+  and Build on the Body tab, and the move, size and tilt sliders for the
+  eyes, brows and mouth, only took a press on their thin 8px line. The round
+  thumb let touches through and hung over the line's edges, so pressing most
+  of the thumb, or just above or below the line, did nothing, and on a phone
+  that drag scrolled the choices instead. On iOS, a drag that drifted up or
+  down a little could also be taken over by the scroll. Now the whole row
+  between the end labels takes the press, the slider keeps following your
+  finger when it strays above or below, the page doesn't pan on a phone browser,
+  and the choices stay still on iOS and Android until you let go. A new
+  `steps-drag` web check drags each slider by the thumb's edges, past both
+  ends, with the pointer wandering off it, one step at a time, and with a
+  finger. On the web the sliders also now tell a screen reader their value:
+  they had none, because react-native-web ignores `accessibilityValue`.
 
 ## [2.13.59] - 2026-11-27
 
