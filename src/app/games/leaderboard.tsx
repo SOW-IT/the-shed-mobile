@@ -17,5 +17,8 @@ export default function LeaderboardScreen() {
     const routes = routesToPlay(state.routes, next);
     navigation.dispatch(CommonActions.reset({ ...state, routes, index: routes.length - 1 }));
   };
-  return <Leaderboard initialGame={game} onBack={() => backOr(router, "/games")} onPlay={play} />;
+  // A link to this screen while it's open (a "just beat you" push, or the
+  // same link with another game) keeps the screen and changes only its
+  // params. The tab is picked once, on mount, so a new game starts it again.
+  return <Leaderboard key={game ?? ""} initialGame={game} onBack={() => backOr(router, "/games")} onPlay={play} />;
 }

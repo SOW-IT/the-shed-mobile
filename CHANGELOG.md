@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.54] - 2026-11-27
+## [2.13.59] - 2026-11-27
 
 ### Added
 - **A devotional day can hold more than one passage, from more than one
@@ -15,7 +15,9 @@ All notable changes to **The SHED** mobile app. This project follows
   own book, chapter and verses, and a Remove button once there's more than
   one. The passage box under the lists shows each one on its own line, and the
   week list and Groups show them as one line, "Genesis 1-3; Psalm 1". The
-  button goes once another passage wouldn't fit in the 120-character limit.
+  passage still has a 120-character limit: the button goes once another
+  passage wouldn't fit, and a change to a row that would go over it is
+  refused with a note saying why.
 - **Pick a run of chapters from the lists.** With a chapter chosen and no
   start verse, the To box now picks the last chapter ("Ch 3"), so Genesis 1
   to chapter 3 saves as Genesis 1-3. Picking a start verse still makes To the
@@ -24,6 +26,35 @@ All notable changes to **The SHED** mobile app. This project follows
   now the lists show it. A day with one passage looks the way it always did,
   and nothing saved needed changing: the passage is still stored as the same
   text. Verse ranges that cross chapters (Romans 8:28-9:5) still stay typed.
+
+## [2.13.56] - 2026-11-27
+
+### Fixed
+- **The status bar is readable on a screen opened over a game.** After any
+  game over, the card's Leaderboard button opened the Leaderboard with a
+  white status bar on its cream page, so the time and battery all but
+  disappeared. The same happened on any screen a link opened while a dark
+  game (Mystic Man, Sky Shooter, Swoop at night) was open. Status bars stack,
+  and the last one mounted wins: the game stayed mounted underneath, and its
+  light bar (light on the game-over card since 2.13.21, #569) stayed on top.
+  A game's status bar, and the Games list's, now only counts while its
+  screen is in front. Found by the iOS sweep, where every screen after the
+  games, signed in or out, had the white bar. A new
+  `status-bar-after-game` iOS check takes screenshots of both cases (the
+  Leaderboard after a game over, and Notifications opened over Mystic Man).
+
+## [2.13.55] - 2026-11-27
+
+### Fixed
+- **A leaderboard link opens on its game's tab even when the leaderboard is
+  already open.** Tapping a "just beat you in Swoop" push (#547) while the
+  Leaderboard was showing kept whichever tab was there, because the screen
+  stayed open and picked its tab only when it first opened. Found by the
+  iOS sweep, where `/games/leaderboard?game=runner` and `?game=glider`,
+  opened one after the other, both showed Sky Shooter. The screen now
+  starts again on the linked game. A new `leaderboard-link-tab` web check
+  changes the open Leaderboard's link to each game and checks the tab
+  follows.
 
 ## [2.13.53] - 2026-11-27
 
