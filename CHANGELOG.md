@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.45] - 2026-11-27
+## [2.13.46] - 2026-11-27
 
 ### Fixed
 - **The web sweep builds the World's screen before it starts timing
@@ -26,6 +26,23 @@ All notable changes to **The SHED** mobile app. This project follows
   out on CI.** All 30 worlds ran as one test, which took 172–230 s on CI
   against a 240 s limit and failed twice. It's now one test per world,
   each with a 60 s limit, checking the same three seeds.
+
+## [2.13.45] - 2026-11-27
+
+### Changed
+- **In the World, arms and feet now move with the head and body.** Walking,
+  each arm swings forward with the opposite foot. Each foot lifts and steps
+  forward, at its highest as the body bobs highest, so it never drops away
+  from the body. Seen side on, the feet cross past each other. The stride
+  grows in over 120 ms when someone sets off and fades out when they stop,
+  so the limbs never snap into place. Standing still, everyone breathes and
+  sways a little and their arms follow a beat behind, while their feet stay
+  planted. Seated people sway too. Swimming and emotes keep their own arm
+  movements. The idle sway keeps the World's clock running at the gentle
+  15 frames a second already used for swimmers. It is off on battery saver
+  (or with the system's Reduce Motion) and while the World is in the
+  background. The Runner game's two running frames now show arms and feet
+  mid-stride.
 
 ## [2.13.44] - 2026-11-27
 
