@@ -6,7 +6,7 @@ export type ManualZoom = { shot: PreviewShot; zoom: number } | null;
 
 const KEY_STEP = 0.05;
 const PAGE_STEP = 0.2;
-const WHEEL_PX_PER_DOUBLING = 100 * Math.LN2;
+const WHEEL_PX_PER_STEP = 400;
 export const ZOOM_A11Y_STEP = 0.1;
 
 export const clampZoom = (zoom: number) => Math.max(0, Math.min(1, zoom));
@@ -47,7 +47,7 @@ export const pinchZoom = (start: number, ratio: number, limits: ZoomLimits) => {
 };
 
 export const wheelZoom = (zoom: number, deltaY: number, limits: ZoomLimits) =>
-  pinchZoom(zoom, Math.exp(-deltaY / WHEEL_PX_PER_DOUBLING), limits);
+  pinchZoom(zoom, Math.exp(-deltaY / WHEEL_PX_PER_STEP), limits);
 
 export const sliderZoom = (y: number, length: number) => (length > 0 ? clampZoom(1 - y / length) : null);
 

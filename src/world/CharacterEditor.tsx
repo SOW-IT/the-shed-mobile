@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     backgroundColor: hud.nameBg,
   },
-  zoomTrack: { flex: 1, alignSelf: "stretch", alignItems: "center", marginVertical: ZOOM_THUMB / 2 - 4 },
+  zoomTrack: { flex: 1, alignSelf: "stretch", alignItems: "center", marginVertical: ZOOM_THUMB / 2 },
   zoomBar: { flex: 1, width: 6, borderRadius: 3, backgroundColor: hud.primarySoft },
   zoomThumb: {
     position: "absolute",
