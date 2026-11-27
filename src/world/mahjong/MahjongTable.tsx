@@ -10,7 +10,7 @@ import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/v
 import { gradientStyle } from "@/components/ui/Grid";
 import { mahjong as m } from "../palette";
 import { SeatFace } from "./Faces";
-import { claimChoices, coinsWords, dealtCount, handRows, INTRO, introElapsed, faanLine, resultTitle, roundWords, secondsLeft, windBadge, windWords } from "./tableWords";
+import { claimChoices, coinsWords, dealtCount, handRows, INTRO, introElapsed, faanLine, resultTitle, roundWords, secondsLeft, tileLabel, windBadge, windWords } from "./tableWords";
 import { Tile, TILE_RATIO, TileLabels } from "./Tile";
 import { Arrive, Punch } from "./Motion";
 import { Intro } from "./Intro";
@@ -199,7 +199,7 @@ const River = ({ seat, index, name, lastDiscard, zone, from, calm, onOpen }: { s
     <Pressable
       onPress={() => onOpen(index)}
       accessibilityRole="button"
-      accessibilityLabel={`${name === "You" ? "Your" : `${name}'s`} discards, ${shown.length} tiles. Show them bigger`}
+      accessibilityLabel={`${name === "You" ? "Your" : `${name}'s`} discards, ${shown.length} ${shown.length === 1 ? "tile" : "tiles"}. Show them bigger`}
       testID={`mahjong-river-${index}`}
       style={[styles.river, { width: zone.width, height: zoneHeight(zone) }, from && styles.riverFrom]}
     >
@@ -218,14 +218,7 @@ const River = ({ seat, index, name, lastDiscard, zone, from, calm, onOpen }: { s
 
 const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, onClose }: { seat: HandSeat; index: number; name: string; hand: HandView; lastDiscard: { seat: number; tile: number } | null; width: number; concealed: number; onClose: () => void }) => {
   const shown = seat.discards.filter((d) => !d.taken);
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
   return (
     <View style={styles.resultWrap} testID="mahjong-zoom">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-zoom-backdrop" />
@@ -316,7 +309,7 @@ const ActionBar = ({ hand, mySeat, selected, now, busy, onMove }: { hand: HandVi
       <View style={styles.claim} testID="mahjong-claim" accessibilityLiveRegion="polite">
         <View style={styles.actionRow}>
           {choices.map((c) => (
-            <Chip key={c.key} label={c.tiles ? undefined : c.label} primary={c.answer.kind === "hu"} onPress={() => onMove({ kind: "answer", answer: c.answer })} testID={`mahjong-claim-${c.key}`} a11y={c.tiles ? `Chow with ${c.tiles.length} tiles` : c.label}>
+            <Chip key={c.key} label={c.tiles ? undefined : c.label} primary={c.answer.kind === "hu"} onPress={() => onMove({ kind: "answer", answer: c.answer })} testID={`mahjong-claim-${c.key}`} a11y={c.tiles ? `Chow with ${c.tiles.map(tileLabel).join(", ")}` : c.label}>
               {c.tiles ? (
                 <View style={styles.chowTiles}>
                   <Text style={styles.actionText}>Chow</Text>
@@ -338,7 +331,7 @@ const ActionBar = ({ hand, mySeat, selected, now, busy, onMove }: { hand: HandVi
         <View style={styles.actionRow}>
           {mine.win ? <Chip label={`Hu · ${mine.win.faan} faan`} primary onPress={() => onMove({ kind: "win" })} testID="mahjong-self-win" /> : null}
           {mine.kongs.map((kind) => (
-            <Chip key={kind} onPress={() => onMove({ kind: "kong", tileKind: kind })} testID={`mahjong-kong-${kind}`} a11y="Kong">
+            <Chip key={kind} onPress={() => onMove({ kind: "kong", tileKind: kind })} testID={`mahjong-kong-${kind}`} a11y={`Kong ${tileLabel(kind * 4)}`}>
               <View style={styles.chowTiles}>
                 <Text style={styles.actionText}>Kong</Text>
                 <Tile tile={kind * 4} width={20} />
@@ -382,9 +375,22 @@ const HandTile = ({ tile, width, lifted, enabled, drawn, dealing, calm, onTap, o
   );
 };
 
-const LeaveConfirm = ({ cost, onLeave, onStay }: { cost: number; onLeave: () => void; onStay: () => void }) => (
+const useEscape = (onEscape: () => void) => {
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onEscape();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onEscape]);
+};
+
+const LeaveConfirm = ({ cost, onLeave, onStay }: { cost: number; onLeave: () => void; onStay: () => void }) => {
+  useEscape(onStay);
+  return (
   <View style={styles.resultWrap} testID="mahjong-give-up">
-    <View style={[styles.result, styles.resultBody]}>
+    <View style={[styles.result, styles.resultBody]} accessibilityViewIsModal>
       <Text style={styles.resultTitle} accessibilityRole="header">
         Give up this hand?
       </Text>
@@ -397,7 +403,8 @@ const LeaveConfirm = ({ cost, onLeave, onStay }: { cost: number; onLeave: () => 
       </View>
     </View>
   </View>
-);
+  );
+};
 
 const ResultCard = ({
   hand,
@@ -713,7 +720,7 @@ const styles = StyleSheet.create({
   up: { color: m.gain },
   down: { color: m.lose },
   emote: { position: "absolute", right: -10, top: -10, fontSize: 20 },
-  bubble: { position: "absolute", zIndex: 5, left: -6, bottom: "100%", marginBottom: 4, maxWidth: 160, minWidth: 60, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: m.tile },
+  bubble: { position: "absolute", zIndex: 5, left: -6, bottom: "100%", marginBottom: 4, width: 150, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: m.tile },
   bubbleText: { fontSize: 12.5, fontWeight: "600", color: m.honour },
   melds: { flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "center" },
   meldsColumn: { flexDirection: "column", alignItems: "center", gap: 3 },

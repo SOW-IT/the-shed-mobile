@@ -153,9 +153,13 @@ export const MahjongLayer = ({
   const now = useClock(serverNow, playing || watching !== null);
   const stage = playing ? mine?.hand?.stage : undefined;
   const needsMe = playing && mine !== null && ((stage?.kind === "turn" && stage.seat === mine.mySeat) || (stage?.kind === "claim" && mine.hand?.mine?.offer != null && !mine.hand.mine.answered));
+  const typing = useRef(keyboardOpen);
   useEffect(() => {
-    if (needsMe && keyboardOpen) Keyboard.dismiss();
-  }, [needsMe, keyboardOpen]);
+    typing.current = keyboardOpen;
+  }, [keyboardOpen]);
+  useEffect(() => {
+    if (needsMe && typing.current) Keyboard.dismiss();
+  }, [needsMe]);
   const bot = mine === null ? botSeatUnder(tables, me?.seat) : null;
   const [dismissed, setDismissed] = useState<string | null>(null);
   const botKey = bot ? `${bot.tableId}:${bot.seat}` : null;

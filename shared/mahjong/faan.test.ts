@@ -53,8 +53,6 @@ describe("faan", () => {
     expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).toContain("concealedPongs");
     expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).not.toContain("concealed");
     expect(ids("111p 333p 555p 777p 99s", { winKind: 17 })).not.toContain("allPongs");
-    // The win tile could finish a chow instead, so the pong was concealed.
-    expect(ids("111p 123s 555p 777p 99s", { winKind: 0 })).not.toContain("concealedPongs");
   });
 
   it("scores dragons and winds", () => {

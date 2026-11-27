@@ -154,7 +154,7 @@ const leaveSeat = async (ctx: MutationCtx, table: Table, seat: number, now: numb
 };
 
 /** Who plays a seat changed mid-hand (a bot took over, or a person came back): the hand picks it up. */
-const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, now: number) => {
+const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, now: number, regained?: number) => {
   const table = await ctx.db.get("mahjongTables", tableId);
   const row = table && table.phase === "playing" ? await handRowOf(ctx, tableId) : null;
   if (!table || !row || row.state.stage.kind === "over") return;
@@ -163,8 +163,8 @@ const controlChanged = async (ctx: MutationCtx, tableId: Id<"mahjongTables">, no
   // Back in your seat on your own turn: a fresh clock, so the tile isn't thrown for you the moment you sit.
   const stage = row.state.stage;
   const bots = botControlled(table.seats);
-  const back = stage.kind === "turn" && !bots[stage.seat] && stage.deadline < now + TURN_MS / 2;
-  const claimBack = stage.kind === "claim" && actors(row.state).some((s) => !bots[s]) && stage.deadline < now + CLAIM_MS / 2;
+  const back = stage.kind === "turn" && stage.seat === regained && !bots[stage.seat] && stage.deadline < now + TURN_MS / 2;
+  const claimBack = stage.kind === "claim" && regained !== undefined && !bots[regained] && actors(row.state).includes(regained) && stage.deadline < now + CLAIM_MS / 2;
   const hand = back || claimBack ? { ...row.state, stage: { ...stage, deadline: now + (back ? TURN_MS : CLAIM_MS) } } : row.state;
   await saveHand(ctx, { ...table, allAwayAt }, row, hand, now);
 };
@@ -320,7 +320,8 @@ export const tick = internalMutation({
       if (started.ok) hand = started.hand;
     } else {
       const bots = botControlled(table.seats);
-      const played = actors(hand).some((seat) => bots[seat]) ? playBots(hand, bots, now) : hand;
+      const closed = hand.stage.kind === "claim" && now >= hand.stage.deadline - TICK_SLACK_MS;
+      const played = !closed && actors(hand).some((seat) => bots[seat]) ? playBots(hand, bots, now) : hand;
       if (played !== hand) hand = played;
       else {
         const deadline = deadlineOf(hand) ?? now;
@@ -412,7 +413,8 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
   const held = await heldSeatOf(ctx, member.email);
   const backInHeld = held !== null && held.table.roomId === member.roomId && mahjongSeatId(held.table.table as MahjongTableId, held.seat) === to;
   if (held && !backInHeld && target && held.table.phase === "playing") {
-    throw new ConvexError(`Your seat at ${isMahjongTable(held.table.table) ? MAHJONG_TABLE_NAMES[held.table.table] : "the other table"} is still in a hand. Sit back down there, or give it up first.`);
+    const there = isMahjongTable(held.table.table) ? MAHJONG_TABLE_NAMES[held.table.table] : "the other table";
+    throw new ConvexError(`Your seat at ${there} is still in a hand. Sit back down there, or ${forCoins(held.table.settings) ? "give it up first" : "wait for that hand to end"}.`);
   }
   if (held ? !backInHeld : from !== to && mahjongSeatOf(from)) await mahjongStood(ctx, member.email, now);
   if (!target || placeOf(member) !== CAFE_PLACE) return;
@@ -440,7 +442,7 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
       const seats = table.seats.map((s, i) => (i === target.seat && s.kind === "human" ? { ...s, away: undefined } : s));
       await ctx.db.patch("mahjongTables", table._id, { seats, allAwayAt: undefined });
       await putPlayer(ctx, member.email, table._id, target.seat);
-      await controlChanged(ctx, table._id, now);
+      await controlChanged(ctx, table._id, now, target.seat);
     }
     return;
   }
@@ -567,15 +569,17 @@ export const replaceBot = mutation({
     if (state.seat !== `${table.table}-${seat}`) return refuse("Sit in that seat first.");
     if (table.seats[seat].kind !== "bot") return refuse("A bot isn't playing that seat.");
     if (table.phase === "lobby") return refuse("The game hasn't started.");
+    const open = (await handRowOf(ctx, table._id))?.state.stage;
+    if (open?.kind === "claim" && open.from === seat) return refuse("Wait for the claim on the bot's discard to settle.");
     if (seatOfEmail(table.seats, member.email) >= 0) return refuse("You're playing already.");
     const held = await heldSeatOf(ctx, member.email);
-    if (held && held.table._id !== table._id && held.table.phase === "playing") return refuse("Your other seat is still in a hand. Sit back down there, or give it up first.");
+    if (held && held.table._id !== table._id && held.table.phase === "playing") return refuse(`Your other seat is still in a hand. Sit back down there, or ${forCoins(held.table.settings) ? "give it up first" : "wait for that hand to end"}.`);
     const short = await shortOf(ctx, member.email, table.settings, now);
     if (short) return refuse(shortWords(short));
     const seats = table.seats.map((s, i) => (i === seat ? { kind: "human" as const, email: member.email, name: member.name } : s));
     await ctx.db.patch("mahjongTables", table._id, { seats, allAwayAt: undefined, ...(table.host === undefined ? { host: member.email } : {}) });
     await putPlayer(ctx, member.email, table._id, seat);
-    await controlChanged(ctx, table._id, now);
+    await controlChanged(ctx, table._id, now, seat);
     return done;
   },
 });

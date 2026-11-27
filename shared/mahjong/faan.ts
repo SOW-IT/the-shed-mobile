@@ -129,7 +129,7 @@ export const scoreWin = (ctx: WinContext): Scored | null => {
     const won = reading.groups.map((g: Group): Set => ({
       type: g.type,
       kind: g.kind,
-      concealed: g.type === "chow" || ctx.selfDrawn || g.kind !== ctx.winKind || reading.groups.some((o) => o !== g && o.type === "chow" && ctx.winKind >= o.kind && ctx.winKind <= o.kind + 2),
+      concealed: g.type === "chow" || ctx.selfDrawn || g.kind !== ctx.winKind,
     }));
     const scored = scoreReading(ctx, reading.pair, [...melded, ...won]);
     const total = sum(scored.lines);
