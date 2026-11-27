@@ -41,12 +41,11 @@ const HARMLESS_CONSOLE = [/expo-notifications/i, /useNativeDriver/i, /Failed to 
 const READY_TIMEOUT_MS = 15_000;
 const STABLE_FOR_MS = 1_000;
 
-const hasSession = () =>
-  page.evaluate(() =>
-    Object.keys(window.localStorage).some(
-      (key) => key.startsWith("__convexAuthJWT_") && (window.localStorage.getItem(key) ?? "").length > 20
-    )
+const sessionIn = () =>
+  Object.keys(window.localStorage).some(
+    (key) => key.startsWith("__convexAuthJWT_") && (window.localStorage.getItem(key) ?? "").length > 20
   );
+const hasSession = () => page.evaluate(sessionIn);
 
 const bundling = new Map();
 const BUNDLE_WAIT_MS = 60_000;
@@ -125,31 +124,39 @@ await page
   .catch(() => {});
 await waitUntilSettled();
 
-const signIn = async (email, timeout) => {
-  await openPage(`${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`, {
-    waitUntil: "domcontentloaded",
-    timeout,
-  });
-  await waitUntilSettled();
-  return hasSession();
-};
+const signInUrl = (email) => `${BASE}/e2e-auth?email=${encodeURIComponent(email)}&secret=${encodeURIComponent(SECRET)}`;
 
 // The World's screen is its own chunk, and only a signed-in visit asks for
-// it, so Metro first built it (13 s on CI) inside leader's /world and the
+// it, so Metro first built it (13-17 s on CI) inside leader's /world and the
 // screen's 15 s clock. Whether that fit depended on how much bundle allowance
-// was left: about one CI sweep in ten failed there. Build it now, with no
-// clock running. The sign-in page's first server render can be slow on a
-// cold server too, so this gets the warm-up's time, and a failure here only
-// leaves the World as it was.
+// was left: about one CI sweep in ten failed there. When the sweep includes
+// the World, build it now, with no clock running, in a context of its own
+// that's closed after, so the signed-out pass still starts signed out. A
+// failure here only leaves the World as it was.
 const WORLD_CHUNK = /\/WorldScreen\.bundle$/;
-const warmEmail = roles.find(([, email]) => email)?.[1];
-if (warmEmail && (await signIn(warmEmail, WARM_UP_TIMEOUT_MS).catch(() => false))) {
-  const built = page
-    .waitForResponse((response) => WORLD_CHUNK.test(new URL(response.url()).pathname), { timeout: BUNDLE_WAIT_MS * 2 })
-    .then(() => true, () => false);
-  await openPage(`${BASE}/world`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS }).catch(() => {});
-  if (await built) await waitUntilSettled();
-  else console.log("World warm-up: never saw WorldScreen.bundle; leader's /world may count its build");
+const warmWorld = async (email) => {
+  const warm = await browser.newContext({ viewport: { width: 430, height: 900 } });
+  const warmPage = await warm.newPage();
+  const built = warmPage.waitForResponse((response) => WORLD_CHUNK.test(new URL(response.url()).pathname), {
+    timeout: WARM_UP_TIMEOUT_MS,
+  });
+  built.catch(() => {});
+  try {
+    await warmPage.goto(signInUrl(email), { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS });
+    await warmPage.waitForFunction(sessionIn, null, { timeout: WARM_UP_TIMEOUT_MS });
+    await warmPage.goto(`${BASE}/world`, { waitUntil: "domcontentloaded", timeout: WARM_UP_TIMEOUT_MS });
+    await (await built).finished();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await warm.close();
+  }
+};
+const sweepsWorld = routes.some(({ route }) => route === "/world" || route.startsWith("/world?"));
+const warmEmail = sweepsWorld ? roles.find(([, email]) => email)?.[1] : null;
+if (warmEmail && !(await warmWorld(warmEmail))) {
+  console.log("World warm-up failed; leader's /world may count the World's build");
 }
 
 for (const [role, email] of roles) {
@@ -157,7 +164,9 @@ for (const [role, email] of roles) {
   await openPage(`${BASE}/e2e-auth?signout=1`, { waitUntil: "domcontentloaded" });
   await settle(2500);
   if (email) {
-    if (!(await signIn(email))) {
+    await openPage(signInUrl(email), { waitUntil: "domcontentloaded" });
+    await waitUntilSettled();
+    if (!(await hasSession())) {
       results.push({ role, route: "(sign-in)", bad: true, errors: ["e2e sign-in did not take"], consoleErrors: [], text: "" });
       continue;
     }
@@ -183,6 +192,7 @@ for (const [role, email] of roles) {
     const expectedMissing = EXPECTED_MISSING.has(route);
     const lostSession = email !== null && (SIGNED_OUT.test(text) || !(await hasSession()));
     if (lostSession) errors.push("landed signed out");
+    if (email === null && (await hasSession())) errors.push("signed in on the signed-out pass");
     await screenshot(`${role}-${routeSlug(template)}`).catch(() => {});
     // After the screenshot, so an error during the frame wait still counts.
     const unexpectedConsole = expectedMissing

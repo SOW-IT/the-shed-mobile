@@ -13,10 +13,13 @@ All notable changes to **The SHED** mobile app. This project follows
   screens.** Every failed CI sweep in the last 200 runs (5 on main,
   including the one after #579 merged, and 6 on PRs) was the
   leader's `/world` "still changing after 15s". Only a signed-in visit
-  loads the World's screen, so the dev server first built it (13 s on CI)
-  inside the leader's 15 s. #586 made that less likely. The sweep now
-  signs in and opens the World once before the first pass, with no clock
-  running, so the leader's visit gets it already built. With the bundle
+  loads the World's screen, so the dev server first built it (13-17 s on
+  CI) inside the leader's 15 s. #586 made that less likely. When the sweep
+  includes `/world`, it now signs in and opens the World once before the
+  first pass, in a browser context of its own that's closed after, with no
+  clock running, so the leader's visit gets it already built and the
+  signed-out pass still starts signed out. A signed-out screen that finds
+  a session is now reported as broken. With the bundle
   allowance forced to zero on a cold dev server, main's sweep still fails
   there and this one passes. Nothing in the app changed.
 - **Swoop's "a perfect run finishes every world" test no longer times
