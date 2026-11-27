@@ -10,6 +10,7 @@ import { SignInPrompt } from "@/components/SignInPrompt";
 import { Card, EmptyState, LoadingState, Muted, Screen, SectionTitle, Chip, Facts } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { backOr } from "@/lib/goBack";
+import { HOME_LINKS } from "@shared/homeContent";
 
 const STATUS_LABELS = { scheduled: "Scheduled", sent: "Sent", cancelled: "Cancelled" } as const;
 const NOT_SENT_LABEL = "Not sent";
@@ -22,7 +23,7 @@ export default function AnnouncementScreen() {
   const announcement = useQuery(api.announcements.get, id ? { id } : "skip");
   const markRead = useMutation(api.notifications.markReadForAnnouncement);
   const [showNotSeen, setShowNotSeen] = useState(false);
-  const back = () => backOr(router, announcement?.details ? "/announcements" : "/home");
+  const back = () => backOr(router, announcement?.details ? "/announcements" : HOME_LINKS.home);
 
   const loadedId = announcement?.id;
   useEffect(() => {

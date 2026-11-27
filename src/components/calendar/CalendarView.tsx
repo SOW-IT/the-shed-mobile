@@ -42,6 +42,7 @@ import { sydneyTime } from "@/lib/sydneyTime";
 import { visibleColour } from "@/lib/visibleColour";
 import { Card, IconButton, LoadingState, Muted, ReadableColumn, Screen, Segmented, Facts, Txt } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
+import { HOME_LINKS } from "@shared/homeContent";
 
 type CalendarEvent = NonNullable<ReturnType<typeof useRange>>[number];
 const useRange = (window: { from: number; to: number }, skip: boolean) =>
@@ -307,7 +308,7 @@ export function CalendarView({ onBack }: { onBack?: () => void } = {}) {
       </ChromeScreen>
     );
   }
-  if (!staff) return <Redirect href={me === null ? "/home" : "/org"} />;
+  if (!staff) return <Redirect href={me === null ? HOME_LINKS.signedOut : "/org"} />;
 
   const monthKeys = new Set(
     monthGrid(year, month)

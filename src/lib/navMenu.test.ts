@@ -114,7 +114,7 @@ describe("showsReimbursements", () => {
 
 describe("who sees which pages", () => {
   const REQUESTS: NavKey[] = ["reimbursements", "eventRequests", "designRequests"];
-  const PUBLIC: NavKey[] = ["home", "org", "churches", "grievances"];
+  const PUBLIC: NavKey[] = ["org", "churches", "grievances"];
   const STAFF_PAGES: NavKey[] = ["garden", "devotionals", "music", "attendance", "calendar", "insights"];
   const ADMIN_PAGES: NavKey[] = ["mentoring", "announcements", "admin"];
 
@@ -186,11 +186,28 @@ describe("Devotionals and People", () => {
   });
 
   test("signed out, People stays where it was, since there's no drawer and no Devotionals", () => {
-    expect(sidebarItems(signedOut)).toEqual(["home", "org", "churches", "grievances"]);
+    expect(sidebarItems(signedOut, true)).toEqual(["home", "org", "churches", "grievances"]);
   });
 
   test("the org chart is called People", () => {
     expect(NAV_LABELS.org).toBe("People");
+  });
+});
+
+describe("Home", () => {
+  test("hidden, it's in no menu, so signed out the sidebar starts at People", () => {
+    for (const viewer of [signedOut, guest, staff, admin, campusLeader]) {
+      expect(sidebarItems(viewer, false)).not.toContain("home");
+      expect(drawerItems(viewer)).not.toContain("home");
+      expect(sidebarItems(viewer, false)).toEqual(sidebarItems(viewer, true).slice(1));
+    }
+    expect(sidebarItems(signedOut, false)[0]).toBe("org");
+  });
+
+  test("shown, it comes first in the sidebar for everyone", () => {
+    for (const viewer of [signedOut, guest, staff, admin, campusLeader]) {
+      expect(sidebarItems(viewer, true)[0]).toBe("home");
+    }
   });
 });
 
@@ -241,7 +258,7 @@ describe("navEntries", () => {
       { kind: "item", key: "garden" },
       { kind: "item", key: "admin" },
     ]);
-    expect(navEntries(sidebarItems(staff)).slice(0, 3)).toEqual([
+    expect(navEntries(sidebarItems(staff, true)).slice(0, 3)).toEqual([
       { kind: "item", key: "home" },
       {
         kind: "group",
