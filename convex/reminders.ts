@@ -5,6 +5,7 @@ import {
   type DesignRequestStatus,
 } from "../shared/designRequests";
 import { SUB_FORM_KINDS } from "../shared/eventRequests";
+import { HOME_LINKS } from "../shared/homeContent";
 import {
   currentStep,
   eventStaffYear,
@@ -493,7 +494,7 @@ async function collectUnreadComments(ctx: MutationCtx, digest: Digest, now: numb
 const landingUrl = (items: Item[]): string => {
   if (items.length === 1) return items[0].url;
   const listUrls = new Set(items.map((item) => item.listUrl));
-  return listUrls.size === 1 ? items[0].listUrl : "/home";
+  return listUrls.size === 1 ? items[0].listUrl : HOME_LINKS.home;
 };
 
 const countsByKind = (items: Item[]): Partial<Record<ReminderKind, number>> => {

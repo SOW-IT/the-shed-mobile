@@ -67,8 +67,8 @@ Before running anything, the script prints the tier, the files that decided
 it, and the exact steps.
 
 Whenever screens are opened (the scoped and full tiers), the **smoke** routes
-run on web and iOS too: the app launches and the signed-out landing page and
-Home render.
+run on web and iOS too: the app launches and the signed-out landing page
+(People, while Home is hidden) renders.
 
 ## Setup and teardown
 

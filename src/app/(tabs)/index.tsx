@@ -37,6 +37,7 @@ import {
 } from "@/components/ui";
 import { useSignOut } from "@/hooks/usePushRegistration";
 import { typography } from "@/theme";
+import { HOME_LINKS } from "@shared/homeContent";
 
 export default function RequestsScreen() {
   const signOut = useSignOut();
@@ -222,7 +223,7 @@ export default function RequestsScreen() {
   if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
   if (me === null) {
-    if (!focusId && typeof tab !== "string") return <Redirect href="/home" />;
+    if (!focusId && typeof tab !== "string") return <Redirect href={HOME_LINKS.signedOut} />;
     return (
       <ChromeScreen>
         <SignInPrompt what={focusId ? "reimbursement request" : "page"} />
