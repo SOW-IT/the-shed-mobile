@@ -488,7 +488,7 @@ const leadsTo = (from: Place, to: Place) => PORTALS[from].some((pad) => pad.to =
 export const canTravel = (from: Place, to: Place, homeExit: Place): boolean =>
   from === to || to === WORLD_PLACE || to === HOME || leadsTo(from, to) || (from === HOME && to === homeExit);
 
-type Seat = { id: string; x: number; z: number; heading: number; height: number };
+export type Seat = { id: string; x: number; z: number; heading: number; height: number };
 
 export const SEAT_TURN = Math.PI / 6;
 
@@ -504,12 +504,12 @@ const faceTheCamera = (seats: Seat[]): readonly Seat[] => seats.map((seat) => ({
 const PEW_HEIGHT = 0.3;
 const LOG_HEIGHT = 0.3;
 const STOOL_HEIGHT = 0.32;
-const COUCH_HEIGHT = 0.34;
-const CHAIR_HEIGHT = 0.34;
-const ARMCHAIR_HEIGHT = 0.3;
+export const COUCH_HEIGHT = 0.34;
+export const CHAIR_HEIGHT = 0.34;
+export const ARMCHAIR_HEIGHT = 0.3;
 const ON_THE_GROUND = 0;
 
-const along = (id: string, spots: [number, number][], heading: number, height: number): Seat[] =>
+export const along = (id: string, spots: [number, number][], heading: number, height: number): Seat[] =>
   spots.map(([x, z], i) => ({ id: `${id}-${i}`, x, z, heading, height }));
 
 const stools = (table: string): Seat[] => {

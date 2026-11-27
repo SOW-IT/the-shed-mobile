@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.65] - 2026-11-28
+## [2.13.67] - 2026-11-28
 
 ### Added
 - **The backyard has a How to farm card.** An (i) button at the bottom
@@ -28,6 +28,34 @@ All notable changes to **The SHED** mobile app. This project follows
   opens the editor at the top of the notice board, and the notice no longer
   also shows below it until you save or cancel. The editor no longer says
   "Everyone in the World sees it."
+
+## [2.13.65] - 2026-11-28
+
+### Added
+- **You can sit on the furniture you've placed at home.** Tap a chair,
+  beanbag, sofa or bed you've bought and put down, and you walk over and sit,
+  facing the way the piece faces (turned a little toward the camera, like
+  every seat outside the Chapel). A sofa seats two side by side, the way the
+  Café couch does, and the bed seats two on the edge at its foot. Tapping the
+  sofa when one end is taken sits you on the other; a full piece says so.
+  Walking, or tapping somewhere else, stands you up. Visitors see you sitting.
+  Rugs, plants, lamps, tables, bookshelves, the TV, the fireplace and the desk
+  aren't seats (the desk has no chair at it). While decorating, a tap on a
+  piece still picks it up instead. VoiceOver lists each seat as "Chair, sit
+  down" and so on.
+
+### Changed
+- **Decorating: drag furniture where you want it, and it saves once, when
+  you put it down.** Press on a piece and drag it with your finger or mouse;
+  it follows smoothly, stays inside the room, and nothing is sent while you
+  drag. Letting go saves it (one write), and it stays where you dropped it
+  while the save goes through, with no jump back. If the save fails it goes
+  back where it was and the World says why. A piece taken from the tray is
+  no longer saved the moment you tap its tile: you drag or turn it first,
+  and it's saved when you drop it after a drag or tap ✓ (or Done, or pick
+  another piece). Put away before then, it goes back in the tray with
+  nothing saved. Turning a piece, tapping the floor to move it there, and
+  putting it away also show at once.
 
 ## [2.13.64] - 2026-11-28
 

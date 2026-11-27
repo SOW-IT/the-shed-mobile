@@ -44,4 +44,23 @@ describe("tapping somewhere to sit", () => {
     expect(on("cafe", "table-a", 0, 0.6)).toBeNull();
     expect(on("cafe", "couch", 0, 0.2)).toMatch(/^couch-/);
   });
+
+  test("at home a tap on a placed chair or sofa sits on it, nearest end of the sofa first; a table doesn't", () => {
+    const items = [
+      { key: "sofa1", item: "sofa", x: -1.5, z: -5, turn: 0 },
+      { key: "chair1", item: "chair", x: 2, z: -3, turn: 1 },
+      { key: "table1", item: "table", x: 2, z: -6, turn: 0 },
+    ];
+    const tap = (x: number, y: number, z: number) => {
+      const at = cam.project([x, y, z]);
+      return seatAt("home", cam, at.x, at.y, items);
+    };
+    expect(tap(-2.2, 0.35, -5)).toBe("sofa1-0");
+    expect(tap(-0.8, 0.35, -5)).toBe("sofa1-1");
+    expect(tap(2, 0.35, -3)).toBe("chair1-0");
+    expect(tap(2, 0.55, -6)).toBeNull();
+    expect(tap(-2.2, 0.35, -5)).not.toBeNull();
+    const sofa = cam.project([-1.5, 0.35, -5]);
+    expect(seatAt("home", cam, sofa.x, sofa.y)).toBeNull();
+  });
 });

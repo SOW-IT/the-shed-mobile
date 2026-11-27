@@ -10,7 +10,6 @@ import {
   PLACE_OBSTACLES,
   PLACE_TITLES,
   placeName,
-  SEATS,
   standIn,
   pingBars,
   portalReached,
@@ -25,7 +24,7 @@ import {
   WORLD_PLACE,
   asksDevotional,
 } from "@shared/world";
-import { FURNITURE, fitInRoom, isFurniture, type FurnitureId, type WallpaperId } from "@shared/home";
+import { FURNITURE, fitInRoom, homeSeatPiece, isFurniture, isTurn, seatHere, seatsHere, type FurnitureId, type Placed, type WallpaperId } from "@shared/home";
 import { CROPS, cropLabel, growth, isCrop, penStand, plantCard, plotPrice, plotStand, timeLeft, type BuildingId, type CropId } from "@shared/farm";
 import { ANIMALS, animalCard, animalFor, animalLabel, BUILDINGS, buildingFor, GOODS, isAnimal, isGood, life, randomName, stageLabel, type AnimalId, type FeedId, type GoodId } from "@shared/animals";
 import { useMutation, useQuery } from "convex/react";
@@ -69,6 +68,7 @@ import { ArcadePanel } from "./ArcadePanel";
 import { arcadeStep, AWAY_FROM_ARCADE } from "./arcadeReach";
 import { backFrom, exitOf, padTrip } from "./homeExit";
 import { DecorateTray } from "./Decorate";
+import { DRAFT_KEY, isPending, PENDING_PREFIX, showMove, showPlace, showRemove } from "./homeDecor";
 import { InviteCard, KnockCard } from "./InviteCard";
 import { ShopPanel } from "./Shop";
 import type { Keeper } from "./shopTabs";
@@ -305,6 +305,8 @@ export const WorldScreen = ({
   const [boardOpen, setBoardOpen] = useState(false);
   const [decorating, setDecorating] = useState(false);
   const [chosenItem, setChosenItem] = useState<string | null>(null);
+  // A piece taken from the tray: drawn and dragged here, saved once it's put down.
+  const [draft, setDraft] = useState<Placed | null>(null);
   const placeItemM = useMutation(api.worldHome.placeItem);
   const moveItemM = useMutation(api.worldHome.moveItem);
   const removeItemM = useMutation(api.worldHome.removeItem);
@@ -605,7 +607,7 @@ export const WorldScreen = ({
 
   useEffect(() => {
     if (seatTrip === null) return;
-    const seat = SEATS[seatTrip.place].find((s) => s.id === seatTrip.seatId);
+    const seat = seatHere(seatTrip.place, seatTrip.seatId, live.current.world.home?.items);
     const id = setInterval(() => {
       if (!seat) {
         setSeatTrip(null);
@@ -671,6 +673,7 @@ export const WorldScreen = ({
     setArcadeOpen(false);
     setDecorating(false);
     setChosenItem(null);
+    setDraft(null);
     setWatching(null);
     const veil = (toValue: number) =>
       Animated.timing(fade, { toValue, duration: 180, useNativeDriver: Platform.OS !== "web" }).start();
@@ -699,41 +702,82 @@ export const WorldScreen = ({
         if (!reply.ok) setNote(`Slow down a little. Try again in ${Math.ceil((reply.retryInMs ?? 1000) / 1000)}s.`);
       })
       .catch((e: unknown) => setNote(said(e, "That didn't save.")));
+  const pendingCount = useRef(0);
+  /** Saves a piece taken from the tray where it now stands: the one write for it. */
+  const putDown = (piece: Placed) => {
+    pendingCount.current += 1;
+    const key = `${PENDING_PREFIX}${pendingCount.current}`;
+    setDraft(null);
+    setChosenItem((was) => (was === DRAFT_KEY ? key : was));
+    void placeItemM
+      .withOptimisticUpdate(showPlace(key))({ item: piece.item, x: piece.x, z: piece.z, turn: piece.turn })
+      .then((reply) => {
+        setChosenItem((was) => (was === key ? (reply.ok ? reply.key : null) : was));
+        if (!reply.ok) setNote(`Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`);
+      })
+      .catch((e: unknown) => {
+        setChosenItem((was) => (was === key ? null : was));
+        setNote(said(e, "That didn't fit."));
+      });
+  };
   const placeNew = (item: FurnitureId) => {
+    if (draft) putDown(draft);
     const at = myPoseNow() ?? { x: 0, z: 0 };
     const spot = fitInRoom(item, at.x, Math.min(at.z - 2.6, 0), 0) ?? { x: 0, z: -4 };
-    void placeItemM({ item, x: spot.x, z: spot.z, turn: 0 })
-      .then((reply) => {
-        if (reply.ok) setChosenItem(reply.key);
-        else setNote(`Slow down a little. Try again in ${Math.ceil(reply.retryInMs / 1000)}s.`);
-      })
-      .catch((e: unknown) => setNote(said(e, "That didn't fit.")));
+    setDraft({ key: DRAFT_KEY, item, x: spot.x, z: spot.z, turn: 0 });
+    setChosenItem(DRAFT_KEY);
   };
-  const chosen = chosenItem ? world.home?.items.find((p) => p.key === chosenItem) : undefined;
-  if (chosenItem && world.home && !chosen) setChosenItem(null);
+  // Decorating closed some other way (the arcade, leaving): the piece not put down goes back in the tray.
+  if (draft && !decorating) setDraft(null);
+  const shownHome = useMemo(() => (world.home && draft ? { ...world.home, items: [...world.home.items, draft] } : world.home), [world.home, draft]);
+  const chosen = chosenItem ? shownHome?.items.find((p) => p.key === chosenItem) : undefined;
+  // A piece put down keeps its ring while it waits for its key.
+  if (chosenItem && shownHome && !chosen && !isPending(chosenItem)) setChosenItem(null);
+  /** Moves the chosen piece: the draft only here, a placed one saved (shown at once, put back if it doesn't save). */
+  const shift = (piece: Placed, x: number, z: number, turn: number) => {
+    if (piece.key === DRAFT_KEY) setDraft({ ...piece, x, z, turn });
+    else if (!isPending(piece.key) && (piece.x !== x || piece.z !== z || piece.turn !== turn)) decorate(() => moveItemM.withOptimisticUpdate(showMove)({ key: piece.key, x, z, turn }));
+  };
   const turnChosen = () => {
     if (!chosen || !isFurniture(chosen.item)) return;
     const turn = ((chosen.turn + 1) % 4) as 0 | 1 | 2 | 3;
     const spot = fitInRoom(chosen.item, chosen.x, chosen.z, turn);
     if (!spot) return setNote("No room to turn it here.");
-    decorate(() => moveItemM({ key: chosen.key, x: spot.x, z: spot.z, turn }));
+    shift(chosen, spot.x, spot.z, turn);
   };
   const moveChosen = (x: number, z: number) => {
-    if (!chosen || !isFurniture(chosen.item)) return;
-    const spot = fitInRoom(chosen.item, x, z, chosen.turn as 0 | 1 | 2 | 3);
+    if (!chosen || !isFurniture(chosen.item) || !isTurn(chosen.turn)) return;
+    const spot = fitInRoom(chosen.item, x, z, chosen.turn);
     if (!spot) return setNote("Keep it inside the room.");
-    decorate(() => moveItemM({ key: chosen.key, x: spot.x, z: spot.z, turn: chosen.turn }));
+    shift(chosen, spot.x, spot.z, chosen.turn);
+  };
+  /** A piece dragged and let go: put down where it was dropped, saved once. */
+  const dropItem = (key: string, x: number, z: number) => {
+    const piece = shownHome?.items.find((p) => p.key === key);
+    if (!piece) return;
+    setChosenItem(key);
+    if (key === DRAFT_KEY) putDown({ ...piece, x, z });
+    else shift(piece, x, z, piece.turn);
+  };
+  const chooseItem = (key: string) => {
+    if (draft && key !== DRAFT_KEY) putDown(draft);
+    setChosenItem(key);
+  };
+  const doneMoving = () => {
+    if (draft) putDown(draft);
+    setChosenItem(null);
   };
   const putAway = () => {
     if (!chosen) return;
     setChosenItem(null);
-    decorate(() => removeItemM({ key: chosen.key }));
+    if (chosen.key === DRAFT_KEY) setDraft(null);
+    else if (!isPending(chosen.key)) decorate(() => removeItemM.withOptimisticUpdate(showRemove)({ key: chosen.key }));
   };
   const itemActions: HudAction[] = chosen && isFurniture(chosen.item)
     ? [
         { id: "turn", label: "Turn", hint: `Turn the ${FURNITURE[chosen.item].label.toLowerCase()}`, icon: "refresh", onPress: turnChosen },
         { id: "away", label: "Put away", hint: `Put the ${FURNITURE[chosen.item].label.toLowerCase()} away`, icon: "archive-outline", onPress: putAway },
-        { id: "done", label: "Done", hint: "Done moving it", icon: "checkmark", onPress: () => setChosenItem(null) },
+        { id: "done", label: "Done", hint: chosen.key === DRAFT_KEY ? "Put it down here" : "Done moving it", icon: "checkmark", onPress: doneMoving },
       ]
     : [];
   const nowForInvites = world.serverNow();
@@ -801,6 +845,9 @@ export const WorldScreen = ({
     return () => clearTimeout(id);
   }, [away, myWalkStart, myArrival]);
 
+  // At a home each placed piece is its own furniture, however close two stand.
+  const samePiece = (a: { id: string; x: number; z: number }, b: { id: string; x: number; z: number }) =>
+    world.place === "home" ? homeSeatPiece(a.id) === homeSeatPiece(b.id) : Math.hypot(a.x - b.x, a.z - b.z) <= SAME_FURNITURE;
   const sitNear = (seatId: string) => {
     setPerson(null);
     setApproach(null);
@@ -809,7 +856,7 @@ export const WorldScreen = ({
     setAnimalTrip(null);
     setDevotionalAsked(false);
     setTray(false);
-    const seats = SEATS[world.place];
+    const seats = seatsHere(world.place, world.home?.items);
     const mahjongMove = mahjongTap(seatId, mahjong.tables, me?.memberId ?? null);
     if (mahjongMove?.kind === "watch") {
       setMahjongWatch(mahjongMove.tableId);
@@ -823,7 +870,7 @@ export const WorldScreen = ({
     if (!tapped) return;
     const taken = new Set(world.people.filter((p) => !p.isMe && p.seat).map((p) => p.seat));
     const free = seats
-      .filter((seat) => !taken.has(seat.id) && Math.hypot(seat.x - tapped.x, seat.z - tapped.z) <= SAME_FURNITURE)
+      .filter((seat) => !taken.has(seat.id) && samePiece(seat, tapped))
       .sort((a, b) => Math.hypot(a.x - tapped.x, a.z - tapped.z) - Math.hypot(b.x - tapped.x, b.z - tapped.z))[0];
     if (!free) {
       setNote("Those seats are taken.");
@@ -1754,7 +1801,7 @@ export const WorldScreen = ({
         onAccept={accept}
         onDecline={decline}
         declined={declined}
-        home={world.home}
+        home={shownHome}
         homeExit={world.place === "home" ? exitOf(world.home) : undefined}
         cardTop={logBottom + CARD_GAP}
         onTapNpc={() => {
@@ -1771,7 +1818,7 @@ export const WorldScreen = ({
         }}
         decor={
           decorating
-            ? { selected: chosenItem, onItem: setChosenItem, onFloor: moveChosen, actions: itemActions, hudTop: insets.top + (coinsBeside ? 66 : 104) + 8 }
+            ? { selected: chosenItem, onItem: chooseItem, onFloor: moveChosen, onDrop: dropItem, actions: itemActions, hudTop: insets.top + (coinsBeside ? 66 : 104) + 8 }
             : null
         }
         paused={!foreground || editing}
@@ -1904,11 +1951,12 @@ export const WorldScreen = ({
             open={decorating}
             owned={wallet?.items ?? {}}
             wallpapers={wallet?.wallpapers ?? []}
-            placed={world.home.items}
+            placed={shownHome?.items ?? world.home.items}
             wallpaper={world.home.wallpaper}
             onPlace={placeNew}
             onWallpaper={(id: WallpaperId) => decorate(() => wallpaperM({ wallpaper: id }))}
             onDone={() => {
+              if (draft) putDown(draft);
               setDecorating(false);
               setChosenItem(null);
             }}

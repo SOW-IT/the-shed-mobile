@@ -4,7 +4,6 @@ import {
   cleanLine,
   fullBucket,
   isPlace,
-  seatIn,
   standIn,
   takeToken,
   type Place,
@@ -27,7 +26,7 @@ import {
   type Walk,
 } from "@shared/world";
 import { findPath } from "@shared/worldPath";
-import { homeObstacles } from "@shared/home";
+import { homeObstacles, seatHere } from "@shared/home";
 import { BALL_PLACE, KICK_GAP_MS, kickBall, kickDirection, restingBall } from "@shared/ball";
 import { useConvex, useMutation, useQueries, useQuery } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
@@ -265,9 +264,11 @@ export const useWorld = (
   const home = useHeldValue(useQuery(api.worldHome.home, session?.place === "home" && !dormant ? { roomId: session.roomId } : "skip"), roomKey).value;
   const obstacles = useMemo(() => (home ? homeObstacles(home.items) : NO_OBSTACLES), [home]);
   const obstaclesRef = useRef(obstacles);
+  const homeItemsRef = useRef(home?.items);
   useEffect(() => {
     obstaclesRef.current = obstacles;
-  }, [obstacles]);
+    homeItemsRef.current = home?.items;
+  }, [obstacles, home]);
   const [error, setError] = useState<string | null>(null);
   const [rejoin, setRejoin] = useState(0);
   const [arrivalSeen, setArrivalSeen] = useState(arrival);
@@ -631,7 +632,7 @@ export const useWorld = (
 
   const sitOn = useCallback(
     (seatId: string) => {
-      const seat = session && seatIn(session.place, seatId);
+      const seat = session && seatHere(session.place, seatId, homeItemsRef.current);
       if (!seat || !session) return;
       const now = serverNow();
       const from = myWalkRef.current ? posAt(myWalkRef.current, now) : seat;
