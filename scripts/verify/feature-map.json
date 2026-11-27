@@ -275,7 +275,7 @@
         "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm,animals}.ts"
       ],
       "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
-      "checks": ["chapel-pews", "arcade-podium", "rps-ask", "backyard-chat", "outfits"]
+      "checks": ["chapel-pews", "arcade-podium", "rps-ask", "backyard-chat", "outfits", "eye-shapes"]
     },
     "devotionals": {
       "files": [
