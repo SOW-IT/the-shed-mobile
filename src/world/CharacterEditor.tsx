@@ -61,7 +61,10 @@ import {
   clampZoom,
   keyZoom,
   manualZoomFor,
-  pinchZoom,
+  pinchLift,
+  pinchMove,
+  PINCH_GRACE_MS,
+  PINCH_IDLE,
   sliderZoom,
   wheelZoom,
   ZOOM_A11Y_STEP,
@@ -69,6 +72,7 @@ import {
   zoomLimits,
   zoomOf,
   type ManualZoom,
+  type PinchState,
 } from "./previewZoom";
 import { useBatterySaver } from "./settings";
 import { Ellipse } from "./Shapes";
@@ -129,7 +133,7 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
   if (shot === "outfit") {
     // From the mouth down to the shoes: the top, the bottoms and the shoes.
     const top = neck - 0.3;
-    const s = Math.min(OUTFIT_SHOT * zoom, (height - 16) / (top + SOLES));
+    const s = Math.min(OUTFIT_SHOT * zoom, Math.max(1, height - 16) / (top + SOLES));
     return { s, y: height / 2 + ((top - SOLES) / 2) * s };
   }
   if (shot === "extras") {
@@ -138,12 +142,12 @@ const shotFor = (shot: Shot, look: Look, height: number) => {
     // head, so the chin is 0.42 below it.)
     const top = Math.min(figureTop(look, 0.86), neck + 0.5);
     const bottom = neck * 0.2;
-    const s = Math.min(EXTRAS_SHOT * zoom, (height - 16) / (top - bottom));
+    const s = Math.min(EXTRAS_SHOT * zoom, Math.max(1, height - 16) / (top - bottom));
     return { s, y: height / 2 + ((top + bottom) / 2) * s };
   }
   const middle = height * 0.6;
   const above = Math.max(0.5, figureTop(look, 0.86) - neck);
-  const s = Math.min(HEAD_SHOT * zoom, (middle - 8) / above);
+  const s = Math.min(HEAD_SHOT * zoom, Math.max(1, middle - 8) / above);
   return { s, y: middle + neck * s };
 };
 
@@ -179,8 +183,8 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const snap = manualZoom !== null;
   const [frame, setFrame] = useState({ heading: 0, s: goal.s, y: goal.y });
   const spin = useRef<PreviewSpin>({ down: false, lastX: 0, lastAt: 0, velocity: 0, heading: 0, openedAt: 0, touched: false });
-  const pinch = useRef<{ spread: number; zoom: number } | null>(null);
-  const grabbedHeading = useRef(0);
+  const pinch = useRef<PinchState>(PINCH_IDLE);
+  const grabbed = useRef({ heading: 0, at: 0 });
   const box = useRef<ComponentRef<typeof View>>(null);
   const closeUpNow = useRef(previewCloseUp(shot));
   const shotNow = useRef(shot);
@@ -325,26 +329,25 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
     d.lastAt = Date.now();
     d.velocity = 0;
     d.touched = true;
-    grabbedHeading.current = d.heading;
-    pinch.current = null;
+    grabbed.current = { heading: d.heading, at: d.lastAt };
+    pinch.current = PINCH_IDLE;
   };
   const onMove = (e: GestureResponderEvent) => {
     const d = spin.current;
     const touches = e.nativeEvent.touches ?? [];
-    if (touches.length >= 2) {
-      const spread = Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
-      if (pinch.current === null) {
-        pinch.current = { spread, zoom };
-        d.heading = grabbedHeading.current;
+    const now = Date.now();
+    if (touches.length >= 2 || pinch.current.pinched) {
+      const spread = touches.length >= 2 ? Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY) : 0;
+      const step = pinchMove(pinch.current, { fingers: touches.length, spread, zoom, limits });
+      pinch.current = step.state;
+      if (step.began) {
+        if (now - grabbed.current.at <= PINCH_GRACE_MS) d.heading = grabbed.current.heading;
         d.velocity = 0;
         setFrame((cur) => (cur.heading === d.heading ? cur : { ...cur, heading: d.heading }));
-      } else if (pinch.current.spread > 0) {
-        pickZoom(pinchZoom(pinch.current.zoom, spread / pinch.current.spread, limits));
       }
-      return;
+      if (step.zoom !== null) pickZoom(step.zoom);
+      if (pinch.current.pinched) return;
     }
-    if (pinch.current !== null) return;
-    const now = Date.now();
     const dx = e.nativeEvent.pageX - d.lastX;
     d.heading += dx * TURN_PER_PX;
     const dt = Math.max(1, now - d.lastAt) / 1000;
@@ -357,17 +360,19 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
   const onEnd = () => {
     const d = spin.current;
     d.down = false;
-    if (pinch.current !== null || Date.now() - d.lastAt > 80) d.velocity = 0;
-    pinch.current = null;
+    if (pinch.current.pinched || Date.now() - d.lastAt > 80) d.velocity = 0;
+    pinch.current = PINCH_IDLE;
     if (Math.abs(d.velocity) > PREVIEW_SPIN_STOP) wakeRef.current();
+  };
+  const onLift = (e: GestureResponderEvent) => {
+    pinch.current = pinchLift(pinch.current, (e.nativeEvent.touches ?? []).length);
   };
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
   const s = frame.s;
   const foot = { x: width / 2, y: frame.y, depth: 1, scale: s };
   return (
-    <View style={{ height }}>
+    <View ref={box} style={{ height }}>
       <View
-        ref={box}
         style={[styles.preview, { height, backgroundColor: garden.sky }, noBrowserGestures]}
         onLayout={onLayout}
         testID="world-editor-preview"
@@ -378,6 +383,7 @@ const Preview = ({ look, active, height, shot }: { look: Look; active: boolean; 
         onResponderTerminationRequest={() => false}
         onResponderGrant={onGrant}
         onResponderMove={onMove}
+        onResponderEnd={onLift}
         onResponderRelease={onEnd}
         onResponderTerminate={onEnd}
       >

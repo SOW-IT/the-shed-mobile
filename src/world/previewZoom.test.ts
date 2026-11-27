@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  PINCH_IDLE,
   clampZoom,
   keyZoom,
   manualZoomFor,
+  pinchLift,
+  pinchMove,
   pinchZoom,
   sliderZoom,
   wheelZoom,
@@ -125,5 +128,78 @@ describe("previewZoom", () => {
     expect(manualZoomFor({ shot: "eyes", zoom: 0.8 }, "eyes")).toBe(0.8);
     expect(manualZoomFor({ shot: "eyes", zoom: 0.8 }, "mouth")).toBeNull();
     expect(zoomFrame(view, manualZoomFor({ shot: "face", zoom: 0.8 }, "eyes"))).toEqual(eyes);
+  });
+
+  it("never gives NaN for a preview too short to frame anything", () => {
+    const broken = [
+      { low: 0, high: 300 },
+      { low: -40, high: 300 },
+      { low: 200, high: Number.POSITIVE_INFINITY },
+      { low: Number.NaN, high: 300 },
+    ];
+    for (const bad of broken) {
+      const tab = { s: bad.low, y: 10 };
+      expect(zoomOf(150, bad)).toBe(0);
+      expect(zoomFrame({ full: tab, tab, height: 12, limits: bad }, 0.5)).toEqual(tab);
+      expect(pinchZoom(0.3, 2, bad)).toBe(0.3);
+      expect(wheelZoom(0.3, 50, bad)).toBe(0.3);
+    }
+    expect(zoomOf(0, limits)).toBe(0);
+    expect(zoomOf(-5, limits)).toBe(0);
+  });
+
+  it("clamps a huge scroll either way instead of ignoring it", () => {
+    expect(wheelZoom(0.5, 1e9, limits)).toBe(0);
+    expect(wheelZoom(0.5, -1e9, limits)).toBe(1);
+    expect(wheelZoom(0.5, Number.NaN, limits)).toBe(0.5);
+    expect(wheelZoom(0.5, Number.POSITIVE_INFINITY, limits)).toBe(0.5);
+  });
+
+  describe("pinch", () => {
+    const at = (zoom: number) => ({ zoom, limits });
+
+    it("starts on the first two-finger move with a spread, and zooms from there", () => {
+      const start = pinchMove(PINCH_IDLE, { fingers: 2, spread: 100, ...at(0.4) });
+      expect(start.began).toBe(true);
+      expect(start.zoom).toBeNull();
+      expect(start.state).toEqual({ pinched: true, base: { spread: 100, zoom: 0.4 } });
+      const wider = pinchMove(start.state, { fingers: 2, spread: 200, ...at(0.9) });
+      expect(wider.began).toBe(false);
+      expect(wider.zoom).toBeCloseTo(pinchZoom(0.4, 2, limits));
+    });
+
+    it("waits for a spread when two fingers land on the same spot", () => {
+      const same = pinchMove(PINCH_IDLE, { fingers: 2, spread: 0, ...at(0.4) });
+      expect(same.state).toEqual(PINCH_IDLE);
+      expect(same.began).toBe(false);
+      const apart = pinchMove(same.state, { fingers: 2, spread: 60, ...at(0.4) });
+      expect(apart.began).toBe(true);
+      expect(apart.state.base).toEqual({ spread: 60, zoom: 0.4 });
+      const after = pinchMove(apart.state, { fingers: 2, spread: 120, ...at(0.4) });
+      expect(after.zoom).toBeGreaterThan(0.4);
+    });
+
+    it("lifting one finger and putting it back carries on from the zoom you reached", () => {
+      let state = pinchMove(PINCH_IDLE, { fingers: 2, spread: 100, ...at(0.2) }).state;
+      const reached = pinchMove(state, { fingers: 2, spread: 250, ...at(0.2) }).zoom ?? 0;
+      expect(reached).toBeGreaterThan(0.2);
+      state = pinchLift(state, 1);
+      expect(state).toEqual({ pinched: true, base: null });
+      const regrab = pinchMove(state, { fingers: 2, spread: 80, ...at(reached) });
+      expect(regrab.began).toBe(false);
+      expect(regrab.zoom).toBeNull();
+      expect(regrab.state.base).toEqual({ spread: 80, zoom: reached });
+      expect(pinchMove(regrab.state, { fingers: 2, spread: 80, ...at(reached) }).zoom).toBeCloseTo(reached);
+    });
+
+    it("one finger left after a pinch neither zooms nor restarts the pinch", () => {
+      const state = pinchMove(PINCH_IDLE, { fingers: 2, spread: 100, ...at(0.5) }).state;
+      const one = pinchMove(state, { fingers: 1, spread: 0, ...at(0.5) });
+      expect(one.zoom).toBeNull();
+      expect(one.began).toBe(false);
+      expect(one.state).toEqual({ pinched: true, base: null });
+      expect(pinchLift(state, 2)).toBe(state);
+      expect(pinchLift(PINCH_IDLE, 0)).toEqual(PINCH_IDLE);
+    });
   });
 });

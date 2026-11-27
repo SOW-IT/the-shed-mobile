@@ -43,6 +43,14 @@ describe("previewMotion", () => {
     ).toBe(false);
   });
 
+  it("stops requesting frames right after a manual zoom lands, glide window or not", () => {
+    const glide = settledGlide(9_900);
+    const snapped = { s: 100, y: 200, still: false, snap: true };
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: snapped, closeUp: true, now: 10_000 })).toBe(false);
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: { ...snapped, snap: false }, closeUp: true, now: 10_000 })).toBe(true);
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: { ...snapped, s: 140 }, closeUp: true, now: 10_000 })).toBe(true);
+  });
+
   it("requests frames while gliding to a new shot unless reduced motion is on", () => {
     expect(
       previewNeedsFrame({

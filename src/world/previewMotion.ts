@@ -63,12 +63,12 @@ export const previewNeedsFrame = ({
 }: {
   glide: PreviewGlide;
   spin: PreviewSpin;
-  target: { s: number; y: number; still: boolean };
+  target: { s: number; y: number; still: boolean; snap?: boolean };
   closeUp: boolean;
   now: number;
 }): boolean => {
   if (previewGoalMoved(glide, target)) return true;
-  if (!target.still && now - glide.at < PREVIEW_GLIDE_MS) return true;
+  if (!target.still && !target.snap && now - glide.at < PREVIEW_GLIDE_MS) return true;
   if (spin.down) return false;
   if (Math.abs(spin.velocity) > PREVIEW_SPIN_STOP) return true;
   if (!spin.touched && closeUp) {
