@@ -3,8 +3,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { CAFE_PLACE } from "../shared/cafeGames";
-import { coinDay } from "../shared/coins";
-import { bankLeftToday, settle } from "../shared/mahjong/coins";
+import { START_COINS } from "../shared/coins";
+import { coinsToSit, giveUpCoins, pointsOnly, settle, splitAmong } from "../shared/mahjong/coins";
 import { actors, begin, deadlineOf, newHand, nextDealer, timeOut, TURN_MS, type Hand, type Result } from "../shared/mahjong/game";
 import { applyMove, playBots, type Move } from "../shared/mahjong/play";
 import { viewHand } from "../shared/mahjong/view";
@@ -17,6 +17,7 @@ import {
   validSettings,
   EMPTY_SEAT,
   emptySeats,
+  forCoins,
   humanSeats,
   isMahjongTable,
   MAHJONG_TABLES,
@@ -26,10 +27,11 @@ import {
   seatOfEmail,
   tableFull,
   type MahjongTableId,
+  type Settings,
   type TableSeat,
 } from "../shared/mahjong/table";
 import { clampTarget, DUEL_WINNER_EMOTE, seatIn } from "../shared/world";
-import { ensureWallet } from "./coins";
+import { ensureWallet, walletOf } from "./coins";
 import { mahjongHandViewValidator, mahjongMoveValidator, mahjongPhaseValidator, mahjongSettingsValidator, mahjongSettledValidator } from "./mahjongData";
 import { Ctx, optionalEmail, requireEmail } from "./model";
 import { dropRoomIfEmpty, memberByEmail, placeOf, requireMe } from "./world";
@@ -63,6 +65,40 @@ export const heldSeatOf = async (ctx: Ctx, email: string) => {
   if (!player || !table || seat?.kind !== "human" || seat.email !== email) return null;
   return { table, seat: player.seat };
 };
+
+const shortOf = async (ctx: MutationCtx, email: string, settings: Settings, now: number) => {
+  const need = coinsToSit(settings);
+  if (need === 0) return null;
+  const { balance } = await ensureWallet(ctx, email, now);
+  return balance < need ? { need, balance } : null;
+};
+
+const shortWords = ({ need, balance }: { need: number; balance: number }) =>
+  `This table plays for SOW coins: you need ${need} coins to sit (the most one hand can cost), and you have ${balance}.`;
+
+const chargeGiveUp = async (ctx: MutationCtx, table: Table, from: number, present: readonly boolean[], runId: string, now: number) => {
+  const deltas = [0, 0, 0, 0];
+  const leaver = table.seats[from];
+  const receivers = table.seats.flatMap((s, i) => (s.kind === "human" && present[i] && i !== from ? [{ seat: i, email: s.email }] : []));
+  if (leaver.kind !== "human" || receivers.length === 0) return deltas;
+  const wallet = await ensureWallet(ctx, leaver.email, now);
+  const amount = Math.max(0, Math.min(giveUpCoins(table.settings), wallet.balance));
+  if (amount === 0) return deltas;
+  await ctx.db.patch("worldWallets", wallet._id, { balance: wallet.balance - amount });
+  await ctx.db.insert("coinLedger", { email: leaver.email, delta: -amount, kind: "mahjong", runId, game: "mahjong", at: now });
+  deltas[from] = -amount;
+  for (const [i, share] of splitAmong(amount, receivers.length).entries()) {
+    if (share === 0) continue;
+    const to = receivers[i];
+    const theirs = await ensureWallet(ctx, to.email, now);
+    await ctx.db.patch("worldWallets", theirs._id, { balance: theirs.balance + share });
+    await ctx.db.insert("coinLedger", { email: to.email, delta: share, kind: "mahjong", runId, game: "mahjong", at: now });
+    deltas[to.seat] += share;
+  }
+  return deltas;
+};
+
+const presentSeats = (seats: readonly TableSeat[]) => seats.map((s) => s.kind === "human" && s.away === undefined);
 
 const putPlayer = async (ctx: MutationCtx, email: string, tableId: Id<"mahjongTables">, seat: number) => {
   const row = await playerOf(ctx, email);
@@ -208,25 +244,29 @@ const cheer = async (ctx: MutationCtx, email: string, roomId: Id<"worldRooms">, 
  * people who never came back are freed.
  */
 const finishHand = async (ctx: MutationCtx, table: Table, row: HandRow, result: Result, now: number) => {
-  const day = coinDay(now);
-  const humans = table.seats.map((s) => (s.kind === "human" ? s : null));
-  const wallets = [];
-  for (const h of humans) wallets.push(h ? await ensureWallet(ctx, h.email, now) : null);
-  const settled =
-    result.kind === "win"
-      ? settle(
-          result.pays,
-          table.settings.stake,
-          wallets.map((w) => ({ human: w !== null, balance: w?.balance ?? 0, bankLeft: w ? bankLeftToday(w.mahjongBankDay, w.mahjongBankToday, day) : 0 }))
-        )
-      : { deltas: [0, 0, 0, 0], fromBank: [0, 0, 0, 0] };
-  for (const [seat, wallet] of wallets.entries()) {
-    const delta = settled.deltas[seat];
-    if (!wallet || delta === 0) continue;
-    const bank = settled.fromBank[seat];
-    const bankToday = (wallet.mahjongBankDay === day ? (wallet.mahjongBankToday ?? 0) : 0) + bank;
-    await ctx.db.patch("worldWallets", wallet._id, { balance: wallet.balance + delta, ...(bank > 0 ? { mahjongBankDay: day, mahjongBankToday: bankToday } : {}) });
-    await ctx.db.insert("coinLedger", { email: wallet.email, delta, kind: "mahjong", runId: `mahjong:${row._id}`, game: "mahjong", at: now });
+  const present = presentSeats(table.seats);
+  const runId = `mahjong:${row._id}`;
+  const settled = { deltas: [0, 0, 0, 0], fromBank: [0, 0, 0, 0] };
+  if (!forCoins(table.settings)) {
+    if (result.kind === "win") settled.deltas = pointsOnly(result.pays).deltas;
+  } else {
+    for (const [i, s] of table.seats.entries()) {
+      if (s.kind !== "human" || present[i]) continue;
+      const charged = await chargeGiveUp(ctx, table, i, present, `${runId}:gave-up`, now);
+      settled.deltas = settled.deltas.map((d, j) => d + charged[j]);
+    }
+    if (result.kind === "win") {
+      const wallets = [];
+      for (const [i, s] of table.seats.entries()) wallets.push(s.kind === "human" && present[i] ? await ensureWallet(ctx, s.email, now) : null);
+      const won = settle(result.pays, table.settings.stake, wallets.map((w) => ({ human: w !== null, balance: w?.balance ?? 0 })));
+      for (const [seat, wallet] of wallets.entries()) {
+        const delta = won.deltas[seat];
+        if (!wallet || delta === 0) continue;
+        await ctx.db.patch("worldWallets", wallet._id, { balance: wallet.balance + delta });
+        await ctx.db.insert("coinLedger", { email: wallet.email, delta, kind: "mahjong", runId, game: "mahjong", at: now });
+      }
+      settled.deltas = settled.deltas.map((d, j) => d + won.deltas[j]);
+    }
   }
   await ctx.db.patch("mahjongHands", row._id, { settled });
   const next = nextDealer(table.dealer ?? row.state.dealer, result, table.firstDealer ?? row.state.dealer, table.roundWind);
@@ -325,11 +365,27 @@ export const again = mutation({
       return done;
     }
     const seats = table.seats.map((s, i) => (i === held.seat && s.kind === "human" ? { ...s, ready: true } : s));
-    if (allReady(seats)) await startHand(ctx, { ...table, seats }, now);
+    if (allReady(seats)) {
+      const short = await firstShort(ctx, table, now);
+      if (short) {
+        await ctx.db.patch("mahjongTables", table._id, { phase: "lobby", seats: seats.map((s) => (s.kind === "human" ? { ...s, ready: undefined } : s)) });
+        return refuse(`${short.name} hasn't the ${short.need} coins another hand for coins needs. The host can turn coins off.`);
+      }
+      await startHand(ctx, { ...table, seats }, now);
+    }
     else await ctx.db.patch("mahjongTables", table._id, { seats });
     return done;
   },
 });
+
+const firstShort = async (ctx: MutationCtx, table: Table, now: number) => {
+  for (const s of table.seats) {
+    if (s.kind !== "human") continue;
+    const short = await shortOf(ctx, s.email, table.settings, now);
+    if (short) return { name: s.name, ...short };
+  }
+  return null;
+};
 
 /**
  * Called by `world.sit` before the sit is written: takes a seat at a
@@ -377,6 +433,8 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
     if (table.phase === "lobby") throw new ConvexError("A bot has that seat. The host can take it off.");
     return;
   }
+  const short = await shortOf(ctx, member.email, table.settings, now);
+  if (short) throw new ConvexError(shortWords(short));
   const seats = table.seats.map((s, i) => (i === target.seat ? { kind: "human" as const, email: member.email, name: member.name } : s));
   await saveSeats(ctx, table, seats);
   await putPlayer(ctx, member.email, table._id, target.seat);
@@ -468,7 +526,10 @@ export const start = mutation({
     const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
     if (!table) return refuse(problem);
     if (!tableFull(table.seats)) return refuse("Fill every seat first.");
-    await startHand(ctx, table, Date.now());
+    const now = Date.now();
+    const short = await firstShort(ctx, table, now);
+    if (short) return refuse(`${short.name} needs ${short.need} coins to play for coins, and has ${short.balance}.`);
+    await startHand(ctx, table, now);
     return done;
   },
 });
@@ -491,6 +552,8 @@ export const replaceBot = mutation({
     if (table.seats[seat].kind !== "bot") return refuse("A bot isn't playing that seat.");
     if (table.phase === "lobby") return refuse("The game hasn't started.");
     if (seatOfEmail(table.seats, member.email) >= 0) return refuse("You're playing already.");
+    const short = await shortOf(ctx, member.email, table.settings, now);
+    if (short) return refuse(shortWords(short));
     const seats = table.seats.map((s, i) => (i === seat ? { kind: "human" as const, email: member.email, name: member.name } : s));
     await ctx.db.patch("mahjongTables", table._id, { seats, allAwayAt: undefined, ...(table.host === undefined ? { host: member.email } : {}) });
     await putPlayer(ctx, member.email, table._id, seat);
@@ -516,10 +579,28 @@ export const leave = mutation({
       const to = clampTarget(seat.x + (dx / length) * LEAVE_STEP, seat.z + (dz / length) * LEAVE_STEP, placeOf(member));
       await ctx.db.patch("worldState", state._id, { fromX: seat.x, fromZ: seat.z, toX: to.x, toZ: to.z, startedAt: now, path: undefined, heading: undefined, seat: undefined });
     }
+    const held = await heldSeatOf(ctx, member.email);
+    if (held && held.table.phase === "playing" && forCoins(held.table.settings) && held.table.seats[held.seat].kind === "human") {
+      await giveUp(ctx, held.table, held.seat, now);
+      return null;
+    }
     await mahjongStood(ctx, member.email, now);
     return null;
   },
 });
+
+const giveUp = async (ctx: MutationCtx, table: Table, seat: number, now: number) => {
+  const s = table.seats[seat];
+  if (s.kind !== "human") return;
+  const row = await handRowOf(ctx, table._id);
+  const present = presentSeats(table.seats);
+  const charged = row ? await chargeGiveUp(ctx, table, seat, present, `mahjong:${row._id}:gave-up`, now) : [0, 0, 0, 0];
+  await dropPlayer(ctx, s.email, table._id);
+  const seats = table.seats.map((x, i) => (i === seat ? { kind: "bot" as const, name: botName(i) } : x));
+  const net = table.net.map((n, i) => (i === seat ? 0 : n + charged[i]));
+  await saveSeats(ctx, table, seats, { net });
+  await controlChanged(ctx, table._id, now);
+};
 
 const PLACE_TABLE_CENTRE = (table: MahjongTableId) => {
   const seats = [0, 1, 2, 3].map((i) => seatIn(CAFE_PLACE, `${table}-${i}`)!);
@@ -534,12 +615,15 @@ const seatView = v.object({
   away: v.boolean(),
   ready: v.boolean(),
   net: v.number(),
+  short: v.boolean(),
 });
 
 const viewSeats = async (ctx: Ctx, table: Table, email: string) => {
   const out = [];
+  const need = coinsToSit(table.settings);
   for (const [i, s] of table.seats.entries()) {
     const member = s.kind === "human" ? await memberByEmail(ctx, s.email) : null;
+    const balance = s.kind === "human" && need > 0 ? ((await walletOf(ctx, s.email))?.balance ?? START_COINS) : need;
     out.push({
       kind: s.kind,
       name: s.kind === "empty" ? "" : s.name,
@@ -548,6 +632,7 @@ const viewSeats = async (ctx: Ctx, table: Table, email: string) => {
       away: s.kind === "human" && s.away !== undefined,
       ready: s.kind === "human" && s.ready === true,
       net: table.net[i] ?? 0,
+      short: balance < need,
     });
   }
   return out;
@@ -563,6 +648,7 @@ export const tableViewFields = {
   handNo: v.number(),
   roundWind: v.number(),
   full: v.boolean(),
+  coinsToSit: v.number(),
 };
 
 export const tableView = async (ctx: Ctx, table: Table, email: string) => ({
@@ -575,6 +661,7 @@ export const tableView = async (ctx: Ctx, table: Table, email: string) => ({
   handNo: table.handNo,
   roundWind: table.roundWind,
   full: tableFull(table.seats),
+  coinsToSit: coinsToSit(table.settings),
 });
 
 const handFields = {
@@ -591,12 +678,15 @@ const handFor = async (ctx: Ctx, table: Table, seat: number | null) => {
 /** The caller's table, when they hold a seat at one, with their view of the hand. */
 export const mine = query({
   args: {},
-  returns: v.union(v.null(), v.object({ ...tableViewFields, mySeat: v.number(), isHost: v.boolean(), ...handFields })),
+  returns: v.union(v.null(), v.object({ ...tableViewFields, mySeat: v.number(), isHost: v.boolean(), giveUpCost: v.number(), ...handFields })),
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
     const held = email ? await heldSeatOf(ctx, email) : null;
     if (!email || !held) return null;
-    return { ...(await tableView(ctx, held.table, email)), mySeat: held.seat, isHost: held.table.host === email, ...(await handFor(ctx, held.table, held.seat)) };
+    const others = presentSeats(held.table.seats).filter((here, i) => here && i !== held.seat).length;
+    const balance = (await walletOf(ctx, email))?.balance ?? START_COINS;
+    const giveUpCost = held.table.phase === "playing" && others > 0 ? Math.min(giveUpCoins(held.table.settings), balance) : 0;
+    return { ...(await tableView(ctx, held.table, email)), mySeat: held.seat, isHost: held.table.host === email, giveUpCost, ...(await handFor(ctx, held.table, held.seat)) };
   },
 });
 

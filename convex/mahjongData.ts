@@ -7,7 +7,7 @@ export const mahjongSeatValidator = v.union(
   v.object({ kind: v.literal("bot"), name: v.string() })
 );
 
-export const mahjongSettingsValidator = v.object({ minFaan: v.number(), maxFaan: v.number(), flowers: v.boolean(), stake: v.number() });
+export const mahjongSettingsValidator = v.object({ minFaan: v.number(), maxFaan: v.number(), flowers: v.boolean(), stake: v.number(), coins: v.optional(v.boolean()) });
 
 export const mahjongPhaseValidator = v.union(v.literal("lobby"), v.literal("playing"), v.literal("ended"));
 

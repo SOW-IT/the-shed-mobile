@@ -1,4 +1,5 @@
-import type { Pay } from "./game";
+import { pointsFor, type Pay } from "./game";
+import { forCoins, type Settings } from "./table";
 
 /**
  * Turning a hand's payments into SOW coins. Points × the table's stake are
@@ -7,38 +8,35 @@ import type { Pay } from "./game";
  * from the bank, up to what the bank still pays that person today.
  */
 
-export const MAHJONG_BANK_DAILY_CAP = 200;
-
-type Payer = { human: boolean; balance: number; bankLeft: number };
+type Payer = { human: boolean; balance: number };
 /** Per seat: the change to their coins (or a bot's notional coins), and what the bank paid them. */
 type Settled = { deltas: number[]; fromBank: number[] };
 
 export const settle = (pays: readonly Pay[], stake: number, seats: readonly Payer[]): Settled => {
   const deltas = seats.map(() => 0);
-  const fromBank = seats.map(() => 0);
   const balance = seats.map((s) => s.balance);
-  const bankLeft = seats.map((s) => s.bankLeft);
   for (const pay of pays) {
     const owed = pay.points * stake;
-    const payer = seats[pay.from];
-    const winner = seats[pay.to];
-    let paid: number;
-    if (payer.human) {
-      paid = Math.max(0, Math.min(owed, balance[pay.from]));
-      balance[pay.from] -= paid;
-    } else if (winner.human) {
-      paid = Math.max(0, Math.min(owed, bankLeft[pay.to]));
-      bankLeft[pay.to] -= paid;
-      fromBank[pay.to] += paid;
-    } else {
-      paid = owed;
-    }
+    const paid = seats[pay.from].human && seats[pay.to].human ? Math.max(0, Math.min(owed, balance[pay.from])) : 0;
+    balance[pay.from] -= paid;
     deltas[pay.from] -= paid;
     deltas[pay.to] += paid;
   }
-  return { deltas, fromBank };
+  return { deltas, fromBank: seats.map(() => 0) };
 };
 
-/** What the bank can still pay someone today, from what it has paid them. */
-export const bankLeftToday = (paidDay: string | undefined, paidToday: number | undefined, today: string) =>
-  Math.max(0, MAHJONG_BANK_DAILY_CAP - (paidDay === today ? (paidToday ?? 0) : 0));
+export const coinsToSit = (s: Settings) => (forCoins(s) ? pointsFor(s.maxFaan) * s.stake : 0);
+
+export const pointsOnly = (pays: readonly Pay[]): Settled => {
+  const deltas = [0, 0, 0, 0];
+  for (const pay of pays) {
+    deltas[pay.from] -= pay.points;
+    deltas[pay.to] += pay.points;
+  }
+  return { deltas, fromBank: [0, 0, 0, 0] };
+};
+
+export const giveUpCoins = (s: Settings) => (forCoins(s) ? pointsFor(s.minFaan) * s.stake : 0);
+
+export const splitAmong = (amount: number, receivers: number) =>
+  Array.from({ length: receivers }, (_, i) => Math.floor(amount / receivers) + (i < amount % receivers ? 1 : 0));
