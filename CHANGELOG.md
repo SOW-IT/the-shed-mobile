@@ -22,6 +22,19 @@ All notable changes to **The SHED** mobile app. This project follows
   `status-bar-after-game` iOS check takes screenshots of both cases (the
   Leaderboard after a game over, and Notifications opened over Mystic Man).
 
+## [2.13.55] - 2026-11-27
+
+### Fixed
+- **A leaderboard link opens on its game's tab even when the leaderboard is
+  already open.** Tapping a "just beat you in Swoop" push (#547) while the
+  Leaderboard was showing kept whichever tab was there, because the screen
+  stayed open and picked its tab only when it first opened. Found by the
+  iOS sweep, where `/games/leaderboard?game=runner` and `?game=glider`,
+  opened one after the other, both showed Sky Shooter. The screen now
+  starts again on the linked game. A new `leaderboard-link-tab` web check
+  changes the open Leaderboard's link to each game and checks the tab
+  follows.
+
 ## [2.13.53] - 2026-11-27
 
 ### Changed
