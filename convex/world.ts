@@ -84,7 +84,9 @@ import type { GameId } from "../shared/games";
 import { gameIdValidator } from "./gameScoreData";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
+import { CAFE_PLACE } from "../shared/cafeGames";
 import { cafeMoved, cafeSat, dropStaleWatches, dropWatchesOf } from "./cafeGames";
+import { handOnIn, heldRoomOf, mahjongMoved, mahjongSit, mahjongStood } from "./mahjong";
 import { IN_APP_MS, IN_APP_SCAN } from "../shared/appPresence";
 import { appPresenceOf } from "./presence";
 import { giveStarterSeeds } from "./farmData";
@@ -288,6 +290,17 @@ const deleteRoom = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
   await ctx.db.delete("worldRooms", roomId);
 };
 
+const leaveRoom = async (ctx: MutationCtx, room: Doc<"worldRooms">) => {
+  if (room.memberCount > 1) await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
+  else if (await handOnIn(ctx, room._id)) await ctx.db.patch("worldRooms", room._id, { memberCount: 0 });
+  else await deleteRoom(ctx, room._id);
+};
+
+export const dropRoomIfEmpty = async (ctx: MutationCtx, roomId: Id<"worldRooms">) => {
+  const room = await ctx.db.get("worldRooms", roomId);
+  if (room && room.memberCount === 0 && !(await handOnIn(ctx, roomId))) await deleteRoom(ctx, roomId);
+};
+
 const LEFT_LINE: ChatLine = { text: "left", kind: "leave" };
 
 const backWithinGrace = (visitor: Doc<"worldVisitors"> | null, now: number) =>
@@ -352,6 +365,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   }
   if (state) await ctx.db.delete("worldState", state._id);
   await cafeMoved(ctx, member.email, null, Date.now());
+  await mahjongMoved(ctx, member.email, null, Date.now());
   await dropWatchesOf(ctx, member.email);
   const presence = await presenceOf(ctx, member._id);
   if (presence) await ctx.db.delete("worldPresence", presence._id);
@@ -359,9 +373,7 @@ const removeMember = async (ctx: MutationCtx, member: Doc<"worldMembers">, { kee
   if (ping) await ctx.db.delete("worldPings", ping._id);
   await ctx.db.delete("worldMembers", member._id);
   const room = await ctx.db.get("worldRooms", member.roomId);
-  if (!room) return;
-  if (room.memberCount <= 1) await deleteRoom(ctx, room._id);
-  else await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount - 1 });
+  if (room) await leaveRoom(ctx, room);
 };
 
 const sweeperMeta = (ctx: Ctx) =>
@@ -506,10 +518,10 @@ const arrivalRoom = async (ctx: MutationCtx, wanted: Arrival, current?: Doc<"wor
 
 const switchRoom = async (ctx: MutationCtx, member: Doc<"worldMembers">, here: Doc<"worldRooms">, room: Doc<"worldRooms">, place: Place) => {
   await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
-  if (here.memberCount <= 1) await deleteRoom(ctx, here._id);
-  else await ctx.db.patch("worldRooms", here._id, { memberCount: here.memberCount - 1 });
+  await leaveRoom(ctx, here);
   await ctx.db.patch("worldMembers", member._id, { roomId: room._id, place });
   await cafeMoved(ctx, member.email, room._id, Date.now());
+  await mahjongMoved(ctx, member.email, room._id, Date.now());
   await dropWatchesOf(ctx, member.email);
 };
 
@@ -527,6 +539,20 @@ const landIn = async (ctx: MutationCtx, room: Doc<"worldRooms">, spot: { x: numb
   const place = isPlace(room.place) ? room.place : WORLD_PLACE;
   const extra = room.place === HOME && room.owner ? homeObstacles((await homeRowOf(ctx, room.owner))?.items ?? []) : [];
   return clearSpot(place, spot, { taken, extra, labels: !coversPadLabel(place, spot) });
+};
+
+/** The Café room someone's mahjong table is in, when they hold a seat mid-hand and it has space. */
+const tableRoomFor = async (ctx: MutationCtx, email: string) => {
+  const roomId = await heldRoomOf(ctx, email);
+  const room = roomId && (await ctx.db.get("worldRooms", roomId));
+  return room && room.place === CAFE_PLACE && room.memberCount < ROOM_CAP ? room : null;
+};
+
+/** Coming back to the Café mid-hand goes back to the table's room, so the seat can be sat in again. */
+const backToTable = async (ctx: MutationCtx, email: string, wanted: Arrival | null): Promise<Arrival | null> => {
+  if (wanted?.place !== CAFE_PLACE) return wanted;
+  const room = await tableRoomFor(ctx, email);
+  return room ? { ...wanted, roomId: room._id } : wanted;
 };
 
 const FRESH_IN_ROOM = {
@@ -580,7 +606,7 @@ export const join = mutation({
         await ctx.db.patch("worldThrottle", kept._id, { joinBucket: token.bucket, at: now });
         buckets = { moveBucket: kept.moveBucket, actBucket: kept.actBucket, sayBucket: kept.sayBucket };
       }
-      const wanted = (await askedFor()) ?? cameBackTo(await visitorOf(ctx, email), backyardKnown);
+      const wanted = (await askedFor()) ?? (await backToTable(ctx, email, cameBackTo(await visitorOf(ctx, email), backyardKnown)));
       const wantedRoom = wanted && (await arrivalRoom(ctx, wanted));
       const back = wantedRoom ? wanted : null;
       room = wantedRoom ?? (await roomWithSpace(ctx));
@@ -605,6 +631,7 @@ export const join = mutation({
       await ctx.db.patch("worldRooms", room._id, { memberCount: room.memberCount + 1 });
       member = (await ctx.db.get("worldMembers", memberId))!;
       await cafeMoved(ctx, email, room._id, now);
+      await mahjongMoved(ctx, email, room._id, now);
       await markSeen(ctx, email, member.name, now);
       if (!quietReturn) await addChatLine(ctx, speakerOf(member), joinedLine(member), now);
     } else {
@@ -678,6 +705,7 @@ export const move = mutation({
     const to = stand ?? clampTarget(toX, toZ, place, extra);
     const cleanPath = sanitizePath(path, place, extra);
     const heading = stand?.heading;
+    if (state.seat !== undefined) await mahjongStood(ctx, member.email, now);
     const walk = {
       fromX: from.x,
       fromZ: from.z,
@@ -717,6 +745,7 @@ export const sit = mutation({
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
+    await mahjongSit(ctx, member, state.seat, seat.id, now);
     const from = posAt(state, now);
     const cleanPath = sanitizePath(args.path, place, await obstaclesIn(ctx, member));
     const walk = { fromX: from.x, fromZ: from.z, toX: seat.x, toZ: seat.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
@@ -794,7 +823,7 @@ export const travel = mutation({
     }
     const token = spend("act", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
-    const room = await roomFor(ctx, to, owner);
+    const room = (to === CAFE_PLACE ? await tableRoomFor(ctx, email) : null) ?? (await roomFor(ctx, to, owner));
     if (!room) throw new ConvexError(`Their ${to === BACKYARD ? "backyard" : "home"} is full. Try again in a bit.`);
     await switchRoom(ctx, member, here, room, to);
     if (isPrivatePlace(to) && !isPrivatePlace(from)) await rememberHomeFrom(ctx, email, member.name, from, now);

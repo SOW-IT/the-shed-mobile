@@ -203,9 +203,9 @@ const buildCafe = (cam: Camera): Scene => {
   const c = places.cafe;
   const g = new Builder(cam, "g");
   floorWithPlanks(g, c.floor, c.plank);
-  g.groundDisc(0.6, 1.6, 2.5, 1.9, c.rug);
-  g.groundDisc(0.6, 1.6, 2.1, 1.55, c.rugInner);
-  g.groundDisc(0.6, 1.6, 1.7, 1.2, c.rug);
+  g.groundDisc(-0.4, 1.6, 2.1, 1.7, c.rug);
+  g.groundDisc(-0.4, 1.6, 1.75, 1.4, c.rugInner);
+  g.groundDisc(-0.4, 1.6, 1.4, 1.1, c.rug);
   drawPads(g, "cafe");
   const ground = g.take();
 
@@ -242,6 +242,26 @@ const buildCafe = (cam: Camera): Scene => {
       p.cylinder(table.x, table.z, 0, 0.5, 0.09, 0.09, c.leg);
       p.cylinder(table.x, table.z, 0.5, 0.57, 0.56, 0.56, c.table);
       p.cylinder(table.x - 0.15, table.z + 0.05, 0.58, 0.7, 0.07, 0.08, c.cup);
+    });
+  }
+  for (const id of ["mahjong-a", "mahjong-b"]) {
+    const table = obstacle("cafe", id);
+    add(id, table.x, table.z - 0.1, (p) => {
+      p.groundDisc(table.x - 0.2, table.z - 0.1, 1.0, 0.85, garden.shadow);
+      const reach = 0.78;
+      for (const [dx, dz] of [[0, reach], [reach, 0], [0, -reach], [-reach, 0]]) p.cylinder(table.x + dx, table.z + dz, 0, 0.32, 0.17, 0.19, c.stool);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.box(table.x + sx * 0.42, 0.24, table.z + sz * 0.42, 0.08, 0.48, 0.08, c.leg);
+      p.box(table.x, 0.52, table.z, 1.08, 0.08, 1.08, c.feltEdge);
+      p.box(table.x, 0.565, table.z, 0.94, 0.02, 0.94, c.felt, 0);
+      // A few tiles in walls along each side, and two face up in the middle.
+      for (let i = -2; i <= 2; i++) {
+        p.box(table.x + i * 0.13, 0.6, table.z + 0.33, 0.11, 0.05, 0.07, c.tileBack, 0);
+        p.box(table.x + i * 0.13, 0.6, table.z - 0.33, 0.11, 0.05, 0.07, c.tileBack, 0);
+        p.box(table.x + 0.33, 0.6, table.z + i * 0.13, 0.07, 0.05, 0.11, c.tileBack, 0);
+        p.box(table.x - 0.33, 0.6, table.z + i * 0.13, 0.07, 0.05, 0.11, c.tileBack, 0);
+      }
+      p.box(table.x - 0.07, 0.59, table.z + 0.02, 0.11, 0.03, 0.15, c.tile, 0);
+      p.box(table.x + 0.09, 0.59, table.z - 0.04, 0.11, 0.03, 0.15, c.tile, 0);
     });
   }
   const couch = obstacle("cafe", "couch");

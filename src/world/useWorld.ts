@@ -236,6 +236,8 @@ export const useWorld = (
   const typingM = useMutation(api.world.typing);
   const pingM = useMutation(api.world.ping);
   const [mySeat, setMySeat] = useState<string | null>(null);
+  // Why the last sit was refused (a taken mahjong seat), for the World to say.
+  const [sitRefused, setSitRefused] = useState<{ text: string; at: number } | null>(null);
   const travelling = useRef(false);
   // Every action shows at once on this phone (optimistic updates, below),
   // before the server answers.
@@ -581,6 +583,13 @@ export const useWorld = (
         if (leftGarden(e)) {
           pending.current ??= to;
           recover(sessionRef.current?.memberId);
+        } else if (to.seat && e instanceof ConvexError && !pending.current) {
+          // The seat wasn't free: stay where the server has you.
+          predicting.current = false;
+          myWalkRef.current = null;
+          setMyWalk(null);
+          setMySeat(null);
+          setSitRefused({ text: String(e.data), at: Date.now() });
         } else if (!pending.current) {
           predicting.current = false;
         }
@@ -1124,6 +1133,7 @@ export const useWorld = (
     travel,
     roomId: session?.roomId ?? null,
     memberId: session?.memberId ?? null,
+    sitRefused,
     people,
     serverWalk: myServerWalk,
     target,
