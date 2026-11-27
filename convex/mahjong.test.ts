@@ -321,6 +321,19 @@ describe("a hand", () => {
     expect(await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: tilesOf("R")[0] } })).toEqual({ ok: false, reason: "Time's up." });
   });
 
+  test("an early tick during the deal waits for it, and a tick from another hand does nothing", async () => {
+    const { t } = await twoAndTwoBots();
+    const row = await handRow(t);
+    await t.mutation(internal.mahjong.tick, { tableId: row.tableId, beat: row.beat, handNo: row.handNo });
+    expect((await handRow(t)).state.stage.kind).toBe("intro");
+    const until = row.state.stage.kind === "intro" ? row.state.stage.until : 0;
+    vi.setSystemTime(until);
+    await t.mutation(internal.mahjong.tick, { tableId: row.tableId, beat: row.beat, handNo: row.handNo + 1 });
+    expect((await handRow(t)).state.stage.kind).toBe("intro");
+    await t.mutation(internal.mahjong.tick, { tableId: row.tableId, beat: row.beat, handNo: row.handNo });
+    expect((await handRow(t)).state.stage.kind).toBe("turn");
+  });
+
   test("a stale tick does nothing", async () => {
     const { t } = await twoAndTwoBots();
     const before = await handRow(t);
@@ -409,6 +422,40 @@ describe("coins", () => {
     expect(settled.deltas[2] + settled.deltas[3]).toBe(0);
     expect((await wallet(t, BEN))!.balance).toBe(92);
     expect(await allCoins(t)).toBe(before);
+  });
+
+  const claimOnAnnasDiscard = async (t: T) => {
+    await rigTurn(t, 1, WIN, { drawn: false });
+    const row = await handRow(t);
+    const state = structuredClone(row.state);
+    const winTile = state.seats[1].hand.pop()!;
+    state.seats[0].hand = [...state.seats[0].hand.slice(0, 13), winTile];
+    state.stage = { kind: "turn", seat: 0, drawn: winTile, deadline: Date.now() + TURN_MS, replacement: false, claimed: false };
+    await t.run((ctx) => ctx.db.patch("mahjongHands", row._id, { state }));
+    return winTile;
+  };
+
+  test("the discarder can't give up while the others answer their discard", async () => {
+    const { t, anna } = await twoAndTwoBots(FOR_COINS);
+    const winTile = await claimOnAnnasDiscard(t);
+    await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: winTile } });
+    expect((await handRow(t)).state.stage).toMatchObject({ kind: "claim", from: 0 });
+    later(REFILL);
+    expect(await anna.who.mutation(api.mahjong.leave, {})).toEqual({ ok: false, reason: "Wait for the others to answer your discard first." });
+    expect((await tableRows(t))[0].seats[0]).toMatchObject({ kind: "human", email: ANNA });
+  });
+
+  test("walking off while your discard is claimed still pays the win", async () => {
+    const { t, anna, ben } = await twoAndTwoBots(FOR_COINS);
+    const winTile = await claimOnAnnasDiscard(t);
+    await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: winTile } });
+    later(REFILL);
+    await anna.who.mutation(api.world.travel, { to: "garden" });
+    expect(await ben.who.mutation(api.mahjong.play, { move: { kind: "answer", answer: { kind: "hu" } } })).toEqual({ ok: true });
+    const result = (await handRow(t)).state.stage;
+    const points = result.kind === "over" && result.result.kind === "win" ? result.result.points : 0;
+    expect((await handRow(t)).settled?.deltas.slice(0, 2)).toEqual([-points, points]);
+    expect((await wallet(t, ANNA))!.balance).toBe(100 - points);
   });
 
   test("giving up when it plays for points moves no coins", async () => {
@@ -694,17 +741,27 @@ describe("walking away and coming back", () => {
     void anna;
   });
 
-  test("walking from a hand to the other table keeps the new seat when the hand ends", async () => {
-    const { t, ben } = await twoAndTwoBots();
+  test("someone in a hand can't take a seat or a bot at the other table until it's over", async () => {
+    const { t, ben, cara } = await twoAndTwoBots();
     later(REFILL);
-    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
-    expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: BEN, away: Date.now() });
-    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-b", mySeat: 0, isHost: true });
-    while ((await tableRows(t))[0].phase === "playing") await tickNow(t);
-    const [a, b] = await tableRows(t);
-    expect(a.seats[1]).toEqual({ kind: "empty" });
-    expect(b.seats[0]).toMatchObject({ kind: "human", email: BEN });
-    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-b", mySeat: 0 });
+    await ben.who.mutation(api.world.move, { toX: 0, toZ: 2 });
+    later(REFILL);
+    await expect(ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" })).rejects.toThrow("Your seat at Table 1 is still in a hand");
+    expect((await tableRows(t)).map((r) => r.table)).toEqual(["mahjong-a"]);
+    await cara.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
+    await cara.who.mutation(api.mahjong.addBot, { seat: 1 });
+    await cara.who.mutation(api.mahjong.addBot, { seat: 2 });
+    await cara.who.mutation(api.mahjong.addBot, { seat: 3 });
+    await cara.who.mutation(api.mahjong.start, {});
+    const b = (await tableRows(t)).find((r) => r.table === "mahjong-b")!;
+    later(REFILL);
+    await t.run(async (ctx) => {
+      const member = (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", BEN)).unique())!;
+      const state = (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", member._id)).unique())!;
+      await ctx.db.patch("worldState", state._id, { seat: "mahjong-b-1" });
+    });
+    expect(await ben.who.mutation(api.mahjong.replaceBot, { tableId: b._id, seat: 1 })).toEqual({ ok: false, reason: expect.stringContaining("still in a hand") });
+    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-a", mySeat: 1 });
   });
 
   test("a held seat is walked away from even when the World has already stood you up", async () => {
@@ -715,20 +772,24 @@ describe("walking away and coming back", () => {
       await ctx.db.patch("worldState", state._id, { seat: undefined });
     });
     later(REFILL);
-    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
+    await ben.who.mutation(api.world.sit, { seat: "couch-0" });
     expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: BEN, away: Date.now() });
     expect(botControlled((await tableRows(t))[0].seats)).toEqual([false, true, true, true]);
   });
 
-  test("walking back from the other table to a kept seat plays it again", async () => {
-    const { t, ben } = await twoAndTwoBots();
+  test("a claim waiting on someone who comes back gets a fresh window", async () => {
+    const { t, anna, ben } = await twoAndTwoBots();
+    await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
+    const row = await handRow(t);
+    const state = structuredClone(row.state);
+    state.stage = { kind: "claim", from: 0, tile: tilesOf("R")[0], deadline: Date.now() + 5000, rob: false, offers: [null, { hu: false, pong: true, kong: false, chows: [] }, null, null], answers: [null, null, null, null] };
+    await t.run((ctx) => ctx.db.patch("mahjongHands", row._id, { state }));
     later(REFILL);
-    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
-    later(REFILL);
+    await ben.who.mutation(api.world.move, { toX: 0, toZ: 2 });
+    later(30_000);
     await ben.who.mutation(api.world.sit, { seat: "mahjong-a-1" });
-    expect((await tableRows(t)).map((r) => r.table)).toEqual(["mahjong-a"]);
-    expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-a", mySeat: 1, seats: expect.arrayContaining([expect.objectContaining({ isMe: true, away: false })]) });
-    expect(botControlled((await tableRows(t))[0].seats)).toEqual([false, false, true, true]);
+    expect((await handRow(t)).state.stage).toMatchObject({ kind: "claim", deadline: Date.now() + 5000 });
+    void anna;
   });
 
   test("someone coming back stops the wait", async () => {

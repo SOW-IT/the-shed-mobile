@@ -180,7 +180,7 @@ export const MahjongLobby = ({
               <>
                 <Pill label="Start game" primary disabled={!t.full || short.length > 0} onPress={onStart} testID="mahjong-start" />
                 {t.full ? null : <Text style={styles.note}>Fill every seat to start: add bots, or wait for people to sit down.</Text>}
-                {short.length > 0 ? <Text style={[styles.note, styles.coinsNote]}>{`${short.join(", ")} ${short.length === 1 ? "hasn't" : "haven't"} enough coins. Turn coins off, lower the faan cap or the stake, or wait for them to get up.`}</Text> : null}
+                {short.length > 0 ? <Text style={[styles.note, styles.coinsNote]}>{`${short.join(", ")} ${short.length === 1 && short[0] !== "You" ? "hasn't" : "haven't"} enough coins. Turn coins off, lower the faan cap or the stake, or wait for them to get up.`}</Text> : null}
               </>
             ) : (
               <Text style={styles.note} testID="mahjong-waiting">{`Waiting for ${hostName} to start.`}</Text>

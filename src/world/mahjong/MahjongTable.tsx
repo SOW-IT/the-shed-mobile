@@ -519,7 +519,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
           <View style={styles.mineTop}>
             <View style={[styles.myPlate, active === viewer && styles.cardActive]} accessible accessibilityLabel={`${names[viewer]}, ${windWords(hand.seats[viewer].wind)}${viewer === hand.dealer ? ", dealer" : ""}, score ${coinsWords(seats[viewer].net)}`} testID="mahjong-plate-bottom">
               <View>
-                <SeatFace kind={seats[viewer].kind} look={lookOf(seats[viewer])} name={seats[viewer].name} size={30} />
+                <SeatFace kind={seats[viewer].kind === "human" && seats[viewer].away ? "bot" : seats[viewer].kind} look={lookOf(seats[viewer])} name={seats[viewer].name} size={30} />
                 <Bubble text={saidOf(seats[viewer])} emote={actOf(seats[viewer])} />
               </View>
               <Text style={styles.cardName}>{names[viewer]}</Text>
@@ -546,7 +546,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       </View>
       <Callout hand={hand} names={names} calm={calm} />
       <ResultCard hand={hand} seats={seats} settled={settled} mySeat={mySeat} forCoins={forCoins} nameOf={nameOf} onAgain={onAgain} onLeave={onLeave} />
-      {confirming ? (
+      {confirming && stage.kind !== "over" ? (
         <LeaveConfirm
           cost={giveUpCost}
           onStay={() => setConfirming(false)}
