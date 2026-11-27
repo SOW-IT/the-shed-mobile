@@ -5,9 +5,11 @@ import {
   previewAutoWaitMs,
   previewEaseInOut,
   previewGoalMoved,
+  previewCloseUp,
   previewNeedsFrame,
   previewRecenters,
   type PreviewGlide,
+  type PreviewShot,
   type PreviewSpin,
 } from "./previewMotion";
 
@@ -39,6 +41,14 @@ describe("previewMotion", () => {
         now: 10_000,
       })
     ).toBe(false);
+  });
+
+  it("stops requesting frames right after a manual zoom lands, glide window or not", () => {
+    const glide = settledGlide(9_900);
+    const snapped = { s: 100, y: 200, still: false, snap: true };
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: snapped, closeUp: true, now: 10_000 })).toBe(false);
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: { ...snapped, snap: false }, closeUp: true, now: 10_000 })).toBe(true);
+    expect(previewNeedsFrame({ glide, spin: idleSpin(0), target: { ...snapped, s: 140 }, closeUp: true, now: 10_000 })).toBe(true);
   });
 
   it("requests frames while gliding to a new shot unless reduced motion is on", () => {
@@ -168,5 +178,22 @@ describe("previewMotion", () => {
     expect(previewRecenters("face", "face")).toBe(false);
     expect(previewRecenters("face", "head")).toBe(false);
     expect(previewRecenters("head", "full")).toBe(false);
+    expect(previewRecenters("face", "eyes")).toBe(true);
+    expect(previewRecenters("full", "outfit")).toBe(false);
+    expect(previewRecenters("outfit", "extras")).toBe(false);
+    expect(previewRecenters("eyes", "face")).toBe(false);
+  });
+
+  it("faces you again moving from one part of the face to another", () => {
+    expect(previewRecenters("eyes", "mouth")).toBe(true);
+    expect(previewRecenters("mouth", "brows")).toBe(true);
+    expect(previewRecenters("brows", "brows")).toBe(false);
+  });
+
+  it("holds the close-ups facing you and turns the wider shots", () => {
+    const closeUps: PreviewShot[] = ["head", "face", "eyes", "brows", "mouth"];
+    const turning: PreviewShot[] = ["full", "outfit", "extras"];
+    expect(closeUps.every(previewCloseUp)).toBe(true);
+    expect(turning.some(previewCloseUp)).toBe(false);
   });
 });
