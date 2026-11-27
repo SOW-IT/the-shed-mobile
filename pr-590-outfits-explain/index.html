@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #590: sleeves, a tank top, five more outfits, any colour</title>
+<style>
+body { font: 18px/1.5 -apple-system, system-ui, sans-serif; margin: 0 auto; max-width: 760px; padding: 16px; color: #1e3230; background: #fbf8f1; }
+h1 { font-size: 26px; line-height: 1.25; }
+h2 { font-size: 21px; margin-top: 32px; }
+img { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid #ddd6c8; background: #fff; }
+figure { margin: 16px 0 24px; }
+figcaption { font-size: 15px; color: #4f5f5c; margin-top: 4px; }
+a { color: #1d4a41; }
+ul { padding-left: 20px; }
+.narrow { max-width: 360px; }
+</style>
+</head>
+<body>
+<h1>PR #590: sleeves, a tank top, five more outfits and any colour for clothes</h1>
+<p><a href="https://github.com/SOW-IT/the-shed-mobile/pull/590">github.com/SOW-IT/the-shed-mobile/pull/590</a></p>
+
+<h2>What changed</h2>
+<ul>
+<li>Tops can have no sleeves, short sleeves or long sleeves.</li>
+<li>New tops: Tank top, Sailor top, Sweater vest, Sundress, Jumpsuit, Hawaiian shirt.</li>
+<li>The top, bottoms and favourite colour (shoes) can be any colour, picked with sliders or a hex code.</li>
+<li>Looks saved before this change draw as they did.</li>
+</ul>
+
+<h2>New tops from every side</h2>
+<figure><img src="shots/tank-top.png" alt="Tank top from five sides"><figcaption>Tank top (no sleeves choice)</figcaption></figure>
+<figure><img src="shots/sailor-top.png" alt="Sailor top from five sides"><figcaption>Sailor top: square collar at the back, V and neckerchief at the front</figcaption></figure>
+<figure><img src="shots/sailor-top-long-sleeves.png" alt="Sailor top with long sleeves"><figcaption>Sailor top with long sleeves and cuffs</figcaption></figure>
+<figure><img src="shots/sweater-vest.png" alt="Sweater vest from five sides"><figcaption>Sweater vest with short sleeves (the shirt under it)</figcaption></figure>
+<figure><img src="shots/sundress.png" alt="Sundress from five sides"><figcaption>Sundress (no sleeves choice, its own bottoms)</figcaption></figure>
+<figure><img src="shots/jumpsuit.png" alt="Jumpsuit from five sides"><figcaption>Jumpsuit with long sleeves, trousers in the same colour</figcaption></figure>
+<figure><img src="shots/hawaiian-shirt.png" alt="Hawaiian shirt from five sides"><figcaption>Hawaiian shirt with short sleeves</figcaption></figure>
+
+<h2>Sleeves</h2>
+<figure><img src="shots/sleeves.png" alt="Collared shirt with no, short and long sleeves"><figcaption>Collared shirt: none, short, long</figcaption></figure>
+<figure><img src="shots/collared-long-sleeves-sides.png" alt="Collared shirt with long sleeves from five sides"><figcaption>Long sleeves turn with the body</figcaption></figure>
+<figure class="narrow"><img src="shots/walk-long-sleeves.gif" alt="Character with long sleeves walking right, towards the camera and away"><figcaption>Long sleeves on a walking character, with #588's arm swing and #589 merged in too</figcaption></figure>
+
+<h2>Any colour</h2>
+<figure class="narrow"><img src="shots/colour-picker.png" alt="Editor with the any-colour picker open"><figcaption>The last swatch opens hue, strength and lightness sliders and a hex box</figcaption></figure>
+<figure><img src="shots/custom-colour-persists.png" alt="Custom colours before save, in the World after reload, and in the editor after reload"><figcaption>Custom top, bottoms and shoe colours, kept after Save and a reload</figcaption></figure>
+<figure><img src="shots/other-users.png" alt="Another user sees the new look; an old saved look still draws"><figcaption>Another signed-in user sees the new look; a look saved in the old shape still draws, for its owner and for others</figcaption></figure>
+
+<h2>Fix in 26f31da4: upside-down collar</h2>
+<figure><img src="shots/collar-fix-before-after.png" alt="Short character in a sailor top from behind, before and after"><figcaption>A short character in trousers: the sailor collar was drawn upside down and a stripe poked out under the head. It is skipped now when the head covers it.</figcaption></figure>
+
+<h2>Verification</h2>
+<p><strong>Verified on web</strong> (local isolated backend, test accounts only):</p>
+<ul>
+<li>The PR's <code>outfits</code> web check passes, before and after 26f31da4.</li>
+<li>Every new top from five sides; sleeves choice hidden on Hoodie, Tie-dye tank, Tank top and Sundress.</li>
+<li>Custom colours persist after Save and a reload; a second user sees them.</li>
+<li>The server rejects bad looks: out-of-range or fractional custom colours, a custom colour on a non-clothing part, sleeves 3, outfit 18.</li>
+<li>Merged with #589 and #588 locally: typecheck, lint, knip and all unit tests pass.</li>
+</ul>
+<p><strong>Not verified:</strong> iOS (keyboard insets), how a custom-colour look appears in an older app build (code says the default colour).</p>
+</body>
+</html>
