@@ -8,6 +8,8 @@ import { Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Te
 import type { Move } from "@shared/mahjong/play";
 import type { HandView, MeldView, SeatView as HandSeat } from "@shared/mahjong/view";
 import { gradientStyle } from "@/components/ui/Grid";
+import { FocusedStatusBar } from "@/components/games/FocusedStatusBar";
+import { useHideAppChrome } from "@/components/nav/appChrome";
 import { glass, hud, mahjong as m } from "../palette";
 import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock } from "../Overlays";
 import { Row, Toggle } from "../SettingsPanel";
@@ -715,6 +717,8 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
   const backsSize = Math.round(layout.hand * 0.8);
   const [tableHeight, setTableHeight] = useState(0);
   const calm = useBatterySaver();
+  // The table is full screen while it's open: no app sidebar or drawer, and on iPhone no status bar (the layout keeps to the safe area).
+  useHideAppChrome(true);
   const viewer = mySeat ?? 0;
   const [chosen, setSelected] = useState<{ tile: number; step: number } | null>(null);
   const [focused, setFocused] = useState<{ key: string; step: number } | null>(null);
@@ -832,6 +836,7 @@ export const MahjongTable = ({ table, seats, hand, settled, handNo, mySeat, peop
       testID={mySeat === null ? "mahjong-watching" : "mahjong-table"}
       accessibilityViewIsModal
     >
+      <FocusedStatusBar hidden style="light" animated />
       <View style={[styles.column, { width: layout.width }]}>
         <View style={[styles.header, { paddingTop: top }]}>
           <Text style={styles.title} numberOfLines={1} accessibilityRole="header">

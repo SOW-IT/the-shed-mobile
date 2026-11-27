@@ -131,6 +131,10 @@ abandoned (no coins move) if nobody comes back within two minutes.
   bar over the top of the chat log, the claim and win/kong chips float
   over your own discards (never the pile a claimed tile sits in), and your
   turn shows as a flashing glow on your tiles instead of a "Your turn" row.
+- While the table is open it is full screen: it holds `useHideAppChrome`
+  (the root layout then drops the sidebar and the drawer, whatever the
+  route) and hides the status bar the way a game in play does
+  (`FocusedStatusBar`), keeping to the safe area.
 - A claimed meld lays its claimed tile sideways toward the seat it came
   from (`meldOrder`): the giver's side on screen, for every seat.
 

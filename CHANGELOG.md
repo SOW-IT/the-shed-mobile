@@ -34,6 +34,10 @@ All notable changes to **The SHED** mobile app. This project follows
   (across) are two rows; A's run down their columns and C's up theirs,
   each starting at their own seat. On the web the table widens with the
   window, up to 1000 points, instead of stopping at 560.
+- **The mahjong table is full screen** while you play or watch: no app
+  sidebar or navigation drawer beside it on any window, and on iPhone the
+  status bar hides too (the table keeps to the safe area). ✕ still leaves,
+  and everything comes back when you do.
 - **Melds show who you claimed from.** In a claimed pung, kong or chow the
   claimed tile lies sideways, on the side of the player it came from: the
   left player's at the left end, the opposite player's in the middle, the

@@ -325,6 +325,18 @@ try {
       seen.tableShot = true;
       await shot(host, "table");
       await shot(guest, "table");
+      // The table is full screen: at a desktop window and an iPhone SE's it covers the whole window (no app sidebar beside it), with ✕ on screen to leave.
+      for (const [width, height] of [[1280, 800], [375, 667]]) {
+        await host.page.setViewportSize({ width, height });
+        await host.page.waitForTimeout(700);
+        await shot(host, `table-${width}x${height}`);
+        const table = await id(host, "mahjong-table").boundingBox();
+        const leave = await id(host, "mahjong-leave").boundingBox();
+        const whole = table && Math.round(table.x) <= 0 && Math.round(table.y) <= 0 && Math.round(table.x + table.width) >= width && Math.round(table.y + table.height) >= height;
+        await expect(host, `the table fills the ${width}x${height} window, with ✕ to leave on screen`, Promise.resolve(Boolean(whole && leave && leave.x >= 0 && leave.y >= 0 && leave.x + leave.width <= width && leave.y + leave.height <= height)));
+      }
+      await host.page.setViewportSize({ width: 430, height: 900 });
+      await host.page.waitForTimeout(500);
     }
     // Midway, the watcher sits in a bot's stool (bots aren't drawn, so it looks free) and is asked to take over.
     if (!tookTable && seen.tableShot && (await host.page.locator('[data-testid^="mahjong-river-"] [aria-label]').count()) > 10) {
