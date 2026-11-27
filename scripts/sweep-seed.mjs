@@ -146,6 +146,24 @@ if (existsSync("convex/gamePlayers.ts")) {
   );
 }
 
+// The admin's home, furnished with one of each seat (the sit-on-furniture
+// check sits on each), and a second chair still in the tray to drag out.
+// Bought, so the wallet has the 100 coins every new player starts with.
+importRows("worldWallets", [{ email: admin, balance: 100, earnedDay: "2000-01-01", earnedToday: 0, items: { chair: 2, beanbag: 1, sofa: 1, bed: 1 }, wallpapers: [] }]);
+importRows("worldHomes", [
+  {
+    owner: admin,
+    wallpaper: "plain",
+    items: [
+      { key: "seedsofa", item: "sofa", x: -1.6, z: -6.2, turn: 0 },
+      { key: "seedchair", item: "chair", x: 2.4, z: -4.2, turn: 3 },
+      { key: "seedbeanbag", item: "beanbag", x: -2.8, z: -2.6, turn: 1 },
+      { key: "seedbed", item: "bed", x: 3, z: -0.4, turn: 0 },
+    ],
+    bucket: { tokens: 6, at: now - DAY },
+  },
+]);
+
 // A saved devotional for the editor's screenshots, and an empty day beside it.
 // Days in the past, so the device's time zone can't make either one "future".
 const sydneyDay = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" }).format(new Date(ms));

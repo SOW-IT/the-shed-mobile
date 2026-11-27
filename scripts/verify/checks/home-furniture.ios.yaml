@@ -1,0 +1,105 @@
+appId: au.org.sow.theshed
+---
+# At home: a tap on each chair, beanbag, sofa and bed you've placed sits you
+# on it, and a tap on the floor stands you up. The seed
+# (scripts/sweep-seed.mjs) furnishes the admin's home. Each seat is an
+# accessible target ("Sofa, sit down", Garden.tsx); tapping it by its label
+# lands on the scene under it, as a finger would. "world-me" is you,
+# labelled with how you're placed (myPose.ts). Between seats you stand up on
+# open floor (30% across, 72% down), so each wait is for a fresh sit.
+# Dragging furniture is checked on web, where the mutations can be counted.
+- openLink: "theshedmobile://world"
+- extendedWaitUntil:
+    visible:
+      id: world-title
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+# Home from the title's menu, unless an earlier run (the web check shares
+# this backend and account) left you there.
+- runFlow:
+    when:
+      notVisible:
+        id: world-decorate-open
+    commands:
+      - tapOn:
+          id: world-title
+      - tapOn: "Go to your home"
+- extendedWaitUntil:
+    visible:
+      id: world-decorate-open
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: "${OUT}/check-home-arrived"
+# The sofa.
+- tapOn: "Sofa, sit down"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, sitting"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-home-sit-sofa"
+- tapOn:
+    point: "30%, 72%"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You"
+    timeout: 20000
+# The chair.
+- tapOn: "Chair, sit down"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, sitting"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-home-sit-chair"
+- tapOn:
+    point: "30%, 72%"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You"
+    timeout: 20000
+# The beanbag.
+- tapOn: "Beanbag, sit down"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, sitting"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-home-sit-beanbag"
+- tapOn:
+    point: "30%, 72%"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You"
+    timeout: 20000
+# The bed.
+- tapOn: "Bed, sit down"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You, sitting"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-home-sit-bed"
+- tapOn:
+    point: "30%, 72%"
+- extendedWaitUntil:
+    visible:
+      id: world-me
+      text: "You"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-home-stood-up"

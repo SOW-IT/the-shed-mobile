@@ -22,7 +22,6 @@ import {
   clearSpot,
   coversPadLabel,
   ELSEWHERE_NAMES,
-  seatIn,
   standIn,
   isPlace,
   PLACES,
@@ -77,7 +76,7 @@ import {
   JOINED_WORLD,
 } from "../shared/world";
 import { accountName, shortName } from "../shared/names";
-import { HOME_CAP, homeObstacles } from "../shared/home";
+import { HOME_CAP, homeObstacles, seatHere, type Placed } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
 import type { GameId } from "../shared/games";
@@ -415,10 +414,12 @@ export const homeRowOf = (ctx: Ctx, owner: string) =>
     .withIndex("by_owner", (q) => q.eq("owner", owner))
     .unique();
 
-const obstaclesIn = async (ctx: Ctx, member: Doc<"worldMembers">) => {
+const homeItemsOf = async (ctx: Ctx, member: Doc<"worldMembers">): Promise<readonly Placed[]> => {
   const owner = await homeOf(ctx, member);
-  return owner ? homeObstacles((await homeRowOf(ctx, owner))?.items ?? []) : [];
+  return owner ? ((await homeRowOf(ctx, owner))?.items ?? []) : [];
 };
+
+const obstaclesIn = async (ctx: Ctx, member: Doc<"worldMembers">) => homeObstacles(await homeItemsOf(ctx, member));
 
 const liveInvite = async (ctx: Ctx, owner: string, guest: string, now: number) => {
   const row = await ctx.db
@@ -740,14 +741,16 @@ export const sit = mutation({
   handler: async (ctx, args) => {
     const { member, state } = await requireMe(ctx);
     const place = placeOf(member);
-    const seat = seatIn(place, args.seat);
+    // At a home the seats are its placed furniture's.
+    const items = await homeItemsOf(ctx, member);
+    const seat = seatHere(place, args.seat, items);
     if (!seat) throw new ConvexError("That isn't somewhere you can sit.");
     const now = Date.now();
     const token = spend("move", state, now);
     if (!token.ok) return { ok: false as const, retryInMs: token.retryInMs, serverNow: now };
     await mahjongSit(ctx, member, state.seat, seat.id, now);
     const from = posAt(state, now);
-    const cleanPath = sanitizePath(args.path, place, await obstaclesIn(ctx, member));
+    const cleanPath = sanitizePath(args.path, place, homeObstacles(items));
     const walk = { fromX: from.x, fromZ: from.z, toX: seat.x, toZ: seat.z, startedAt: now, ...(cleanPath ? { path: cleanPath } : {}) };
     await ctx.db.patch("worldState", state._id, {
       fromX: walk.fromX,
