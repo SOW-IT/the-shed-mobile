@@ -13,9 +13,9 @@ type BotMove = { kind: "discard"; tile: number } | { kind: "win" } | { kind: "ko
 /** Every tile anyone can see: discards, melds and flowers, and the bot's own hand. */
 const seenCounts = (hand: Hand, seat: number) => {
   const seen = countsOf(hand.seats[seat].hand);
-  for (const s of hand.seats) {
+  for (const [i, s] of hand.seats.entries()) {
     for (const d of s.discards) if (!d.taken) seen[kindOf(d.tile)]++;
-    for (const m of s.melds) for (const t of m.tiles) seen[kindOf(t)]++;
+    for (const m of s.melds) if (i === seat || !m.concealed) for (const t of m.tiles) seen[kindOf(t)]++;
   }
   return seen;
 };

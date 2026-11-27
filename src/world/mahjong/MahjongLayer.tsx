@@ -228,7 +228,11 @@ export const MahjongLayer = ({
           bottom={bottom}
           busy={busy}
           onMove={move}
-          onAgain={() => void againM({}).then((r) => say(r.ok ? null : r.reason))}
+          onAgain={() =>
+            void againM({})
+              .then((r) => say(r.ok ? null : r.reason))
+              .catch(() => onNote("That didn't send."))
+          }
           onLeave={() => void mahjong.leave().then(say)}
         />
       ) : watching?.hand ? (

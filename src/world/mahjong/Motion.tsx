@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { type ViewStyle } from "react-native";
-import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from "react-native-reanimated";
+import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from "react-native-reanimated";
 
 /**
  * Comes into place once, when it first shows: from an offset (and a
@@ -46,7 +46,12 @@ export const Arrive = ({
 export const Punch = ({ children, calm, style }: { children: ReactNode; calm: boolean; style?: ViewStyle }) => {
   const t = useSharedValue(0);
   useEffect(() => {
-    t.set(calm ? withSequence(withTiming(1, { duration: 1 }), withDelay(1100, withTiming(0, { duration: 1 }))) : withSequence(withTiming(1, { duration: 180, easing: Easing.out(Easing.back(2.2)) }), withDelay(750, withTiming(0, { duration: 260 }))));
+    const always = ReduceMotion.Never;
+    t.set(
+      calm
+        ? withSequence(always, withTiming(1, { duration: 1, reduceMotion: always }), withDelay(1100, withTiming(0, { duration: 1, reduceMotion: always }), always))
+        : withSequence(always, withTiming(1, { duration: 180, easing: Easing.out(Easing.back(2.2)), reduceMotion: always }), withDelay(750, withTiming(0, { duration: 260, reduceMotion: always }), always))
+    );
   }, [calm, t]);
   const shown = useAnimatedStyle(() => ({ opacity: Math.min(1, t.get() * 1.6), transform: [{ scale: calm ? 1 : 0.4 + 0.6 * t.get() }, { rotate: `${calm ? 0 : -6 + 6 * t.get()}deg` }] }));
   return (

@@ -20,6 +20,7 @@ import {
   humanSeats,
   isMahjongTable,
   MAHJONG_TABLES,
+  mahjongSeatId,
   mahjongSeatOf,
   nextHost,
   seatOfEmail,
@@ -101,7 +102,7 @@ const freeSeat = async (ctx: MutationCtx, table: Table, seat: number) => {
   const left = table.seats[seat];
   const seats = table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s));
   if (left.kind === "human") await dropPlayer(ctx, left.email, table._id);
-  await saveSeats(ctx, table, seats);
+  await saveSeats(ctx, table, seats, { net: table.net.map((n, i) => (i === seat ? 0 : n)) });
 };
 
 /** Someone walked away from their seat: before or after a hand it frees; during one a bot plays it. */
@@ -229,8 +230,8 @@ const finishHand = async (ctx: MutationCtx, table: Table, row: HandRow, result: 
   }
   await ctx.db.patch("mahjongHands", row._id, { settled });
   const next = nextDealer(table.dealer ?? row.state.dealer, result, table.firstDealer ?? row.state.dealer, table.roundWind);
-  const net = table.net.map((n, i) => n + settled.deltas[i]);
   const gone = table.seats.flatMap((s, i) => (s.kind === "human" && s.away !== undefined ? [i] : []));
+  const net = table.net.map((n, i) => (gone.includes(i) ? 0 : n + settled.deltas[i]));
   for (const i of gone) {
     const s = table.seats[i];
     if (s.kind === "human") await dropPlayer(ctx, s.email, table._id);
@@ -296,6 +297,8 @@ export const play = mutation({
     if (seat.kind === "human" && seat.away !== undefined) return refuse("Sit back down to play.");
     const row = await handRowOf(ctx, held.table._id);
     if (!row) return refuse("There's no hand being played.");
+    const deadline = deadlineOf(row.state);
+    if (deadline !== null && now > deadline + TICK_SLACK_MS) return refuse("Time's up.");
     const step = applyMove(row.state, held.seat, move as Move, now);
     if (!step.ok) return refuse(step.reason);
     await saveHand(ctx, held.table, row, step.hand, now);
@@ -337,7 +340,9 @@ export const again = mutation({
  */
 export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, from: string | undefined, to: string, now: number) => {
   const target = mahjongSeatOf(to);
-  if (from !== to && mahjongSeatOf(from)) await mahjongStood(ctx, member.email, now);
+  const held = await heldSeatOf(ctx, member.email);
+  const backInHeld = held !== null && held.table.roomId === member.roomId && mahjongSeatId(held.table.table as MahjongTableId, held.seat) === to;
+  if (held ? !backInHeld : from !== to && mahjongSeatOf(from)) await mahjongStood(ctx, member.email, now);
   if (!target || placeOf(member) !== CAFE_PLACE) return;
   const table = await tableIn(ctx, member.roomId, target.table);
   if (!table) {
@@ -438,7 +443,7 @@ export const removeBot = mutation({
     const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
     if (!table) return refuse(problem);
     if (table.seats[seat].kind !== "bot") return refuse("There's no bot there.");
-    await ctx.db.patch("mahjongTables", table._id, { seats: table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s)) });
+    await ctx.db.patch("mahjongTables", table._id, { seats: table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s)), net: table.net.map((n, i) => (i === seat ? 0 : n)) });
     return done;
   },
 });

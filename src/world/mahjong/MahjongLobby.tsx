@@ -137,6 +137,7 @@ export const MahjongLobby = ({
             icon="options"
             title="Rules"
             detail={rulesWords(settings)}
+            label={`Rules: ${rulesWords(settings)}${t.isHost ? (editing ? ", open" : ", tap to change") : ""}`}
             onPress={t.isHost ? () => setEditing((was) => !was) : undefined}
             trailing={t.isHost ? <Ionicons name={editing ? "chevron-up" : "chevron-down"} size={18} color={glass.muted} /> : undefined}
             testID="mahjong-rules"

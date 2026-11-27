@@ -193,43 +193,47 @@ export const MenuRow = ({
   label?: string;
   testID: string;
   style?: object | null;
-}) => (
-  <Animated.View style={style}>
-    <Pressable
-      onPress={onPress}
-      // A row with nothing to press stays enabled, so buttons inside it (Add bot) aren't read as disabled on the web.
-      accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={label ?? [title, meta, status, playingLabel].filter(Boolean).join(", ")}
-      testID={testID}
-      style={({ pressed }) => [styles.row, pressed && onPress && styles.rowPressed]}
-    >
-      {face ?? (
-        <View style={styles.icon}>
-          <Ionicons name={icon ?? "ellipse"} size={19} color={glass.text} />
+}) => {
+  const said = label ?? [title, meta, status, playingLabel].filter(Boolean).join(", ");
+  return (
+    <Animated.View style={style}>
+      <Pressable
+        onPress={onPress}
+        // A row with nothing to press stays enabled, so buttons inside it (Add bot) aren't read as disabled on the web.
+        accessibilityRole={onPress ? "button" : undefined}
+        accessible={onPress !== undefined}
+        accessibilityLabel={onPress ? said : undefined}
+        testID={testID}
+        style={({ pressed }) => [styles.row, pressed && onPress && styles.rowPressed]}
+      >
+        {face ?? (
+          <View style={styles.icon}>
+            <Ionicons name={icon ?? "ellipse"} size={19} color={glass.text} />
+          </View>
+        )}
+        <View style={styles.text} accessible={onPress === undefined} accessibilityLabel={onPress ? undefined : said}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.rowNote}>{detail}</Text>
+          {playing}
+          {status ? (
+            <View style={styles.status}>
+              <View style={[styles.dot, !statusLive && styles.dotOff]} />
+              <Text style={styles.statusText}>{status}</Text>
+            </View>
+          ) : null}
         </View>
-      )}
-      <View style={styles.text}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.rowNote}>{detail}</Text>
-        {playing}
-        {status ? (
-          <View style={styles.status}>
-            <View style={[styles.dot, !statusLive && styles.dotOff]} />
-            <Text style={styles.statusText}>{status}</Text>
+        {meta ? (
+          <View style={styles.meta}>
+            <Text style={styles.metaText}>{meta}</Text>
           </View>
         ) : null}
-      </View>
-      {meta ? (
-        <View style={styles.meta}>
-          <Text style={styles.metaText}>{meta}</Text>
-        </View>
-      ) : null}
-      {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={glass.muted} /> : null)}
-    </Pressable>
-  </Animated.View>
-);
+        {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={glass.muted} /> : null)}
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 /**
  * The games, each with this device's best, as rows of a World panel. The

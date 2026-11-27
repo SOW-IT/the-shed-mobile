@@ -312,6 +312,13 @@ describe("a hand", () => {
     expect(await asUser(t, CARA).mutation(api.mahjong.play, { move: { kind: "win" } })).toEqual({ ok: false, reason: "There's no hand being played." });
   });
 
+  test("a move after the clock has run out is refused", async () => {
+    const { t, anna } = await twoAndTwoBots();
+    await rigTurn(t, 0, "123p 456p 789p 23s 45s RG");
+    vi.setSystemTime(Date.now() + TURN_MS + 1000);
+    expect(await anna.who.mutation(api.mahjong.play, { move: { kind: "discard", tile: tilesOf("R")[0] } })).toEqual({ ok: false, reason: "Time's up." });
+  });
+
   test("a stale tick does nothing", async () => {
     const { t } = await twoAndTwoBots();
     const before = await handRow(t);
@@ -381,6 +388,18 @@ describe("coins", () => {
     expect(after.settled?.deltas[0]).toBe(-result!.points);
     expect((await wallet(t, ANNA))!.balance).toBe(100 - result!.points);
     expect(await ledger(t, BEN)).toEqual([]);
+  });
+
+  test("a seat's score goes with the person who leaves it", async () => {
+    const { t, anna, ben } = await twoAndTwoBots();
+    await rigTurn(t, 0, WIN);
+    await anna.who.mutation(api.mahjong.play, { move: { kind: "win" } });
+    later(REFILL);
+    await ben.who.mutation(api.mahjong.leave, {});
+    expect((await tableRows(t))[0].net).toEqual([72, 0, -24, -24]);
+    await anna.who.mutation(api.mahjong.again, {});
+    await anna.who.mutation(api.mahjong.removeBot, { seat: 2 });
+    expect((await tableRows(t))[0].net).toEqual([72, 0, 0, -24]);
   });
 
   test("a stake of 0 moves no coins", async () => {
@@ -600,6 +619,19 @@ describe("walking away and coming back", () => {
     expect(a.seats[1]).toEqual({ kind: "empty" });
     expect(b.seats[0]).toMatchObject({ kind: "human", email: BEN });
     expect(await ben.who.query(api.mahjong.mine, {})).toMatchObject({ table: "mahjong-b", mySeat: 0 });
+  });
+
+  test("a held seat is walked away from even when the World has already stood you up", async () => {
+    const { t, ben } = await twoAndTwoBots();
+    await t.run(async (ctx) => {
+      const member = (await ctx.db.query("worldMembers").withIndex("by_email", (q) => q.eq("email", BEN)).unique())!;
+      const state = (await ctx.db.query("worldState").withIndex("by_memberId", (q) => q.eq("memberId", member._id)).unique())!;
+      await ctx.db.patch("worldState", state._id, { seat: undefined });
+    });
+    later(REFILL);
+    await ben.who.mutation(api.world.sit, { seat: "mahjong-b-0" });
+    expect((await tableRows(t))[0].seats[1]).toMatchObject({ kind: "human", email: BEN, away: Date.now() });
+    expect(botControlled((await tableRows(t))[0].seats)).toEqual([false, true, true, true]);
   });
 
   test("walking back from the other table to a kept seat plays it again", async () => {
