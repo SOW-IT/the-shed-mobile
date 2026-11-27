@@ -501,7 +501,7 @@ const iosFlow = (routes, smoke, out, adminEmail) => {
     `- openLink: "${link(`e2e-auth?email=${encodeURIComponent(adminEmail)}&secret=${E2E_SECRET}`)}"`,
     "- waitForAnimationToEnd:",
     "    timeout: 8000",
-    `- openLink: "${link("home")}"`,
+    `- openLink: "${link("org")}"`,
     "- extendedWaitUntil:",
     "    notVisible: \"Sign in\"",
     "    timeout: 15000",

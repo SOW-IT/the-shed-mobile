@@ -8,6 +8,7 @@ import { useDeleteAccount } from "@/hooks/useDeleteAccount";
 import { typography, useAppTheme } from "../theme";
 import { Btn, Card, ConfirmDialog, ErrorBanner } from "./ui";
 import { notify } from "@/lib/notify";
+import { HOME_LINKS } from "@shared/homeContent";
 
 const WHAT_HAPPENS = {
   sow:
@@ -33,7 +34,7 @@ export const DeleteAccountCard = () => {
 
   const confirm = async () => {
     if (!(await deleteAccount(account.kind, account.name))) return;
-    router.replace("/home");
+    router.replace(HOME_LINKS.signedOut);
     notify(DELETED_TITLE, DELETED_MESSAGE);
   };
 
