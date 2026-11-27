@@ -28,6 +28,20 @@ All notable changes to **The SHED** mobile app. This project follows
   the arrow keys, Page Up and Down, Home and End, and a trackpad pinch (or
   ctrl and the scroll wheel) on the preview zooms too.
 
+## [2.13.48] - 2026-11-27
+
+### Added
+- **Eight more eye shapes for your World character.** The Eyes tab now has
+  16 shapes. The new ones are Cat (a white almond tipped up at the outer
+  corner, round a slit pupil), Puppy (big and round under a drooping lid),
+  Starry (a twinkle for a pupil), Hearts, Tiny, Anime (a tall white eye with
+  a big iris and a heavy top lash), Wink (one eye closed in a smiling arc)
+  and Sharp (a flat-topped half moon that slopes down to the nose). They take
+  your eye colour, eye shadow and the eye sliders like the others, and
+  smiles, surprise and the other expressions still change them. Saved
+  characters keep their eyes. Someone on an older version of the app sees a
+  new shape as plain dots until they update.
+
 ## [2.13.47] - 2026-11-27
 
 ### Fixed

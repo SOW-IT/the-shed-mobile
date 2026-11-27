@@ -1,0 +1,237 @@
+appId: au.org.sow.theshed
+---
+# Every eye shape in the character editor: each tile is tapped in turn and
+# the editor (its preview and the tiles) is shot. Nothing is saved, so the
+# look the other checks and the screen sweep see doesn't change; the web
+# check covers saving. The base's run stops at the first tile it doesn't
+# have, so its "before" warns.
+- openLink: "theshedmobile://world?sheet=character"
+- extendedWaitUntil:
+    visible:
+      id: world-editor
+    timeout: 60000
+- tapOn:
+    id: world-editor-tab-eyes
+- extendedWaitUntil:
+    visible:
+      id: world-editor-eyes-0
+    timeout: 10000
+- takeScreenshot: "${OUT}/check-eyes-tiles"
+# The tiles scroll under the preview and the tabs, so each scroll is a short
+# swipe inside the list (from 80% to 58% of the screen), as in outfits.ios.yaml:
+# the middle of the screen is the tabs, which don't scroll, so
+# scrollUntilVisible's swipe never moves the list.
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-0
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-0
+- takeScreenshot: "${OUT}/check-eyes-00-dots"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-1
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-1
+- takeScreenshot: "${OUT}/check-eyes-01-round"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-2
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-2
+- takeScreenshot: "${OUT}/check-eyes-02-sleepy"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-3
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-3
+- takeScreenshot: "${OUT}/check-eyes-03-sparkly"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-4
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-4
+- takeScreenshot: "${OUT}/check-eyes-04-wide"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-5
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-5
+- takeScreenshot: "${OUT}/check-eyes-05-narrow"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-6
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-6
+- takeScreenshot: "${OUT}/check-eyes-06-lashes"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-7
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-7
+- takeScreenshot: "${OUT}/check-eyes-07-almond"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-8
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-8
+- takeScreenshot: "${OUT}/check-eyes-08-cat"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-9
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-9
+- takeScreenshot: "${OUT}/check-eyes-09-puppy"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-10
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-10
+- takeScreenshot: "${OUT}/check-eyes-10-starry"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-11
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-11
+- takeScreenshot: "${OUT}/check-eyes-11-hearts"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-12
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-12
+- takeScreenshot: "${OUT}/check-eyes-12-tiny"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-13
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-13
+- takeScreenshot: "${OUT}/check-eyes-13-anime"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-14
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-14
+- takeScreenshot: "${OUT}/check-eyes-14-wink"
+- repeat:
+    while:
+      notVisible:
+        id: world-editor-eyes-15
+    times: 12
+    commands:
+      - swipe:
+          start: "50%, 80%"
+          end: "50%, 58%"
+          duration: 400
+- tapOn:
+    id: world-editor-eyes-15
+- takeScreenshot: "${OUT}/check-eyes-15-sharp"
+- tapOn:
+    id: world-editor-close
+- extendedWaitUntil:
+    notVisible:
+      id: world-editor
+    timeout: 10000
