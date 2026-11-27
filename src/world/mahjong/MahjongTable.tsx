@@ -224,7 +224,7 @@ const Zoom = ({ seat, index, name, hand, lastDiscard, width, concealed, onClose 
   return (
     <View style={styles.resultWrap} testID="mahjong-zoom">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" testID="mahjong-zoom-backdrop" />
-      <View style={[styles.result, styles.resultBody]} accessibilityViewIsModal>
+      <View style={[styles.result, styles.resultBody]}>
         <View style={styles.zoomHead}>
           <Text style={[styles.resultTitle, styles.zoomTitle]} accessibilityRole="header" numberOfLines={1}>
             {`${name} · ${windBadge(seat.wind)}${index === hand.dealer ? " · dealer" : ""}`}
