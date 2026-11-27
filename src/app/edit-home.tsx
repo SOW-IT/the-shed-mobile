@@ -8,6 +8,7 @@ import {
   emptyHomeBlock,
   HOME_BLOCK_LABELS,
   HOME_ICONS,
+  HOME_LINKS,
   type HomeBlock,
   type HomeBlockType,
   type HomeButton,
@@ -62,7 +63,7 @@ export default function EditHomeScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const view = useQuery(api.homeContent.view);
   const me = useQuery(api.directory.me);
-  const back = () => backOr(router, "/home");
+  const back = () => backOr(router, HOME_LINKS.home);
 
   if (view === undefined) return <LoadingState />;
   const current = view.tabs.find((t) => t.key === tab) ?? view.tabs[0];
