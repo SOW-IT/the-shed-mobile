@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.62] - 2026-11-27
+## [2.13.65] - 2026-11-28
 
 ### Added
 - **You can sit on the furniture you've placed at home.** Tap a chair,
@@ -33,6 +33,24 @@ All notable changes to **The SHED** mobile app. This project follows
   another piece). Put away before then, it goes back in the tray with
   nothing saved. Turning a piece, tapping the floor to move it there, and
   putting it away also show at once.
+
+## [2.13.62] - 2026-11-27
+
+### Fixed
+- **The character editor's sliders drag from anywhere on the thumb.** Height
+  and Build on the Body tab, and the move, size and tilt sliders for the
+  eyes, brows and mouth, only took a press on their thin 8px line. The round
+  thumb let touches through and hung over the line's edges, so pressing most
+  of the thumb, or just above or below the line, did nothing, and on a phone
+  that drag scrolled the choices instead. On iOS, a drag that drifted up or
+  down a little could also be taken over by the scroll. Now the whole row
+  between the end labels takes the press, the slider keeps following your
+  finger when it strays above or below, the page doesn't pan on a phone browser,
+  and the choices stay still on iOS and Android until you let go. A new
+  `steps-drag` web check drags each slider by the thumb's edges, past both
+  ends, with the pointer wandering off it, one step at a time, and with a
+  finger. On the web the sliders also now tell a screen reader their value:
+  they had none, because react-native-web ignores `accessibilityValue`.
 
 ## [2.13.59] - 2026-11-27
 
