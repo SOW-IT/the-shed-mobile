@@ -623,6 +623,7 @@ export const DevotionalGroupScreen = ({
       <InviteMembersSheet
         visible={inviteOpen}
         groupId={groupId}
+        groupName={group.name}
         onClose={() => setInviteOpen(false)}
       />
 
