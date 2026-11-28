@@ -21,6 +21,12 @@ mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 430, height: 900 }, hasTouch: true });
 page.setDefaultTimeout(TIMEOUT_MS);
+// A Mac browser with touch is how an iPad looks, so the web page's first load
+// tries to open the app and two seconds later goes to the App Store
+// (src/app/+html.tsx). That aborted the goto to the editor ("net::ERR_ABORTED"),
+// or left the tab on the App Store. The page tries once per tab, and records
+// that it has; record it before any page loads.
+await page.addInitScript(() => sessionStorage.setItem("shedAppBounce", "1"));
 
 const failures = [];
 const settle = () => page.waitForTimeout(150);

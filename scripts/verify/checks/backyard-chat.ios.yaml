@@ -4,6 +4,11 @@ appId: au.org.sow.theshed
 # in the log, and out in the Garden the line is still there, tagged
 # [Backyard]. Then back into the backyard, and the chat is there again.
 #
+# The World never stops moving (people walking, the animals), so after a tap
+# there Maestro would wait up to about 45 s for the screen to settle, and the
+# check ran past verify's 5 minutes. The World's taps cap that wait at 2 s
+# (waitToSettleTimeoutMs); the waits after each tap say what to wait for.
+#
 # A chat line's label is what it says and where it was said ("You said …,
 # in Backyard") (view.ts saidLabel). The web check (two people) runs first
 # on this backend and account, so you may already be in the backyard.
@@ -22,31 +27,20 @@ appId: au.org.sow.theshed
     commands:
       - tapOn:
           id: world-title
+          waitToSettleTimeoutMs: 2000
       - waitForAnimationToEnd:
           timeout: 2000
-      # Home from the menu, unless you're home already (no such entry then).
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-home
-          commands:
-            - tapOn:
-                id: world-menu-home
-      - waitForAnimationToEnd:
-          timeout: 2000
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
-            - tapOn:
-                id: world-menu-close
+      # The menu's Backyard row takes you there (through your home, from
+      # anywhere else). Closing the menu with ✕ and walking to the home's
+      # Backyard pad raced it: a ✕ tap while the menu is still opening can
+      # miss, and the open menu then takes the tap meant for the pad.
       - extendedWaitUntil:
-          visible: "Go to Backyard"
-          timeout: 30000
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - tapOn: "Go to Backyard"
+          visible:
+            id: world-menu-backyard
+          timeout: 10000
+      - tapOn:
+          id: world-menu-backyard
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-title
@@ -60,9 +54,11 @@ appId: au.org.sow.theshed
 # Talking in the backyard.
 - tapOn:
     id: world-chat-input
+    waitToSettleTimeoutMs: 2000
 - inputText: "Hello from the backyard on iOS"
 - tapOn:
     id: world-send
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible: "You said Hello from the backyard on iOS"
     timeout: 15000
@@ -73,8 +69,10 @@ appId: au.org.sow.theshed
 # Out to the Garden: the line is still there, tagged [Backyard].
 - tapOn:
     id: world-title
+    waitToSettleTimeoutMs: 2000
 - tapOn:
     id: world-menu-garden
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-title
@@ -91,31 +89,17 @@ appId: au.org.sow.theshed
     commands:
       - tapOn:
           id: world-title
+          waitToSettleTimeoutMs: 2000
       - waitForAnimationToEnd:
           timeout: 2000
-      # Home from the menu, unless you're home already (no such entry then).
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-home
-          commands:
-            - tapOn:
-                id: world-menu-home
-      - waitForAnimationToEnd:
-          timeout: 2000
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
-            - tapOn:
-                id: world-menu-close
+      # By the menu's Backyard row again.
       - extendedWaitUntil:
-          visible: "Go to Backyard"
-          timeout: 30000
-      - waitForAnimationToEnd:
-          timeout: 3000
-      - tapOn: "Go to Backyard"
+          visible:
+            id: world-menu-backyard
+          timeout: 10000
+      - tapOn:
+          id: world-menu-backyard
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-title
@@ -132,8 +116,10 @@ appId: au.org.sow.theshed
 # Back to the Garden, where the checks after this one expect to start.
 - tapOn:
     id: world-title
+    waitToSettleTimeoutMs: 2000
 - tapOn:
     id: world-menu-garden
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-title

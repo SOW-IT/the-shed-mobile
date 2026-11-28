@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.71] - 2026-11-28
+
+### Fixed
+- **Verify's character editor and World walk checks stop failing on their
+  own, for contributors.** Nothing in the app changes.
+  - The web `steps-drag` check failed on main every time, either with
+    `page.goto: net::ERR_ABORTED` at `/world?sheet=character` or with a
+    60-second timeout. It drags with touch, and a Mac browser with touch is
+    how an iPad looks, so the web page did what it does on an iPad: it tried
+    to open the app, and two seconds later went to the App Store, which
+    cancelled the check's move to the editor. The check now tells the page,
+    before it loads, that it has already tried, the way the page remembers
+    that itself after its first try.
+  - The iOS `backyard-chat` check goes to the backyard by the World menu's
+    Backyard row. It no longer closes the menu with ✕ and walks to the
+    home's Backyard pad, which raced the menu opening: a ✕ tap that missed
+    left the menu open to take the tap meant for the pad.
+  - The iOS `home-furniture` check opens your home by the menu row's id and
+    waits for the menu to be gone before its taps on the floor. The
+    `chapel-pews` check waits the same way before its tap on the pew. Their
+    taps in the World wait at most 2 seconds for a screen that never stops
+    moving, so neither runs past verify's 5 minutes per check.
+
 ## [2.13.68] - 2026-11-28
 
 ### Fixed
