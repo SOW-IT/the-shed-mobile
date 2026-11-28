@@ -35,7 +35,7 @@ import {
   type HopPlatform,
   type HopState,
 } from "./hop";
-import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
+import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_PACE, HOP_STAGES } from "./hopTuning";
 
 const W = 390;
 const H = 700;
@@ -289,8 +289,8 @@ describe("boosts", () => {
 
   test("the jetpack is faster and lasts longer than the propeller", () => {
     expect(HOP.jetpack.speed).toBeGreaterThan(HOP.propeller.speed);
-    expect(HOP.propeller.seconds).toBe(2.5);
-    expect(HOP.jetpack.seconds).toBe(3.5);
+    expect(HOP.propeller.seconds).toBeCloseTo(2.5 / HOP_PACE);
+    expect(HOP.jetpack.seconds).toBeCloseTo(3.5 / HOP_PACE);
     expect(flightRise("jetpack")).toBeGreaterThan(flightRise("propeller"));
   });
 
@@ -323,9 +323,43 @@ describe("boosts", () => {
   test("a flight's time is run time: a pause holds it", () => {
     const flying = stepHop(withItem("propeller"), FRAME);
     // A pause is no steps; picking up after it, the flight has as long left as before.
-    const resumed = play(flying, 2.4);
+    const resumed = play(flying, HOP.propeller.seconds - 0.1);
     expect(resumed.flight).not.toBeNull();
     expect(play(resumed, 0.2).flight).toBeNull();
+  });
+});
+
+describe("the pace", () => {
+  // The first Hop's numbers, before it was calmed down.
+  const FIRST = { gravity: 1800, jumpSpeed: 880, maxSpeed: 360, accel: 2800, reverse: 5200 };
+
+  test("a little calmer than the first Hop: every bounce takes longer, by the same share", () => {
+    expect(HOP_PACE).toBeGreaterThanOrEqual(0.85);
+    expect(HOP_PACE).toBeLessThan(0.9);
+    const airtime = landingTime(0)!;
+    expect(airtime).toBeCloseTo((2 * FIRST.jumpSpeed) / FIRST.gravity / HOP_PACE);
+    expect(landingTime(0, HOP.springSpeed)!).toBeCloseTo(airtime * Math.sqrt(HOP.springHeight));
+  });
+
+  test("the same heights and sideways reach as before, so the route is just as fair", () => {
+    expect(JUMP_RISE).toBeCloseTo((FIRST.jumpSpeed * FIRST.jumpSpeed) / (2 * FIRST.gravity));
+    expect(SPRING_RISE).toBeCloseTo(JUMP_RISE * HOP.springHeight);
+    // Distance steered in a stretched time is the distance the first Hop steered.
+    const firstReach = (t: number) => {
+      const v = FIRST.maxSpeed;
+      const reverse = FIRST.reverse;
+      const turn = v / reverse;
+      const back = (v * v) / (2 * reverse);
+      if (t <= turn) return -(v * t - 0.5 * reverse * t * t);
+      const u = t - turn;
+      const speedUp = v / FIRST.accel;
+      const ahead = u <= speedUp ? 0.5 * FIRST.accel * u * u : (v * v) / (2 * FIRST.accel) + v * (u - speedUp);
+      return ahead - back;
+    };
+    for (const t of [0.05, 0.3, 0.6, 0.9]) expect(sideReach(t / HOP_PACE)).toBeCloseTo(firstReach(t), 6);
+    // A flight climbs as far as it did.
+    expect(HOP.propeller.speed * HOP.propeller.seconds).toBeCloseTo(640 * 2.5);
+    expect(HOP.jetpack.speed * HOP.jetpack.seconds).toBeCloseTo(1150 * 3.5);
   });
 });
 
@@ -337,7 +371,7 @@ describe("steering", () => {
       vx = steerSpeed(vx, 1, FRAME);
       t += FRAME;
     }
-    expect(t).toBeLessThan(0.16);
+    expect(t).toBeLessThan(0.16 / HOP_PACE);
     let turn = 0;
     while (vx > 0) {
       vx = steerSpeed(vx, -1, FRAME);
@@ -352,8 +386,8 @@ describe("steering", () => {
       slid += vx * FRAME;
       glide += FRAME;
     }
-    // Not icy: stopped within a third of a second, having slid about a platform's width.
-    expect(glide).toBeLessThan(0.35);
+    // Not icy: stopped within about a third of a second, having slid about a platform's width.
+    expect(glide).toBeLessThan(0.35 / HOP_PACE);
     expect(slid).toBeGreaterThan(30);
     expect(slid).toBeLessThan(HOP.platform.width * 1.2);
   });
@@ -674,7 +708,7 @@ describe("scores the leaderboard takes", () => {
 
   test("nothing climbs faster than the per-second limit allows", () => {
     const fastest = Math.max(HOP.springSpeed, HOP.jetpack.speed, HOP.propeller.speed, HOP.jumpSpeed) / HOP.unitsPerPoint;
-    expect(Math.ceil(fastest)).toBe(653);
+    expect(Math.ceil(fastest)).toBe(575);
     expect(fastest).toBeLessThan(limit.perSecond);
     expect(fastest * 6 * 60 * 60).toBeLessThan(limit.max);
   });

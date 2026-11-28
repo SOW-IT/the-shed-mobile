@@ -85,8 +85,8 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     flappy: { perSecond: 3, max: 100_000 },
     glider: { perSecond: 2100, max: 2_000_000 },
     // Hop scores a point per 2 units climbed, and nothing climbs faster than
-    // a spring's launch (1,305 units a second, so 653 points), so no run can
-    // average more. The cap is that pace for the longest run allowed
+    // a spring's launch (1,149 units a second since 2.14.7's calmer pace, so
+    // 575 points; 1,305 and 653 before), so no run can average more. The cap is that pace for the longest run allowed
     // (src/lib/games/hop.ts, checked by its tests).
     hop: { perSecond: 700, max: 15_000_000 },
   },
