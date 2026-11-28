@@ -584,7 +584,8 @@ export const HopGame = ({
   useGameLoop(running, (dt) => setRun((state) => state && advance(state, dt, step)));
 
   // What's held: keys, and fingers either side of the board's middle.
-  const held = useRef<{ left: boolean; right: boolean; touch: Steer }>({ left: false, right: false, touch: 0 });
+  // Each steering key on its own, so letting go of A leaves ← held.
+  const held = useRef<{ keys: readonly string[]; touch: Steer }>({ keys: [], touch: 0 });
   /** Where the fingers are, so a fresh measurement of the board can steer them again. */
   const fingers = useRef<number[]>([]);
   const middle = useRef<number | null>(null);
@@ -598,7 +599,9 @@ export const HopGame = ({
   const remeasure = useCallback(() => measure(), [measure]);
 
   const apply = () => {
-    const { left, right, touch } = held.current;
+    const { keys, touch } = held.current;
+    const left = keys.some((key) => LEFT_KEYS.has(key));
+    const right = keys.some((key) => RIGHT_KEYS.has(key));
     // Both sides at once steer neither way; letting go of one leaves the other.
     const fromKeys: Steer = left === right ? 0 : left ? -1 : 1;
     const steer = fromKeys !== 0 ? fromKeys : touch;
@@ -606,14 +609,14 @@ export const HopGame = ({
   };
 
   const clearHeld = () => {
-    held.current = { left: false, right: false, touch: 0 };
+    held.current = { keys: [], touch: 0 };
     apply();
   };
 
   // Nothing stays held across a pause, a screen in front, the leave dialog or a restart.
   useEffect(() => {
     if (running) return;
-    held.current = { left: false, right: false, touch: 0 };
+    held.current = { keys: [], touch: 0 };
     setRun((state) => (state && !state.over && !state.dying ? withSteer(state, 0) : state));
   }, [running, setRun]);
 
@@ -691,7 +694,10 @@ export const HopGame = ({
       if (current.phase === "over") return;
       event.preventDefault();
       if (down && !event.repeat && current.phase === "ready") start();
-      held.current = { ...held.current, ...(left ? { left: down } : { right: down }) };
+      // A shifted letter comes back up unshifted: hold them as one.
+      const name = key.length === 1 ? key.toLowerCase() : key;
+      const others = held.current.keys.filter((k) => k !== name);
+      held.current = { ...held.current, keys: down ? [...others, name] : others };
       apply();
     },
     clearHeld,

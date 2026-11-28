@@ -532,7 +532,8 @@ const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
 
 export const stepHop = (previous: HopState, dt: number): HopState => {
   if (previous.over) return previous;
-  const state: HopState = { ...previous, time: previous.time + dt };
+  // Its own corridor list: laying platforms below adds to it, and the state before must stay as it was.
+  const state: HopState = { ...previous, time: previous.time + dt, corridors: [...previous.corridors] };
   const startTime = previous.time;
 
   if (state.dying) {
@@ -604,10 +605,10 @@ export const autoSteer = (state: HopState): -1 | 0 | 1 => {
   return wanted > state.vx + 25 ? 1 : wanted < state.vx - 25 ? -1 : 0;
 };
 
-/** Everything below you taken away and nothing more laid: you fall off. */
+/** Every platform taken away and nothing more laid: you fall off. */
 export const dropFloor = (state: HopState): HopState => ({
   ...state,
-  platforms: state.platforms.filter((p) => p.y > state.y + HOP.box.height),
+  platforms: [],
   gen: { ...state.gen, y: Infinity },
   flight: null,
 });

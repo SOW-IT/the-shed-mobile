@@ -548,6 +548,16 @@ describe("a whole climb", () => {
     expect(state.score).toBe(hopScore(JUMP_RISE));
   });
 
+  test("a step never changes the state it was given", () => {
+    let state = newHop(W, H, 31);
+    for (let i = 0; i < 60 * 40 && !state.over; i++) {
+      const before = withSteer(state, autoSteer(state));
+      const frozen = structuredClone(before);
+      state = stepHop(before, FRAME);
+      expect(before).toEqual(frozen);
+    }
+  });
+
   test("the same seed and the same steering play out the same way", () => {
     const a = botRun(H, 99, 1500);
     const b = botRun(H, 99, 1500);
@@ -580,7 +590,7 @@ describe("falling off", () => {
     const climbed = botRun(H, 2, 300);
     expect(climbed.score).toBeGreaterThanOrEqual(300);
     let state = dropFloor(climbed);
-    expect(state.platforms.every((p) => p.y > state.y)).toBe(true);
+    expect(state.platforms).toEqual([]);
     for (let i = 0; i < 600 && !state.over; i++) state = stepHop(state, FRAME);
     expect(state.over).toBe(true);
     // Whatever was left of the bounce you were on, and no more.

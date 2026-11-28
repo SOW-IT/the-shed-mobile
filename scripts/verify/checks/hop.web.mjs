@@ -23,8 +23,8 @@ mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 const failures = [];
 
-const run = async (label, viewport, steps) => {
-  const page = await browser.newPage({ viewport });
+const run = async (label, viewport, steps, options = {}) => {
+  const page = await browser.newPage({ viewport, ...options });
   page.setDefaultTimeout(TIMEOUT_MS);
   try {
     await steps(page);
@@ -51,6 +51,8 @@ const playerX = async (page) => {
   const inside = boxes.filter(Boolean).find((box) => box.x + box.width / 2 >= board.x && box.x + box.width / 2 <= board.x + board.width);
   return inside ? inside.x + inside.width / 2 - board.x : NaN;
 };
+/** How far x moved, the short way round the seam: negative is left. */
+const moved = (from, to, width = 390) => ((((to - from) % width) + width * 1.5) % width) - width / 2;
 const startCard = (page) => page.getByText(/Hold a side/).first();
 const scoreText = (page) => id(page, "game-score").textContent();
 
@@ -115,25 +117,25 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     await page.waitForTimeout(350);
     note("← starts the run", await startCard(page).isHidden());
     const left = await playerX(page);
-    note(`holding ← moves you left (${start.toFixed(0)} → ${left.toFixed(0)})`, left < start - 40);
+    note(`holding ← moves you left (${start.toFixed(0)} → ${left.toFixed(0)})`, moved(start, left) < -40);
     await page.screenshot({ path: `${OUT}/hop-steer-left.png` });
     await page.keyboard.down("ArrowRight");
     await page.waitForTimeout(450);
     const both = await playerX(page);
     await page.waitForTimeout(300);
     const stillBoth = await playerX(page);
-    note(`← and → together hold still (${both.toFixed(0)} → ${stillBoth.toFixed(0)})`, Math.abs(stillBoth - both) < 6);
+    note(`← and → together hold still (${both.toFixed(0)} → ${stillBoth.toFixed(0)})`, Math.abs(moved(both, stillBoth)) < 6);
     await page.keyboard.up("ArrowLeft");
     await page.waitForTimeout(500);
     const right = await playerX(page);
-    note(`letting go of ← leaves → steering right (${stillBoth.toFixed(0)} → ${right.toFixed(0)})`, right > stillBoth + 20 || right < stillBoth - 200);
+    note(`letting go of ← leaves → steering right (${stillBoth.toFixed(0)} → ${right.toFixed(0)})`, moved(stillBoth, right) > 20);
     // The window losing focus lets go of a held key whose release it won't see.
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
     await page.waitForTimeout(450);
     const blurred = await playerX(page);
     await page.waitForTimeout(350);
     const afterBlur = await playerX(page);
-    note(`a lost focus stops the steering (${blurred.toFixed(0)} → ${afterBlur.toFixed(0)})`, Math.abs(afterBlur - blurred) < 6);
+    note(`a lost focus stops the steering (${blurred.toFixed(0)} → ${afterBlur.toFixed(0)})`, Math.abs(moved(blurred, afterBlur)) < 6);
     await page.keyboard.up("ArrowRight");
   });
 
@@ -147,11 +149,11 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     await page.waitForTimeout(350);
     note("holding a half starts the run", await startCard(page).isHidden());
     const heldLeft = await playerX(page);
-    note(`holding the left half steers left (${before.toFixed(0)} → ${heldLeft.toFixed(0)})`, heldLeft < before - 30);
+    note(`holding the left half steers left (${before.toFixed(0)} → ${heldLeft.toFixed(0)})`, moved(before, heldLeft) < -30);
     await page.mouse.move(board.x + board.width * 0.8, y, { steps: 4 });
     await page.waitForTimeout(400);
     const slid = await playerX(page);
-    note(`sliding to the right half steers right (${heldLeft.toFixed(0)} → ${slid.toFixed(0)})`, slid > heldLeft + 30 || slid < heldLeft - 200);
+    note(`sliding to the right half steers right (${heldLeft.toFixed(0)} → ${slid.toFixed(0)})`, moved(heldLeft, slid) > 30);
     await page.mouse.up();
     await page.screenshot({ path: `${OUT}/hop-touch.png` });
   });
@@ -175,6 +177,36 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     page.getByText("Leave this game?").first().waitFor({ state: "hidden", timeout: 5_000 }).then(() => true, () => false)
   );
 });
+
+// The same on a touch screen, with real touch events rather than a mouse.
+await run("phone-touch", { width: 390, height: 844 }, async (page) => {
+  await withBest(page);
+  const cdp = await page.context().newCDPSession(page);
+  const finger = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], i) => ({ x, y, id: i })) });
+  await steering(page, "touch screen", async (note) => {
+    const board = await id(page, "hop-scene").boundingBox();
+    const y = board.y + board.height * 0.7;
+    const before = await playerX(page);
+    await finger("touchStart", [[board.x + board.width * 0.2, y]]);
+    await page.waitForTimeout(350);
+    note("a finger on a half starts the run", await startCard(page).isHidden());
+    const heldLeft = await playerX(page);
+    note(`a finger on the left half steers left (${before.toFixed(0)} → ${heldLeft.toFixed(0)})`, moved(before, heldLeft) < -30);
+    for (const share of [0.35, 0.5, 0.65, 0.8]) await finger("touchMove", [[board.x + board.width * share, y]]);
+    await page.waitForTimeout(400);
+    const slid = await playerX(page);
+    note(`sliding the finger across the middle steers right (${heldLeft.toFixed(0)} → ${slid.toFixed(0)})`, moved(heldLeft, slid) > 30);
+    // A second finger on the other half: both at once hold still.
+    await finger("touchMove", [[board.x + board.width * 0.8, y], [board.x + board.width * 0.2, y]]);
+    await page.waitForTimeout(450);
+    const both = await playerX(page);
+    await page.waitForTimeout(300);
+    const stillBoth = await playerX(page);
+    note(`a finger on each half holds still (${both.toFixed(0)} → ${stillBoth.toFixed(0)})`, Math.abs(moved(both, stillBoth)) < 6);
+    await finger("touchEnd", []);
+    await page.screenshot({ path: `${OUT}/hop-touch-screen.png` });
+  });
+}, { hasTouch: true, isMobile: true });
 
 await run("phone-run", { width: 390, height: 844 }, async (page) => {
   await withBest(page);

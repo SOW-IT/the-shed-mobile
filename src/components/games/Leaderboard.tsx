@@ -167,7 +167,8 @@ export const Leaderboard = ({
       GAME_IDS.map((id) => ({
         key: id,
         label: TAB_LABELS[id] ?? GAME_INFO[id].title,
-        render: () => <GamePage game={id} onPlay={onPlay} />,
+        // Its own page per game, so a version chosen on one isn't carried to the next.
+        render: () => <GamePage key={id} game={id} onPlay={onPlay} />,
       })),
     [onPlay]
   );

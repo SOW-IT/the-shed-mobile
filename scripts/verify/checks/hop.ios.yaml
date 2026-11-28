@@ -42,6 +42,16 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     notVisible: "Leave this game?"
     timeout: 10000
+# Leave that run, so the link below opens a new game screen at its start card.
+- tapOn: "Back to the games"
+- extendedWaitUntil:
+    visible: "Leave this game?"
+    timeout: 10000
+- tapOn: "Leave game"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 20000
 # A run that plays itself to 400 and falls off.
 - openLink: "theshedmobile://games/hop?autoplay=400"
 - extendedWaitUntil:
