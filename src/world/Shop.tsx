@@ -254,9 +254,41 @@ export const ShopPanel = ({
                 </Pressable>
               </Animated.View>
             ))}
-            <Animated.View style={[styles.full, itemStyle(overlay, 2 + CROP_IDS.length)]}>
+          </SharpScrollView>
+        ) : tab === "animals" ? (
+          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
+            {ANIMAL_IDS.map((id, i) => {
+              const { room, note } = stock(id);
+              const price = ANIMALS[id].price;
+              const off = busy || pens === undefined || !room || balance < price;
+              return (
+                <Animated.View key={id} style={[styles.stack, itemStyle(overlay, 2 + i)]} testID={`world-shop-animal-${id}`}>
+                  <AnimalThumb kind={id} stage={0} size={40} />
+                  <View style={styles.feedText}>
+                    <Text style={styles.stackName} numberOfLines={1}>
+                      {ANIMALS[id].label}
+                    </Text>
+                    <Text style={styles.stockText} numberOfLines={1}>
+                      {note}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => pickAnimal(id)}
+                    disabled={off}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Buy a ${ANIMALS[id].stages[0].toLowerCase()} for ${price} coins`}
+                    testID={`world-shop-animal-${id}-buy`}
+                    style={({ pressed }) => [styles.animalBuy, off && styles.buyOff, pressed && styles.pressed]}
+                  >
+                    <GoldCoin size={16} />
+                    <Text style={styles.plusText}>{price}</Text>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
+            <Animated.View style={[styles.full, itemStyle(overlay, 2 + ANIMAL_IDS.length)]}>
               <Text style={styles.section} accessibilityRole="header">
-                Feed
+                Feed and name tags
               </Text>
             </Animated.View>
             {FEED_IDS.map((id) => (
@@ -304,45 +336,8 @@ export const ShopPanel = ({
                 <Text style={styles.plusText}>+1</Text>
               </Pressable>
             </View>
-            {error && !choice ? (
-              <Text style={[styles.error, styles.full]} numberOfLines={2}>
-                {error}
-              </Text>
-            ) : null}
-          </SharpScrollView>
-        ) : tab === "animals" ? (
-          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
-            {ANIMAL_IDS.map((id, i) => {
-              const { room, note } = stock(id);
-              const price = ANIMALS[id].price;
-              const off = busy || pens === undefined || !room || balance < price;
-              return (
-                <Animated.View key={id} style={[styles.stack, itemStyle(overlay, 2 + i)]} testID={`world-shop-animal-${id}`}>
-                  <AnimalThumb kind={id} stage={0} size={40} />
-                  <View style={styles.feedText}>
-                    <Text style={styles.stackName} numberOfLines={1}>
-                      {ANIMALS[id].label}
-                    </Text>
-                    <Text style={styles.stockText} numberOfLines={1}>
-                      {note}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => pickAnimal(id)}
-                    disabled={off}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Buy a ${ANIMALS[id].stages[0].toLowerCase()} for ${price} coins`}
-                    testID={`world-shop-animal-${id}-buy`}
-                    style={({ pressed }) => [styles.animalBuy, off && styles.buyOff, pressed && styles.pressed]}
-                  >
-                    <GoldCoin size={16} />
-                    <Text style={styles.plusText}>{price}</Text>
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
             {error && !naming.open ? (
-              <Text style={[styles.error, styles.full]} numberOfLines={2}>
+              <Text style={styles.listError} numberOfLines={2}>
                 {error}
               </Text>
             ) : null}
@@ -591,6 +586,8 @@ const styles = StyleSheet.create({
   buyBar: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: glass.edge },
   buyName: { color: glass.text, fontFamily: fonts.display, fontSize: 16, flexShrink: 1 },
   error: { color: glass.error, fontSize: 12, flex: 1 },
+  // In a column, flex: 1 can squash a line to nothing on iOS, so the Animals and feed tab's error doesn't flex.
+  listError: { color: glass.error, fontSize: 12.5, textAlign: "center" },
   buy: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: hud.accent },
   buyOff: { opacity: 0.45 },
   buyText: { color: hud.onAccent, fontWeight: "800", fontSize: 15 },

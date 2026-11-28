@@ -45,6 +45,7 @@ export const ChatBar = ({
   onNote,
   savedDraft,
   keepDraft,
+  onFocusChat,
 }: {
   keyboardOpen: boolean;
   tray: boolean;
@@ -57,6 +58,8 @@ export const ChatBar = ({
   onNote: (note: string) => void;
   savedDraft: () => string;
   keepDraft: (text: string, onlyIfEmpty?: boolean) => void;
+  /** The chat box took focus, which on a phone brings up the keyboard (web doesn't report that keyboard). */
+  onFocusChat?: () => void;
 }) => {
   const [draft, setDraftState] = useState(savedDraft);
   const setDraft = (text: string) => {
@@ -139,6 +142,7 @@ export const ChatBar = ({
           onChangeText={editDraft}
           onFocus={() => {
             onTray(false);
+            onFocusChat?.();
             if (draft.trim()) markTyping(true);
           }}
           onBlur={() => markTyping(false)}
