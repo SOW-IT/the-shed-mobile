@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builds a day of two passages from the lists (Genesis 1-3 and Psalm 1),
-// saves it, opens it again, runs Genesis on into Exodus, takes a typed chapter, checks a change over the 120-character limit is
+// saves it, opens it again, runs Genesis on into Exodus, takes a typed chapter,
+// clears a typed reference the lists can't read, checks a change over the 120-character limit is
 // refused, and checks a saved one-chapter day still shows one row the way it
 // did before.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -135,6 +136,15 @@ try {
   await page.screenshot({ path: `${OUT}/multi-too-long-refused.png`, fullPage: true });
   await page.getByTestId("devotional-passage-remove-5").click();
   await expectCount("devotional-passage-too-long", 0, "after removing a row");
+
+  // A typed reference the lists can't read clears with the × and goes back to the lists.
+  await page.getByTestId("devotional-passage-type").click();
+  await page.getByTestId("devotional-passage-input").fill("Hezekiah 3");
+  await expectCount("devotional-passage-use-lists", 0, "a reference the lists can't read");
+  await page.screenshot({ path: `${OUT}/typed-unknown-book.png`, fullPage: true });
+  await page.getByTestId("devotional-passage-clear").click();
+  await page.getByTestId("devotional-passage-book").waitFor();
+  await expectCount("devotional-passage-input", 0, "after clearing");
 
   // A saved one-chapter day looks as it always did: one row, no headings.
   await page.goto(`${BASE}/devotionals/${seed.devotionalDate}`);

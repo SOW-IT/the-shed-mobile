@@ -440,29 +440,47 @@ export const PassagePicker = ({
     const valid = passage.trim().length > 0 && parseBibleReference(passage).ok;
     return (
       <View style={styles.wrap}>
-        <TextInput
-          value={passage}
-          onChangeText={(value) => {
-            setTypingChosen(true);
-            onChange(value);
-          }}
-          placeholder="Psalm 23 or John 15:1-17"
-          placeholderTextColor={t.faint}
-          maxLength={MAX_PASSAGE_LENGTH}
-          autoCorrect={false}
-          editable={editable}
-          accessibilityLabel="Passage reference"
-          testID="devotional-passage-input"
-          style={[
-            styles.typed,
-            typography.body,
-            {
-              color: t.text,
-              backgroundColor: t.inputBackground,
-              borderColor: invalid ? t.danger : t.border,
-            },
-          ]}
-        />
+        <View>
+          <TextInput
+            value={passage}
+            onChangeText={(value) => {
+              setTypingChosen(true);
+              onChange(value);
+            }}
+            placeholder="Psalm 23 or John 15:1-17"
+            placeholderTextColor={t.faint}
+            maxLength={MAX_PASSAGE_LENGTH}
+            autoCorrect={false}
+            editable={editable}
+            accessibilityLabel="Passage reference"
+            testID="devotional-passage-input"
+            style={[
+              styles.typed,
+              typography.body,
+              {
+                color: t.text,
+                backgroundColor: t.inputBackground,
+                borderColor: invalid ? t.danger : t.border,
+              },
+              editable && passage ? styles.typedClearable : null,
+            ]}
+          />
+          {editable && passage ? (
+            <Pressable
+              onPress={() => {
+                setTypingChosen(false);
+                onChange("");
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear the passage"
+              accessibilityHint="Goes back to choosing from lists"
+              testID="devotional-passage-clear"
+              style={({ pressed }) => [styles.clear, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="close-circle" size={20} color={t.faint} />
+            </Pressable>
+          ) : null}
+        </View>
         {canUseLists ? (
           <Pressable
             onPress={() => setTypingChosen(false)}
@@ -693,6 +711,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
   },
+  typedClearable: { paddingRight: 44 },
+  clear: { position: "absolute", right: 0, top: 0, bottom: 0, width: 44, alignItems: "center", justifyContent: "center" },
   laterRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, marginTop: spacing.xs },
   rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   rowTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1, minWidth: 0 },
