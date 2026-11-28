@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Builds a day of two passages from the lists (Genesis 1-3 and Psalm 1),
-// saves it, opens it again, runs Genesis on into Exodus, checks a change over the 120-character limit is
+// saves it, opens it again, runs Genesis on into Exodus, takes a typed chapter, checks a change over the 120-character limit is
 // refused, and checks a saved one-chapter day still shows one row the way it
 // did before.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -95,6 +95,18 @@ try {
   await page.getByTestId("passage-chapter-3").click();
   await sheetClosed();
   await expectText("devotional-passage-display", "Genesis 1-3", "back to Genesis 1-3");
+
+  // A long list (Genesis has 50 chapters) takes a typed number too.
+  await page.getByTestId("devotional-passage-to-chapter").click();
+  await page.getByTestId("passage-chapter-jump").fill("12");
+  await page.getByTestId("passage-chapter-jump").press("Enter");
+  await sheetClosed();
+  await expectText("devotional-passage-display", "Genesis 1-12", "a typed last chapter");
+  await page.getByTestId("devotional-passage-to-chapter").click();
+  await page.getByTestId("passage-chapter-jump").fill("3");
+  await page.getByTestId("passage-chapter-jump-go").click();
+  await sheetClosed();
+  await expectText("devotional-passage-display", "Genesis 1-3", "a typed last chapter, by the button");
 
   // A change to a row that would take the passage over 120 characters is
   // refused with a note; changes up to the limit go through.

@@ -24,6 +24,11 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 type Step = "book" | "chapter" | "toChapter" | "from" | "to";
 
+const CELL_MIN = 48;
+const GRID_GAP = spacing.xs + 2;
+/** Grids longer than this get a box to type the number into. */
+const JUMP_AFTER = 30;
+
 const NEW_TESTAMENT_START = BIBLE_BOOKS[OLD_TESTAMENT_BOOKS];
 
 const PickerFace = ({
@@ -92,29 +97,98 @@ const NumberGrid = ({
   range?: boolean;
 }) => {
   const t = useAppTheme();
+  const [width, setWidth] = useState(0);
   const numbers = Array.from({ length: Math.max(to - from + 1, 0) }, (_, i) => from + i);
+  // As many columns as fit, stretched to fill the row so the grid has no ragged right edge.
+  const columns = Math.max(Math.floor((width + GRID_GAP) / (CELL_MIN + GRID_GAP)), 1);
+  const cellWidth = width > 0 ? Math.floor((width - GRID_GAP * (columns - 1)) / columns) : CELL_MIN;
   return (
-    <View style={styles.grid}>
-      {numbers.map((n) => {
-        const on = n === selected;
-        const within = range === true && selected !== null && n < selected;
-        return (
-          <Pressable
-            key={n}
-            onPress={() => onPick(n)}
-            accessibilityRole="button"
-            accessibilityLabel={on ? `${noun} ${n}, selected` : `${noun} ${n}`}
-            testID={`passage-${noun.toLowerCase()}-${n}`}
-            style={({ pressed }) => [
-              styles.cell,
-              { backgroundColor: on ? t.primary : within ? t.primarySoft : t.inputBackground },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[typography.body, styles.cellText, { color: on ? t.onPrimary : t.text }]}>{n}</Text>
-          </Pressable>
-        );
-      })}
+    <View>
+      {numbers.length > JUMP_AFTER ? <NumberJump from={from} to={to} noun={noun} onPick={onPick} /> : null}
+      <View style={styles.grid} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+        {numbers.map((n) => {
+          const on = n === selected;
+          const within = range === true && selected !== null && n < selected;
+          return (
+            <Pressable
+              key={n}
+              onPress={() => onPick(n)}
+              accessibilityRole="button"
+              accessibilityLabel={on ? `${noun} ${n}, selected` : `${noun} ${n}`}
+              testID={`passage-${noun.toLowerCase()}-${n}`}
+              style={({ pressed }) => [
+                styles.cell,
+                { width: cellWidth },
+                { backgroundColor: on ? t.primary : within ? t.primarySoft : t.inputBackground },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[typography.body, styles.cellText, { color: on ? t.onPrimary : t.text }]}>{n}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
+/**
+ * A box to type a chapter or verse number into, above a long grid (Psalms
+ * has 150 chapters, Psalm 119 has 176 verses), so the far end is one entry
+ * away instead of a long scroll.
+ */
+const NumberJump = ({
+  from,
+  to,
+  noun,
+  onPick,
+}: {
+  from: number;
+  to: number;
+  noun: string;
+  onPick: (n: number) => void;
+}) => {
+  const t = useAppTheme();
+  const [text, setText] = useState("");
+  const n = Number(text);
+  const valid = text !== "" && Number.isInteger(n) && n >= from && n <= to;
+  const go = () => {
+    if (valid) onPick(n);
+  };
+  return (
+    <View style={styles.jump}>
+      <TextInput
+        value={text}
+        onChangeText={(value) => setText(value.replace(/[^0-9]/g, ""))}
+        onSubmitEditing={go}
+        placeholder={`Type a ${noun.toLowerCase()}, ${from}–${to}`}
+        placeholderTextColor={t.faint}
+        keyboardType="number-pad"
+        returnKeyType="go"
+        maxLength={3}
+        accessibilityLabel={`${noun} number, ${from} to ${to}`}
+        testID={`passage-${noun.toLowerCase()}-jump`}
+        style={[
+          styles.jumpInput,
+          typography.body,
+          { color: t.text, backgroundColor: t.inputBackground, borderColor: text && !valid ? t.danger : t.border },
+        ]}
+      />
+      <Pressable
+        onPress={go}
+        disabled={!valid}
+        accessibilityRole="button"
+        accessibilityLabel={valid ? `Choose ${noun.toLowerCase()} ${n}` : `Choose ${noun.toLowerCase()}`}
+        accessibilityState={{ disabled: !valid }}
+        testID={`passage-${noun.toLowerCase()}-jump-go`}
+        style={({ pressed }) => [
+          styles.jumpGo,
+          { backgroundColor: valid ? t.primary : t.inputBackground },
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Ionicons name="arrow-forward" size={20} color={valid ? t.onPrimary : t.faint} />
+      </Pressable>
     </View>
   );
 };
@@ -634,15 +708,17 @@ const styles = StyleSheet.create({
   switch: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" },
   switchText: { fontWeight: "700" },
   groupHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs + 2, paddingTop: spacing.xs },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP, paddingTop: spacing.xs },
   cell: {
-    width: 48,
     height: 44,
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   cellText: { fontWeight: "600" },
+  jump: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.sm },
+  jumpInput: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, minHeight: 44 },
+  jumpGo: { width: 48, minHeight: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   runOn: {
     flexDirection: "row",
     alignItems: "center",
