@@ -15,7 +15,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { useMutation, useQuery } from "convex/react";
 import { ReactNode, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { inviteeList } from "./inviteeList";
@@ -54,12 +54,26 @@ const SelectableRow = ({
   onToggle: () => void;
 }) => {
   const t = useAppTheme();
+  // react-native-web presses on Space only for buttons, so a checkbox row
+  // needs its own: one toggle, and no page scroll.
+  const spaceToggles =
+    Platform.OS === "web"
+      ? ({
+          onKeyDown: (e: { key: string; repeat?: boolean; preventDefault: () => void }) => {
+            if (e.key !== " " && e.key !== "Spacebar") return;
+            e.preventDefault();
+            if (!disabled && !e.repeat) onToggle();
+          },
+        } as object)
+      : {};
   return (
     <Pressable
+      {...spaceToggles}
       onPress={onToggle}
       disabled={disabled}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected, disabled }}
+      aria-checked={selected}
+      aria-disabled={disabled}
       accessibilityLabel={`Invite ${person.name}`}
       testID={`invite-person-${person.email}`}
       style={({ pressed }) => [pressed && { opacity: 0.7 }]}
