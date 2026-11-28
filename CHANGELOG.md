@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.75] - 2026-11-28
+
+### Fixed
+- **The staging app stops showing "Could not find public function" after a
+  release.** The staging app talks to the dev backend, and nothing updated
+  the dev backend when a change reached `main`, so a new staging build could
+  ask for things dev didn't have yet (the café mahjong tables showed
+  "Could not find public function for 'mahjong:mine'"). Each merge to `main`
+  now deploys the backend to dev as well as prod. Nothing changes in the app
+  itself.
+
 ## [2.13.72] - 2026-11-28
 
 ### Fixed
