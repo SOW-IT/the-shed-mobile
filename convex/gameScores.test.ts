@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
-import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type ScoreGameId } from "../shared/games";
+import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
 import { boardOf, PAYOUT_MIN_ENTRIES } from "../shared/coins";
 import type { Beaten } from "../shared/leaderboard";
 import { lookFor, withHeight } from "../shared/world";
@@ -13,7 +13,7 @@ const CARA = "cara@sow.org.au";
 const DAN = "dan@sow.org.au";
 const EVE = "eve@sow.org.au";
 
-const run = (runId: string, score: number, game: ScoreGameId = "runner") => ({
+const run = (runId: string, score: number, game: GameId = "runner") => ({
   runId,
   game,
   score,
@@ -26,7 +26,7 @@ const bests = (t: T) =>
     (await ctx.db.query("gameScores").collect()).map((row) => [row.email, row.game, row.score, row.runId])
   );
 
-const v2 = (runId: string, score: number, game: ScoreGameId = "runner") => ({ ...run(runId, score, game), version: 2 });
+const v2 = (runId: string, score: number, game: GameId = "runner") => ({ ...run(runId, score, game), version: 2 });
 
 const player = (i: number) => `player${i}@sow.org.au`;
 

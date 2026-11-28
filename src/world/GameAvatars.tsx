@@ -52,6 +52,29 @@ export const CheeringCharacter = memo(function CheeringCharacter({ look, width, 
   return <Figure look={look} width={width} height={height} heading={0} doing={CHEER} />;
 });
 
+/** Hop's turn: three-quarters to the side you're steering, so it reads from behind or in front. */
+const HOP_HEADING = 0.95;
+
+/**
+ * Hop's character: the whole figure, turned to the side it's steering, with
+ * its arms up while a boost carries it. Whoever draws it squashes it.
+ */
+export const HopperCharacter = memo(function HopperCharacter({
+  look,
+  width,
+  height,
+  facing,
+  boosting,
+}: {
+  look: Look;
+  width: number;
+  height: number;
+  facing: -1 | 1;
+  boosting: boolean;
+}) {
+  return <Figure look={look} width={width} height={height} heading={facing * HOP_HEADING} doing={boosting ? CHEER : undefined} />;
+});
+
 export const RunnerCharacter = memo(function RunnerCharacter({
   look,
   width,

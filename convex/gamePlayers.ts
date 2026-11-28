@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS, SCORE_GAME_IDS } from "../shared/games";
+import { PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS, GAME_IDS } from "../shared/games";
 import { withHeight } from "../shared/world";
 import { gameIdValidator } from "./gameScoreData";
 import { nameFor } from "./gameScores";
@@ -99,7 +99,7 @@ export const nowPlaying = query({
     if (!email) return [];
     const isBlocked = await loadBlockFilter(ctx, email);
     const result = [];
-    for (const game of SCORE_GAME_IDS) {
+    for (const game of GAME_IDS) {
       // Newest first, reading on past rows the viewer can't see, so a run of
       // them never hides someone older; bounded by PLAYING_READ_LIMIT.
       const others = [];

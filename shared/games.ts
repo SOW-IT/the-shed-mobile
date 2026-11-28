@@ -1,24 +1,13 @@
 // The offline mini-games' ids, score limits and the queue of scores waiting
 // to go on the leaderboard. The app and the backend both read these, so a
 // score the app saves is one the server accepts.
-export const GAME_IDS = ["shooter", "runner", "flappy", "glider"] as const;
+export const GAME_IDS = ["shooter", "runner", "flappy", "glider", "hop"] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
 export const isGameId = (value: string): value is GameId =>
   (GAME_IDS as readonly string[]).includes(value);
 
-/**
- * Every game the backend keeps scores and players for: the games above, and
- * Hop, whose backend goes out before the game (2.14.0) so the game works the
- * moment it reaches a phone. Nothing on screen reads this list.
- */
-export const SCORE_GAME_IDS = [...GAME_IDS, "hop"] as const;
-export type ScoreGameId = (typeof SCORE_GAME_IDS)[number];
-
-const isScoreGameId = (value: string): value is ScoreGameId =>
-  (SCORE_GAME_IDS as readonly string[]).includes(value);
-
-export const GAME_INFO: Record<ScoreGameId, { title: string; blurb: string }> = {
+export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   shooter: {
     title: "Sky Shooter",
     blurb: "Drag to fly. Your plane fires on its own. Dodge everything.",
@@ -45,7 +34,7 @@ export const GAME_VERSIONS = [1, 2, 3] as const;
 export type GameVersion = (typeof GAME_VERSIONS)[number];
 
 /** Current playable version for each mini-game (Swoop moved to v3; others stay on v2). */
-export const CURRENT_GAME_VERSION: Record<ScoreGameId, GameVersion> = {
+export const CURRENT_GAME_VERSION: Record<GameId, GameVersion> = {
   shooter: 2,
   runner: 2,
   flappy: 2,
@@ -57,7 +46,7 @@ export const CURRENT_GAME_VERSION: Record<ScoreGameId, GameVersion> = {
  * Leaderboard tabs shown for each game: current version first, previous
  * legacy board second. Hop came after v1, so it has no legacy board.
  */
-export const BOARD_VERSIONS: Record<ScoreGameId, readonly GameVersion[]> = {
+export const BOARD_VERSIONS: Record<GameId, readonly GameVersion[]> = {
   shooter: [2, 1],
   runner: [2, 1],
   flappy: [2, 1],
@@ -68,7 +57,7 @@ export const BOARD_VERSIONS: Record<ScoreGameId, readonly GameVersion[]> = {
 export const isGameVersion = (value: unknown): value is GameVersion =>
   (GAME_VERSIONS as readonly unknown[]).includes(value);
 
-export const versionLabel = (game: ScoreGameId, version: GameVersion): string =>
+export const versionLabel = (game: GameId, version: GameVersion): string =>
   version === CURRENT_GAME_VERSION[game] ? `v${version}` : `v${version} (legacy)`;
 
 export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
@@ -78,7 +67,7 @@ export const versionOf = (version: GameVersion | undefined): GameVersion => vers
  * and the most a run can score at all. The server turns away a score above
  * either, so a typo'd or tampered score can't top the leaderboard.
  */
-export const SCORE_LIMITS: Record<GameVersion, Record<ScoreGameId, { perSecond: number; max: number }>> = {
+export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: number; max: number }>> = {
   1: {
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 200, max: 2_000_000 },
@@ -117,7 +106,7 @@ export const SCORE_LIMITS: Record<GameVersion, Record<ScoreGameId, { perSecond: 
  * published, and a best a phone saved before it no longer counts, so old
  * scores don't come back from phones that were offline at the time.
  */
-export const SCORES_RESET_AT: Partial<Record<ScoreGameId, number>> = {
+export const SCORES_RESET_AT: Partial<Record<GameId, number>> = {
   // 2.12.17: Mystic Man got faster, so the old scores were cleared.
   runner: 1_795_429_500_000,
 };
@@ -146,7 +135,7 @@ export type QueuedScore = {
 type Submitted = Omit<QueuedScore, "account">;
 
 /** A run as the server checks it, which may be Hop's before the app has it. */
-type ScoreEntry = Omit<QueuedScore, "game"> & { game: ScoreGameId };
+type ScoreEntry = Omit<QueuedScore, "game"> & { game: GameId };
 
 const sameOwner = (a: QueuedScore, b: QueuedScore) => (a.account ?? null) === (b.account ?? null);
 
@@ -156,7 +145,7 @@ export const submittableFor = (queue: readonly QueuedScore[], account: string): 
 /** Why a score can't go on the leaderboard, or null when it can. */
 export const scoreProblem = (entry: ScoreEntry, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
-  if (!isScoreGameId(entry.game)) return "That isn't one of the games.";
+  if (!isGameId(entry.game)) return "That isn't one of the games.";
   if (entry.version !== undefined && (!isGameVersion(entry.version) || entry.version > CURRENT_GAME_VERSION[entry.game])) {
     return "That isn't a version of the game.";
   }
@@ -230,7 +219,7 @@ export const parseQueue = (saved: string): QueuedScore[] => {
 
 export type LocalBests = Record<GameId, number>;
 
-export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0 };
+export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0, hop: 0 };
 
 /**
  * Saves bests with the reset and version each was made under, so a later reset
@@ -259,7 +248,7 @@ export const parseBests = (saved: string): LocalBests => {
       if (savedVersion !== CURRENT_GAME_VERSION[game]) return 0;
       return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
     };
-    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider") };
+    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider"), hop: best("hop") };
   } catch {
     return { ...NO_BESTS };
   }

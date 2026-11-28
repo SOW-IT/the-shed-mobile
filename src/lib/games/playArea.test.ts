@@ -34,6 +34,7 @@ const BORDERED: Record<GameId, readonly string[]> = {
   shooter: ["iPad portrait", "desktop"],
   runner: [],
   glider: ["tall Android"],
+  hop: ["iPhone SE", "iPad portrait", "desktop"],
 };
 
 describe("each game shows the same distance ahead on every screen, only bigger or smaller", () => {

@@ -4,7 +4,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { PLAYING_BEAT_MS, type GameId, type ScoreGameId } from "../../../shared/games";
+import { PLAYING_BEAT_MS, type GameId } from "../../../shared/games";
 
 const useForeground = () => {
   // "inactive" on iOS is the app switcher or Notification Center: not in front.
@@ -50,7 +50,7 @@ export const useNowPlaying = () => {
   const { isAuthenticated } = useConvexAuth();
   const offline = useOffline();
   const rows = useQuery(api.gamePlayers.nowPlaying, isAuthenticated && !offline ? {} : "skip");
-  const byGame: Partial<Record<ScoreGameId, NowPlaying>> = {};
+  const byGame: Partial<Record<GameId, NowPlaying>> = {};
   for (const row of rows ?? []) byGame[row.game] = row;
   return byGame;
 };

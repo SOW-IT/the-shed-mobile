@@ -1,5 +1,5 @@
 import { ordinal, PLACE_COINS } from "./coins";
-import { GAME_INFO, type ScoreGameId } from "./games";
+import { GAME_INFO, type GameId } from "./games";
 
 const TOP_PLACES = PLACE_COINS.length;
 
@@ -17,7 +17,7 @@ export const beatenInTop = (
     return place <= TOP_PLACES ? [{ email: row.email, place: place + 1 }] : [];
   });
 
-export const beatenPush = (name: string, game: ScoreGameId, place: number) => ({
+export const beatenPush = (name: string, game: GameId, place: number) => ({
   title: `${name} just beat you in ${GAME_INFO[game].title}`,
   body: place <= TOP_PLACES ? `You're now ${ordinal(place)}` : `You're out of the top ${TOP_PLACES}`,
   url: `/games/leaderboard?game=${game}`,

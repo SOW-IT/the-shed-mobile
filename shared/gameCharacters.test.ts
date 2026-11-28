@@ -13,23 +13,31 @@ const MINE: Look = { skin: 2, hair: 3, hairColour: 1, shirt: 4, hat: 2 };
 
 describe("saved character choices", () => {
   test("default to your own character in every game", () => {
-    expect(DEFAULT_CHARACTERS).toEqual({ runner: "mine", flappy: "mine", glider: "mine" });
+    expect(DEFAULT_CHARACTERS).toEqual({ runner: "mine", flappy: "mine", glider: "mine", hop: "mine" });
     expect(parseCharacters("")).toEqual(DEFAULT_CHARACTERS);
   });
 
   test("read back what was saved for each game", () => {
-    const saved = JSON.stringify({ runner: "sij", flappy: "original", glider: "sij" } satisfies CharacterChoices);
-    expect(parseCharacters(saved)).toEqual({ runner: "sij", flappy: "original", glider: "sij" });
+    const saved = JSON.stringify({ runner: "sij", flappy: "original", glider: "sij", hop: "original" } satisfies CharacterChoices);
+    expect(parseCharacters(saved)).toEqual({ runner: "sij", flappy: "original", glider: "sij", hop: "original" });
   });
 
   test("keep the default for a game with nothing usable saved", () => {
     expect(parseCharacters(JSON.stringify({ runner: "wizard", flappy: 3 }))).toEqual(DEFAULT_CHARACTERS);
-    expect(parseCharacters(JSON.stringify({ flappy: "sij" }))).toEqual({ runner: "mine", flappy: "sij", glider: "mine" });
+    expect(parseCharacters(JSON.stringify({ flappy: "sij" }))).toEqual({ runner: "mine", flappy: "sij", glider: "mine", hop: "mine" });
     // Saved before Swoop had a character: it starts on your own.
     expect(parseCharacters(JSON.stringify({ runner: "sij", flappy: "original" }))).toEqual({
       runner: "sij",
       flappy: "original",
       glider: "mine",
+      hop: "mine",
+    });
+    // Saved before Hop came: Hop starts on your own, and the rest are kept.
+    expect(parseCharacters(JSON.stringify({ runner: "original", flappy: "sij", glider: "original" }))).toEqual({
+      runner: "original",
+      flappy: "sij",
+      glider: "original",
+      hop: "mine",
     });
     expect(parseCharacters("null")).toEqual(DEFAULT_CHARACTERS);
     expect(parseCharacters("[1,2]")).toEqual(DEFAULT_CHARACTERS);
@@ -38,7 +46,7 @@ describe("saved character choices", () => {
 
   test("a choice for one game leaves the others alone and survives a save and load", () => {
     const next = withCharacter(DEFAULT_CHARACTERS, "flappy", "sij");
-    expect(next).toEqual({ runner: "mine", flappy: "sij", glider: "mine" });
+    expect(next).toEqual({ runner: "mine", flappy: "sij", glider: "mine", hop: "mine" });
     expect(parseCharacters(JSON.stringify(next))).toEqual(next);
   });
 
@@ -46,10 +54,11 @@ describe("saved character choices", () => {
     expect(withCharacter(DEFAULT_CHARACTERS, "runner", "mine")).toBe(DEFAULT_CHARACTERS);
   });
 
-  test("only Mystic Man, Flap and Swoop have a character to choose", () => {
+  test("only Mystic Man, Flap, Swoop and Hop have a character to choose", () => {
     expect(isCharacterGame("runner")).toBe(true);
     expect(isCharacterGame("flappy")).toBe(true);
     expect(isCharacterGame("glider")).toBe(true);
+    expect(isCharacterGame("hop")).toBe(true);
     expect(isCharacterGame("shooter")).toBe(false);
   });
 });

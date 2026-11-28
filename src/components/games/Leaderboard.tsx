@@ -28,10 +28,10 @@ import {
 const PAGE_SIZE = 25;
 
 /**
- * The tabs share a phone's width four ways, where "Sky Shooter" doesn't
- * fit; its page's Play button still says the whole name.
+ * The tabs share a phone's width five ways, where "Sky Shooter" and
+ * "Mystic Man" don't fit; their pages' Play buttons still say the whole name.
  */
-const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
+const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter", runner: "Mystic" };
 
 const versionSegments = (game: GameId) =>
   BOARD_VERSIONS[game].map((version) => ({
@@ -126,15 +126,17 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
-      <Segmented
-        pill
-        segments={versionSegments(game)}
-        active={String(version)}
-        onChange={(key) => {
-          const picked = BOARD_VERSIONS[game].find((v) => String(v) === key);
-          setVersion(picked ?? CURRENT_GAME_VERSION[game]);
-        }}
-      />
+      {BOARD_VERSIONS[game].length > 1 ? (
+        <Segmented
+          pill
+          segments={versionSegments(game)}
+          active={String(version)}
+          onChange={(key) => {
+            const picked = BOARD_VERSIONS[game].find((v) => String(v) === key);
+            setVersion(picked ?? CURRENT_GAME_VERSION[game]);
+          }}
+        />
+      ) : null}
       {/* Signed out, nothing else says why your scores aren't on the board. */}
       {!isAuthenticated && !isLoading ? (
         <View style={[styles.device, { backgroundColor: t.primarySoft }]}>
@@ -174,7 +176,8 @@ export const Leaderboard = ({
       GAME_IDS.map((id) => ({
         key: id,
         label: TAB_LABELS[id] ?? GAME_INFO[id].title,
-        render: () => <GamePage game={id} onPlay={onPlay} />,
+        // Its own page per game, so a version chosen on one isn't carried to the next.
+        render: () => <GamePage key={id} game={id} onPlay={onPlay} />,
       })),
     [onPlay]
   );

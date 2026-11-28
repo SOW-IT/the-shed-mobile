@@ -880,12 +880,13 @@ describe("extra obstacles", () => {
   });
 });
 
-test("Sijin is bald, with a short beard, a big grin and the Flannel", () => {
+test("Sijin wears the World look saved in production: bald, stubble, a flat mouth, a party hat and a T-shirt", () => {
   expect(isValidLook(NPC.look)).toBe(true);
   expect(HAIR_STYLES[NPC.look.hair]).toBe("Bald");
-  expect(BEARDS[NPC.look.beard]).toBe("Short beard");
-  expect(MOUTHS[NPC.look.mouth]).toBe("Grin");
-  expect(OUTFITS[NPC.look.outfit]).toBe("Flannel");
+  expect(BEARDS[NPC.look.beard]).toBe("Stubble");
+  expect(MOUTHS[NPC.look.mouth]).toBe("Flat");
+  expect(HATS[NPC.look.hat]).toBe("Party hat");
+  expect(OUTFITS[NPC.look.outfit]).toBe("T-shirt");
 });
 
 test("a background colour is optional, defaults to the first, and must be one of the choices", () => {

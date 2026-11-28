@@ -16,7 +16,6 @@ import {
   parseQueue,
   removeSettled,
   runsOf,
-  SCORE_GAME_IDS,
   SCORE_LIMITS,
   SCORES_RESET_AT,
   scoreProblem,
@@ -44,8 +43,8 @@ const entry = (overrides: Partial<QueuedScore> = {}): QueuedScore => ({
 });
 
 describe("isGameId", () => {
-  test("knows the four games", () => {
-    expect(["shooter", "runner", "flappy", "glider", "snake"].map(isGameId)).toEqual([true, true, true, true, false]);
+  test("knows the five games", () => {
+    expect(["shooter", "runner", "flappy", "glider", "hop", "snake"].map(isGameId)).toEqual([true, true, true, true, true, false]);
   });
 });
 
@@ -53,6 +52,12 @@ describe("scoreProblem", () => {
   test("accepts a believable run", () => {
     expect(scoreProblem(entry(), NOW)).toBeNull();
     expect(scoreProblem(entry({ playedAt: NOW + CLOCK_SKEW_MS }), NOW)).toBeNull();
+  });
+
+  test("takes a Hop run climbing as fast as a spring launches you, the whole way", () => {
+    // 653 points a second is the fastest Hop can climb (src/lib/games/hop.test.ts).
+    expect(scoreProblem(entry({ game: "hop", score: 653 * 60, durationMs: 60_000 }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ game: "hop", score: 14_000_000, durationMs: MAX_RUN_MS }), NOW)).toBeNull();
   });
 
   test.each<[string, Partial<QueuedScore>, RegExp]>([
@@ -68,6 +73,9 @@ describe("scoreProblem", () => {
     ["too many points for the time", { score: 50_000, durationMs: 10_000 }, /too high/],
     ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS[2].glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
     ["a Swoop score too fast for its run", { game: "glider", score: 25_000, durationMs: 10_000 }, /too high/],
+    ["a Hop score over its cap", { game: "hop", score: SCORE_LIMITS[2].hop.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
+    ["a Hop score too fast for its run", { game: "hop", score: 8_000, durationMs: 10_000 }, /too high/],
+    ["a Hop score from before Hop had a v1", { game: "hop", version: undefined, score: 500, durationMs: 60_000 }, /over the game's limit/],
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],
@@ -103,17 +111,19 @@ describe("versions", () => {
     expect(scoreProblem(entry({ game: "runner", version: 3 }), NOW)).toMatch(/isn't a version/);
   });
 
-  test("the server takes Hop's v2 scores before the app has Hop, and nothing on screen lists it", () => {
-    expect(GAME_IDS).not.toContain("hop");
-    expect(SCORE_GAME_IDS).toEqual([...GAME_IDS, "hop"]);
-    expect(isGameId("hop")).toBe(false);
+  test("Hop is on v2 with no legacy board, and takes no v1 or v3 score", () => {
+    expect(GAME_IDS).toContain("hop");
+    expect(isGameId("hop")).toBe(true);
+    expect(CURRENT_GAME_VERSION.hop).toBe(2);
     expect(BOARD_VERSIONS.hop).toEqual([2]);
     expect(versionLabel("hop", 2)).toBe("v2");
-    expect(scoreProblem({ ...entry(), game: "hop", score: 900 }, NOW)).toBeNull();
-    expect(scoreProblem({ ...entry(), game: "hop", version: 1, score: 900 }, NOW)).toMatch(/over the game's limit/);
-    expect(scoreProblem({ ...entry(), game: "hop", version: 3, score: 900 }, NOW)).toMatch(/isn't a version/);
-    // A phone's saved queue or bests can't hold a Hop run until the app has Hop.
-    expect(parseQueue(JSON.stringify([{ ...entry(), game: "hop" }]))).toEqual([]);
+    expect(scoreProblem(entry({ game: "hop", version: 2, score: 900 }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ game: "hop", version: 1, score: 900 }), NOW)).toMatch(/over the game's limit/);
+    expect(scoreProblem(entry({ game: "hop", version: 3, score: 900 }), NOW)).toMatch(/isn't a version/);
+    expect(SCORE_LIMITS[1].hop.max).toBe(0);
+    expect(SCORE_LIMITS[3].hop.max).toBe(0);
+    // Now the app has Hop, a phone's saved queue keeps a Hop run.
+    expect(parseQueue(JSON.stringify([entry({ game: "hop", version: 2 })]))).toHaveLength(1);
   });
 
   test("a saved queue keeps a run's version and drops one with a version that isn't", () => {
@@ -194,12 +204,15 @@ describe("parseQueue", () => {
 describe("local bests", () => {
   test("parse what was saved, with zero for anything unusable or from an older game version", () => {
     expect(
-      parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321, versions: CURRENT_GAME_VERSION }))
+      parseBests(
+        JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321, hop: 812.9, versions: CURRENT_GAME_VERSION })
+      )
     ).toEqual({
       shooter: 12,
       runner: 0,
       flappy: 0,
       glider: 4321,
+      hop: 812,
     });
     // A saved v2 record without per-game versions keeps v2 games and clears Swoop for v3.
     expect(parseBests(JSON.stringify({ shooter: 12, flappy: 7, glider: 4321 }))).toEqual({
@@ -207,6 +220,7 @@ describe("local bests", () => {
       runner: 0,
       flappy: 7,
       glider: 0,
+      hop: 0,
     });
     expect(parseBests("null")).toEqual(NO_BESTS);
     expect(parseBests("{")).toEqual(NO_BESTS);
@@ -214,8 +228,8 @@ describe("local bests", () => {
 
   test("a best saved before its game was reset no longer counts; others carry over", () => {
     const old = JSON.stringify({ shooter: 50, runner: 900, flappy: 30 });
-    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0 });
-    const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20 };
+    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0, hop: 0 });
+    const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20, hop: 10 };
     expect(parseBests(stringifyBests(saved))).toEqual(saved);
     const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 }, versions: CURRENT_GAME_VERSION });
     expect(parseBests(beforeLastReset)).toEqual({ ...saved, runner: 0 });
