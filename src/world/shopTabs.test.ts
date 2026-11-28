@@ -5,6 +5,9 @@ import { FARM_OFFERS_FROM, KEEPERS, SHOP_TABS } from "./shopTabs";
 test("Sijin sells furniture and wallpaper only, and Josh everything for the farm, animals too", () => {
   expect(SHOP_TABS.sijin.map((tab) => tab.id)).toEqual(["furniture", "wallpaper"]);
   expect(SHOP_TABS.josh.map((tab) => tab.id)).toEqual(["seeds", "animals", "sell"]);
+  // Buying animals and buying their feed (and name tags) sit together on one tab.
+  expect(SHOP_TABS.josh.find((tab) => tab.id === "animals")?.label).toBe("Animals and feed");
+  expect(SHOP_TABS.josh.find((tab) => tab.id === "seeds")?.label).toBe("Seeds");
   expect(KEEPERS.sijin).toBe(NPC);
   expect(KEEPERS.josh.name).toBe("Josh Kim");
 });

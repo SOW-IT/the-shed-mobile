@@ -40,6 +40,7 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type GardenFarm, type GardenYard } from "./Garden";
 import { tripTarget, type InteractivePropId } from "./tripTarget";
+import { BackyardGuide } from "./BackyardGuide";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
 import { CropThumb, GainChip, PlotCard, type FarmCardData } from "./Farm";
 import { AnimalThumb } from "./Animals";
@@ -285,6 +286,7 @@ export const WorldScreen = ({
   const [penSheet, setPenSheet] = useState<BuildingId | null>(null);
   const [leftIds, setLeftIds] = useState<ReadonlySet<string>>(new Set());
   const [bagOpen, setBagOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [pickPlot, setPickPlot] = useState<number | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
@@ -509,6 +511,11 @@ export const WorldScreen = ({
   const pickInMyDuel = (pick: DuelPick) => {
     if (myDuel) void world.pickInDuel(myDuel.id, myDuel.round, pick).then((problem) => problem && setNote(problem));
   };
+  // A duel's card needs the room above the chat bar, and its picks are timed,
+  // so How to farm puts itself away when one starts and stays shut during it.
+  if (myDuel && guideOpen) setGuideOpen(false);
+  // It goes away with the keyboard and when you leave the backyard, and doesn't come back on its own.
+  if (guideOpen && (keyboard.open || !inBackyard)) setGuideOpen(false);
   const duelProps = {
     duel: myDuel,
     side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
@@ -669,6 +676,7 @@ export const WorldScreen = ({
     setCollecting(null);
     setPlotCard(null);
     setPickPlot(null);
+    setGuideOpen(false);
     setOfferOpen(false);
     setApproach(null);
     setPropTrip(null);
@@ -1011,6 +1019,8 @@ export const WorldScreen = ({
   });
   const tapPlot = (plot: number) => {
     if (!farmView) return;
+    // How to farm makes way for the plot, pen or animal you tap.
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1162,6 +1172,7 @@ export const WorldScreen = ({
   const tapAnimal = (id: string) => {
     const animal = animalOn(id);
     if (!animal || !yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1214,6 +1225,7 @@ export const WorldScreen = ({
   }, [yardCard]);
   const tapBuilding = (kind: BuildingId) => {
     if (!yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setTray(false);
     setAnimalTrip(null);
@@ -1756,6 +1768,7 @@ export const WorldScreen = ({
         target={world.target}
         onHoldStart={(x, z) => {
           setTray(false);
+          setGuideOpen(false);
           setPerson(null);
           setPlotCard(null);
           setYardCard(null);
@@ -1772,10 +1785,12 @@ export const WorldScreen = ({
           // Tapping yourself opens nothing; it only puts away what was open.
           if (live.current.world.people.some((p) => p.isMe && p.memberId === memberId)) {
             setTray(false);
+            setGuideOpen(false);
             setPerson(null);
             return;
           }
           setTray(false);
+          setGuideOpen(false);
           setPropTrip(null);
           setPlotTrip(null);
           setAnimalTrip(null);
@@ -1980,10 +1995,35 @@ export const WorldScreen = ({
             }}
           />
         ) : null}
+        {inBackyard && !keyboard.open ? (
+          <>
+            <BackyardGuide
+              open={guideOpen}
+              // Below the chat lines, above the (i) and the chat bar, with the column's gaps.
+              room={screen.height - logBottom - GUIDE_GAP - (Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + GUIDE_BUTTON + 2 * GUIDE_GAP)}
+              onClose={() => setGuideOpen(false)}
+            />
+            <View style={styles.decorateRow} pointerEvents="box-none">
+              <RoundButton
+                icon={guideOpen ? "close" : "information-circle-outline"}
+                label={guideOpen ? "Close how to farm" : "How to farm"}
+                onPress={() => {
+                  // How to farm and the emote tray take turns, as Decorate and the tray do.
+                  setTray(false);
+                  setGuideOpen((was) => !was && !myDuel);
+                }}
+                testID="world-backyard-guide-open"
+              />
+            </View>
+          </>
+        ) : null}
         <ChatBar
           keyboardOpen={keyboard.open}
           tray={tray}
-          onTray={setTray}
+          onTray={(open) => {
+            setTray(open);
+            if (open) setGuideOpen(false);
+          }}
           onEmote={emote}
           say={world.say}
           typing={world.typing}
@@ -1992,6 +2032,8 @@ export const WorldScreen = ({
           onNote={setNote}
           savedDraft={savedDraft}
           keepDraft={keepDraft}
+          // Typing puts How to farm away, on web too, where the keyboard isn't reported.
+          onFocusChat={() => setGuideOpen(false)}
         />
       </Reanimated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
@@ -2011,6 +2053,8 @@ const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 const SHOP_CHAT_GAP = 14;
+const GUIDE_BUTTON = 44;
+const GUIDE_GAP = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = popShadow();
