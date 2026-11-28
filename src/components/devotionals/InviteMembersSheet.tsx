@@ -28,7 +28,7 @@ const PersonRow = ({ person, children }: { person: Person; children: ReactNode }
     <View style={[styles.personRow, { borderBottomColor: t.separator }]}>
       <Avatar photo={person.photo} name={person.name} size={36} />
       <View style={styles.personInfo}>
-        <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={1}>
+        <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={2}>
           {person.name}
         </Text>
         <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
@@ -71,6 +71,38 @@ const SelectableRow = ({
         />
       </PersonRow>
     </Pressable>
+  );
+};
+
+/** The people picked so far, whatever the search shows; tapping one takes them out. */
+const SelectedTray = ({ people, onRemove }: { people: Person[]; onRemove: (person: Person) => void }) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.tray} testID="invite-selected">
+      {people.map((person) => (
+        <Pressable
+          key={person.email}
+          onPress={() => onRemove(person)}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${person.name}`}
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.trayChip,
+            { backgroundColor: t.primarySoft },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Avatar photo={person.photo} name={person.name} size={24} />
+          <Text
+            style={[typography.caption, styles.trayName, { color: t.dark ? t.text : t.primary }]}
+            numberOfLines={1}
+          >
+            {person.name.split(" ")[0]}
+          </Text>
+          <Ionicons name="close" size={16} color={t.dark ? t.text : t.primary} />
+        </Pressable>
+      ))}
+    </View>
   );
 };
 
@@ -163,6 +195,7 @@ export const InviteMembersSheet = ({
           placeholder="Search people"
           loading={visible && people === undefined}
         />
+        {selected.length > 0 ? <SelectedTray people={selected} onRemove={toggle} /> : null}
         {sent.length > 0 ? (
           <View
             style={[styles.sent, { backgroundColor: t.successSoft }]}
@@ -241,6 +274,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   personInfo: { flex: 1, minWidth: 0, gap: 1 },
+  tray: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  trayChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 36,
+    paddingLeft: 6,
+    paddingRight: 10,
+    borderRadius: radius.full,
+    maxWidth: "100%",
+  },
+  trayName: { fontWeight: "700", flexShrink: 1 },
   sent: {
     flexDirection: "row",
     alignItems: "center",
