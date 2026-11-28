@@ -26,24 +26,12 @@ appId: au.org.sow.theshed
         id: world-title
         text: "(?i).*(chapel|garden).*"
     commands:
+      # Anywhere but the Garden, the menu has a Garden row, and going there
+      # shuts the menu.
+      - runFlow: flows/open-world-menu.yaml
       - tapOn:
-          id: world-title
-      - waitForAnimationToEnd:
-          timeout: 2000
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-garden
-          commands:
-            - tapOn:
-                id: world-menu-garden
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
-            - tapOn:
-                id: world-menu-close
+          id: world-menu-garden
+          waitToSettleTimeoutMs: 2000
       - extendedWaitUntil:
           visible: "Go to The Chapel"
           timeout: 30000
@@ -53,16 +41,24 @@ appId: au.org.sow.theshed
     when:
       visible: "Go to The Chapel"
     commands:
-      - tapOn: "Go to The Chapel"
+      - tapOn:
+          text: "Go to The Chapel"
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible: "Lectern.*"
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: "${OUT}/check-chapel-arrived"
-# A pew: seated, and Devotionals asks.
+# A pew: seated, and Devotionals asks. The pew is a point, so first make
+# sure the World menu isn't up over it.
+- extendedWaitUntil:
+    notVisible:
+      id: world-menu-close
+    timeout: 5000
 - tapOn:
     point: "25%, 61%"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-devotional-dialog
@@ -72,11 +68,14 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-chapel-pew-seated"
 - tapOn:
     id: world-devotional-cancel
+    waitToSettleTimeoutMs: 2000
 - assertVisible:
     id: world-me
     text: "You, sitting"
 # The lectern: behind it, facing the room, and nothing asks yet.
-- tapOn: "Lectern.*"
+- tapOn:
+    text: "Lectern.*"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
@@ -88,7 +87,9 @@ appId: au.org.sow.theshed
 - assertNotVisible:
     id: world-devotional-dialog
 # Again, standing there: Devotionals asks.
-- tapOn: "Lectern.*"
+- tapOn:
+    text: "Lectern.*"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-devotional-dialog
@@ -98,3 +99,4 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-chapel-lectern-again"
 - tapOn:
     id: world-devotional-cancel
+    waitToSettleTimeoutMs: 2000
