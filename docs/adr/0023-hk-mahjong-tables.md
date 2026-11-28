@@ -109,7 +109,7 @@ abandoned (no coins move) if nobody comes back within two minutes.
   for them by the bot's name (`standIn` in the seat view), and their own
   again when they sit back down.
 
-## Follow-ups (2.13.66)
+## Follow-ups (2.13.69)
 
 - A host's rules are kept on their wallet (`worldWallets.mahjongSettings`)
   and used for the next table they open; the claim window defaults to 10 s

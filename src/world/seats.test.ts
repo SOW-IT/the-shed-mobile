@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { PLACE_OBSTACLES, SEATS, type Place } from "../../shared/world";
 import { makeCamera } from "./camera";
-import { seatAt } from "./seats";
+import { homeSeats } from "../../shared/home";
+import { seatAt, seatsTaken } from "./seats";
 
 const cam = makeCamera(402, 700, { x: 0, z: -2.6 });
 const on = (place: Place, id: string, dx: number, y: number) => {
@@ -62,5 +63,26 @@ describe("tapping somewhere to sit", () => {
     expect(tap(-2.2, 0.35, -5)).not.toBeNull();
     const sofa = cam.project([-1.5, 0.35, -5]);
     expect(seatAt("home", cam, sofa.x, sofa.y)).toBeNull();
+  });
+});
+
+describe("the seats other people hold", () => {
+  const seats = homeSeats([{ key: "sofa1", item: "sofa", x: -1.5, z: -5, turn: 0 }]);
+  const [left, right] = seats;
+  const walkTo = (to: { x: number; z: number }) => ({ toX: to.x, toZ: to.z });
+
+  test("a seat someone sits on or walks to is held; standing about holds none", () => {
+    const taken = seatsTaken([{ seat: left.id, walk: walkTo(left) }, { walk: walkTo(right) }], seats);
+    expect([...taken]).toEqual([left.id]);
+  });
+
+  test("once the sofa moves, the seat someone was left sitting on at its old spot is free", () => {
+    const moved = homeSeats([{ key: "sofa1", item: "sofa", x: 1.5, z: -3, turn: 0 }]);
+    expect(seatsTaken([{ seat: left.id, walk: walkTo(left) }], moved).size).toBe(0);
+    expect(seatsTaken([{ seat: left.id, walk: walkTo(moved[0]) }], moved).has(left.id)).toBe(true);
+  });
+
+  test("a seat that's gone, or someone with no walk, holds nothing", () => {
+    expect(seatsTaken([{ seat: "chair9-0", walk: walkTo(left) }, { seat: left.id, walk: null }], seats).size).toBe(0);
   });
 });
