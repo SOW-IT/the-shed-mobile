@@ -4,6 +4,7 @@ import {
   Btn,
   EmptyState,
   ErrorBanner,
+  LoadingState,
   Muted,
   SearchField,
   Sheet,
@@ -129,9 +130,13 @@ export const InviteMembersSheet = ({
     api.devotionalGroups.searchInvitableUsers,
     visible ? { groupId, search: debounced } : "skip"
   );
+  // Keep the last results on screen while the next search loads, so the list
+  // doesn't empty and the sheet doesn't change height on every keystroke.
+  const [shown, setShown] = useState(people);
+  if (people !== undefined && people !== shown) setShown(people);
   const sendInvite = useMutation(api.devotionalGroups.invite);
-  const invitable = (people ?? []).filter((person) => person.status === "none");
-  const already = (people ?? []).filter((person) => person.status !== "none");
+  const invitable = (shown ?? []).filter((person) => person.status === "none");
+  const already = (shown ?? []).filter((person) => person.status !== "none");
   const isSelected = (email: string) => selected.some((person) => person.email === email);
 
   const toggle = (person: Person) => {
@@ -169,6 +174,7 @@ export const InviteMembersSheet = ({
     setSelected([]);
     setSent([]);
     setError(null);
+    setShown(undefined);
     onClose();
   };
 
@@ -210,6 +216,7 @@ export const InviteMembersSheet = ({
           </View>
         ) : null}
         <ErrorBanner message={error} />
+        {visible && shown === undefined ? <LoadingState /> : null}
         {people && people.length === 0 ? (
           debounced.trim() ? (
             <EmptyState
