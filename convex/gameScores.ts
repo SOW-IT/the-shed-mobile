@@ -4,13 +4,13 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import {
   CURRENT_GAME_VERSION,
-  GAME_IDS,
+  SCORE_GAME_IDS,
   isGameVersion,
   MAX_SCORES_PER_SUBMIT,
   PODIUM_PLACES,
   scoreProblem,
   versionOf,
-  type GameId,
+  type ScoreGameId,
   type GameVersion,
 } from "../shared/games";
 import { lookFor, withHeight } from "../shared/world";
@@ -44,13 +44,13 @@ const storedVersion = (version: GameVersion) => (version === 1 ? undefined : ver
 
 const boardVersion = (version: number | undefined): GameVersion => (isGameVersion(version) ? version : 1);
 
-const bestOf = (ctx: Ctx, email: string, game: GameId, version: GameVersion) =>
+const bestOf = (ctx: Ctx, email: string, game: ScoreGameId, version: GameVersion) =>
   ctx.db
     .query("gameScores")
     .withIndex("by_email_and_game_and_version", (q) => q.eq("email", email).eq("game", game).eq("version", storedVersion(version)))
     .unique();
 
-const board = (ctx: Ctx, game: GameId, version: GameVersion) =>
+const board = (ctx: Ctx, game: ScoreGameId, version: GameVersion) =>
   ctx.db.query("gameScores").withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)));
 
 /**
@@ -107,7 +107,7 @@ export const submitScores = mutation({
   },
 });
 
-type BoardRun = { runId: string; game: GameId; version: GameVersion; score: number };
+type BoardRun = { runId: string; game: ScoreGameId; version: GameVersion; score: number };
 
 const payForBest = async (ctx: MutationCtx, email: string, run: BoardRun, joined: boolean, now: number) => {
   const needed = payoutMinEntries(run.version);
@@ -135,7 +135,7 @@ const payTop3 = async (ctx: MutationCtx, email: string, run: BoardRun, now: numb
  * The place a score holds on its game's board, as the board numbers it
  * (equal scores share a place), or past the paying places when it's below 3rd.
  */
-const topPlace = async (ctx: Ctx, game: GameId, version: GameVersion, score: number): Promise<number> => {
+const topPlace = async (ctx: Ctx, game: ScoreGameId, version: GameVersion, score: number): Promise<number> => {
   const ahead = await ctx.db
     .query("gameScores")
     .withIndex("by_game_and_version_and_score", (q) => q.eq("game", game).eq("version", storedVersion(version)).gt("score", score))
@@ -143,7 +143,7 @@ const topPlace = async (ctx: Ctx, game: GameId, version: GameVersion, score: num
   return ahead.length + 1;
 };
 
-const podiumOf = async (ctx: Ctx, game: GameId, version: GameVersion, score: number) => {
+const podiumOf = async (ctx: Ctx, game: ScoreGameId, version: GameVersion, score: number) => {
   const top = await board(ctx, game, version).order("desc").take(PLACE_COINS.length);
   const lowest = top.length > 0 ? top[top.length - 1].score : null;
   if (lowest === null || lowest >= score) return [];
@@ -208,7 +208,7 @@ export const leaderboard = query({
 });
 
 /** Someone's best at a game and their place, or null before they've a score. */
-const placeOf = async (ctx: Ctx, email: string, game: GameId, version: GameVersion) => {
+const placeOf = async (ctx: Ctx, email: string, game: ScoreGameId, version: GameVersion) => {
   const mine = await bestOf(ctx, email, game, version);
   if (!mine) return null;
   const ahead = await ctx.db
@@ -289,7 +289,7 @@ export const myBests = query({
     const email = await optionalEmail(ctx);
     if (!email) return null;
     const bests = [];
-    for (const game of GAME_IDS) {
+    for (const game of SCORE_GAME_IDS) {
       const version = args.current ? CURRENT_GAME_VERSION[game] : boardVersion(args.version);
       const row = await bestOf(ctx, email, game, version);
       if (row) bests.push({ game, score: row.score });

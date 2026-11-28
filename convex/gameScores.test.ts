@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import { LEADERBOARD_SIZE, MAX_PAGE_SIZE, RANK_LIMIT, RESET_BATCH } from "./gameScores";
 import { asUser, newConvex, YEAR, type T } from "../test/convexFixture";
-import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type GameId } from "../shared/games";
+import { MAX_RUN_MS, MAX_SCORES_PER_SUBMIT, type ScoreGameId } from "../shared/games";
 import { boardOf, PAYOUT_MIN_ENTRIES } from "../shared/coins";
 import type { Beaten } from "../shared/leaderboard";
 import { lookFor, withHeight } from "../shared/world";
@@ -13,7 +13,7 @@ const CARA = "cara@sow.org.au";
 const DAN = "dan@sow.org.au";
 const EVE = "eve@sow.org.au";
 
-const run = (runId: string, score: number, game: GameId = "runner") => ({
+const run = (runId: string, score: number, game: ScoreGameId = "runner") => ({
   runId,
   game,
   score,
@@ -26,7 +26,7 @@ const bests = (t: T) =>
     (await ctx.db.query("gameScores").collect()).map((row) => [row.email, row.game, row.score, row.runId])
   );
 
-const v2 = (runId: string, score: number, game: GameId = "runner") => ({ ...run(runId, score, game), version: 2 });
+const v2 = (runId: string, score: number, game: ScoreGameId = "runner") => ({ ...run(runId, score, game), version: 2 });
 
 const player = (i: number) => `player${i}@sow.org.au`;
 
@@ -98,6 +98,43 @@ describe("versions", () => {
     const anna = await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [v2("run-anna-2", 2_500)] });
     expect(anna.coins).toEqual([{ runId: "run-anna-2", coins: 15, place: 2 }]);
     expect((await paidRows(t)).filter(([, , , paidBoard]) => paidBoard !== board)).toEqual([]);
+  });
+
+  test("Hop has only a v2 board: a v1 Hop score is turned away, and its board pays like any v2 board", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const first = await anna.mutation(api.gameScores.submitScores, {
+      scores: [run("run-anna-hop-v1", 400, "hop"), v2("run-anna-hop-fast", 50_000, "hop"), v2("run-anna-hop", 1_200, "hop")],
+    });
+    expect(first.accepted).toEqual(["run-anna-hop"]);
+    expect(first.rejected).toEqual([
+      { runId: "run-anna-hop-v1", reason: "That score is over the game's limit." },
+      { runId: "run-anna-hop-fast", reason: "That score is too high for how long the run lasted." },
+    ]);
+    expect(first.coins).toEqual([]);
+    expect((await anna.query(api.gameScores.leaderboard, { game: "hop" })).top).toEqual([]);
+    const board = await anna.query(api.gameScores.leaderboard, { game: "hop", version: 2 });
+    expect(board.top.map((row) => row.score)).toEqual([1_200]);
+    expect(board.me).toEqual({ score: 1_200, rank: 1 });
+    // A retry of the same run changes nothing; a lower run doesn't replace the best.
+    await anna.mutation(api.gameScores.submitScores, { scores: [v2("run-anna-hop", 1_200, "hop"), v2("run-anna-hop-2", 900, "hop")] });
+    expect(await bests(t)).toEqual([[ANNA, "hop", 1_200, "run-anna-hop"]]);
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES - 1; i++) {
+      await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-hop-${i}`, i * 100, "hop")] });
+    }
+    expect(await paidRows(t)).toEqual([]);
+    const tenth = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-hop", 2_000, "hop")] });
+    expect(tenth.coins).toEqual([{ runId: "run-ben-hop", coins: 50, place: 1 }]);
+    const hop = boardOf("hop", 2);
+    expect((await paidRows(t)).sort()).toEqual(
+      [
+        [BEN, 50, 1, hop],
+        [ANNA, 25, 2, hop],
+        [player(8), 10, 3, hop],
+      ].sort()
+    );
+    const podium = await t.query(api.gameScores.podium, { game: "hop", version: 2 });
+    expect(podium.map((row) => row.score)).toEqual([2_000, 1_200, 800]);
   });
 
   test("a v2 board's payouts don't count what a v1 board paid", async () => {

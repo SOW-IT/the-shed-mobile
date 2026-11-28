@@ -7,7 +7,18 @@ export type GameId = (typeof GAME_IDS)[number];
 export const isGameId = (value: string): value is GameId =>
   (GAME_IDS as readonly string[]).includes(value);
 
-export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
+/**
+ * Every game the backend keeps scores and players for: the games above, and
+ * Hop, whose backend goes out before the game (2.14.0) so the game works the
+ * moment it reaches a phone. Nothing on screen reads this list.
+ */
+export const SCORE_GAME_IDS = [...GAME_IDS, "hop"] as const;
+export type ScoreGameId = (typeof SCORE_GAME_IDS)[number];
+
+const isScoreGameId = (value: string): value is ScoreGameId =>
+  (SCORE_GAME_IDS as readonly string[]).includes(value);
+
+export const GAME_INFO: Record<ScoreGameId, { title: string; blurb: string }> = {
   shooter: {
     title: "Sky Shooter",
     blurb: "Drag to fly. Your plane fires on its own. Dodge everything.",
@@ -24,31 +35,40 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
     title: "Swoop",
     blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each day before dark. Best sideways.",
   },
+  hop: {
+    title: "Hop",
+    blurb: "You bounce on your own. Hold the left or right side to steer, and climb as high as you can.",
+  },
 };
 
 export const GAME_VERSIONS = [1, 2, 3] as const;
 export type GameVersion = (typeof GAME_VERSIONS)[number];
 
 /** Current playable version for each mini-game (Swoop moved to v3; others stay on v2). */
-export const CURRENT_GAME_VERSION: Record<GameId, GameVersion> = {
+export const CURRENT_GAME_VERSION: Record<ScoreGameId, GameVersion> = {
   shooter: 2,
   runner: 2,
   flappy: 2,
   glider: 3,
+  hop: 2,
 };
 
-/** Leaderboard tabs shown for each game: current version first, previous legacy board second. */
-export const BOARD_VERSIONS: Record<GameId, readonly GameVersion[]> = {
+/**
+ * Leaderboard tabs shown for each game: current version first, previous
+ * legacy board second. Hop came after v1, so it has no legacy board.
+ */
+export const BOARD_VERSIONS: Record<ScoreGameId, readonly GameVersion[]> = {
   shooter: [2, 1],
   runner: [2, 1],
   flappy: [2, 1],
   glider: [3, 2],
+  hop: [2],
 };
 
 export const isGameVersion = (value: unknown): value is GameVersion =>
   (GAME_VERSIONS as readonly unknown[]).includes(value);
 
-export const versionLabel = (game: GameId, version: GameVersion): string =>
+export const versionLabel = (game: ScoreGameId, version: GameVersion): string =>
   version === CURRENT_GAME_VERSION[game] ? `v${version}` : `v${version} (legacy)`;
 
 export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
@@ -58,7 +78,7 @@ export const versionOf = (version: GameVersion | undefined): GameVersion => vers
  * and the most a run can score at all. The server turns away a score above
  * either, so a typo'd or tampered score can't top the leaderboard.
  */
-export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: number; max: number }>> = {
+export const SCORE_LIMITS: Record<GameVersion, Record<ScoreGameId, { perSecond: number; max: number }>> = {
   1: {
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 200, max: 2_000_000 },
@@ -67,12 +87,19 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     // speed, or past the world where even that can't beat the sunset
     // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
     glider: { perSecond: 1000, max: 500_000 },
+    // Hop came after v1: a v1 Hop score can't be real.
+    hop: { perSecond: 0, max: 0 },
   },
   2: {
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 250, max: 2_000_000 },
     flappy: { perSecond: 3, max: 100_000 },
     glider: { perSecond: 2100, max: 2_000_000 },
+    // Hop scores a point per 2 units climbed, and nothing climbs faster than
+    // a spring's launch (1,305 units a second, so 653 points), so no run can
+    // average more. The cap is that pace for the longest run allowed
+    // (src/lib/games/hop.ts, checked by its tests).
+    hop: { perSecond: 700, max: 15_000_000 },
   },
   3: {
     shooter: { perSecond: 1000, max: 5_000_000 },
@@ -80,6 +107,8 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     flappy: { perSecond: 3, max: 100_000 },
     // Covers Double Fever (×3 bonuses, top speed 1600) and Cloudtouch; glider.test.ts derives the bound.
     glider: { perSecond: 3000, max: 2_000_000 },
+    // Hop is on v2: a v3 Hop score can't be real.
+    hop: { perSecond: 0, max: 0 },
   },
 };
 
@@ -88,7 +117,7 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
  * published, and a best a phone saved before it no longer counts, so old
  * scores don't come back from phones that were offline at the time.
  */
-export const SCORES_RESET_AT: Partial<Record<GameId, number>> = {
+export const SCORES_RESET_AT: Partial<Record<ScoreGameId, number>> = {
   // 2.12.17: Mystic Man got faster, so the old scores were cleared.
   runner: 1_795_429_500_000,
 };
@@ -116,15 +145,18 @@ export type QueuedScore = {
 
 type Submitted = Omit<QueuedScore, "account">;
 
+/** A run as the server checks it, which may be Hop's before the app has it. */
+type ScoreEntry = Omit<QueuedScore, "game"> & { game: ScoreGameId };
+
 const sameOwner = (a: QueuedScore, b: QueuedScore) => (a.account ?? null) === (b.account ?? null);
 
 export const submittableFor = (queue: readonly QueuedScore[], account: string): Submitted[] =>
   queue.filter((queued) => queued.account === undefined || queued.account === account).map(({ account: _owner, ...run }) => run);
 
 /** Why a score can't go on the leaderboard, or null when it can. */
-export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
+export const scoreProblem = (entry: ScoreEntry, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
-  if (!isGameId(entry.game)) return "That isn't one of the games.";
+  if (!isScoreGameId(entry.game)) return "That isn't one of the games.";
   if (entry.version !== undefined && (!isGameVersion(entry.version) || entry.version > CURRENT_GAME_VERSION[entry.game])) {
     return "That isn't a version of the game.";
   }
