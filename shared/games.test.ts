@@ -6,6 +6,7 @@ import {
   CLOCK_SKEW_MS,
   CURRENT_GAME_VERSION,
   enqueueScore,
+  GAME_IDS,
   isGameId,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
@@ -111,13 +112,18 @@ describe("versions", () => {
   });
 
   test("Hop is on v2 with no legacy board, and takes no v1 or v3 score", () => {
+    expect(GAME_IDS).toContain("hop");
+    expect(isGameId("hop")).toBe(true);
     expect(CURRENT_GAME_VERSION.hop).toBe(2);
     expect(BOARD_VERSIONS.hop).toEqual([2]);
     expect(versionLabel("hop", 2)).toBe("v2");
     expect(scoreProblem(entry({ game: "hop", version: 2, score: 900 }), NOW)).toBeNull();
-    expect(scoreProblem(entry({ game: "hop", version: 3, score: 900 }), NOW)).not.toBeNull();
+    expect(scoreProblem(entry({ game: "hop", version: 1, score: 900 }), NOW)).toMatch(/over the game's limit/);
+    expect(scoreProblem(entry({ game: "hop", version: 3, score: 900 }), NOW)).toMatch(/isn't a version/);
     expect(SCORE_LIMITS[1].hop.max).toBe(0);
     expect(SCORE_LIMITS[3].hop.max).toBe(0);
+    // Now the app has Hop, a phone's saved queue keeps a Hop run.
+    expect(parseQueue(JSON.stringify([entry({ game: "hop", version: 2 })]))).toHaveLength(1);
   });
 
   test("a saved queue keeps a run's version and drops one with a version that isn't", () => {

@@ -134,13 +134,16 @@ export type QueuedScore = {
 
 type Submitted = Omit<QueuedScore, "account">;
 
+/** A run as the server checks it, which may be Hop's before the app has it. */
+type ScoreEntry = Omit<QueuedScore, "game"> & { game: GameId };
+
 const sameOwner = (a: QueuedScore, b: QueuedScore) => (a.account ?? null) === (b.account ?? null);
 
 export const submittableFor = (queue: readonly QueuedScore[], account: string): Submitted[] =>
   queue.filter((queued) => queued.account === undefined || queued.account === account).map(({ account: _owner, ...run }) => run);
 
 /** Why a score can't go on the leaderboard, or null when it can. */
-export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
+export const scoreProblem = (entry: ScoreEntry, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
   if (entry.version !== undefined && (!isGameVersion(entry.version) || entry.version > CURRENT_GAME_VERSION[entry.game])) {

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { GAME_IDS, PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS } from "../shared/games";
+import { PLAYING_BEAT_MS, PLAYING_READ_LIMIT, PLAYING_SCAN, PLAYING_SHOWN, PLAYING_TTL_MS, GAME_IDS } from "../shared/games";
 import { withHeight } from "../shared/world";
 import { gameIdValidator } from "./gameScoreData";
 import { nameFor } from "./gameScores";

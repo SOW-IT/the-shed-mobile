@@ -40,6 +40,15 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Sij looks like Sijin's own World character now**, in the Cafe and in
   Mystic Man, Flap, Swoop and Hop.
 
+## [2.13.77] - 2026-11-28
+
+### Added
+- **The backend takes Hop scores ahead of the game.** Scores, leaderboards,
+  coins and who's playing now accept Hop (v2 only), so the game works the
+  moment 2.14.0 reaches a phone instead of erroring until the backend
+  catches up. Nothing in the app changes: Hop isn't on the Games list,
+  leaderboard or arcade until 2.14.0.
+
 ## [2.13.76] - 2026-11-28
 
 ### Changed
