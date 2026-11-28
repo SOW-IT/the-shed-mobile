@@ -145,13 +145,18 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
   });
 
   // A tap counts straight away: the frame after pressing, you're already moving that way, turning round included.
-  await steering(page, "instant", async (note) => {
+  // Short pieces, each on a run of its own: steering off the first platform
+  // falls off, and a run that ends partway is tried again.
+  const frames = (n) => page.evaluate((count) => new Promise((done) => {
+    const tick = (left) => (left === 0 ? done() : requestAnimationFrame(() => tick(left - 1)));
+    tick(count);
+  }), n);
+  const go = async () => {
     await page.keyboard.press(" ");
     await page.waitForTimeout(400);
-    const frames = (n) => page.evaluate((count) => new Promise((done) => {
-      const tick = (left) => (left === 0 ? done() : requestAnimationFrame(() => tick(left - 1)));
-      tick(count);
-    }), n);
+  };
+  await steering(page, "instant", async (note) => {
+    await go();
     const before = await playerX(page);
     await page.keyboard.down("ArrowLeft");
     await frames(3);
@@ -169,7 +174,11 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     await frames(6);
     const after = await playerX(page);
     note(`letting go of → mid-air stops you almost dead (${released.toFixed(1)} → ${after.toFixed(1)})`, Math.abs(moved(released, after)) < 3);
-    // Each side held for a moment, then let go: it goes that way, then stops.
+  });
+  // Each side held for a moment, then let go: it goes that way, then stops.
+  // Left then right, so you end up about where you began.
+  await steering(page, "held", async (note) => {
+    await go();
     for (const [key, sign] of [["ArrowLeft", -1], ["ArrowRight", 1], ["a", -1], ["d", 1]]) {
       const from = await playerX(page);
       await page.keyboard.down(key);
@@ -183,7 +192,10 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
       note(`holding ${key} moves you ${sign < 0 ? "left" : "right"} (${from.toFixed(0)} → ${held.toFixed(0)})`, moved(from, held) * sign > 30);
       note(`letting go of ${key} stops you (${stopped.toFixed(1)} → ${still.toFixed(1)})`, Math.abs(moved(stopped, still)) < 3);
     }
-    // Quick reversals, two frames each way: every press goes its own way at once.
+  });
+  // Quick reversals, two frames each way: every press goes its own way at once.
+  await steering(page, "reversals", async (note) => {
+    await go();
     let wrong = 0;
     for (let i = 0; i < 6; i++) {
       const key = i % 2 === 0 ? "ArrowLeft" : "ArrowRight";
@@ -241,7 +253,10 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
 await run("phone-touch", { width: 390, height: 844 }, async (page) => {
   await withBest(page);
   const cdp = await page.context().newCDPSession(page);
-  const finger = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], i) => ({ x, y, id: i })) });
+  // Each point is [x, y] (its place in the list is its id) or [x, y, id].
+  // A touchEnd listing points lifts just those; with none it lifts them all.
+  const finger = (type, points) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y, id], i) => ({ x, y, id: id ?? i })) });
   await steering(page, "touch screen", async (note) => {
     const board = await id(page, "hop-scene").boundingBox();
     const y = board.y + board.height * 0.7;
@@ -260,7 +275,7 @@ await run("phone-touch", { width: 390, height: 844 }, async (page) => {
     await page.waitForTimeout(300);
     const second = await playerX(page);
     note(`a second finger on the left half, the first still down on the right, goes left (${slid.toFixed(0)} → ${second.toFixed(0)})`, moved(slid, second) < -30);
-    await finger("touchMove", [[board.x + board.width * 0.8, y]]);
+    await finger("touchEnd", [[board.x + board.width * 0.2, y, 1]]);
     await page.waitForTimeout(300);
     const handedBack = await playerX(page);
     note(`lifting the second finger goes straight back right (${second.toFixed(0)} → ${handedBack.toFixed(0)})`, moved(second, handedBack) > 30);
@@ -271,7 +286,7 @@ await run("phone-touch", { width: 390, height: 844 }, async (page) => {
       await finger("touchMove", [[board.x + board.width * 0.8, y], [board.x + board.width * 0.2, y]]);
       await page.waitForTimeout(120);
       const during = await playerX(page);
-      await finger("touchMove", [[board.x + board.width * 0.8, y]]);
+      await finger("touchEnd", [[board.x + board.width * 0.2, y, 1]]);
       await page.waitForTimeout(180);
       const after = await playerX(page);
       if (moved(from, during) < 0 && moved(during, after) > 0) taps++;
