@@ -1,9 +1,9 @@
 name: EAS Update
 
+# Runs first on a merge to main. Convex Deploy (prod) follows once this run
+# has finished, for the same commit (convex-deploy.yml).
 on:
-  workflow_run:
-    workflows: ["Convex Deploy"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -11,13 +11,15 @@ permissions:
   contents: read
   actions: read
 
+# Merges queue in their own group, so only a newer merge can cancel a queued
+# merge's run (and that newer merge's run publishes and deploys Convex). A run
+# by hand has its own group and can never cancel a merge's queued run.
 concurrency:
-  group: eas-update
+  group: eas-update-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -26,12 +28,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Skip a commit a newer merge has replaced
         id: current
         env:
-          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOYED_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
@@ -39,7 +41,7 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is superseded, so its own Convex Deploy run will publish the update."
+            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is superseded, so that merge's own EAS Update run publishes the update."
           fi
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -81,10 +83,10 @@ jobs:
           UPDATES_FILE: ${{ runner.temp }}/eas-update-production.json
           CHANNEL: production
           BUILD_PROFILE: production
-          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOYED_SHA: ${{ github.sha }}
           GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
           PUBLISH_OUTCOME: ${{ steps.production.outcome }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha || github.sha }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
         run: node scripts/eas-update-report.mjs
