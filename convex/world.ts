@@ -79,7 +79,7 @@ import { accountName, shortName } from "../shared/names";
 import { HOME_CAP, homeObstacles, seatHere, type Placed } from "../shared/home";
 import { BALL_PLACE, ballAt, KICK_GAP_MS, KICK_REACH, kickBall as rollFromKick, kickDirection, restingBall } from "../shared/ball";
 import { sanitizePath } from "../shared/worldPath";
-import type { GameId } from "../shared/games";
+import type { ScoreGameId } from "../shared/games";
 import { gameIdValidator } from "./gameScoreData";
 import { worldAskValidator, worldLookValidator, worldReplyValidator, worldWalkFields, worldWaypointValidator } from "./worldData";
 import { Ctx, currentStaffYear, getProfile, optionalEmail, requireEmail, resolveName } from "./model";
@@ -127,7 +127,7 @@ export const memberByEmail = (ctx: Ctx, email: string) =>
  * row up to date (in, switching, out, or quiet too long), so this is the one
  * place the People list, its "In the app" list and the arcade all read.
  */
-export const gameOf = async (ctx: Ctx, email: string): Promise<GameId | undefined> =>
+export const gameOf = async (ctx: Ctx, email: string): Promise<ScoreGameId | undefined> =>
   (
     await ctx.db
       .query("gamePlayers")
@@ -884,7 +884,7 @@ export const elsewhere = query({
     const email = await requireEmail(ctx);
     const me = await memberByEmail(ctx, email);
     const isBlocked = await loadBlockFilter(ctx, email);
-    const found = new Map<Place, { place: Place; count: number; names: string[]; people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number; playing?: GameId }[] }>();
+    const found = new Map<Place, { place: Place; count: number; names: string[]; people: { memberId: Id<"worldMembers">; name: string; look: Doc<"worldMembers">["look"]; ping?: number; playing?: ScoreGameId }[] }>();
     for (const place of [...PLACES, HOME, BACKYARD] as const) {
       const listed = listedPlace(place);
       const spot = found.get(listed) ?? { place: listed, count: 0, names: [], people: [] };

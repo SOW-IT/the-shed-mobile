@@ -6,6 +6,7 @@ import {
   CLOCK_SKEW_MS,
   CURRENT_GAME_VERSION,
   enqueueScore,
+  GAME_IDS,
   isGameId,
   MAX_RUN_MS,
   MAX_SCORE_AGE_MS,
@@ -15,6 +16,7 @@ import {
   parseQueue,
   removeSettled,
   runsOf,
+  SCORE_GAME_IDS,
   SCORE_LIMITS,
   SCORES_RESET_AT,
   scoreProblem,
@@ -92,13 +94,26 @@ describe("versions", () => {
   });
 
   test("Swoop uses v3 and v2 (legacy), while the other games stay on v2 and v1 (legacy)", () => {
-    expect(CURRENT_GAME_VERSION).toEqual({ shooter: 2, runner: 2, flappy: 2, glider: 3 });
+    expect(CURRENT_GAME_VERSION).toEqual({ shooter: 2, runner: 2, flappy: 2, glider: 3, hop: 2 });
     expect(BOARD_VERSIONS.glider).toEqual([3, 2]);
     expect(BOARD_VERSIONS.runner).toEqual([2, 1]);
     expect(BOARD_VERSIONS.glider.map((v) => versionLabel("glider", v))).toEqual(["v3", "v2 (legacy)"]);
     expect(BOARD_VERSIONS.runner.map((v) => versionLabel("runner", v))).toEqual(["v2", "v1 (legacy)"]);
     expect(scoreProblem(entry({ game: "glider", version: 3 }), NOW)).toBeNull();
     expect(scoreProblem(entry({ game: "runner", version: 3 }), NOW)).toMatch(/isn't a version/);
+  });
+
+  test("the server takes Hop's v2 scores before the app has Hop, and nothing on screen lists it", () => {
+    expect(GAME_IDS).not.toContain("hop");
+    expect(SCORE_GAME_IDS).toEqual([...GAME_IDS, "hop"]);
+    expect(isGameId("hop")).toBe(false);
+    expect(BOARD_VERSIONS.hop).toEqual([2]);
+    expect(versionLabel("hop", 2)).toBe("v2");
+    expect(scoreProblem({ ...entry(), game: "hop", score: 900 }, NOW)).toBeNull();
+    expect(scoreProblem({ ...entry(), game: "hop", version: 1, score: 900 }, NOW)).toMatch(/over the game's limit/);
+    expect(scoreProblem({ ...entry(), game: "hop", version: 3, score: 900 }, NOW)).toMatch(/isn't a version/);
+    // A phone's saved queue or bests can't hold a Hop run until the app has Hop.
+    expect(parseQueue(JSON.stringify([{ ...entry(), game: "hop" }]))).toEqual([]);
   });
 
   test("a saved queue keeps a run's version and drops one with a version that isn't", () => {

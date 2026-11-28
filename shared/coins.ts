@@ -1,5 +1,5 @@
 import { sydneyYmd } from "./flow";
-import { SCORES_RESET_AT, type GameId, type GameVersion } from "./games";
+import { SCORES_RESET_AT, type ScoreGameId, type GameVersion } from "./games";
 
 export const START_COINS = 100;
 
@@ -18,7 +18,7 @@ export const coinsForPlace = (place: number): number => PLACE_COINS[place - 1] ?
  * kept until its scores are wiped, so the reset time names the board: after
  * a wipe the places can be won, and paid, again.
  */
-export const boardOf = (game: GameId, version: GameVersion = 1): string =>
+export const boardOf = (game: ScoreGameId, version: GameVersion = 1): string =>
   `${game}:${version === 1 ? "" : `v${version}:`}${SCORES_RESET_AT[game] ?? 0}`;
 
 /**
