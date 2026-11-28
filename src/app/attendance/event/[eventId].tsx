@@ -1237,14 +1237,16 @@ export default function EventAttendanceScreen() {
         setEventEditOpen(true);
       }}
       style={({ pressed }) => [
-        styles.editEventButton,
-        { borderColor: t.primary, opacity: canEdit ? 1 : 0.4 },
+        styles.actionTarget,
+        { opacity: canEdit ? 1 : 0.4 },
         pressed && canEdit && { opacity: 0.7 },
       ]}
     >
-      <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
-        Edit
-      </Text>
+      <View style={[styles.editEventButton, { borderColor: t.primary }]}>
+        <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
+          Edit
+        </Text>
+      </View>
     </Pressable>
     <Pressable
       accessibilityRole="button"
@@ -1254,38 +1256,39 @@ export default function EventAttendanceScreen() {
           : "Self check-in"
       }
       onPress={() => setCheckInOpen(true)}
-      style={({ pressed }) => [
-        styles.editEventButton,
-        styles.checkInButton,
-        {
-          borderColor: t.primary,
-          backgroundColor: checkInPending && checkInPending.length > 0 ? t.primary : "transparent",
-        },
-        pressed && { opacity: 0.7 },
-      ]}
+      style={({ pressed }) => [styles.actionTarget, pressed && { opacity: 0.7 }]}
     >
-      <Ionicons
-        name="qr-code-outline"
-        size={14}
-        color={checkInPending && checkInPending.length > 0 ? t.onPrimary : t.primary}
-      />
-      {checkInPending && checkInPending.length > 0 ? (
-        <Text style={[typography.caption, styles.editEventText, { color: t.onPrimary }]}>
-          {checkInPending.length}
-        </Text>
-      ) : null}
+      <View
+        style={[
+          styles.editEventButton,
+          styles.checkInButton,
+          {
+            borderColor: t.primary,
+            backgroundColor: checkInPending && checkInPending.length > 0 ? t.primary : "transparent",
+          },
+        ]}
+      >
+        <Ionicons
+          name="qr-code-outline"
+          size={14}
+          color={checkInPending && checkInPending.length > 0 ? t.onPrimary : t.primary}
+        />
+        {checkInPending && checkInPending.length > 0 ? (
+          <Text style={[typography.caption, styles.editEventText, { color: t.onPrimary }]}>
+            {checkInPending.length}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Export event attendance"
       onPress={() => setExportOpen(true)}
-      style={({ pressed }) => [
-        styles.editEventButton,
-        { borderColor: t.primary },
-        pressed && { opacity: 0.7 },
-      ]}
+      style={({ pressed }) => [styles.actionTarget, pressed && { opacity: 0.7 }]}
     >
-      <Ionicons name="download-outline" size={14} color={t.primary} />
+      <View style={[styles.editEventButton, { borderColor: t.primary }]}>
+        <Ionicons name="download-outline" size={14} color={t.primary} />
+      </View>
     </Pressable>
     {metaUnderTitle ? null : totalChip}
     </View>
@@ -1529,6 +1532,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  // The pills are 27pt tall; this transparent box around each makes the tap
+  // target 44pt without moving them (hitSlop doesn't reach web).
+  actionTarget: {
+    minHeight: 44,
+    minWidth: 44,
+    marginVertical: -8.5,
+    alignItems: "center",
+    justifyContent: "center",
   },
   editEventButton: {
     borderWidth: 1.5,
