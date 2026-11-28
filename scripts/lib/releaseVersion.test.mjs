@@ -199,6 +199,21 @@ describe("bumps", () => {
     expect(parseFragment("---\r\nbump: major\r\n---\r\n- big\r\n").bump).toBe("major");
   });
 
+  test("CRLF notes come out with plain line endings", () => {
+    expect(parseFragment("### Fixed\r\n- first\r\n- second\r\n").notes).toBe("### Fixed\n- first\n- second\n");
+    expect(parseFragment("---\r\nbump: minor\r\n---\r\n- a\r\n- b\r\n")).toEqual({ bump: "minor", notes: "- a\n- b\n" });
+    expect([...groupNotes("### Fixed\r\n- first\r\n- second\r\n")]).toEqual([["Fixed", "- first\n- second"]]);
+  });
+
+  test("fences may have trailing spaces and the front matter may be empty", () => {
+    expect(parseFragment("--- \nbump: major\n---\t\n- big\n")).toEqual({ bump: "major", notes: "- big\n" });
+    expect(parseFragment("---\n---\n- plain\n")).toEqual({ bump: "patch", notes: "- plain\n" });
+  });
+
+  test("refuses front matter that is never closed, rather than leaking it into the changelog", () => {
+    expect(() => parseFragment("---\nbump: minor\n- x\n", "changelog.d/a.md")).toThrow("changelog.d/a.md starts front matter");
+  });
+
   test("refuses front matter it doesn't understand, naming the file", () => {
     expect(() => parseFragment("---\nbump: huge\n---\n- x\n", "changelog.d/a.md")).toThrow('changelog.d/a.md has front matter "bump: huge"');
     expect(() => parseFragment("---\ntitle: x\n---\n- x\n")).toThrow("the only field is bump");

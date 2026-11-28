@@ -26,7 +26,10 @@ post() {
     return 0
   fi
   number=$pr
-  pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${number}")
+  if ! pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${number}"); then
+    echo "::warning::Couldn't look up #${number}, so its merge wasn't posted to Google Chat."
+    return 0
+  fi
 
   local message_file="${RUNNER_TEMP:-/tmp}/pr-merged-chat-${number}.json"
   jq -n \

@@ -40,10 +40,13 @@ export const nextPatch = (...versions) => nextVersion("patch", ...versions);
  * major release; without it, it asks for a patch.
  */
 export const parseFragment = (text, file = "a changelog.d note") => {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
-  if (!match) return { bump: "patch", notes: text };
+  const normalised = text.replace(/\r\n?/g, "\n");
+  if (!/^---[ \t]*(?:\n|$)/.test(normalised)) return { bump: "patch", notes: normalised };
+  // The fences may carry trailing spaces, and the front matter may be empty.
+  const match = /^---[ \t]*\n((?:.*\n)*?)---[ \t]*(?:\n|$)/.exec(normalised);
+  if (!match) throw new Error(`${file} starts front matter with "---" but never closes it with another "---" line.`);
   let bump = "patch";
-  for (const line of match[1].split(/\r?\n/)) {
+  for (const line of match[1].split("\n")) {
     if (!line.trim()) continue;
     const field = /^bump:\s*(\S+)\s*$/.exec(line);
     if (!field || !BUMPS.includes(field[1])) {
@@ -51,7 +54,7 @@ export const parseFragment = (text, file = "a changelog.d note") => {
     }
     bump = field[1];
   }
-  return { bump, notes: text.slice(match[0].length) };
+  return { bump, notes: normalised.slice(match[0].length) };
 };
 
 /** The largest of the bumps asked for (patch when none are). */
@@ -115,7 +118,7 @@ const bodyOf = (sectionText) => sectionText.split("\n").slice(1).join("\n");
 export const groupNotes = (notes) => {
   const groups = new Map();
   let group = "Changed";
-  for (const line of notes.split("\n")) {
+  for (const line of notes.split(/\r?\n/)) {
     const heading = /^###\s+(.+?)\s*$/.exec(line);
     if (heading) {
       group = heading[1];

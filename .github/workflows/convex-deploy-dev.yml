@@ -46,13 +46,18 @@ concurrency:
 
 jobs:
   deploy:
-    # A cancelled Release version run was replaced by a newer one, which
-    # covers main's tip. A hand-started one that pushed a release is followed
-    # by the run for that push.
+    # Only a Release version run that succeeded. A failed one left main
+    # unnumbered (a bad changelog.d note, or the push kept losing races), so
+    # nothing deploys until it is rerun: deploying would ship the previous
+    # version's number and deploy the merge twice. A run with no release
+    # credential succeeds, so a repository without one still deploys every
+    # merge. A cancelled run was replaced by a newer one, which covers main's
+    # tip. A hand-started one that pushed a release is followed by the run
+    # for that push.
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.conclusion != 'cancelled') }}
+      github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Skip a commit main has moved past
