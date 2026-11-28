@@ -61,6 +61,19 @@ appId: au.org.sow.theshed
                   id: world-title
                   text: "(?i).*garden.*"
                 timeout: 30000
+      # A panel left open (the arcade's, by its cabinet) covers the Café's pad; shut it first.
+      - runFlow:
+          when:
+            visible:
+              id: world-arcade-close
+          commands:
+            - tapOn:
+                id: world-arcade-close
+                waitToSettleTimeoutMs: 2000
+            - extendedWaitUntil:
+                notVisible:
+                  id: world-arcade-close
+                timeout: 5000
       - extendedWaitUntil:
           visible: "Go to The Café"
           timeout: 30000
