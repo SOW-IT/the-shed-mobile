@@ -47,8 +47,18 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # The Convex CLI only takes keys shaped <type>:<deployment>|<token>,
+          # so the deployment's name is in the key. The key is never echoed.
           case "$CONVEX_DEPLOY_KEY_DEV" in
-            dev:successful-lynx-56\|*) ;;
+            dev:successful-lynx-56\|?*) ;;
+            dev:*\|*)
+              echo "::error::CONVEX_DEPLOY_KEY_DEV is a dev deploy key for another deployment, not successful-lynx-56. Refusing to deploy."
+              exit 1
+              ;;
+            dev:*)
+              echo "::error::CONVEX_DEPLOY_KEY_DEV is not a complete deploy key: copy the whole value from the dev deployment's Deploy keys, it starts with dev:successful-lynx-56|. Refusing to deploy."
+              exit 1
+              ;;
             *)
               echo "::error::CONVEX_DEPLOY_KEY_DEV is not a dev deploy key for successful-lynx-56. Refusing to deploy."
               exit 1
