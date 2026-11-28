@@ -6,6 +6,27 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.3] - 2026-11-29
+
+### Changed
+- **Choosing a devotional passage reads as a range: from one chapter to
+  another.** Each passage now has a Chapters pair and a Verses pair, each
+  "from → to", in place of one To box that meant a last chapter or a last
+  verse depending on what you'd picked. With more than one passage, each
+  one's header shows what it covers ("Song of Solomon 2:1-7 · 7 verses").
+- **A run of chapters can carry on into the next book.** Picking the last
+  chapter shades the chapters the run covers, and "Run on into Exodus" ends
+  Genesis at its last chapter, adds Exodus as the next passage and asks
+  where it ends.
+- **Long chapter and verse lists are quicker.** The numbers fill each row,
+  and a list longer than 30 (Psalms' 150 chapters, Psalm 119's 176 verses)
+  has a box to type the number into.
+- **Bigger buttons around the passage.** "Add another passage" is a
+  full-width button, Remove is a 44pt icon, and the text links are 44pt tall.
+- **A typed reference clears with an ×.** One the lists can't show (an
+  unknown book, or verses running across chapters) used to leave no way back
+  to the lists short of deleting it by hand; the × clears it and goes back.
+
 ## [2.14.2] - 2026-11-28
 
 ### Changed
