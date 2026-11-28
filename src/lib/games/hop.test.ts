@@ -9,11 +9,13 @@ import {
   HOP_MAX_SCORE,
   HOP_PREVIEWS,
   hopAt,
+  climb,
   hopDifficulty,
   hopPage,
   hopScore,
   isHopPreview,
   JUMP_RISE,
+  landingSpread,
   landingTime,
   layRoute,
   MAX_ROUTE_GAP,
@@ -33,7 +35,7 @@ import {
   type HopPlatform,
   type HopState,
 } from "./hop";
-import { HOP, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
+import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
 
 const W = 390;
 const H = 700;
@@ -41,11 +43,13 @@ const FRAME = 1 / 60;
 /** Board heights Hop is shown at: a short web window to a tall phone (GAME_VIEWS.hop). */
 const HEIGHTS = [640, 760, 900];
 const HALF_OVERLAP = HOP.platform.width / 2 + HOP.box.width / 2;
+/** Close enough to a platform's middle to let go and glide onto it. */
+const NEAR_ENOUGH = HOP.platform.width / 4;
 
 /** A run with only these platforms, and nothing more laid as it climbs. */
 const bare = (platforms: Partial<HopPlatform>[], over: Partial<HopState> = {}): HopState => ({
   ...newHop(W, H, 1),
-  platforms: platforms.map((p, i) => ({ id: 100 + i, kind: "normal", x: W / 2, y: 0, route: true, landedAt: null, ...p })),
+  platforms: platforms.map((p, i) => ({ id: 100 + i, kind: "normal", x: W / 2, y: 0, width: HOP.platform.width, route: true, landedAt: null, ...p })),
   gen: { y: 1e9, x: 0, spread: 0 },
   corridors: [],
   boostClearAt: 1e9,
@@ -328,21 +332,13 @@ describe("boosts", () => {
 });
 
 describe("steering", () => {
-  test("gets going quickly, turns round quicker, and glides a little when let go", () => {
-    let vx = 0;
-    let t = 0;
-    while (vx < HOP.maxSpeed) {
-      vx = steerSpeed(vx, 1, FRAME);
-      t += FRAME;
-    }
-    expect(t).toBeLessThan(0.16);
-    let turn = 0;
-    while (vx > 0) {
-      vx = steerSpeed(vx, -1, FRAME);
-      turn += FRAME;
-    }
-    expect(turn).toBeLessThan(t);
-    vx = HOP.maxSpeed;
+  test("full speed the very next step you hold a way, turning round included, and almost a dead stop when let go", () => {
+    expect(steerSpeed(0, 1, FRAME)).toBe(HOP.maxSpeed);
+    expect(steerSpeed(0, -1, FRAME)).toBe(-HOP.maxSpeed);
+    // Reversing: no slide the wrong way first.
+    expect(steerSpeed(HOP.maxSpeed, -1, FRAME)).toBe(-HOP.maxSpeed);
+    expect(steerSpeed(-HOP.maxSpeed, 1, FRAME)).toBe(HOP.maxSpeed);
+    let vx: number = HOP.maxSpeed;
     let glide = 0;
     let slid = 0;
     while (vx > 0) {
@@ -350,10 +346,20 @@ describe("steering", () => {
       slid += vx * FRAME;
       glide += FRAME;
     }
-    // Not icy: stopped within a third of a second, having slid about a platform's width.
-    expect(glide).toBeLessThan(0.35);
-    expect(slid).toBeGreaterThan(30);
-    expect(slid).toBeLessThan(HOP.platform.width * 1.2);
+    // Almost a dead stop: still within two frames, having slid a few units.
+    expect(glide).toBeLessThan(2.5 * FRAME);
+    expect(slid).toBeLessThan(8);
+  });
+
+  test("one tap moves you that way on the very next step, by a step at full speed", () => {
+    const still = bare([], { y: 500, vy: 0, camera: 0, x: W / 2, vx: 0 });
+    for (const steer of [-1, 1] as const) {
+      const next = stepHop(withSteer(still, steer), FRAME);
+      expect(next.x - still.x).toBeCloseTo(steer * HOP.maxSpeed * FRAME);
+      // And going the other way, it turns round in that same step.
+      const turned = stepHop(withSteer({ ...still, vx: -steer * HOP.maxSpeed }, steer), FRAME);
+      expect(turned.x - still.x).toBeCloseTo(steer * HOP.maxSpeed * FRAME);
+    }
   });
 
   test("keys and touch hold the same steering, which never changes how fast you can go", () => {
@@ -397,11 +403,50 @@ describe("every gap can be made", () => {
       vx: -HOP.maxSpeed,
       steer: 1,
     });
+    // Holding toward it, then letting go once over it: instant steering would carry you past a near one.
+    const target = state.platforms[1].x;
     let landed = false;
-    play(state, 1.2, FRAME, (s) => {
-      if (s.platforms[1].landedAt !== null) landed = true;
-    });
+    let current = state;
+    for (let t = 0; t < 1.2 && !landed; t += FRAME) {
+      const ahead = target - current.x;
+      current = stepHop(withSteer(current, ahead > NEAR_ENOUGH ? 1 : ahead < -NEAR_ENOUGH ? -1 : 0), FRAME);
+      if (current.platforms[1].landedAt !== null) landed = true;
+    }
     expect(landed).toBe(true);
+  });
+
+  test.each([
+    [80, 52],
+    [150, 44],
+    [MAX_ROUTE_GAP, 38],
+  ])("the furthest trip the route allows %d up onto a platform %d wide, from the worst start, lands", (dy, wide) => {
+    const reach = routeReach(dy) - (HOP.platform.width - wide) / 2;
+    expect(reach).toBeGreaterThan(0);
+    const from = 80;
+    const state = bare([{ y: 0, x: from }, { y: dy, x: from + Math.min(reach, W / 2), width: wide }], {
+      x: from - HALF_OVERLAP + 0.5,
+      y: 0,
+      vy: HOP.jumpSpeed,
+      vx: -HOP.maxSpeed,
+    });
+    const target = state.platforms[1].x;
+    let landed = false;
+    let current = state;
+    for (let t = 0; t < 1.2 && !landed; t += FRAME) {
+      const ahead = target - current.x;
+      current = stepHop(withSteer(current, ahead > wide / 4 ? 1 : ahead < -wide / 4 ? -1 : 0), FRAME);
+      if (current.platforms[1].landedAt !== null) landed = true;
+    }
+    expect(landed).toBe(true);
+  });
+
+  test("a narrow platform catches you only over its own width", () => {
+    const narrow = 40;
+    const edge = narrow / 2 + HOP.box.width / 2;
+    const on = stepHop(bare([{ y: 0, width: narrow }], { x: W / 2 + edge - 1, y: 4, vy: -300, landedAt: null }), FRAME);
+    expect(on.landedAt).not.toBeNull();
+    const off = stepHop(bare([{ y: 0, width: narrow }], { x: W / 2 + edge + 1, y: 4, vy: -300, landedAt: null }), FRAME);
+    expect(off.landedAt).toBeNull();
   });
 
   test("a gap taller than a bounce can reach is never part of the route", () => {
@@ -424,9 +469,9 @@ describe("every gap can be made", () => {
   const centre = (p: HopPlatform) => p.track?.centre ?? p.x;
   const spread = (p: HopPlatform) => p.track?.range ?? 0;
 
-  test.each(HEIGHTS)("on a board %d tall, from every route platform the next is in reach, in 40 climbs to 7,000 points", (height) => {
+  test.each(HEIGHTS)("on a board %d tall, from every route platform the next is in reach, narrow and sliding ones too, in 40 climbs to 12,000 points", (height) => {
     for (let seed = 1; seed <= 40; seed++) {
-      const state = layRoute(W, height, seed, 7000 * HOP.unitsPerPoint);
+      const state = layRoute(W, height, seed, 12_000 * HOP.unitsPerPoint);
       const route = steps(state);
       expect(route.length).toBeGreaterThan(50);
       for (let k = 1; k < route.length; k++) {
@@ -434,7 +479,7 @@ describe("every gap can be made", () => {
         expect(dy).toBeLessThanOrEqual(MAX_ROUTE_GAP);
         for (const from of route[k - 1]) {
           const reachable = route[k].some(
-            (to) => worstTrip(centre(from), spread(from), centre(to), spread(to), W) <= routeReach(dy) + 1e-9
+            (to) => worstTrip(centre(from), spread(from), centre(to), landingSpread(to), W) <= routeReach(dy) + 1e-9
           );
           expect(reachable, `seed ${seed}, step ${k}`).toBe(true);
         }
@@ -455,7 +500,7 @@ describe("every gap can be made", () => {
         if (!next) continue;
         checked++;
         const dy = next[0].y - decoy.y;
-        expect(next.some((to) => worstTrip(decoy.x, 0, centre(to), spread(to), W) <= routeReach(dy) + 1e-9)).toBe(true);
+        expect(next.some((to) => worstTrip(decoy.x, 0, centre(to), landingSpread(to), W) <= routeReach(dy) + 1e-9)).toBe(true);
       }
     }
     expect(checked).toBeGreaterThan(20);
@@ -496,7 +541,7 @@ describe("every gap can be made", () => {
 });
 
 describe("difficulty", () => {
-  test("climbs steadily, bringing each platform in at its height, and stops at its peak", () => {
+  test("climbs steadily, bringing each platform in at its height", () => {
     const at = (points: number) => hopDifficulty(points);
     expect(at(HOP_LEVELS.moving - 1).moving).toBe(0);
     expect(at(HOP_LEVELS.moving).moving).toBeGreaterThan(0);
@@ -511,9 +556,74 @@ describe("difficulty", () => {
       expect(at(points + 250).gapMax).toBeGreaterThanOrEqual(at(points).gapMax);
       expect(at(points + 250).gapMin).toBeGreaterThanOrEqual(at(points).gapMin);
     }
-    expect(at(HOP_LEVELS.peak * 10)).toEqual(at(HOP_LEVELS.peak));
     expect(HOP_LEVELS.peak).toBeGreaterThanOrEqual(4000);
     expect(HOP_LEVELS.peak).toBeLessThanOrEqual(5000);
+    for (const [level, key] of [
+      [HOP_LEVELS.small, "small"],
+      [HOP_LEVELS.breakableMoving, "breakableMoving"],
+      [HOP_LEVELS.oneBounceMoving, "oneBounceMoving"],
+    ] as const) {
+      expect(at(level - 1)[key]).toBe(0);
+      expect(at(level)[key]).toBeGreaterThan(0);
+    }
+  });
+
+  test("keeps getting harder past the peak, smoothly, with no cliff, and never past its ceilings", () => {
+    const at = (points: number) => hopDifficulty(points);
+    const rising = ["gapMin", "moving", "movingSpeed", "movingRange", "breakable", "oneBounce", "small", "breakableMoving", "oneBounceMoving"] as const;
+    for (const key of rising) {
+      expect(at(HOP_LEVELS.peak * 2)[key], key).toBeGreaterThan(at(HOP_LEVELS.peak)[key]);
+      expect(at(HOP_LEVELS.peak * 4)[key], key).toBeGreaterThan(at(HOP_LEVELS.peak * 2)[key]);
+    }
+    // Narrower and fewer springs as you go.
+    expect(at(HOP_LEVELS.peak * 2).smallWidth).toBeLessThan(at(HOP_LEVELS.peak).smallWidth);
+    expect(at(HOP_LEVELS.peak * 2).spring).toBeLessThan(at(HOP_LEVELS.peak).spring);
+    // No step bigger than the climb's own rate, across the peak and past it.
+    for (let points = 100; points < 30_000; points += 10) {
+      const a = at(points);
+      const b = at(points + 10);
+      for (const key of rising) {
+        expect(b[key], `${key} at ${points}`).toBeGreaterThanOrEqual(a[key] - 1e-12);
+        expect(Math.abs(b[key] - a[key]), `${key} at ${points}`).toBeLessThan(0.6);
+      }
+    }
+    const far = at(1e7);
+    expect(far.gapMin).toBeLessThanOrEqual(HOP_DIFFICULTY.gapMin[2]);
+    expect(far.gapMax).toBeLessThanOrEqual(MAX_ROUTE_GAP);
+    expect(far.movingSpeed).toBeLessThanOrEqual(HOP_DIFFICULTY.movingSpeed[2]);
+    expect(far.smallWidth).toBeGreaterThanOrEqual(HOP_DIFFICULTY.smallWidth[2]);
+    expect(far.smallWidth).toBeGreaterThan(HOP.box.width - 4);
+    expect(far.moving + far.oneBounce).toBeLessThan(0.8);
+  });
+
+  test("the curve meets its straight part at the peak at the same rate", () => {
+    const range = [50, 112, 140] as const;
+    const peak = HOP_LEVELS.peak;
+    const before = climb(peak, 0, range) - climb(peak - 1, 0, range);
+    const after = climb(peak + 1, 0, range) - climb(peak, 0, range);
+    expect(after).toBeCloseTo(before, 4);
+    expect(climb(peak, 0, range)).toBe(112);
+    // A ceiling the other way, or none: it holds at the peak.
+    expect(climb(peak * 3, 0, [50, 112, 100])).toBe(112);
+    expect(climb(peak * 3, 0, [189, 189, 189])).toBe(189);
+  });
+
+  test("higher up, each harder platform turns up: narrow, fast, sliding decoys and their mixes", () => {
+    const state = layRoute(W, H, 5, 14_000 * HOP.unitsPerPoint);
+    const high = state.platforms.filter((p) => p.y > 6000 * HOP.unitsPerPoint);
+    const count = (test: (p: HopPlatform) => boolean) => high.filter(test).length;
+    const narrow = (p: HopPlatform) => p.width < HOP.platform.width;
+    expect(count((p) => p.route && p.kind === "normal" && narrow(p))).toBeGreaterThan(5);
+    expect(count((p) => p.route && p.kind === "moving" && narrow(p))).toBeGreaterThan(5);
+    expect(count((p) => p.route && p.kind === "oneBounce" && !!p.track)).toBeGreaterThan(5);
+    expect(count((p) => !p.route && p.kind === "breakable" && !!p.track)).toBeGreaterThan(5);
+    expect(count((p) => !p.route && p.kind === "breakable" && narrow(p))).toBeGreaterThan(5);
+    // Moving platforms up there go faster than the first ones.
+    const fast = Math.max(...high.filter((p) => p.track).map((p) => p.track!.speed));
+    expect(fast).toBeGreaterThan(HOP_DIFFICULTY.movingSpeed[1]);
+    // None narrower than the narrowest, and nothing narrow in the opening.
+    expect(state.platforms.every((p) => p.width >= HOP_DIFFICULTY.smallWidth[2] - 1e-9)).toBe(true);
+    expect(state.platforms.filter((p) => p.y < HOP_LEVELS.small * HOP.unitsPerPoint).every((p) => !narrow(p))).toBe(true);
   });
 
   test("the opening is mostly normal platforms with generous gaps", () => {
@@ -526,10 +636,17 @@ describe("difficulty", () => {
   });
 });
 
-const botRun = (height: number, seed: number, until: number, each?: (s: HopState, before: HopState) => void) => {
+const botRun = (
+  height: number,
+  seed: number,
+  until: number,
+  each?: (s: HopState, before: HopState) => void,
+  turned?: (from: -1 | 0 | 1, to: -1 | 0 | 1) => void
+) => {
   let state = newHop(W, height, seed);
   for (let i = 0; i < 60 * 600 && !state.over && state.score < until; i++) {
     const before = withSteer(state, autoSteer(state));
+    turned?.(state.steer, before.steer);
     state = stepHop(before, FRAME);
     each?.(state, before);
   }
@@ -537,11 +654,30 @@ const botRun = (height: number, seed: number, until: number, each?: (s: HopState
 };
 
 describe("a whole climb", () => {
+  test("the bot that plays test builds' runs steers cleanly: it never flips straight from one way to the other", () => {
+    let flips = 0;
+    let steered = 0;
+    botRun(H, 3, 1500, (_, before) => {
+      if (before.steer !== 0) steered++;
+    }, (from, to) => {
+      if (from !== 0 && to === -from) flips++;
+    });
+    expect(steered).toBeGreaterThan(100);
+    // Turning round for a new target now and then, not every frame.
+    expect(flips).toBeLessThan(steered / 20);
+  });
+
+
   test.each(HEIGHTS)("a careful player on a board %d tall gets past peak difficulty", (height) => {
     for (const seed of [11, 12, 13, 14]) {
       const state = botRun(height, seed, HOP_LEVELS.peak + 500);
       expect(state.score, `seed ${seed}`).toBeGreaterThanOrEqual(HOP_LEVELS.peak + 500);
     }
+  });
+
+  test.each([11, 12])("a careful player climbs far past the peak, to 12,000 points, through every harder platform (seed %d)", (seed) => {
+    const state = botRun(H, seed, 12_000);
+    expect(state.score).toBeGreaterThanOrEqual(12_000);
   });
 
   test("storage, effects and corridors stay bounded however long the climb", () => {

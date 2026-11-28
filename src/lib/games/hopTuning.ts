@@ -17,11 +17,19 @@ export const HOP = {
    * the normal one.
    */
   springSpeed: JUMP_SPEED * Math.sqrt(SPRING_HEIGHT),
-  /** Steering: quick to get going, quicker to turn, a short glide when let go. */
+  /**
+   * Steering: full speed the frame you press, the same the frame you turn
+   * round, and almost a dead stop when let go (two frames at 60 fps, about
+   * 5 units).
+   */
   maxSpeed: 360,
-  accel: 2800,
-  reverse: 5200,
-  glide: 1100,
+  glide: 12_000,
+  /**
+   * The route is still laid as if steering took a moment to get going and to
+   * turn round, as it did before 2.14.7. Steering is instant now, so every
+   * jump has that much reach to spare.
+   */
+  routeSteer: { accel: 2800, reverse: 5200 },
   /** Everyone's collision box, whichever character is drawn. */
   box: { width: 40, height: 50 },
   platform: { width: 64, height: 14 },
@@ -54,24 +62,43 @@ export const HOP_LEVELS = {
   moving: 300,
   breakable: 500,
   oneBounce: 900,
+  /** Narrower platforms, and narrower breakable decoys. */
+  small: 1200,
   propeller: 150,
   jetpack: 1500,
-  /** Peak difficulty: past here nothing gets harder. */
+  /** Breakable decoys that slide along a track. */
+  breakableMoving: 2000,
+  /** One-bounce route platforms that slide along a track. */
+  oneBounceMoving: 2600,
+  /**
+   * Where the steady climb in difficulty ends. Past here it keeps rising,
+   * slowing smoothly toward each number's ceiling, with no cliff.
+   */
   peak: 4500,
 } as const;
 
+/**
+ * How hard the climb is: each is [from where it starts, at the peak, the
+ * ceiling it keeps rising toward past the peak], or one number that holds.
+ */
 export const HOP_DIFFICULTY = {
-  gapMin: [50, 112],
-  gapMax: [92, 189],
+  gapMin: [50, 112, 140],
+  gapMax: [92, 189, 189],
   /** Gaps inside a boost's landing corridor, where every jump can reach anywhere. */
   corridorGap: [60, 135],
-  movingChance: [0.12, 0.34],
-  movingSpeed: [45, 115],
-  movingRange: [36, 70],
-  breakableChance: [0.22, 0.5],
-  oneBounceChance: [0.08, 0.2],
-  oneBounceDecoyChance: [0.08, 0.16],
-  springChance: [0.1, 0.045],
+  movingChance: [0.12, 0.34, 0.42],
+  movingSpeed: [45, 115, 200],
+  movingRange: [36, 70, 90],
+  breakableChance: [0.22, 0.5, 0.62],
+  oneBounceChance: [0.08, 0.2, 0.28],
+  oneBounceDecoyChance: [0.08, 0.16, 0.2],
+  /** How many route platforms (and breakable decoys) are narrow, and how narrow. */
+  smallChance: [0.12, 0.3, 0.45],
+  smallWidth: [52, 44, 38],
+  /** How many breakable decoys slide, and how many one-bounce route platforms. */
+  breakableMovingChance: [0.2, 0.45, 0.6],
+  oneBounceMovingChance: [0.2, 0.4, 0.55],
+  springChance: [0.1, 0.045, 0.035],
   propellerChance: 0.03,
   jetpackChance: 0.012,
 } as const;

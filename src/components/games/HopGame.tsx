@@ -19,6 +19,7 @@ import {
 } from "@/lib/games/hop";
 import { blend } from "@/lib/games/glider";
 import { HOP, HOP_MARK_EVERY } from "@/lib/games/hopTuning";
+import { fingers as heldFingers, lift, liftFingers, press, steerOf, type HeldStack } from "@/lib/games/hopSteer";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -50,8 +51,6 @@ const MARK_UNITS = HOP_MARK_EVERY * HOP.unitsPerPoint;
 /** Clouds and stars are laid out in tiles this tall, the same tile the same way every time. */
 const TILE = 420;
 const BADGE_SECONDS = 1.6;
-
-type Steer = -1 | 0 | 1;
 
 /**
  * Test builds' own runs: steer like a careful player up to `target` points,
@@ -259,19 +258,19 @@ const BestBadge = ({ state }: { state: HopState }) => {
 const fillOf = (kind: HopPlatform["kind"]) =>
   kind === "moving" ? c.moving : kind === "breakable" ? c.breakable : kind === "oneBounce" ? c.oneBounce : c.normal;
 
-const PlatformShape = ({ kind, outline }: { kind: HopPlatform["kind"]; outline: string }) => (
+const PlatformShape = ({ kind, width, outline }: { kind: HopPlatform["kind"]; width: number; outline: string }) => (
   <View
     style={[
       styles.platform,
-      { backgroundColor: fillOf(kind), borderColor: outline },
+      { width, backgroundColor: fillOf(kind), borderColor: outline },
       kind === "oneBounce" && styles.platformDashed,
     ]}
   >
     <View style={[styles.platformStroke, { backgroundColor: c.oneBounce }]} />
     {kind === "breakable" ? (
       <>
-        <View style={[styles.crack, styles.crackA, { backgroundColor: c.crack }]} />
-        <View style={[styles.crack, styles.crackB, { backgroundColor: c.crack }]} />
+        <View style={[styles.crack, styles.crackA, { left: width / 2 - 4, backgroundColor: c.crack }]} />
+        <View style={[styles.crack, styles.crackB, { left: width / 2 + 2, backgroundColor: c.crack }]} />
       </>
     ) : null}
   </View>
@@ -354,23 +353,24 @@ const Platforms = ({ state, outline }: { state: HopState; outline: string }) => 
       const landed = platform.landedAt !== null && state.time - platform.landedAt < HOP.landSeconds;
       const squash = landed ? 1 - 0.25 * Math.sin(((state.time - (platform.landedAt ?? 0)) / HOP.landSeconds) * Math.PI) : 1;
       const track = platform.track;
+      const w = platform.width;
       return (
         <View key={platform.id} pointerEvents="none">
-          {track ? <Track left={track.centre - track.range - PW / 2} top={y + PH / 2 - 1} width={track.range * 2 + PW} /> : null}
-          {seamCopies(platform.x, PW / 2, state.width).map((x) => (
+          {track ? <Track left={track.centre - track.range - w / 2} top={y + PH / 2 - 1} width={track.range * 2 + w} /> : null}
+          {seamCopies(platform.x, w / 2, state.width).map((x) => (
             <View
               key={`p-${x > platform.x ? "r" : x < platform.x ? "l" : "m"}`}
               testID={`hop-platform-${platform.kind}`}
-              style={[styles.platformAt, { transform: [{ translateX: x - PW / 2 }, { translateY: y }, { scaleY: squash }] }]}
+              style={[styles.platformAt, { width: w, transform: [{ translateX: x - w / 2 }, { translateY: y }, { scaleY: squash }] }]}
             >
-              <PlatformShape kind={platform.kind} outline={outline} />
+              <PlatformShape kind={platform.kind} width={w} outline={outline} />
               {platform.spring ? (
-                <View style={[styles.onTop, { left: PW / 2 + platform.spring.offset - HOP.spring.width / 2 }]}>
+                <View style={[styles.onTop, { left: w / 2 + platform.spring.offset - HOP.spring.width / 2 }]}>
                   <Spring time={state.time} firedAt={platform.spring.firedAt} outline={outline} />
                 </View>
               ) : null}
               {platform.item ? (
-                <View style={[styles.onTop, { left: PW / 2 + platform.item.offset - HOP.item.size / 2 }]}>
+                <View style={[styles.onTop, { left: w / 2 + platform.item.offset - HOP.item.size / 2 }]}>
                   <Item kind={platform.item.kind} />
                 </View>
               ) : null}
@@ -401,10 +401,11 @@ const Effect = ({ effect, state, outline }: { effect: HopEffect; state: HopState
             style={[
               styles.half,
               {
+                width: effect.width / 2,
                 backgroundColor: c.breakable,
                 borderColor: outline,
                 transform: [
-                  { translateX: x + (side < 0 ? -PW / 2 : 0) + side * age * 40 },
+                  { translateX: x + (side < 0 ? -effect.width / 2 : 0) + side * age * 40 },
                   { translateY: y + drop },
                   { rotate: `${side * age * 260}deg` },
                 ],
@@ -415,7 +416,7 @@ const Effect = ({ effect, state, outline }: { effect: HopEffect; state: HopState
         {FRAGMENTS.map((f) => (
           <View
             key={`bit-${f}`}
-            style={[styles.bit, { backgroundColor: c.crack, transform: [{ translateX: x + f * 30 + f * age * 60 }, { translateY: y + 4 + drop * 1.2 }] }]}
+            style={[styles.bit, { backgroundColor: c.crack, transform: [{ translateX: x + f * (effect.width / 2 - 2) + f * age * 60 }, { translateY: y + 4 + drop * 1.2 }] }]}
           />
         ))}
       </View>
@@ -593,11 +594,10 @@ export const HopGame = ({
   const step = useMemo(() => (autoplay ? autoStep(autoplay) : stepHop), [autoplay]);
   useGameLoop(running, (dt) => setRun((state) => state && advance(state, dt, step)));
 
-  // What's held: keys, and fingers either side of the board's middle.
-  // Each steering key on its own, so letting go of A leaves ← held.
-  const held = useRef<{ keys: readonly string[]; touch: Steer }>({ keys: [], touch: 0 });
-  /** Where the fingers are, so a fresh measurement of the board can steer them again. */
-  const fingers = useRef<number[]>([]);
+  // What's held: keys, and fingers either side of the board's middle, in
+  // the order pressed. The newest still down steers; lifting it hands back
+  // to the one before (hold left, tap right: right for the tap, then left).
+  const held = useRef<HeldStack>([]);
   const middle = useRef<number | null>(null);
   const boardRef = useRef<ViewInstance | null>(null);
   const measure = useCallback((then?: () => void) => {
@@ -609,24 +609,19 @@ export const HopGame = ({
   const remeasure = useCallback(() => measure(), [measure]);
 
   const apply = () => {
-    const { keys, touch } = held.current;
-    const left = keys.some((key) => LEFT_KEYS.has(key));
-    const right = keys.some((key) => RIGHT_KEYS.has(key));
-    // Both sides at once steer neither way; letting go of one leaves the other.
-    const fromKeys: Steer = left === right ? 0 : left ? -1 : 1;
-    const steer = fromKeys !== 0 ? fromKeys : touch;
+    const steer = steerOf(held.current, middle.current);
     setRun((state) => (state && !state.over && !state.dying ? withSteer(state, steer) : state));
   };
 
   const clearHeld = () => {
-    held.current = { keys: [], touch: 0 };
+    held.current = [];
     apply();
   };
 
   // Nothing stays held across a pause, a screen in front, the leave dialog or a restart.
   useEffect(() => {
     if (running) return;
-    held.current = { keys: [], touch: 0 };
+    held.current = [];
     setRun((state) => (state && !state.over && !state.dying ? withSteer(state, 0) : state));
   }, [running, setRun]);
 
@@ -638,31 +633,23 @@ export const HopGame = ({
     current.begin(from ? hopAt(w, h, seed, from, current.best) : newHop(w, h, seed, current.best), !!from || !!auto);
   };
 
-  const steerFingers = () => {
-    const mid = middle.current;
-    const left = mid !== null && fingers.current.some((x) => x < mid);
-    const right = mid !== null && fingers.current.some((x) => x >= mid);
-    held.current = { ...held.current, touch: left === right ? 0 : left ? -1 : 1 };
-    apply();
-  };
-
   const touch = (event: GestureResponderEvent, ended: boolean) => {
     const native = event.nativeEvent;
     const gone = new Set(ended ? native.changedTouches.map((t) => t.identifier) : []);
     const down: Touch[] = native.touches.filter((t) => !gone.has(t.identifier));
     // A mouse press on the web comes with no touch list.
-    fingers.current = (down.length === 0 && !ended && native.touches.length === 0 ? [native] : down).map((t) => t.pageX);
-    steerFingers();
+    const now = down.length === 0 && !ended && native.touches.length === 0 ? [native] : down;
+    held.current = heldFingers(held.current, now.map((t) => ({ id: `touch-${t.identifier ?? "mouse"}`, x: t.pageX })));
+    apply();
   };
 
   const letGo = () => {
-    fingers.current = [];
-    held.current = { ...held.current, touch: 0 };
+    held.current = liftFingers(held.current);
     apply();
   };
 
   // Made once, so the handlers it calls are read fresh each time.
-  const hands = useLatest({ measure, start, touch, letGo, steerFingers });
+  const hands = useLatest({ measure, start, touch, letGo, apply });
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => latest.current.session.phase !== "over",
@@ -672,7 +659,7 @@ export const HopGame = ({
         hands.current.touch(event, false);
         // On a phone the measurement comes back a moment later: steer the
         // first finger again by it, in case the board had moved.
-        hands.current.measure(() => hands.current.steerFingers());
+        hands.current.measure(() => hands.current.apply());
       },
       onPanResponderStart: (event) => hands.current.touch(event, false),
       onPanResponderMove: (event) => hands.current.touch(event, false),
@@ -706,8 +693,9 @@ export const HopGame = ({
       if (down && !event.repeat && current.phase === "ready") start();
       // A shifted letter comes back up unshifted: hold them as one.
       const name = key.length === 1 ? key.toLowerCase() : key;
-      const others = held.current.keys.filter((k) => k !== name);
-      held.current = { ...held.current, keys: down ? [...others, name] : others };
+      // The last pressed steers; a key's own repeats don't take it back from a newer one.
+      if (down && event.repeat) return;
+      held.current = down ? press(held.current, { id: `key-${name}`, side: left ? -1 : 1 }) : lift(held.current, `key-${name}`);
       apply();
     },
     clearHeld,
@@ -779,8 +767,8 @@ const styles = StyleSheet.create({
   platformDashed: { borderStyle: "dashed", opacity: 0.85 },
   platformStroke: { position: "absolute", left: 8, right: 14, top: 2, height: 2, borderRadius: 1, opacity: 0.45 },
   crack: { position: "absolute", top: 0, width: 2, height: PH },
-  crackA: { left: PW / 2 - 4, transform: [{ rotate: "24deg" }] },
-  crackB: { left: PW / 2 + 2, transform: [{ rotate: "-28deg" }] },
+  crackA: { transform: [{ rotate: "24deg" }] },
+  crackB: { transform: [{ rotate: "-28deg" }] },
   onTop: { position: "absolute", bottom: PH - 1 },
   spring: { width: HOP.spring.width, justifyContent: "flex-end" },
   springTop: { position: "absolute", top: 0, left: 0, right: 0, height: 4, borderRadius: 2, borderWidth: 1 },
