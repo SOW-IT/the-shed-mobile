@@ -14,8 +14,22 @@ All notable changes to **The SHED** mobile app. This project follows
   the dev backend when a change reached `main`, so a new staging build could
   ask for things dev didn't have yet (the café mahjong tables showed
   "Could not find public function for 'mahjong:mine'"). Each merge to `main`
-  now deploys the backend to dev as well as prod. Nothing changes in the app
-  itself.
+  now deploys the backend to dev first. The over-the-air update and the dev
+  web app follow once that has finished, and prod Convex after the update as
+  before. A failed or skipped dev deploy never holds back phones or prod.
+  Nothing changes in the app itself.
+
+## [2.13.73] - 2026-11-28
+
+### Changed
+- **A merge to `main` now publishes the over-the-air update before it
+  deploys the prod backend.** EAS Update runs on the merge, and Convex Deploy
+  runs once it has finished (succeeded or failed, not cancelled), for the same
+  commit, and skips a commit a newer merge has replaced. A run of EAS Update
+  by hand can't cancel a merge's queued run, and a skipped Convex run can't
+  cancel a queued deploy, so prod Convex always ends on the newest `main`. Nothing in the app
+  changes. For the few minutes in between, a phone already on the new
+  JavaScript gets errors from any Convex function or argument the merge added.
 
 ## [2.13.72] - 2026-11-28
 
