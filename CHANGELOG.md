@@ -14,6 +14,43 @@ All notable changes to **The SHED** mobile app. This project follows
   lobby stayed open and then sat back down in the same seat, the question
   popped up again. Now it's forgotten as soon as they get up.
 
+## [2.13.71] - 2026-11-28
+
+### Fixed
+- **Verify's character editor and World walk checks stop failing on their
+  own, for contributors.** Nothing in the app changes.
+  - The web `steps-drag` check failed on main every time, either with
+    `page.goto: net::ERR_ABORTED` at `/world?sheet=character` or with a
+    60-second timeout. It drags with touch, and a Mac browser with touch is
+    how an iPad looks, so the web page did what it does on an iPad: it tried
+    to open the app, and two seconds later went to the App Store, which
+    cancelled the check's move to the editor. The check now tells the page,
+    before it loads, that it has already tried, the way the page remembers
+    that itself after its first try.
+  - The iOS checks open the World menu through one shared step,
+    `flows/open-world-menu.yaml` (`backyard-chat`, `home-furniture`, and
+    `chapel-pews` on its way back to the Garden). It taps the place title
+    once, waits up to 5 seconds for the menu, and taps again only if the
+    menu still isn't up. Maestro's own second try at a tap that seemed
+    to change nothing could land on the menu's backdrop and shut the menu
+    the first tap had opened, the likely reason an iOS run of
+    `home-furniture` found no Home row.
+  - The iOS `backyard-chat` check goes to the backyard by the World menu's
+    Backyard row. It no longer closes the menu with ✕ and walks to the
+    home's Backyard pad, which raced the menu opening: a ✕ tap that missed
+    left the menu open to take the tap meant for the pad. It matches the
+    backyard's title in any case, since the title reads "Backyard" until
+    the backyard has loaded, and your own backyard's menu has no Backyard
+    row.
+  - The iOS `home-furniture` check waits for your home to load (the title
+    is no longer just "Home") before it decides whether you're home, so it
+    doesn't look for a Home row that the menu drops once it knows.
+  - The iOS `home-furniture` check opens your home by the menu row's id and
+    waits for the menu to be gone before its taps on the floor. The
+    `chapel-pews` check waits the same way before its tap on the pew. Their
+    taps in the World wait at most 2 seconds for a screen that never stops
+    moving, so neither runs past verify's 5 minutes per check.
+
 ## [2.13.70] - 2026-11-28
 
 ### Added
