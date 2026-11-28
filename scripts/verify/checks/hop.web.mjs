@@ -204,7 +204,8 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
       await frames(2);
       const to = await playerX(page);
       await page.keyboard.up(key);
-      if (moved(from, to) * (i % 2 === 0 ? -1 : 1) <= 0) wrong++;
+      // Strictly the way pressed: a missing reading (NaN) counts as wrong too.
+      if (!(moved(from, to) * (i % 2 === 0 ? -1 : 1) > 0)) wrong++;
     }
     note(`six quick reversals each go the way pressed (${6 - wrong} of 6)`, wrong === 0);
     await page.screenshot({ path: `${OUT}/hop-reversals.png` });
