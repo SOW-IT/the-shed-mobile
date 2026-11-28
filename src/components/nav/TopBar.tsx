@@ -69,7 +69,6 @@ export const TopBar = ({
         {onBack ? (
           <Pressable
             onPress={onBack}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             testID="top-bar-back"
@@ -124,22 +123,24 @@ export const TopBar = ({
               onPress={() => router.push("/notifications")}
               onPressIn={bell.onPressIn}
               onPressOut={bell.onPressOut}
-              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={
                 unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
               }
+              style={styles.bellBtn}
             >
-              <Ionicons
-                name={unread > 0 ? "notifications" : "notifications-outline"}
-                size={24}
-                color={t.text}
-              />
-              {unread > 0 ? (
-                <View style={[styles.badge, { backgroundColor: t.accent }]}>
-                  <Text style={styles.badgeText}>{badgeText(unread)}</Text>
-                </View>
-              ) : null}
+              <View>
+                <Ionicons
+                  name={unread > 0 ? "notifications" : "notifications-outline"}
+                  size={24}
+                  color={t.text}
+                />
+                {unread > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: t.accent }]}>
+                    <Text style={styles.badgeText}>{badgeText(unread)}</Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           </Animated.View>
         ) : null}
@@ -156,7 +157,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 },
+  // 44pt targets. hitSlop doesn't reach web, so the box itself is the target;
+  // negative margins keep the icons where they were.
+  backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginLeft: -10 },
+  bellBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", margin: -10 },
   center: {
     position: "absolute",
     top: 0,

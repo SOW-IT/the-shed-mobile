@@ -52,7 +52,17 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   headerText: { flex: 1 },
-  headerBack: { marginLeft: -6, justifyContent: "center" },
+  // A 44pt target (hitSlop doesn't reach web); the margins keep the chevron
+  // where it sat as a bare 26pt icon.
+  headerBack: {
+    width: 44,
+    height: 44,
+    marginLeft: -15,
+    marginRight: -9,
+    marginVertical: -8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   card: {
     borderRadius: radius.lg,
     padding: spacing.lg + 2,
