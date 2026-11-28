@@ -55,10 +55,26 @@ const versionAt = (ref) => {
 };
 
 const RELEASE_SUBJECT = "chore(release): ";
+const BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com";
 
-// The workflow's own commits. A release that completes a manual bump's section
-// keeps the version, so the subject is what marks it as numbered.
-const isReleaseCommit = (ref) => git("log", "-1", "--format=%s", ref).startsWith(RELEASE_SUBJECT);
+// The workflow's own commits: its subject and the bot's author email, so a
+// pull request merged with a "chore(release): " title still gets numbered. A
+// release that completes a manual bump's section keeps the version, so this
+// is what marks it as numbered.
+const isReleaseCommit = (ref) => {
+  const [email, subject] = git("log", "-1", "--format=%ae%n%s", ref).split("\n");
+  return email === BOT_EMAIL && subject.startsWith(RELEASE_SUBJECT);
+};
+
+// Whether a release commit on HEAD's first-parent line was made on top of
+// `sha`: a run completed that manual bump's section and posted it then.
+const foldedAt = (sha) => {
+  const full = git("rev-parse", sha).trim();
+  return git("rev-list", "--first-parent", "--max-count=200", "HEAD")
+    .split("\n")
+    .filter(Boolean)
+    .some((ref) => hasParent(ref) && git("rev-parse", `${ref}^`).trim() === full && isReleaseCommit(ref));
+};
 
 const pendingAt = (ref) =>
   hasParent(ref) && !isReleaseCommit(ref) && awaitsRelease(versionAt(ref), versionAt(`${ref}^`));
@@ -121,16 +137,20 @@ const release = (date) => {
     // below a manual bump that were never numbered (the bump merged before
     // their run), and any notes left behind, go into the manual version's
     // section, so none are orphaned for a later release.
-    commits = isReleaseCommit("HEAD") || !hasParent("HEAD") ? [] : unreleasedCommits("HEAD^");
+    const below = isReleaseCommit("HEAD") || !hasParent("HEAD") ? [] : unreleasedCommits("HEAD^");
     version = versionAt("HEAD");
-    if (isReleaseCommit("HEAD") || (commits.length === 0 && fragments.length === 0)) {
+    if (isReleaseCommit("HEAD") || (below.length === 0 && fragments.length === 0)) {
       console.log(`HEAD already carries its own version (${version}), so there is nothing to release.`);
       output({ released: "false" });
       return;
     }
     bump = "manual";
+    // The manual bump is posted with the merges it took in: its own run may
+    // never come, because the run for the release commit pushed below can
+    // replace it in the queue.
+    commits = [...below, git("rev-parse", "HEAD").trim()];
     console.log(
-      `HEAD set its own version (${version}); its section takes ${commits.length} earlier merge(s) and ${fragments.length} note(s) still waiting for one.`
+      `HEAD set its own version (${version}); its section takes ${below.length} earlier merge(s) and ${fragments.length} note(s) still waiting for one.`
     );
   }
 
@@ -164,6 +184,9 @@ switch (command) {
   case "pending":
     console.log(String(pendingAt(args[0] ?? "HEAD")));
     break;
+  case "folded":
+    console.log(String(foldedAt(args[0] ?? "HEAD")));
+    break;
   case "version":
     console.log(versionAt(args[0] ?? "HEAD"));
     break;
@@ -171,6 +194,6 @@ switch (command) {
     release(option("--date") ?? sydneyDate(new Date()));
     break;
   default:
-    console.error("Usage: node scripts/release-version.mjs pending [ref] | version [ref] | release [--date YYYY-MM-DD]");
+    console.error("Usage: node scripts/release-version.mjs pending [ref] | folded [ref] | version [ref] | release [--date YYYY-MM-DD]");
     process.exit(1);
 }

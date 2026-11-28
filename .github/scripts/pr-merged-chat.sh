@@ -4,8 +4,9 @@
 #   RELEASED=true, RELEASE_VERSION, RELEASED_COMMITS: the merges it numbered.
 #   TRIGGER_SHA: the push's commit. Posted with its own version when it raised
 #     the version itself (a manual bump) or when main isn't being numbered
-#     (RELEASE_CONFIGURED isn't true). A merge another run is numbering, and
-#     the bot's own release commit, are skipped.
+#     (RELEASE_CONFIGURED isn't true). A merge another run is numbering, a
+#     manual bump a release run already posted, and the bot's own release
+#     commit, are skipped.
 set -euo pipefail
 
 webhook_url=$(printf '%s' "${GOOGLE_CHAT_WEBHOOK_URL:-}" | tr -d '[:space:]')
@@ -89,6 +90,10 @@ if [ -z "$trigger" ] || [[ " ${RELEASED_COMMITS:-} " == *" ${trigger} "* ]] \
   || [ "$(git log -1 --format=%ae "$trigger")" = "$bot_email" ]; then
   exit 0
 fi
-if [ "${RELEASE_CONFIGURED:-}" != "true" ] || [ "$(node scripts/release-version.mjs pending "$trigger")" = "false" ]; then
+# A manual bump whose section a release commit completed was posted by that
+# release's run, with the merges it took in.
+if [ "${RELEASE_CONFIGURED:-}" != "true" ] \
+  || { [ "$(node scripts/release-version.mjs pending "$trigger")" = "false" ] \
+    && [ "$(node scripts/release-version.mjs folded "$trigger")" = "false" ]; }; then
   post "$trigger" "$(node scripts/release-version.mjs version "$trigger")"
 fi
