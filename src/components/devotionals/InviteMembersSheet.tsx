@@ -1,13 +1,14 @@
 import {
   Avatar,
   Btn,
-  Chip,
+  EmptyState,
   ErrorBanner,
   Muted,
   SearchField,
   Sheet,
   errorMessage,
 } from "@/components/ui";
+import { StatusPill } from "@/components/ui/StatusPill";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { useMutation, useQuery } from "convex/react";
@@ -16,7 +17,13 @@ import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 
-const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => {
+const InviteMembersBody = ({
+  groupId,
+  groupName,
+}: {
+  groupId: Id<"devotionalGroups">;
+  groupName: string;
+}) => {
   const t = useAppTheme();
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 180);
@@ -43,6 +50,9 @@ const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => 
 
   return (
     <View style={styles.wrap}>
+      <Muted>
+        Invite people to {groupName}. They get a notification and join once they accept.
+      </Muted>
       <SearchField
         value={search}
         onChangeText={setSearch}
@@ -50,7 +60,21 @@ const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => 
         loading={people === undefined}
       />
       <ErrorBanner message={error} />
-      {people && people.length === 0 ? <Muted>No people found.</Muted> : null}
+      {people && people.length === 0 ? (
+        debounced.trim() ? (
+          <EmptyState
+            icon="search-outline"
+            title="No people found"
+            message={`Nobody matches "${debounced.trim()}". Try a first name, surname or email.`}
+          />
+        ) : (
+          <EmptyState
+            icon="people-outline"
+            title="No one to invite yet"
+            message="People show up here once they've signed in to The Shed."
+          />
+        )
+      ) : null}
       <View style={styles.list}>
         {(people ?? []).map((person) => (
           <View
@@ -67,9 +91,9 @@ const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => 
               </Text>
             </View>
             {person.status === "member" ? (
-              <Chip>Member</Chip>
+              <StatusPill label="Member" tone="done" />
             ) : person.status === "invited" ? (
-              <Chip>Invited</Chip>
+              <StatusPill label="Invited" tone="waiting" />
             ) : (
               <Btn
                 title="Invite"
@@ -89,14 +113,16 @@ const InviteMembersBody = ({ groupId }: { groupId: Id<"devotionalGroups"> }) => 
 export const InviteMembersSheet = ({
   visible,
   groupId,
+  groupName,
   onClose,
 }: {
   visible: boolean;
   groupId: Id<"devotionalGroups">;
+  groupName: string;
   onClose: () => void;
 }) => (
   <Sheet visible={visible} title="Invite Members" onClose={onClose}>
-    {visible ? <InviteMembersBody groupId={groupId} /> : null}
+    {visible ? <InviteMembersBody groupId={groupId} groupName={groupName} /> : null}
   </Sheet>
 );
 
