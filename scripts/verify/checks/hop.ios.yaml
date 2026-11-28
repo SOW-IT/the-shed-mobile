@@ -1,9 +1,9 @@
 appId: au.org.sow.theshed
 ---
-# Hop on a phone: the start card and its characters, holding the left half
-# to start and steer, sliding across the middle to turn round, the leave
-# dialog and Continue, then a run that plays itself (test builds only) past
-# the BEST line to the fall-off ending, Play again, and the Leaderboard.
+# Hop on a phone: the start card and its characters, the leave dialog and
+# Continue on a run, holding the left half to start and steer and sliding
+# across the middle to turn round, then a run that plays itself (test builds
+# only) to the fall-off ending, Play again, and the Leaderboard.
 # Read the screenshots: the page, the character and the cards.
 - openLink: "theshedmobile://games"
 - extendedWaitUntil:
@@ -24,15 +24,25 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-hop-sij"
 - tapOn:
     id: character-original
-# Hold the left half: the run starts and steers left, then the finger slides
-# to the right half without lifting.
-- swipe:
-    start: "20%, 75%"
-    end: "80%, 75%"
-    duration: 1500
+# Back to the Games list (no run yet, so it doesn't ask), so the links below
+# open Hop fresh and leaving comes back to the list.
+- tapOn: "Back to the games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 20000
+# A run that plays itself, climbing far past where this check stops it, so
+# it's still going while the back button asks first and waits.
+- openLink: "theshedmobile://games/hop?autoplay=5000"
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
 - assertNotVisible:
     id: character-picker-hop
-- takeScreenshot: "${OUT}/check-hop-steered"
 - tapOn: "Back to the games"
 - extendedWaitUntil:
     visible: "Leave this game?"
@@ -42,12 +52,37 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     notVisible: "Leave this game?"
     timeout: 10000
-# Leave that run, so the link below opens a new game screen at its start card.
 - tapOn: "Back to the games"
 - extendedWaitUntil:
     visible: "Leave this game?"
     timeout: 10000
 - tapOn: "Leave game"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 20000
+# A new run: hold the left half to start and steer left, then slide to the
+# right half without lifting. Steering off the first platform can miss the
+# rest and fall off, so either way the run is left after.
+- tapOn:
+    id: games-open-hop
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- swipe:
+    start: "20%, 75%"
+    end: "80%, 75%"
+    duration: 1500
+- assertNotVisible:
+    id: character-picker-hop
+- takeScreenshot: "${OUT}/check-hop-steered"
+- tapOn: "Back to the games"
+- runFlow:
+    when:
+      visible: "Leave this game?"
+    commands:
+      - tapOn: "Leave game"
 - extendedWaitUntil:
     visible:
       id: games-open-hop
