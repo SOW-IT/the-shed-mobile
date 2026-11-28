@@ -1,0 +1,38 @@
+appId: au.org.sow.theshed
+---
+# Opens the World menu from the place title, and makes sure it's open.
+#
+# Maestro taps again when a tap seems to change nothing (retryTapIfNoChange).
+# In the World the screen never stops moving and the menu fades in, so that
+# second tap could land on the menu's backdrop and shut the menu the first
+# one opened (likely why an iOS run of home-furniture found no Home row). So the
+# title is tapped once, and only tapped again if the menu isn't up after the
+# animation. The Settings row is always in the menu, so it says the menu is up.
+#
+# Used as `- runFlow: flows/open-world-menu.yaml` from a check in the folder
+# above. Checks in this folder aren't run on their own: verify runs the
+# checks the feature map names (scripts/verify/feature-map.json).
+- tapOn:
+    id: world-title
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 2000
+- runFlow:
+    when:
+      notVisible:
+        id: world-menu-settings
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - runFlow:
+          when:
+            notVisible:
+              id: world-menu-settings
+          commands:
+            - tapOn:
+                id: world-title
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    visible:
+      id: world-menu-settings
+    timeout: 10000

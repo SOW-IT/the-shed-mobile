@@ -19,6 +19,12 @@ All notable changes to **The SHED** mobile app. This project follows
     cancelled the check's move to the editor. The check now tells the page,
     before it loads, that it has already tried, the way the page remembers
     that itself after its first try.
+  - The iOS checks open the World menu through one shared step,
+    `flows/open-world-menu.yaml`. It taps the place title once, and again
+    only if the menu isn't up. Maestro's own second try at a tap that seemed
+    to change nothing could land on the menu's backdrop and shut the menu
+    the first tap had opened, the likely reason an iOS run of
+    `home-furniture` found no Home row.
   - The iOS `backyard-chat` check goes to the backyard by the World menu's
     Backyard row. It no longer closes the menu with ✕ and walks to the
     home's Backyard pad, which raced the menu opening: a ✕ tap that missed

@@ -26,9 +26,7 @@ appId: au.org.sow.theshed
       notVisible:
         id: world-decorate-open
     commands:
-      - tapOn:
-          id: world-title
-          waitToSettleTimeoutMs: 2000
+      - runFlow: flows/open-world-menu.yaml
       - extendedWaitUntil:
           visible:
             id: world-menu-home

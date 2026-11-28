@@ -8,6 +8,7 @@ appId: au.org.sow.theshed
 # there Maestro would wait up to about 45 s for the screen to settle, and the
 # check ran past verify's 5 minutes. The World's taps cap that wait at 2 s
 # (waitToSettleTimeoutMs); the waits after each tap say what to wait for.
+# The menu opens through flows/open-world-menu.yaml, which makes sure it did.
 #
 # A chat line's label is what it says and where it was said ("You said …,
 # in Backyard") (view.ts saidLabel). The web check (two people) runs first
@@ -25,11 +26,7 @@ appId: au.org.sow.theshed
         id: world-title
         text: ".*backyard.*"
     commands:
-      - tapOn:
-          id: world-title
-          waitToSettleTimeoutMs: 2000
-      - waitForAnimationToEnd:
-          timeout: 2000
+      - runFlow: flows/open-world-menu.yaml
       # The menu's Backyard row takes you there (through your home, from
       # anywhere else). Closing the menu with ✕ and walking to the home's
       # Backyard pad raced it: a ✕ tap while the menu is still opening can
@@ -67,9 +64,7 @@ appId: au.org.sow.theshed
     timeout: 3000
 - takeScreenshot: "${OUT}/check-backyard-chat-said"
 # Out to the Garden: the line is still there, tagged [Backyard].
-- tapOn:
-    id: world-title
-    waitToSettleTimeoutMs: 2000
+- runFlow: flows/open-world-menu.yaml
 - tapOn:
     id: world-menu-garden
     waitToSettleTimeoutMs: 2000
@@ -87,11 +82,7 @@ appId: au.org.sow.theshed
 # And back in: the chat box and the line are there again.
 - runFlow:
     commands:
-      - tapOn:
-          id: world-title
-          waitToSettleTimeoutMs: 2000
-      - waitForAnimationToEnd:
-          timeout: 2000
+      - runFlow: flows/open-world-menu.yaml
       # By the menu's Backyard row again.
       - extendedWaitUntil:
           visible:
@@ -114,9 +105,7 @@ appId: au.org.sow.theshed
     timeout: 3000
 - takeScreenshot: "${OUT}/check-backyard-chat-back"
 # Back to the Garden, where the checks after this one expect to start.
-- tapOn:
-    id: world-title
-    waitToSettleTimeoutMs: 2000
+- runFlow: flows/open-world-menu.yaml
 - tapOn:
     id: world-menu-garden
     waitToSettleTimeoutMs: 2000
