@@ -284,19 +284,23 @@ const PickRow = ({
     <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
       {rows > 1 ? (
         <View style={styles.rowHeader}>
-          <View style={styles.rowTitle}>
+          <View
+            style={styles.rowTitle}
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={`Passage ${row + 1}${pick ? `, ${passageFromPick(pick)}` : ""}${size ? `, ${size}` : ""}`}
+          >
             <View style={[styles.badge, { backgroundColor: t.primarySoft }]}>
               <Text style={[typography.label, { color: t.primary }]}>{row + 1}</Text>
             </View>
             <Text
               numberOfLines={1}
-              accessibilityLabel={`Passage ${row + 1}${pick ? `, ${passageFromPick(pick)}` : ""}${size ? `, ${size}` : ""}`}
               style={[typography.label, styles.rowTitleText, { color: pick ? t.text : t.muted }]}
             >
               {pick ? passageFromPick(pick) : `Passage ${row + 1}`}
             </Text>
             {size ? (
-              <Text numberOfLines={1} importantForAccessibility="no" style={[typography.caption, styles.rowSize, { color: t.muted }]}>
+              <Text numberOfLines={1} style={[typography.caption, styles.rowSize, { color: t.muted }]}>
                 {size}
               </Text>
             ) : null}
@@ -404,7 +408,8 @@ export const PassagePicker = ({
   const read = picksFromPassage(passage);
   const [typingChosen, setTypingChosen] = useState(false);
   const typing = typingChosen || read === "custom";
-  const [open, setOpen] = useState<{ row: number; step: Step } | null>(null);
+  const [open, setOpen] = useState<{ row: number; step: Step; visit: number } | null>(null);
+  const [visits, setVisits] = useState(0);
   const [query, setQuery] = useState("");
   const [tooLong, setTooLong] = useState(false);
   const picks = read === "custom" ? [] : (read ?? []);
@@ -412,6 +417,19 @@ export const PassagePicker = ({
   const close = () => {
     setOpen(null);
     setQuery("");
+  };
+  /**
+   * Opens the sheet on a row's step, or closes it for `null`. Each opening is
+   * a new visit, which keys the number grids, so a number typed into one list
+   * (a first verse, or Genesis's last chapter) doesn't carry into the next.
+   */
+  const openAt = (row: number, step: Step | null) => {
+    if (step === null) {
+      close();
+      return;
+    }
+    setVisits(visits + 1);
+    setOpen({ row, step, visit: visits + 1 });
   };
   /**
    * Sets the row's pick, or removes the row for `null`. A row past the end is
@@ -469,6 +487,7 @@ export const PassagePicker = ({
             <Pressable
               onPress={() => {
                 setTypingChosen(false);
+                setTooLong(false);
                 onChange("");
               }}
               accessibilityRole="button"
@@ -483,7 +502,10 @@ export const PassagePicker = ({
         </View>
         {canUseLists ? (
           <Pressable
-            onPress={() => setTypingChosen(false)}
+            onPress={() => {
+              setTypingChosen(false);
+              setTooLong(false);
+            }}
             disabled={!editable}
             accessibilityRole="button"
             testID="devotional-passage-use-lists"
@@ -506,6 +528,7 @@ export const PassagePicker = ({
   const rows: (PassagePick | null)[] = picks.length > 0 ? picks : [null];
   const row = open?.row ?? 0;
   const step = open?.step ?? null;
+  const gridKey = `${row}-${step}-${open?.visit ?? 0}`;
   const current = picks[row] ?? null;
   const oneChapter = current?.book.chapters.length === 1;
   const verses = current ? versesInChapter(current) : 0;
@@ -534,7 +557,7 @@ export const PassagePicker = ({
           row={index}
           rows={rows.length}
           editable={editable}
-          onOpen={(next) => setOpen({ row: index, step: next })}
+          onOpen={(next) => openAt(index, next)}
           onRemove={() => write(index, null)}
         />
       ))}
@@ -545,7 +568,7 @@ export const PassagePicker = ({
       ) : null}
       {canAdd ? (
         <Pressable
-          onPress={() => setOpen({ row: picks.length, step: "book" })}
+          onPress={() => openAt(picks.length, "book")}
           accessibilityRole="button"
           testID="devotional-passage-add"
           style={({ pressed }) => [styles.addButton, { borderColor: t.border }, pressed && { opacity: 0.6 }]}
@@ -555,7 +578,10 @@ export const PassagePicker = ({
         </Pressable>
       ) : null}
       <Pressable
-        onPress={() => setTypingChosen(true)}
+        onPress={() => {
+          setTypingChosen(true);
+          setTooLong(false);
+        }}
         disabled={!editable}
         accessibilityRole="button"
         testID="devotional-passage-type"
@@ -584,12 +610,13 @@ export const PassagePicker = ({
               onPick={(book) => {
                 if (!write(row, chooseBook(book))) return;
                 setQuery("");
-                setOpen(book.chapters.length === 1 ? null : { row, step: "chapter" });
+                openAt(row, book.chapters.length === 1 ? null : "chapter");
               }}
             />
           </>
         ) : step === "chapter" ? (
           <NumberGrid
+            key={gridKey}
             from={1}
             to={current.book.chapters.length}
             selected={current.chapter}
@@ -610,13 +637,14 @@ export const PassagePicker = ({
               }}
             />
             <NumberGrid
+              key={gridKey}
               from={1}
               to={verses}
               selected={current.fromVerse}
               noun="Verse"
               onPick={(verse) => {
                 if (!write(row, chooseFromVerse(current, verse))) return;
-                setOpen(verse < verses ? { row, step: "to" } : null);
+                openAt(row, verse < verses ? "to" : null);
               }}
             />
           </>
@@ -631,6 +659,7 @@ export const PassagePicker = ({
               }}
             />
             <NumberGrid
+              key={gridKey}
               from={current.chapter + 1}
               to={current.book.chapters.length}
               selected={current.toChapter}
@@ -651,7 +680,7 @@ export const PassagePicker = ({
                 onPress={() => {
                   const end = chooseToChapter(current, current.book.chapters.length);
                   if (!write(row, end, chooseChapter(chooseBook(following), 1))) return;
-                  setOpen(following.chapters.length === 1 ? null : { row: row + 1, step: "toChapter" });
+                  openAt(row + 1, following.chapters.length === 1 ? null : "toChapter");
                 }}
               >
                 <View style={styles.runOnText}>
@@ -675,6 +704,7 @@ export const PassagePicker = ({
               }}
             />
             <NumberGrid
+              key={gridKey}
               from={current.fromVerse + 1}
               to={verses}
               selected={current.toVerse}

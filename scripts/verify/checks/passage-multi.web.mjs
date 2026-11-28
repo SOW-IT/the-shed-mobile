@@ -84,9 +84,13 @@ try {
 
   // "Run on into Exodus" ends Genesis at its last chapter and adds Exodus,
   // then asks where Exodus ends.
+  // A number typed into Genesis's list doesn't carry into Exodus's.
   await page.getByTestId("devotional-passage-to-chapter").click();
+  await page.getByTestId("passage-chapter-jump").fill("7");
   await page.getByTestId("passage-run-on").click();
   await page.getByText("Exodus 1: last chapter").waitFor();
+  const carried = await page.getByTestId("passage-chapter-jump").inputValue();
+  if (carried !== "") failures.push(`Exodus's chapter box kept ${JSON.stringify(carried)} from Genesis`);
   await page.screenshot({ path: `${OUT}/multi-run-on-sheet.png` });
   await page.getByTestId("passage-chapter-2").click();
   await sheetClosed();
@@ -134,6 +138,11 @@ try {
   await expectText("devotional-passage-display", atLimit.join("\n"), "the refused change");
   await page.getByTestId("devotional-passage-too-long").scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}/multi-too-long-refused.png`, fullPage: true });
+  // The note goes once you switch to typing and back to the lists.
+  await page.getByTestId("devotional-passage-type").click();
+  await page.getByTestId("devotional-passage-use-lists").click();
+  await page.getByTestId("devotional-passage-book-5").waitFor();
+  await expectCount("devotional-passage-too-long", 0, "back on the lists after typing");
   await page.getByTestId("devotional-passage-remove-5").click();
   await expectCount("devotional-passage-too-long", 0, "after removing a row");
 
