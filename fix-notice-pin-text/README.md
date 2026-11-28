@@ -1,6 +1,7 @@
 # verify: scoped
 
 - because world: src/world/BackyardGuide.tsx
+- because world: src/world/Farm.tsx
 - because world: src/world/NoticeBoard.tsx
 - because world: src/world/Shop.tsx
 - because world: src/world/WorldScreen.tsx
@@ -10,17 +11,17 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 5s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 187s |  |
-| unused code (knip) | ✔ pass | 6s |  |
-| typecheck | ✔ pass | 28s |  |
+| native fingerprint | ✔ pass | 8s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 127s |  |
+| unused code (knip) | ✔ pass | 5s |  |
+| typecheck | ✔ pass | 20s |  |
 | related unit tests | ✔ pass | 1s | 4 passed (4) |
-| verify lock | ✔ pass | 472s | took it after waiting 472s for pid 68449, fix/verify-flakes (targeted iOS checks) in /Users/xtectra/GitHub/worktrees/verify-flakes, since 2026-11-28T00:17:20.761Z |
+| verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 22s | before functions on :3270 |
-| before: web | ⚠ warning | 270s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check farm-help-notices failed: ✘ a new notice's editor still says "Everyone in the World sees it." ✘ the notice being edited still shows below the editor ✘ the edit's editor still says "Everyone in the World sees it." ✘ the Animals and feed tab has no grain ✘ the Animals and feed tab has no hay ✘ t |
-| after: local backend | ✔ pass | 23s | after functions on :3270 |
-| after: web | ✘ fail | 494s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check mahjong failed: ✘ watcher: sitting in a bot's seat didn't ask to take it over |
+| before: local backend | ✔ pass | 20s | before functions on :3270 |
+| before: web | ⚠ warning | 249s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check farm-help-notices failed: ✘ a new notice's editor still says "Everyone in the World sees it." ✘ the notice being edited still shows below the editor ✘ the edit's editor still says "Everyone in the World sees it." ✘ the Animals and feed tab has no grain ✘ the Animals and feed tab has no hay ✘ t |
+| after: local backend | ✔ pass | 20s | after functions on :3270 |
+| after: web | ✘ fail | 460s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check mahjong failed: ✘ watcher: sitting in a bot's seat didn't ask to take it over |
 
 ## Screenshots
 
