@@ -552,16 +552,44 @@ export const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
     .order("desc")
     .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
 
+// Paid requests are most of a staff year, and none of them is waiting on anyone, so
+// readers that only want open work read the unpaid ones (no receipt yet, or awaiting
+// payment) by index instead of the whole year.
+const unpaidYearRequests = async (ctx: QueryCtx | MutationCtx, year: number) => {
+  const unpaid = async (paid: false | undefined) =>
+    await ctx.db
+      .query("requests")
+      .withIndex("by_paid", (q) =>
+        q
+          .eq("paid", paid)
+          .gte("_creationTime", staffYearStartMs(year))
+          .lt("_creationTime", staffYearStartMs(year + 1))
+      )
+      .order("desc")
+      .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
+  const [noReceipt, awaitingPayment] = await Promise.all([unpaid(undefined), unpaid(false)]);
+  return [...noReceipt, ...awaitingPayment]
+    .sort((a, b) => b._creationTime - a._creationTime)
+    .slice(0, LIVE_REQUESTS_PER_YEAR_LIMIT);
+};
+
+const carriedOverRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
+  (await unpaidYearRequests(ctx, year - 1)).filter((r) => !requestCompleted(r));
+
+/** This staff year's requests, newest first, then last year's still-open ones. */
 export const openRequestsAcrossYears = async (
   ctx: QueryCtx | MutationCtx,
   year: number
-) => {
-  const current = await yearRequests(ctx, year);
-  const carriedOver = (await yearRequests(ctx, year - 1)).filter(
-    (r) => !requestCompleted(r)
-  );
-  return [...current, ...carriedOver];
-};
+) => [...(await yearRequests(ctx, year)), ...(await carriedOverRequests(ctx, year))];
+
+/**
+ * {@link openRequestsAcrossYears} without this year's paid requests: everything a
+ * review queue, the Reviewed list or a reminder can still act on.
+ */
+export const unpaidRequestsAcrossYears = async (
+  ctx: QueryCtx | MutationCtx,
+  year: number
+) => [...(await unpaidYearRequests(ctx, year)), ...(await carriedOverRequests(ctx, year))];
 
 export const makeApproverResolver = (ctx: Ctx) =>
   memoAsync((year: number, department: string) => getApprovers(ctx, year, department));
@@ -604,23 +632,55 @@ async function canViewReceiptDetails(
 
 const CHAIN_STATUSES = [PENDING, APPROVED, DECLINED];
 
-export async function canSeeRequest(
+type VisibilityLookups = {
+  inFinance: () => Promise<boolean>;
+  approversFor: (year: number, department: string) => Promise<Approvers>;
+  actAsIn: (year: number) => Promise<Set<string>>;
+};
+
+async function seesRequestWith(
   ctx: QueryCtx,
   caller: CallerContext,
-  request: Doc<"requests">
+  request: Doc<"requests">,
+  lookups: VisibilityLookups
 ): Promise<boolean> {
   if (request.requesterEmail === caller.email) return true;
-  if (await inFinanceTeam(ctx, caller)) return true;
+  if (await lookups.inFinance()) return true;
   for (const year of new Set([requestStaffYear(request), caller.year])) {
-    const approvers = await getApprovers(ctx, year, request.department);
+    const approvers = await lookups.approversFor(year, request.department);
     const chain = involvedApproverEmails(request, approvers, CHAIN_STATUSES);
     if (chain.length === 0) continue;
-    const actAs = await actAsEmails(ctx, year, caller.email);
+    const actAs = await lookups.actAsIn(year);
     if (chain.some((email) => actAs.has(email))) return true;
   }
   const events = await recentRequestEvents(ctx, request._id);
   return events.some((event) => event.actorEmail === caller.email);
 }
+
+export async function canSeeRequest(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">
+): Promise<boolean> {
+  return await seesRequestWith(ctx, caller, request, {
+    inFinance: () => inFinanceTeam(ctx, caller),
+    approversFor: (year, department) => getApprovers(ctx, year, department),
+    actAsIn: (year) => actAsEmails(ctx, year, caller.email),
+  });
+}
+
+/**
+ * {@link canSeeRequest} for checking many requests in one query: the Finance team,
+ * each department's approvers and the caller's delegations are read once, not per request.
+ */
+export const makeRequestVisibility = (ctx: QueryCtx, caller: CallerContext) => {
+  const lookups: VisibilityLookups = {
+    inFinance: memoAsync(() => inFinanceTeam(ctx, caller)),
+    approversFor: makeApproverResolver(ctx),
+    actAsIn: makeActAsResolver(ctx, caller.email),
+  };
+  return (request: Doc<"requests">) => seesRequestWith(ctx, caller, request, lookups);
+};
 
 export async function viewsRequest(
   ctx: QueryCtx,
@@ -957,7 +1017,7 @@ export const toReview = query({
     return await reviewQueues(
       ctx,
       caller,
-      await openRequestsAcrossYears(ctx, caller.year),
+      await unpaidRequestsAcrossYears(ctx, caller.year),
       await lensFor(ctx, caller)
     );
   },
@@ -971,7 +1031,7 @@ export const reviewed = query({
     if (!caller) return null;
     const lens = await lensFor(ctx, caller);
     if (lens.kind === "as") return [];
-    const open = await openRequestsAcrossYears(ctx, caller.year);
+    const open = await unpaidRequestsAcrossYears(ctx, caller.year);
     const queues = await reviewQueues(ctx, caller, open, lens);
     const seen = new Set<Id<"requests">>(
       Object.values(queues).flatMap((rows) => rows.filter((r) => r.canAct).map((r) => r._id))

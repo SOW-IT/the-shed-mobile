@@ -12,7 +12,7 @@ import { songsWaitingOn } from "./musicRequests";
 import {
   mayReviewReimbursements,
   mineTabRequests,
-  openRequestsAcrossYears,
+  unpaidRequestsAcrossYears,
   reviewQueues,
 } from "./requests";
 
@@ -42,7 +42,7 @@ export const summary = query({
     }
     const queues =
       lens.kind !== "self" || (await mayReviewReimbursements(ctx, caller.email, caller.year))
-        ? await reviewQueues(ctx, caller, await openRequestsAcrossYears(ctx, caller.year), lens)
+        ? await reviewQueues(ctx, caller, await unpaidRequestsAcrossYears(ctx, caller.year), lens)
         : null;
     const waiting = (rows: { waiting: boolean }[]) => rows.filter((r) => r.waiting).length;
     const mine = await mineTabRequests(ctx, caller.email, caller.year);

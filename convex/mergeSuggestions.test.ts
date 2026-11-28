@@ -250,3 +250,46 @@ describe("suggested merges", () => {
     expect(suggestions?.[0].candidates[0].role).toBeUndefined();
   });
 });
+
+describe("suggested merges read cost", () => {
+  test("past years' staff profiles aren't read, and members linked in a past year stay out", async () => {
+    const s = await setup();
+    const PAST_YEARS = 5;
+    const PER_YEAR = 40;
+    const members: Id<"attendanceMembers">[] = [];
+    for (let i = 0; i < PER_YEAR; i++) members.push(await s.member(`Past Person${i}`));
+    await s.t.run(async (ctx) => {
+      for (let y = 1; y <= PAST_YEARS; y++) {
+        for (let i = 0; i < PER_YEAR; i++) {
+          await ctx.db.insert("staffProfiles", {
+            email: `past${i}@sow.org.au`,
+            name: `Past Person${i}`,
+            year: YEAR - y,
+            assignments: [{ role: "Staff", department: "Marketing" }],
+            ...(y === PAST_YEARS ? { memberId: members[i] } : {}),
+          });
+        }
+      }
+      // Back on staff this year under the same name: the member linked five years ago
+      // is the same person, so it isn't suggested.
+      await ctx.db.insert("staffProfiles", {
+        email: "past0@sow.org.au",
+        name: "Past Person0",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Marketing" }],
+      });
+    });
+    const alex = await s.member("Alex Morgan");
+    const cost = await s.admin.run(async (ctx) => {
+      const before = await ctx.meta.getTransactionMetrics();
+      const value = await ctx.runQuery(api.mergeSuggestions.list, {});
+      const after = await ctx.meta.getTransactionMetrics();
+      return { value, documentsRead: after.documentsRead.used - before.documentsRead.used };
+    });
+    expect(cost.value?.map((x) => x.staffEmail)).toEqual([ALEX]);
+    expect(cost.value?.[0].candidates.map((c) => c.memberId)).toEqual([alex]);
+    if (process.env.READ_COST_REPORT) console.log("mergeSuggestions.list documentsRead", cost.documentsRead);
+    // Before, every profile of every year was read: over 200 documents here.
+    expect(cost.documentsRead).toBeLessThan(PAST_YEARS * PER_YEAR);
+  });
+});

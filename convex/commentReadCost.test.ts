@@ -63,3 +63,31 @@ describe("unread comment counts over a review list", () => {
     expect(outsider.value).toBe(0);
   });
 });
+
+describe("unread comment counts when most threads are unread", () => {
+  test("approval lookups are shared across threads, not repeated for each one", async () => {
+    const t = await reimbursementSetup();
+    for (let i = 0; i < REQUESTS; i++) {
+      await asUser(t, RACHEL).mutation(api.requests.submit, { description: `r${i}`, amount: 100 + i });
+    }
+    const ids: Id<"requests">[] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!.map(
+      (request) => request._id
+    );
+    for (const id of ids) {
+      await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "one" });
+    }
+    const report: Record<string, number> = {};
+    for (const [email, expected] of [[HENRY, REQUESTS], [FIONA, REQUESTS], [BELLA, REQUESTS]] as const) {
+      const total = await readCost(t, email, api.comments.unreadTotalForRequests, { requestIds: ids });
+      expect(total.value).toBe(expected);
+      report[email] = total.documentsRead;
+    }
+    if (process.env.READ_COST_REPORT) console.table(report);
+    // Each unread thread reads the caller's read marker, its unread comments and the
+    // request; the approval chain is looked up once per year. Before, a Head of
+    // Department read 441 documents here and Finance 121.
+    for (const [email, documentsRead] of Object.entries(report)) {
+      expect(documentsRead, email).toBeLessThan(REQUESTS * 3);
+    }
+  });
+});

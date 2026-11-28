@@ -17,6 +17,7 @@ import {
   actionOwnerEmail,
   canSeeRequest,
   involvedApproverEmails,
+  makeRequestVisibility,
   mineTabRequests,
   notify,
   requestUrl,
@@ -138,12 +139,6 @@ async function unreadCountFor(
   requestId: Id<"requests">,
   email: string
 ): Promise<number> {
-  const newest = await ctx.db
-    .query("requestComments")
-    .withIndex("by_request", (q) => q.eq("requestId", requestId))
-    .order("desc")
-    .first();
-  if (!newest) return 0;
   const read = await ctx.db
     .query("commentReads")
     .withIndex("by_request_and_user", (q) =>
@@ -188,11 +183,12 @@ async function unreadInVisibleThreads(
   requestIds: Id<"requests">[]
 ): Promise<Map<Id<"requests">, number>> {
   const unreadByRequest = new Map<Id<"requests">, number>();
+  const canSee = makeRequestVisibility(ctx, caller);
   for (const id of new Set(requestIds)) {
     const unread = await unreadCountFor(ctx, id, caller.email);
     if (unread === 0) continue;
     const request = await ctx.db.get("requests", id);
-    if (request && (await canSeeRequest(ctx, caller, request))) unreadByRequest.set(id, unread);
+    if (request && (await canSee(request))) unreadByRequest.set(id, unread);
   }
   return unreadByRequest;
 }
