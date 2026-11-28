@@ -58,9 +58,15 @@ export const WORLD_SETTINGS = {
   motion: choice("worldMotion", ["auto", "full", "saver"] as const, "auto"),
   nameTags: choice("worldNameTags", ["all", "near"] as const, "all"),
   names: namesChoice(),
-  mahjongRows: choice("worldMahjongRows", ["one", "two"] as const, "one"),
-  mahjongLabels: choice("worldMahjongLabels", ["on", "off"] as const, "on"),
+  // "auto": the bigger two-row hand, except on a short screen (an iPhone SE), where it's one row.
+  mahjongRows: choice("worldMahjongRows", ["auto", "one", "two"] as const, "auto"),
+  mahjongLabels: choice("worldMahjongLabels", ["on", "off"] as const, "off"),
 };
+
+/** Screens shorter than this get the one-row hand unless the player picks two. */
+const SHORT_SCREEN = 700;
+
+export const handInTwoRows = (rows: WorldSettingValue<"mahjongRows">, screenHeight: number) => rows === "two" || (rows === "auto" && screenHeight >= SHORT_SCREEN);
 
 export type WorldSettingKey = keyof typeof WORLD_SETTINGS;
 export type WorldSettingValue<K extends WorldSettingKey> = (typeof WORLD_SETTINGS)[K]["values"][number];

@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.69] - 2026-11-28
+## [2.13.74] - 2026-11-28
 
 ### Changed
 - **Swoop v3: smoother Tiny Wings feel, Fever & Double Fever, Cloudtouch arcs, and high-altitude performance.**
@@ -16,6 +16,200 @@ All notable changes to **The SHED** mobile app. This project follows
   - Each day wears its own non-repeating Tiny Wings-inspired colour palette, transitioning cleanly at the finish flag so hills past the flag already show the next day's colours.
   - The sun and day clock advance steadily without pausing on swoops, scaling logarithmically from 35s on Day 1 to 20s on Day 8 and 15s from Day 32 onward alongside a logarithmic terrain difficulty curve that plateaus at 3× old Day 10 by Day 32.
   - Swoop now plays on a fresh **v3** leaderboard with **v2 (legacy)** beside it (replacing v1 legacy on Swoop); Sky Shooter, Mystic Man, and Flap remain on v2 and v1 (legacy).
+
+## [2.13.72] - 2026-11-28
+
+### Fixed
+- **The mahjong host's "take them off the table?" question no longer comes
+  back on its own.** If the person the host asked about got up while the
+  lobby stayed open and then sat back down in the same seat, the question
+  popped up again. Now it's forgotten as soon as they get up.
+
+## [2.13.71] - 2026-11-28
+
+### Fixed
+- **Verify's character editor and World walk checks stop failing on their
+  own, for contributors.** Nothing in the app changes.
+  - The web `steps-drag` check failed on main every time, either with
+    `page.goto: net::ERR_ABORTED` at `/world?sheet=character` or with a
+    60-second timeout. It drags with touch, and a Mac browser with touch is
+    how an iPad looks, so the web page did what it does on an iPad: it tried
+    to open the app, and two seconds later went to the App Store, which
+    cancelled the check's move to the editor. The check now tells the page,
+    before it loads, that it has already tried, the way the page remembers
+    that itself after its first try.
+  - The iOS checks open the World menu through one shared step,
+    `flows/open-world-menu.yaml` (`backyard-chat`, `home-furniture`, and
+    `chapel-pews` on its way back to the Garden). It taps the place title
+    once, waits up to 5 seconds for the menu, and taps again only if the
+    menu still isn't up. Maestro's own second try at a tap that seemed
+    to change nothing could land on the menu's backdrop and shut the menu
+    the first tap had opened, the likely reason an iOS run of
+    `home-furniture` found no Home row.
+  - The iOS `backyard-chat` check goes to the backyard by the World menu's
+    Backyard row. It no longer closes the menu with ✕ and walks to the
+    home's Backyard pad, which raced the menu opening: a ✕ tap that missed
+    left the menu open to take the tap meant for the pad. It matches the
+    backyard's title in any case, since the title reads "Backyard" until
+    the backyard has loaded, and your own backyard's menu has no Backyard
+    row.
+  - The iOS `home-furniture` check waits for your home to load (the title
+    is no longer just "Home") before it decides whether you're home, so it
+    doesn't look for a Home row that the menu drops once it knows.
+  - The iOS `home-furniture` check opens your home by the menu row's id and
+    waits for the menu to be gone before its taps on the floor. The
+    `chapel-pews` check waits the same way before its tap on the pew. Their
+    taps in the World wait at most 2 seconds for a screen that never stops
+    moving, so neither runs past verify's 5 minutes per check.
+
+## [2.13.70] - 2026-11-28
+
+### Added
+- **The backyard has a How to farm card.** An (i) button at the bottom
+  right of the backyard opens a card just above it, with a picture and a
+  line or two for each step: planting seeds, "Water every day so plants
+  don't wilt!" (a thirsty, a watered and a wilted plant), the growth stages
+  from seed to ripe, harvesting and selling, and feeding chickens and cows
+  for eggs and milk. The menu, coins and chat stay where they are and keep
+  working while it's open. It closes with its ×, with the same button
+  (which turns into a ×), or by tapping the backyard, and it makes way when
+  you tap a plot, a pen or an animal. It also steps aside while a duel's
+  card is up, so the duel's picks are never pushed out of reach. It and
+  the emote tray take turns: opening one puts the other away. It shuts
+  when you start typing in the chat (on web too) and doesn't pop back
+  when the keyboard closes. On a short
+  window it shrinks to fit between the chat lines and the (i), and
+  tapping a person puts it away too. The ripe
+  plant in the Harvest picture sparkles the way it does in the backyard.
+
+### Changed
+- **Josh's animals and their feed are on one tab.** Josh's shop tabs are
+  now Seeds, Animals and feed, and Sell. The Animals and feed tab lists the
+  chicken and the cow, then grain, hay and name tags under "Feed and name tags", so everything for
+  your animals is in one place. Buying works the same as before.
+- **A notice being edited shows once.** Tapping Edit on a pinned notice
+  opens the editor at the top of the notice board, and the notice no longer
+  also shows below it until you save or cancel. Edit on a notice further
+  down scrolls the board up to the editor. The editor no longer says
+  "Everyone in the World sees it."
+
+## [2.13.69] - 2026-11-28
+
+### Added
+- **A ready check and a countdown before a mahjong game.** People seated in
+  the lobby tap "I'm ready" (bots and the host always are). When everyone
+  is, the host's Start counts down 3 seconds for everyone seated, then
+  deals. If someone isn't ready, the host can start anyway, with a 10
+  second countdown so they can get set, or take them off their seat with
+  ✕ (after a confirmation). Taking someone off gets them up from the
+  stool; they can sit down again. A seat emptying, or the host's Cancel,
+  stops the countdown.
+- **A host's mahjong rules are remembered** for the next table they open.
+- **The chat log stays readable while you wait in the mahjong lobby.** The
+  lobby sits just above the chat box and grows upward, stopping below the
+  chat log instead of covering it; on a short screen the log gives up a few
+  lines while the lobby is open (three on an iPhone SE, five on an iPhone
+  17 Pro), and the Start / I'm ready buttons stay pinned at the bottom of
+  the lobby, with the seats scrolling above them if need be.
+- **The table's rules open in a dialog.** The host's Change button beside
+  the rules opens them in a pop-up of their own instead of unfolding the
+  lobby; ✕, Done, a tap outside or Escape closes it.
+
+### Changed
+- **The mahjong table uses much more of the screen.** The players on your
+  left (A) and right (C) now have the table's full height, with their
+  melds face up and bigger (one size for A, B and C). Opponents' concealed
+  tiles show as a count on their seat (×7) instead of a stack of backs.
+  Discards start big and get smaller as the piles grow, never bigger than
+  your own tiles and never growing back within a hand. Yours and B's
+  (across) are two rows; A's run down their columns and C's up theirs,
+  each starting at their own seat. On the web the table widens with the
+  window, up to 1000 points, instead of stopping at 560.
+- **The mahjong table is full screen** while you play or watch: no app
+  sidebar or navigation drawer beside it on any window, and on iPhone the
+  status bar hides too (the table keeps to the safe area). ✕ still leaves,
+  and everything comes back when you do.
+- **Your tiles are bigger, and one row wherever they fit.** The hand is
+  sized to the width: two rows of seven on a phone (bigger than before),
+  and on a tablet or a desktop window, where a whole hand fits in one row
+  at that size, one row of much bigger tiles (up to about 96 points on a
+  wide screen; the table now widens to 1440 points). The two-row option
+  only shows where it makes a difference.
+- **Tap an opponent to see their tiles.** Tapping another player's melds,
+  discards or face opens what they've shown and let go. It sits above your
+  own discards, so Pong, Pass and your hand stay free, and ✕, a tap outside
+  or Escape closes it.
+- **Melds show who you claimed from.** In a claimed pung, kong or chow the
+  claimed tile lies sideways, on the side of the player it came from: the
+  left player's at the left end, the opposite player's in the middle, the
+  right player's at the right end, for every seat's melds. B's melds sit
+  in one row beside B's seat.
+- **The timer lies over the chat log**: a bar along the log's top edge that
+  runs down, with the seconds at its right end, instead of a strip of its
+  own. The bar above your hand and the seconds in the compass and on the
+  seats are gone.
+- **Chow, Pong and Pass float over your discards**, so they no longer take
+  a row above your hand, and the discards get that height back (Hu and
+  Kong too, on your turn). They're big, easy thumb targets (44 points on
+  an iPhone SE, up to 64 on a bigger screen): Pong, Chow and Kong in a
+  bright vermilion, Hu in gold, and Pass greyed out as the quiet choice.
+- **Less space at your seat**: your face, your melds and your hand sit
+  closer together, so the discards get more of the table. The table's chat log
+  is taller (three lines, up from two). The World's chat log shows seven
+  lines, up from five.
+- **The chat log grows on bigger screens.** On a large phone, an iPad or a
+  wide browser window the World's log (and the backyard's) shows more
+  lines, wider and in slightly bigger type, up to 12 lines on a 1920 × 1080
+  window. At the mahjong table it stays shorter than the World's and only
+  gains lines on a tall window (5 at 1080 points), where the board can
+  spare them. Phones up to an iPhone 17 Pro keep the sizes above.
+- **Chowing or ponging lights what you'd take:** the discard and the tiles
+  from your hand. With more than one choice, the one under your finger (or
+  pointer) lights.
+- **The tile you've picked to discard** lifts higher, grows and gets a
+  lit, glowing edge.
+- **Pick a tile by sliding along your hand.** Keep your finger (or the
+  mouse button) down and slide sideways: the tile under it lifts as you
+  go, one at a time, and the one you lift off on stays picked, as if you'd
+  tapped it (lift off past the hand and the last tile you were on stays
+  picked). Tapping works as before, and sliding a tile up still discards
+  it: a sideways slide picks, an up or down one is the tile's.
+- **Your turn is hard to miss.** Every tile in your hand glows and the
+  glow flashes (steady with Battery saver or Reduce Motion), the tile you
+  drew is lit, and on iPhone there's a light tap as it starts. The "Your
+  turn" row above the hand is gone. Nothing covers your tiles or takes a
+  touch.
+- **Tiles fly.** The tile you draw comes from the middle of the table into
+  your hand, and every discard flies from its player's seat into their
+  pile, in about a third of a second (Battery saver turns it off).
+- **The table's options look like the World's settings**, as a card of
+  switches.
+- **New tables give you the bigger two-row hand and no numbers on the
+  tiles.** On a short screen (an iPhone SE) the hand stays one row unless
+  you pick two. Your own choice still sticks.
+- **The claim window defaults to 10 seconds**, and the host can set
+  anywhere from 3 to 20.
+- **In the backyard, the animals' card draws in front of the chat log**
+  where it points, instead of being pushed below the log.
+
+### Fixed
+- **Sliding a tile down no longer discards it.** A slide down was also
+  taken as a tap, and a tap on the picked tile discards it. A slide down
+  now puts a picked tile back.
+- **A bot playing for someone who left shows the bot's name.** After
+  someone took over a bot and then got up, the seat kept their name while
+  the bot played it.
+- **Tapping a bot's stool mid-hand always offers to take the bot over.**
+  Someone seated beside a stool can be drawn over it, and a tap on them
+  opens their game to watch, so the West stool at a table could be
+  impossible to sit in. Now a tap whose nearest stool is a bot's sits
+  there. (The verify check that sits in a bot's seat failed on main for
+  this; it passes again.)
+- **Chat bubbles at the table stay on screen.** The player on your right's
+  bubble ran off the edge; it now grows leftward (the left player's grows
+  rightward), and long lines wrap to three.
+- A React warning while the hand was being dealt, when both rows of the
+  two-row hand were briefly empty.
 
 ## [2.13.68] - 2026-11-28
 

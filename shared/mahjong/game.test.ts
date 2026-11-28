@@ -26,7 +26,7 @@ import { countsOf, kindOf, TILE_COUNT } from "./tiles";
 import { HIDDEN, viewHand } from "./view";
 
 const NOW = 1_000_000;
-const CLAIM_MS = 5000;
+const CLAIM_MS = 10_000;
 
 /**
  * A hand set up by hand: each seat's concealed tiles, the wall in draw
@@ -101,17 +101,17 @@ describe("settings and payouts", () => {
 });
 
 describe("turn and claim times", () => {
-  it("accepts whole seconds from 10 to 60 a turn and 3 to 15 to claim, and nothing else", () => {
+  it("accepts whole seconds from 10 to 60 a turn and 3 to 20 to claim, and nothing else", () => {
     for (const turnSeconds of [10, 60]) expect(validSettings({ ...DEFAULT_SETTINGS, turnSeconds })).toBe(true);
     for (const turnSeconds of [9, 61, 20.5]) expect(validSettings({ ...DEFAULT_SETTINGS, turnSeconds })).toBe(false);
-    for (const claimSeconds of [3, 15]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(true);
-    for (const claimSeconds of [2, 16, 4.5]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(false);
+    for (const claimSeconds of [3, 10, 20]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(true);
+    for (const claimSeconds of [2, 21, 4.5]) expect(validSettings({ ...DEFAULT_SETTINGS, claimSeconds })).toBe(false);
   });
 
-  it("defaults to 30 seconds a turn and 5 to claim, for new tables and settings saved without them", () => {
-    expect([DEFAULT_SETTINGS.turnSeconds, DEFAULT_SETTINGS.claimSeconds]).toEqual([30, 5]);
+  it("defaults to 30 seconds a turn and 10 to claim, for new tables and settings saved without them", () => {
+    expect([DEFAULT_SETTINGS.turnSeconds, DEFAULT_SETTINGS.claimSeconds]).toEqual([30, 10]);
     const old = { minFaan: 3, maxFaan: 10, stake: 1 };
-    expect([turnMsOf(old), claimMsOf(old)]).toEqual([30_000, 5000]);
+    expect([turnMsOf(old), claimMsOf(old)]).toEqual([30_000, 10_000]);
   });
 
   it.each([

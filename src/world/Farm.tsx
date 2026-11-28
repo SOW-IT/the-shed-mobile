@@ -269,6 +269,7 @@ export const PlantView = memo(function PlantView({
   wilted,
   thirsty,
   live,
+  sparkle = false,
 }: {
   x: number;
   y: number;
@@ -279,6 +280,8 @@ export const PlantView = memo(function PlantView({
   wilted: boolean;
   thirsty: boolean;
   live: boolean;
+  /** Shows a ripe plant's sparkles even when it isn't live: still, one at a time, rather than twinkling. */
+  sparkle?: boolean;
 }) {
   const clock = usePulse(live && stage === "ripe", BOB_MS);
   const bob = useAnimatedStyle(() => ({ transform: [{ translateY: -Math.abs(Math.sin(clock.value * Math.PI * 2)) * scale * 0.035 }] }));
@@ -329,7 +332,7 @@ export const PlantView = memo(function PlantView({
       <Animated.View style={[styles.abs, bob]}>
         <Animated.View style={[styles.abs, { transformOrigin: "top" } as ViewStyle, upright]}>{body}</Animated.View>
       </Animated.View>
-      {stage === "ripe" && live ? (
+      {stage === "ripe" && (live || sparkle) ? (
         <>
           <Sparkle clock={clock} x={-0.3 * scale} y={-0.5 * scale} size={0.12 * scale} phase={0} />
           <Sparkle clock={clock} x={0.3 * scale} y={-0.35 * scale} size={0.1 * scale} phase={0.35} />

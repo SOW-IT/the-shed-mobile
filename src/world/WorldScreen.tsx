@@ -40,8 +40,9 @@ import { APPROACH_MS, approachStep } from "./approach";
 import { CharacterEditor } from "./CharacterEditor";
 import { Garden, type GardenFarm, type GardenYard } from "./Garden";
 import { tripTarget, type InteractivePropId } from "./tripTarget";
+import { BackyardGuide } from "./BackyardGuide";
 import { BagPanel, BuildingOffer, PenSheet, PlantPicker, PlotOffer } from "./FarmPanels";
-import { CropThumb, GainChip, type FarmCardData } from "./Farm";
+import { CropThumb, GainChip, PlotCard, type FarmCardData } from "./Farm";
 import { AnimalThumb } from "./Animals";
 import { useAnimals, useFarm, useMinuteClock } from "./useFarm";
 import { hud } from "./palette";
@@ -55,6 +56,7 @@ import { useWorld } from "./useWorld";
 import { useForeground } from "./useForeground";
 import { ChatBar, CHAT_BAR_HEIGHT } from "./ChatBar";
 import { ChatLog } from "./ChatLog";
+import { lobbyChatLines, tableChatLog, worldChatLog } from "./chatLogSize";
 import { STATUS_CARD_MS } from "./cards";
 import { SettingsPanel } from "./SettingsPanel";
 import { useBatterySaver, useWorldName, useWorldSetting } from "./settings";
@@ -77,8 +79,8 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { gameLabel, gameToWatch, playingByPerson } from "./cafe";
 import { CafeLayer, CafePicker } from "./CafeGames";
 import { useCafe } from "./useCafe";
-import { MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
-import { mahjongTags, mahjongTap, tableToWatch } from "./mahjong/tap";
+import { inLobbyAt, MahjongLayer, playingAtTable } from "./mahjong/MahjongLayer";
+import { mahjongTags, mahjongTap, tableToWatch, takeoverSeats } from "./mahjong/tap";
 import { useMahjong } from "./mahjong/useMahjong";
 
 const KEYBOARD_GAP = 8;
@@ -284,11 +286,13 @@ export const WorldScreen = ({
   const [penSheet, setPenSheet] = useState<BuildingId | null>(null);
   const [leftIds, setLeftIds] = useState<ReadonlySet<string>>(new Set());
   const [bagOpen, setBagOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [pickPlot, setPickPlot] = useState<number | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offer, setOffer] = useState<{ plot: number; price: number | null }>({ plot: 0, price: null });
   const [plotTrip, setPlotTrip] = useState<{ plot: number; since: number } | null>(null);
   const [plotCard, setPlotCard] = useState<{ plot: number; key: number } | null>(null);
+  const [yardCardAt, setYardCardAt] = useState<{ x: number; y: number; stageWidth: number } | null>(null);
   const [watering, setWatering] = useState<{ plot: number; key: number } | null>(null);
   const [flying, setFlying] = useState<{ plot: number; crop: CropId; key: number } | null>(null);
   const [picking, setPicking] = useState<{ memberId: Id<"worldMembers">; name: string } | null>(null);
@@ -416,7 +420,13 @@ export const WorldScreen = ({
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
   const worldName = useWorldName();
-  const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
+  const screen = useWindowDimensions();
+  const coinsBeside = screen.width >= COINS_BESIDE_FROM;
+  const worldLog = worldChatLog(screen.width, screen.height);
+  const tableLog = tableChatLog(screen.width, screen.height);
+  // The mahjong lobby opens under the chat log; on a short screen the log gives up lines for it.
+  const inMahjongLobby = mahjong.mine !== null && mahjong.mine.phase === "lobby";
+  const worldLines = inMahjongLobby ? lobbyChatLines(screen.width, screen.height) : worldLog.lines;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
   const chatLift = useAnimatedStyle(() => ({ transform: [{ translateY: -keyboard.lift.get() }] }));
 
@@ -444,6 +454,8 @@ export const WorldScreen = ({
 
   const now = world.serverNow();
   const me = world.people.find((p) => p.isMe);
+  // Sitting down at a mahjong table opens its lobby, which closes the arcade: the arcade's card would cover the lobby's buttons (Table 2 is beside the cabinet).
+  if (arcadeOpen && inLobbyAt(mahjong.mine, me?.seat)) setArcadeOpen(false);
   const mahjongCovers = playingAtTable(mahjong.mine, me?.seat) || (world.place === "cafe" && mahjongWatch !== null);
   if (editorAsked && me && opening !== "poke") {
     setEditorAsked(false);
@@ -473,6 +485,7 @@ export const WorldScreen = ({
 
   const playingNow = playingByPerson(cafe.playing, nameOf);
   const mahjongTagged = mahjongTags(mahjong.tables);
+  const botStools = takeoverSeats(mahjong.tables);
   const challengeTo = (to: Id<"worldMembers">, kind: string) => {
     setPicking(null);
     void cafe.challenge(to, kind).then((problem) => setNote(problem ?? `Asked ${nameOf(to)} to play ${gameLabel(kind)}.`));
@@ -498,6 +511,11 @@ export const WorldScreen = ({
   const pickInMyDuel = (pick: DuelPick) => {
     if (myDuel) void world.pickInDuel(myDuel.id, myDuel.round, pick).then((problem) => problem && setNote(problem));
   };
+  // A duel's card needs the room above the chat bar, and its picks are timed,
+  // so How to farm puts itself away when one starts and stays shut during it.
+  if (myDuel && guideOpen) setGuideOpen(false);
+  // It goes away with the keyboard and when you leave the backyard, and doesn't come back on its own.
+  if (guideOpen && (keyboard.open || !inBackyard)) setGuideOpen(false);
   const duelProps = {
     duel: myDuel,
     side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
@@ -658,6 +676,7 @@ export const WorldScreen = ({
     setCollecting(null);
     setPlotCard(null);
     setPickPlot(null);
+    setGuideOpen(false);
     setOfferOpen(false);
     setApproach(null);
     setPropTrip(null);
@@ -1000,6 +1019,8 @@ export const WorldScreen = ({
   });
   const tapPlot = (plot: number) => {
     if (!farmView) return;
+    // How to farm makes way for the plot, pen or animal you tap.
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1151,6 +1172,7 @@ export const WorldScreen = ({
   const tapAnimal = (id: string) => {
     const animal = animalOn(id);
     if (!animal || !yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setApproach(null);
     setTray(false);
@@ -1203,6 +1225,7 @@ export const WorldScreen = ({
   }, [yardCard]);
   const tapBuilding = (kind: BuildingId) => {
     if (!yardView) return;
+    setGuideOpen(false);
     setPerson(null);
     setTray(false);
     setAnimalTrip(null);
@@ -1745,6 +1768,7 @@ export const WorldScreen = ({
         target={world.target}
         onHoldStart={(x, z) => {
           setTray(false);
+          setGuideOpen(false);
           setPerson(null);
           setPlotCard(null);
           setYardCard(null);
@@ -1761,10 +1785,12 @@ export const WorldScreen = ({
           // Tapping yourself opens nothing; it only puts away what was open.
           if (live.current.world.people.some((p) => p.isMe && p.memberId === memberId)) {
             setTray(false);
+            setGuideOpen(false);
             setPerson(null);
             return;
           }
           setTray(false);
+          setGuideOpen(false);
           setPropTrip(null);
           setPlotTrip(null);
           setAnimalTrip(null);
@@ -1820,6 +1846,8 @@ export const WorldScreen = ({
         paused={!foreground || editing}
         farm={inBackyard ? gardenFarm : null}
         yard={inBackyard ? gardenYard : null}
+        onYardCardAt={setYardCardAt}
+        takeoverSeats={botStools}
       />
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <View style={styles.left}>
@@ -1868,7 +1896,7 @@ export const WorldScreen = ({
           <CoinCounter balance={wallet?.balance} onPress={openCoins} />
         </View>
       )}
-      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104) }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
+      <View style={[styles.logRow, { top: insets.top + (coinsBeside ? 66 : 104), maxWidth: worldLog.maxWidth }, logOverCafe ? styles.overCafe : null]} pointerEvents="box-none" testID="world-log-row" onLayout={(e) => setLogBottom(Math.ceil(e.nativeEvent.layout.y + e.nativeEvent.layout.height))}>
         {/* The chat log sits where the arcade opens; it steps aside while the arcade is open. */}
         {decorating || arcadeOpen ? null : (
           <ChatLog
@@ -1876,6 +1904,8 @@ export const WorldScreen = ({
             onLine={openSpeaker}
             muted={muted}
             serverNow={world.serverNow}
+            lines={worldLines}
+            text={worldLog.text}
             status={
               world.status === "joining"
                 ? `Opening ${PLACE_TITLES[world.place].toLowerCase()}…`
@@ -1893,6 +1923,12 @@ export const WorldScreen = ({
         {inviteCard}
         {knockCard}
       </View>
+      {/* The animals' card sits in front of the chat log, where it points, rather than being pushed down under it. */}
+      {inBackyard && yardView && yardCard && yardCardData && yardCardAt ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none" testID="world-yard-card-layer">
+          <PlotCard x={yardCardAt.x} y={yardCardAt.y} card={yardCardData} stageWidth={yardCardAt.stageWidth} minTop={insets.top + (coinsBeside ? 66 : 104)} />
+        </View>
+      ) : null}
       {keyboard.open ? (
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -1914,6 +1950,7 @@ export const WorldScreen = ({
         muted={muted}
         serverNow={world.serverNow}
         top={insets.top + TOP_BAR_GAP}
+        lobbyTop={logBottom + CARD_GAP}
         safeTop={insets.top}
         bottom={chatTop}
         nameOf={worldName}
@@ -1923,7 +1960,7 @@ export const WorldScreen = ({
         onStopWatching={() => setMahjongWatch(null)}
         onSitBack={world.sitOn}
         keyboardOpen={keyboard.open}
-        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={2} />}
+        chatLog={<ChatLog roomId={world.status === "in" ? world.roomId : null} onLine={openSpeaker} muted={muted} serverNow={world.serverNow} status={null} lines={tableLog.lines} text={tableLog.text} />}
       />
       {keyboard.open && mahjongCovers ? <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessibilityRole="button" accessibilityLabel="Hide keyboard" testID="mahjong-keyboard-dismiss" /> : null}
       <Reanimated.View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 12) }, chatLift]} pointerEvents="box-none">
@@ -1958,10 +1995,35 @@ export const WorldScreen = ({
             }}
           />
         ) : null}
+        {inBackyard && !keyboard.open ? (
+          <>
+            <BackyardGuide
+              open={guideOpen}
+              // Below the chat lines, above the (i) and the chat bar, with the column's gaps.
+              room={screen.height - logBottom - GUIDE_GAP - (Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + GUIDE_BUTTON + 2 * GUIDE_GAP)}
+              onClose={() => setGuideOpen(false)}
+            />
+            <View style={styles.decorateRow} pointerEvents="box-none">
+              <RoundButton
+                icon={guideOpen ? "close" : "information-circle-outline"}
+                label={guideOpen ? "Close how to farm" : "How to farm"}
+                onPress={() => {
+                  // How to farm and the emote tray take turns, as Decorate and the tray do.
+                  setTray(false);
+                  setGuideOpen((was) => !was && !myDuel);
+                }}
+                testID="world-backyard-guide-open"
+              />
+            </View>
+          </>
+        ) : null}
         <ChatBar
           keyboardOpen={keyboard.open}
           tray={tray}
-          onTray={setTray}
+          onTray={(open) => {
+            setTray(open);
+            if (open) setGuideOpen(false);
+          }}
           onEmote={emote}
           say={world.say}
           typing={world.typing}
@@ -1970,6 +2032,8 @@ export const WorldScreen = ({
           onNote={setNote}
           savedDraft={savedDraft}
           keepDraft={keepDraft}
+          // Typing puts How to farm away, on web too, where the keyboard isn't reported.
+          onFocusChat={() => setGuideOpen(false)}
         />
       </Reanimated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
@@ -1989,6 +2053,8 @@ const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 const SHOP_CHAT_GAP = 14;
+const GUIDE_BUTTON = 44;
+const GUIDE_GAP = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = popShadow();

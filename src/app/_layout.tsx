@@ -8,6 +8,7 @@ import { AppPresence } from "@/hooks/useAppPresence";
 import { OfflineGames, OfflineScreen } from "@/components/games/OfflineGames";
 import { OfflinePill } from "@/components/games/OfflinePill";
 import { AppSidebar } from "@/components/nav/AppSidebar";
+import { useAppChromeHidden } from "@/components/nav/appChrome";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
 import { useWideLayout } from "@/components/nav/layout";
 import { LoadingState } from "@/components/ui";
@@ -113,9 +114,11 @@ const AuthGate = () => {
 
 const RootStack = () => {
   const wide = useWideLayout();
-  // The games and the World are full screen: no sidebar beside them.
+  // The games and the World are full screen: no sidebar beside them. A
+  // screen can also ask for it (the mahjong table, which hides the drawer too).
   const pathname = usePathname();
-  const fullScreen = pathname.startsWith("/games") || pathname === "/world";
+  const chromeHidden = useAppChromeHidden();
+  const fullScreen = pathname.startsWith("/games") || pathname === "/world" || chromeHidden;
   const { isAuthenticated } = useConvexAuth();
   const offline = useOffline();
   const [playingOffline, setPlayingOffline] = useState(false);
@@ -178,7 +181,7 @@ const RootStack = () => {
         </View>
       </View>
       <OfflinePill onPlay={() => setPlayingOffline(true)} />
-      {!wide && isAuthenticated ? <AppDrawer /> : null}
+      {!wide && isAuthenticated && !chromeHidden ? <AppDrawer /> : null}
       {/* A modal over the app rather than a route: offline, a web page can't
           fetch a route it hasn't loaded. The modal keeps focus inside it. */}
       <Modal

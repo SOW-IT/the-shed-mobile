@@ -8,6 +8,10 @@ appId: au.org.sow.theshed
 # labelled with how you're placed (myPose.ts). Between seats you stand up on
 # open floor (30% across, 72% down), so each wait is for a fresh sit.
 # Dragging furniture is checked on web, where the mutations can be counted.
+#
+# The World never stops moving, so its taps cap Maestro's settle wait at 2 s
+# (waitToSettleTimeoutMs); uncapped, each waits about 45 s and the check runs
+# past verify's 5 minutes. The waits after each tap say what to wait for.
 - openLink: "theshedmobile://world"
 - extendedWaitUntil:
     visible:
@@ -16,24 +20,45 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 5000
 # Home from the title's menu, unless an earlier run (the web check shares
-# this backend and account) left you there.
+# this backend and account) left you there. Until your home has loaded the
+# title reads just "Home" (or "Backyard"), and neither the Decorate button
+# nor the menu knows yet that it's yours, so wait for it first. The
+# match takes the title alone or the whole label (the title, then
+# ". Outfit, bag, home, settings and leave").
+- extendedWaitUntil:
+    notVisible:
+      id: world-title
+      text: "(Home|Backyard)(\\..*)?"
+    timeout: 15000
 - runFlow:
     when:
       notVisible:
         id: world-decorate-open
     commands:
+      - runFlow: flows/open-world-menu.yaml
+      - extendedWaitUntil:
+          visible:
+            id: world-menu-home
+          timeout: 10000
       - tapOn:
-          id: world-title
-      - tapOn: "Go to your home"
+          id: world-menu-home
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-decorate-open
     timeout: 30000
+# The menu is shut before the taps on the floor: an open one takes them.
+- extendedWaitUntil:
+    notVisible:
+      id: world-menu-close
+    timeout: 5000
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: "${OUT}/check-home-arrived"
 # The sofa.
-- tapOn: "Sofa, sit down"
+- tapOn:
+    text: "Sofa, sit down"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
@@ -44,13 +69,16 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-home-sit-sofa"
 - tapOn:
     point: "30%, 72%"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
       text: "You"
     timeout: 20000
 # The chair.
-- tapOn: "Chair, sit down"
+- tapOn:
+    text: "Chair, sit down"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
@@ -61,13 +89,16 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-home-sit-chair"
 - tapOn:
     point: "30%, 72%"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
       text: "You"
     timeout: 20000
 # The beanbag.
-- tapOn: "Beanbag, sit down"
+- tapOn:
+    text: "Beanbag, sit down"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
@@ -78,13 +109,16 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-home-sit-beanbag"
 - tapOn:
     point: "30%, 72%"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
       text: "You"
     timeout: 20000
 # The bed.
-- tapOn: "Bed, sit down"
+- tapOn:
+    text: "Bed, sit down"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me
@@ -95,6 +129,7 @@ appId: au.org.sow.theshed
 - takeScreenshot: "${OUT}/check-home-sit-bed"
 - tapOn:
     point: "30%, 72%"
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-me

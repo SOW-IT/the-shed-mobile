@@ -25,7 +25,9 @@ import {
   mahjongSeatId,
   mahjongSeatOf,
   nextHost,
+  notReadySeats,
   seatOfEmail,
+  START_COUNTDOWN_MS,
   tableFull,
   type MahjongTableId,
   claimMsOf,
@@ -150,7 +152,8 @@ const freeSeat = async (ctx: MutationCtx, table: Table, seat: number) => {
   const left = table.seats[seat];
   const seats = table.seats.map((s, i) => (i === seat ? EMPTY_SEAT : s));
   if (left.kind === "human") await dropPlayer(ctx, left.email, table._id);
-  await saveSeats(ctx, table, seats, { net: table.net.map((n, i) => (i === seat ? 0 : n)) });
+  // A seat emptying stops the host's countdown: the table isn't full any more.
+  await saveSeats(ctx, table, seats, { net: table.net.map((n, i) => (i === seat ? 0 : n)), startsAt: undefined });
 };
 
 /** Someone walked away from their seat: before or after a hand it frees; during one a bot plays it. */
@@ -235,6 +238,7 @@ const startHand = async (ctx: MutationCtx, table: Table, now: number) => {
     dealer: hand.dealer,
     roundWind: hand.roundWind,
     allAwayAt: undefined,
+    startsAt: undefined,
     ...(first ? { firstDealer: hand.dealer, net: [0, 0, 0, 0] } : {}),
   });
   const id = await ctx.db.insert("mahjongHands", { tableId: table._id, handNo, beat: 0, state: hand });
@@ -435,6 +439,9 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
   if (!table) {
     const seats = emptySeats();
     seats[target.seat] = { kind: "human", email: member.email, name: member.name };
+    // A host whose saved rules play for coins they no longer have opens the table for points, with the rest of their rules.
+    const saved = await savedSettings(ctx, member.email);
+    const settings = (await shortOf(ctx, member.email, saved, now)) ? { ...saved, coins: false } : saved;
     const tableId = await ctx.db.insert("mahjongTables", {
       roomId: member.roomId,
       table: target.table,
@@ -442,7 +449,7 @@ export const mahjongSit = async (ctx: MutationCtx, member: Doc<"worldMembers">, 
       host: member.email,
       seats,
       net: [0, 0, 0, 0],
-      settings: DEFAULT_SETTINGS,
+      settings,
       handNo: 0,
       roundWind: 0,
     });
@@ -499,13 +506,20 @@ export const heldRoomOf = async (ctx: Ctx, email: string) => {
 };
 
 
-/** The caller's table when they host it and it's waiting to start. */
-const hostedLobby = async (ctx: MutationCtx, email: string): Promise<{ table: Table; problem?: undefined } | { table?: undefined; problem: string }> => {
+/** The caller's table when they host it and it's waiting to start (and, unless `counting`, not counting down to the deal). */
+const hostedLobby = async (ctx: MutationCtx, email: string, counting = false): Promise<{ table: Table; problem?: undefined } | { table?: undefined; problem: string }> => {
   const held = await heldSeatOf(ctx, email);
   if (!held) return { problem: "Sit at a table first." };
   if (held.table.host !== email) return { problem: "Only the host can do that." };
   if (held.table.phase !== "lobby") return { problem: "The game's started." };
+  if (held.table.startsAt !== undefined && !counting) return { problem: "The game's about to start. Cancel the countdown first." };
   return { table: held.table };
+};
+
+/** The rules someone last set as a host, for a table they open; the defaults when they never have. */
+const savedSettings = async (ctx: Ctx, email: string): Promise<Settings> => {
+  const saved = (await walletOf(ctx, email))?.mahjongSettings;
+  return saved && validSettings(saved) ? saved : DEFAULT_SETTINGS;
 };
 
 const seatArg = v.number();
@@ -542,26 +556,115 @@ export const setSettings = mutation({
   returns: v.union(okReply, refusedReply),
   handler: async (ctx, { settings }) => {
     if (!validSettings(settings)) throw new ConvexError("Those settings don't work.");
-    const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
+    const email = await requireEmail(ctx);
+    const { table, problem } = await hostedLobby(ctx, email);
     if (!table) return refuse(problem);
     const modeChanged = forCoins(settings) !== forCoins(table.settings);
     await ctx.db.patch("mahjongTables", table._id, { settings, ...(modeChanged ? { net: [0, 0, 0, 0] } : {}) });
+    const wallet = await ensureWallet(ctx, email, Date.now());
+    await ctx.db.patch("worldWallets", wallet._id, { mahjongSettings: settings });
     return done;
   },
 });
 
-/** The host starts the game once every seat has a person or a bot. */
+/**
+ * The host starts the game once every seat has a person or a bot: everyone
+ * seated sees a countdown, then the first hand deals. When someone hasn't
+ * said they're ready the host has to start `anyway`, and the countdown is
+ * longer so they can get set.
+ */
 export const start = mutation({
-  args: {},
+  args: { anyway: v.optional(v.boolean()) },
   returns: v.union(okReply, refusedReply),
-  handler: async (ctx) => {
+  handler: async (ctx, { anyway }) => {
     const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx));
     if (!table) return refuse(problem);
     if (!tableFull(table.seats)) return refuse("Fill every seat first.");
     const now = Date.now();
     const short = await firstShort(ctx, table, now);
     if (short) return refuse(`${short.name} needs ${short.need} coins to play for coins, and has ${short.balance}.`);
+    const waiting = notReadySeats(table.seats, table.host);
+    if (waiting.length > 0 && anyway !== true) {
+      const names = waiting.map((i) => table.seats[i]).flatMap((s) => (s.kind === "human" ? [s.name] : []));
+      return refuse(`${names.join(" and ")} ${names.length === 1 ? "isn't" : "aren't"} ready yet.`);
+    }
+    const startsAt = now + (waiting.length > 0 ? START_COUNTDOWN_MS.anyway : START_COUNTDOWN_MS.ready);
+    await ctx.db.patch("mahjongTables", table._id, { startsAt });
+    await ctx.scheduler.runAt(startsAt, internal.mahjong.countdownDone, { tableId: table._id, startsAt });
+    return done;
+  },
+});
+
+/** The host stops the countdown before the deal. */
+export const cancelStart = mutation({
+  args: {},
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx) => {
+    const { table, problem } = await hostedLobby(ctx, await requireEmail(ctx), true);
+    if (!table) return refuse(problem);
+    await ctx.db.patch("mahjongTables", table._id, { startsAt: undefined });
+    return done;
+  },
+});
+
+/** The countdown ran out: deal, unless it was stopped, a seat emptied, or someone can't cover the coins any more. */
+export const countdownDone = internalMutation({
+  args: { tableId: v.id("mahjongTables"), startsAt: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { tableId, startsAt }) => {
+    const table = await ctx.db.get("mahjongTables", tableId);
+    if (!table || table.phase !== "lobby" || table.startsAt !== startsAt) return null;
+    const now = Date.now();
+    if (!tableFull(table.seats) || (await firstShort(ctx, table, now))) {
+      await ctx.db.patch("mahjongTables", table._id, { startsAt: undefined });
+      return null;
+    }
     await startHand(ctx, table, now);
+    return null;
+  },
+});
+
+/** Someone seated in the lobby tells the host they're ready (or not, any more). */
+export const setReady = mutation({
+  args: { ready: v.boolean() },
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx, { ready }) => {
+    const email = await requireEmail(ctx);
+    const held = await heldSeatOf(ctx, email);
+    if (!held || held.table.phase !== "lobby") return refuse("Sit at a table first.");
+    if (held.table.startsAt !== undefined) return refuse("The game's about to start.");
+    const seats = held.table.seats.map((s, i) => (i === held.seat && s.kind === "human" ? { ...s, ready: ready || undefined } : s));
+    await ctx.db.patch("mahjongTables", held.table._id, { seats });
+    return done;
+  },
+});
+
+/**
+ * The host takes someone off their seat before the game: the seat frees and
+ * they get up from the stool. `member` is whom the host confirmed taking off
+ * (their World member id); when someone else has the seat by then, nothing happens.
+ */
+export const removePlayer = mutation({
+  args: { seat: seatArg, member: v.optional(v.id("worldMembers")) },
+  returns: v.union(okReply, refusedReply),
+  handler: async (ctx, { seat, member: confirmed }) => {
+    if (!validSeat(seat)) throw new ConvexError("That isn't a seat.");
+    const email = await requireEmail(ctx);
+    const { table, problem } = await hostedLobby(ctx, email);
+    if (!table) return refuse(problem);
+    const s = table.seats[seat];
+    if (s.kind !== "human") return refuse("Nobody's sitting there.");
+    if (s.email === email) return refuse("That's you. Leave the table instead.");
+    const member = await memberByEmail(ctx, s.email);
+    if (confirmed !== undefined && member?._id !== confirmed) return refuse(`${s.name} is sitting there now.`);
+    await freeSeat(ctx, table, seat);
+    const state = member
+      ? await ctx.db
+          .query("worldState")
+          .withIndex("by_memberId", (q) => q.eq("memberId", member._id))
+          .unique()
+      : null;
+    if (member && state && state.seat === mahjongSeatId(table.table as MahjongTableId, seat)) await stepBack(ctx, member, state, Date.now());
     return done;
   },
 });
@@ -609,16 +712,7 @@ export const leave = mutation({
     const row = held && held.table.phase === "playing" ? await handRowOf(ctx, held.table._id) : null;
     const stage = row?.state.stage;
     if (held && forCoins(held.table.settings) && stage?.kind === "claim" && stage.from === held.seat) return refuse("Wait for the others to answer your discard first.");
-    const at = mahjongSeatOf(state.seat);
-    const seat = at && seatIn(placeOf(member), state.seat);
-    if (seat && at) {
-      const table = PLACE_TABLE_CENTRE(at.table);
-      const dx = seat.x - table.x;
-      const dz = seat.z - table.z;
-      const length = Math.hypot(dx, dz) || 1;
-      const to = clampTarget(seat.x + (dx / length) * LEAVE_STEP, seat.z + (dz / length) * LEAVE_STEP, placeOf(member));
-      await ctx.db.patch("worldState", state._id, { fromX: seat.x, fromZ: seat.z, toX: to.x, toZ: to.z, startedAt: now, path: undefined, heading: undefined, seat: undefined });
-    }
+    await stepBack(ctx, member, state, now);
     if (held && held.table.phase === "playing" && forCoins(held.table.settings) && held.table.seats[held.seat].kind === "human") {
       const charge = await giveUpCharge(ctx, held.table, held.seat, now);
       if (cost !== undefined && charge > cost) return refuse(`Giving up now costs ${charge} SOW coin${charge === 1 ? "" : "s"}. Try again if you still want to.`);
@@ -629,6 +723,19 @@ export const leave = mutation({
     return null;
   },
 });
+
+/** Gets someone up off a mahjong stool: a step back from the table, standing. */
+const stepBack = async (ctx: MutationCtx, member: Doc<"worldMembers">, state: Doc<"worldState">, now: number) => {
+  const at = mahjongSeatOf(state.seat);
+  const seat = at && seatIn(placeOf(member), state.seat);
+  if (!seat || !at) return;
+  const table = PLACE_TABLE_CENTRE(at.table);
+  const dx = seat.x - table.x;
+  const dz = seat.z - table.z;
+  const length = Math.hypot(dx, dz) || 1;
+  const to = clampTarget(seat.x + (dx / length) * LEAVE_STEP, seat.z + (dz / length) * LEAVE_STEP, placeOf(member));
+  await ctx.db.patch("worldState", state._id, { fromX: seat.x, fromZ: seat.z, toX: to.x, toZ: to.z, startedAt: now, path: undefined, heading: undefined, seat: undefined });
+};
 
 const giveUp = async (ctx: MutationCtx, table: Table, seat: number, now: number) => {
   const s = table.seats[seat];
@@ -657,6 +764,8 @@ const seatView = v.object({
   ready: v.boolean(),
   net: v.number(),
   short: v.boolean(),
+  // The bot playing an away person's seat, whose name the table shows while they're gone.
+  standIn: v.union(v.null(), v.string()),
 });
 
 const viewSeats = async (ctx: Ctx, table: Table, email: string) => {
@@ -674,6 +783,7 @@ const viewSeats = async (ctx: Ctx, table: Table, email: string) => {
       ready: s.kind === "human" && s.ready === true,
       net: table.net[i] ?? 0,
       short: balance < need,
+      standIn: s.kind === "human" && s.away !== undefined ? botName(i) : null,
     });
   }
   return out;
@@ -690,6 +800,7 @@ export const tableViewFields = {
   roundWind: v.number(),
   full: v.boolean(),
   coinsToSit: v.number(),
+  startsAt: v.union(v.null(), v.number()),
 };
 
 export const tableView = async (ctx: Ctx, table: Table, email: string) => ({
@@ -703,6 +814,7 @@ export const tableView = async (ctx: Ctx, table: Table, email: string) => ({
   roundWind: table.roundWind,
   full: tableFull(table.seats),
   coinsToSit: coinsToSit(table.settings),
+  startsAt: table.phase === "lobby" ? (table.startsAt ?? null) : null,
 });
 
 const handFields = {

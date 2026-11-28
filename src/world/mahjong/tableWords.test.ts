@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handRows, leaveQuestion, tileIndex, zoomShown, claimChoices, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
+import { handRows, leaveQuestion, tileIndex, zoomShown, claimChoices, claimUses, firstClaim, lobbyWaiting, removalStands, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
 
 describe("the table's words", () => {
   it("puts you at the bottom and the next seat on your right", () => {
@@ -27,6 +27,44 @@ describe("the table's words", () => {
     expect(choices.map((c) => c.key)).toEqual(["hu", "pong", "chow-0", "chow-1", "pass"]);
     expect(choices[2]).toMatchObject({ answer: { kind: "chow", option: 0 }, tiles: [8, 12, 16] });
     expect(claimChoices({ hu: false, pong: false, kong: true, chows: [] }, 0).map((c) => c.key)).toEqual(["kong", "pass"]);
+  });
+
+  it("lights the hand tiles a claim would take, a pong or kong first", () => {
+    // 16 is the 5 of dots; the hand holds two more 5s (17, 18), and 8 and 12 (3 and 4 dots).
+    const hand = [8, 12, 17, 18, 40];
+    const choices = claimChoices({ hu: true, pong: true, kong: false, chows: [[8, 12]] }, 16);
+    const of = (key: string) => choices.find((c) => c.key === key)!;
+    expect(claimUses(of("pong"), hand, 16)).toEqual([17, 18]);
+    expect(claimUses(of("chow-0"), hand, 16)).toEqual([8, 12]);
+    expect(claimUses(of("hu"), hand, 16)).toEqual([]);
+    expect(claimUses(of("pass"), hand, 16)).toEqual([]);
+    expect(claimUses(claimChoices({ hu: false, pong: false, kong: true, chows: [] }, 16)[0], [17, 18, 19], 16)).toEqual([17, 18, 19]);
+    expect(firstClaim(choices)?.key).toBe("pong");
+    expect(firstClaim(claimChoices({ hu: false, pong: false, kong: false, chows: [[8, 12]] }, 16))?.key).toBe("chow-0");
+    expect(firstClaim(claimChoices({ hu: true, pong: false, kong: false, chows: [] }, 16))).toBeNull();
+  });
+
+  it("names the people in the lobby the host would start without: not bots, not the host", () => {
+    const seats = [{ kind: "human", ready: false }, { kind: "human", ready: true }, { kind: "bot", ready: false }, { kind: "human", ready: false }];
+    expect(lobbyWaiting(seats, 0)).toEqual([3]);
+    expect(lobbyWaiting(seats, 3)).toEqual([0]);
+  });
+
+  it("keeps the host's take-them-off question only while that person is still in that seat", () => {
+    const ben = { kind: "human", isMe: false, member: "m-ben", name: "Ben" };
+    const seats = [{ kind: "human", isMe: true, member: "m-me", name: "Me" }, ben, { kind: "empty", isMe: false, member: null, name: "" }, { kind: "bot", isMe: false, member: null, name: "Lucky Bot" }];
+    const asking = { seat: 1, member: "m-ben", name: "Ben" };
+    expect(removalStands(asking, seats, true, false)).toBe(true);
+    expect(removalStands(null, seats, true, false)).toBe(false);
+    // Ben gets up: the question goes, so the lobby forgets it and it can't come back when he sits down again.
+    expect(removalStands(asking, [seats[0], seats[2], seats[2], seats[3]], true, false)).toBe(false);
+    expect(removalStands({ seat: 1, member: "m-sam", name: "Sam" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 1, member: "m-ben", name: "Benny" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 0, member: "m-me", name: "Me" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 3, member: null, name: "Lucky Bot" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 7, member: "m-ben", name: "Ben" }, seats, true, false)).toBe(false);
+    expect(removalStands(asking, seats, false, false)).toBe(false);
+    expect(removalStands(asking, seats, true, true)).toBe(false);
   });
 
   it("titles the breakdown", () => {

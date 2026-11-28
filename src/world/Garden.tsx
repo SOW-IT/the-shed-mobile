@@ -189,6 +189,8 @@ export const Garden = ({
   paused = false,
   farm = null,
   yard = null,
+  onYardCardAt,
+  takeoverSeats,
 }: {
   people: GardenPerson[];
   serverNow: () => number;
@@ -238,6 +240,14 @@ export const Garden = ({
   paused?: boolean;
   farm?: GardenFarm | null;
   yard?: GardenYard | null;
+  /** Where the backyard's animal card points, for the World to draw it in front of the chat log (null when there's none). */
+  onYardCardAt?: (at: { x: number; y: number; stageWidth: number } | null) => void;
+  /**
+   * Stools a bot is playing mid-hand (mahjong). A tap whose nearest stool is
+   * one of these sits there, to take the bot over, even where someone seated
+   * beside it is drawn over the stool.
+   */
+  takeoverSeats?: ReadonlySet<string>;
 }) => {
   const liveHud = selected ? { id: selected, actions: hudActions } : null;
   const [keptHud, setKeptHud] = useState(liveHud);
@@ -265,6 +275,13 @@ export const Garden = ({
   const seatOf = (id: string | undefined) => (id === undefined ? null : (seats.find((seat) => seat.id === id) ?? null));
   const pens = useMemo(() => (cam && place === BACKYARD ? penScreens(cam) : null), [cam, place]);
   const yardAnimals = yard?.animals;
+  const yardCardTop = yard?.card && pens ? pens[yard.card.at].top : null;
+  const yardCardX = yardCardTop?.x;
+  const yardCardY = yardCardTop?.y;
+  const stageWidth = cam?.width;
+  useEffect(() => {
+    onYardCardAt?.(yardCardX === undefined || yardCardY === undefined || stageWidth === undefined ? null : { x: yardCardX, y: yardCardY, stageWidth });
+  }, [onYardCardAt, yardCardX, yardCardY, stageWidth]);
   const penHerds = useMemo(() => ({ coop: (yardAnimals ?? []).filter((a) => a.kind === "chicken"), barn: (yardAnimals ?? []).filter((a) => a.kind === "cow") }), [yardAnimals]);
   const propActors = useMemo(
     () =>
@@ -505,6 +522,8 @@ export const Garden = ({
   /** What a point on the stage would be a tap on: a person, the arcade, or the ground. */
   const hitAt = (x: number, y: number): Hit => {
     if (!cam || !scene) return { kind: "ground" };
+    const botStool = takeoverSeats && takeoverSeats.size > 0 ? seatAt(place, cam, x, y) : null;
+    if (botStool && takeoverSeats?.has(botStool)) return { kind: "seat", id: botStool };
     // People first, nearest the camera first.
     // The arcade cabinet as drawn (its faces stand well above the ground).
     // Where it and a person overlap, whichever is drawn in front wins.
@@ -765,7 +784,8 @@ export const Garden = ({
         node: <PenAnimals slots={BUILDINGS[id].capacity} pen={pen.corners} gate={pen.gate} exit={pen.exit} animals={here} live={live} feeding={yard.feeding} onFed={yard.onFed} onLeft={yard.onLeft} highlight={highlighted?.kind === "animal" ? highlighted.id : null} />,
       });
     }
-    if (yard.card) {
+    // With onYardCardAt the World draws the animal card itself, in front of its chat log.
+    if (yard.card && !onYardCardAt) {
       const top = pens[yard.card.at].top;
       farmLabels.push(<PlotCard key="yard-card" x={top.x} y={top.y} card={yard.card.data} stageWidth={cam.width} minTop={cardTop} />);
     }
