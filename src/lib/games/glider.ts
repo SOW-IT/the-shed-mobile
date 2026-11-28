@@ -511,6 +511,8 @@ export type GliderState = {
   /** Smoothed body angle in radians, so touchdowns glide instead of snapping. */
   tilt: number;
   camera: Camera;
+  /** The terrain's detail level for this camera (terrainLod, with hysteresis). */
+  terrainLevel: TerrainLevel;
   /** The board's width over its height, for the camera. */
   aspect: number;
 };
@@ -547,11 +549,28 @@ export const maxFlightAltitude = (peakRef: number) => peakRef + GLIDER.maxAboveP
 export const highestFlight = (highestGroundY: number = GLIDER.ceiling) =>
   Math.max(GLIDER.peak, highestGroundY) + GLIDER.maxAbovePeaks;
 
-/** Adaptive terrain detail level: keeps curves smooth while bounding total mounted views when zoomed out. */
-export const terrainLod = (zoom: number): { level: 0 | 1 | 2; strip: number; chunkStrips: number; chunk: number } => {
-  if (zoom >= 0.72) return { level: 0, strip: 12, chunkStrips: 32, chunk: 384 };
-  if (zoom >= 0.42) return { level: 1, strip: 18, chunkStrips: 24, chunk: 432 };
-  return { level: 2, strip: 32, chunkStrips: 18, chunk: 576 };
+export type TerrainLevel = 0 | 1 | 2;
+
+const TERRAIN_LODS = [
+  { level: 0, strip: 12, chunkStrips: 32, chunk: 384 },
+  { level: 1, strip: 18, chunkStrips: 24, chunk: 432 },
+  { level: 2, strip: 32, chunkStrips: 18, chunk: 576 },
+] as const;
+
+/** How far past a level's zoom edge the camera must go before the terrain switches level. */
+const LOD_MARGIN = 0.04;
+
+const lodLevelAt = (zoom: number): TerrainLevel => (zoom >= 0.72 ? 0 : zoom >= 0.42 ? 1 : 2);
+
+/**
+ * Adaptive terrain detail level: keeps curves smooth while bounding total
+ * mounted views when zoomed out. Given the `previous` level, it keeps that
+ * level until the zoom is LOD_MARGIN past the edge, so a camera hovering at
+ * an edge doesn't remount every chunk back and forth.
+ */
+export const terrainLod = (zoom: number, previous?: TerrainLevel): (typeof TERRAIN_LODS)[number] => {
+  const sticky = previous !== undefined && lodLevelAt(zoom + LOD_MARGIN) <= previous && previous <= lodLevelAt(zoom - LOD_MARGIN);
+  return TERRAIN_LODS[sticky ? previous : lodLevelAt(zoom)];
 };
 
 type IslandPalette = { farHill: string; nearHill: string; ground: string; grass: string };
@@ -591,6 +610,14 @@ export const worldAtX = (x: number, world: number, worldStart: number, worldEnd:
   if (x >= worldEnd) return world + 1;
   return world;
 };
+
+/**
+ * The world flag strictly inside the span [startX, endX), where its ground
+ * changes island colour, or null. A flag at startX colours the whole span,
+ * so it doesn't split it. World 1 has no flag at its start.
+ */
+export const flagWithin = (startX: number, endX: number, world: number, worldStart: number, worldEnd: number): number | null =>
+  (world > 1 ? [worldStart, worldEnd] : [worldEnd]).find((flag) => flag > startX && flag < endX) ?? null;
 
 type Framed = Pick<GliderState, "x" | "y" | "hills" | "aspect"> & Partial<Pick<GliderState, "vx" | "vy" | "grounded" | "peakRef">>;
 
@@ -762,6 +789,7 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     nextPopup: 1,
     tilt: Math.max(-1.1, Math.min(1.1, Math.atan(start.slope))),
     camera: cameraTarget(base),
+    terrainLevel: terrainLod(cameraTarget(base).zoom).level,
   };
 };
 
@@ -1068,6 +1096,7 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
   const targetTilt = Math.max(-1.1, Math.min(1.1, rawAngle));
   state.tilt = previous.tilt + (targetTilt - previous.tilt) * (1 - Math.exp(-16 * dt));
   state.camera = followCamera(state.camera, state, dt);
+  state.terrainLevel = terrainLod(state.camera.zoom, previous.terrainLevel).level;
   state.daySeen = Math.max(state.daySeen, dayProgress(state));
   state.score = gliderScore(state);
   return state;

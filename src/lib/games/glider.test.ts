@@ -11,6 +11,7 @@ import {
   dayLength,
   difficulty,
   FIRST_WORLD,
+  flagWithin,
   FLOOR_DAY,
   GLIDER,
   GLIDER_PREVIEWS,
@@ -905,6 +906,12 @@ describe("Tiny Wings fever, cloud ceiling, and terrain LOD", () => {
     expect(worldAtX(4999, 2, 1000, 5000)).toBe(2);
     expect(worldAtX(5000, 2, 1000, 5000)).toBe(3);
     expect(worldAtX(-100, 1, 0, 5000)).toBe(1);
+    // A chunk splits at a flag anywhere inside it, even within its last unit.
+    expect(flagWithin(4616, 5000.5, 2, 1000, 5000)).toBe(5000);
+    expect(flagWithin(4616, 5000, 2, 1000, 5000)).toBeNull();
+    expect(flagWithin(5000, 5384, 2, 1000, 5000)).toBeNull();
+    expect(flagWithin(900, 1284, 2, 1000, 5000)).toBe(1000);
+    expect(flagWithin(-200, 184, 1, 0, 5000)).toBeNull();
   });
 
   test("terrainLod coarsens strips as zoom drops so rendered chunk views stay bounded", () => {
@@ -919,6 +926,32 @@ describe("Tiny Wings fever, cloud ceiling, and terrain LOD", () => {
       const chunks = Math.ceil(viewWidth / lod.chunk) + 2;
       const totalViews = chunks * lod.chunkStrips * 3;
       expect(totalViews).toBeLessThan(650);
+    }
+  });
+
+  test("terrainLod holds its level until the zoom is clearly past an edge, and the run keeps that level", () => {
+    // Hovering around the 0.72 edge stays on whichever level it was on.
+    for (const zoom of [0.75, 0.72, 0.7, 0.69]) expect(terrainLod(zoom, 0).level).toBe(0);
+    for (const zoom of [0.69, 0.72, 0.74, 0.75]) expect(terrainLod(zoom, 1).level).toBe(1);
+    expect(terrainLod(0.67, 0).level).toBe(1);
+    expect(terrainLod(0.77, 1).level).toBe(0);
+    // Same around 0.42, and a jump of more than one level isn't held back.
+    expect(terrainLod(0.4, 1).level).toBe(1);
+    expect(terrainLod(0.44, 2).level).toBe(2);
+    expect(terrainLod(0.3, 0).level).toBe(2);
+    expect(terrainLod(1, 2).level).toBe(0);
+    // Held levels still keep the mounted views bounded.
+    for (const [zoom, level] of [[0.685, 0], [0.385, 1]] as const) {
+      const lod = terrainLod(zoom, level);
+      expect(lod.level).toBe(level);
+      const chunks = Math.ceil(VIEW.width / zoom / lod.chunk) + 2;
+      expect(chunks * lod.chunkStrips * 3).toBeLessThan(650);
+    }
+    const { frames } = fly(autoHold, 2);
+    let previous = frames[0].terrainLevel;
+    for (const frame of frames) {
+      expect(frame.terrainLevel).toBe(terrainLod(frame.camera.zoom, previous).level);
+      previous = frame.terrainLevel;
     }
   });
 });

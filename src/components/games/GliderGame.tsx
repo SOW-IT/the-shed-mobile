@@ -11,6 +11,7 @@ import {
   parallaxAnchor,
   parallaxShift,
   terrainLod,
+  flagWithin,
   worldAtX,
   GLIDER,
   groundAt,
@@ -430,23 +431,19 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const steadyPx = height / viewSize(width / height, 1).height;
   const anchor = parallaxAnchor(state);
   const top = camera.y + view.height;
-  const lod = terrainLod(camera.zoom);
+  const lod = terrainLod(camera.zoom, state.terrainLevel);
   const first = Math.floor((camera.x - reach.left / px) / lod.chunk) - 1;
   const last = Math.floor((camera.x + view.width + reach.right / px) / lod.chunk);
   const chunkInfo = (index: number) => {
     const startX = index * lod.chunk;
     const endX = startX + lod.chunk;
-    const w0 = worldAtX(startX, state.world, state.worldStart, state.worldEnd);
-    const w1 = worldAtX(endX - 1, state.world, state.worldStart, state.worldEnd);
-    const paletteOf = (w: number) => (w < state.world ? prevPalette : w > state.world ? nextPalette : currPalette);
-    const p0 = paletteOf(w0);
-    const p1 = paletteOf(w1);
-    const splitX =
-      w0 === w1
-        ? null
-        : state.world > 1 && startX < state.worldStart && endX > state.worldStart
-          ? state.worldStart
-          : state.worldEnd;
+    const paletteAt = (x: number) => {
+      const w = worldAtX(x, state.world, state.worldStart, state.worldEnd);
+      return w < state.world ? prevPalette : w > state.world ? nextPalette : currPalette;
+    };
+    const splitX = flagWithin(startX, endX, state.world, state.worldStart, state.worldEnd);
+    const p0 = paletteAt(startX);
+    const p1 = splitX === null ? p0 : paletteAt(splitX);
     return { index, p0, p1, splitX };
   };
   const chunks = [];
