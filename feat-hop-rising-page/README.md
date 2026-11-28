@@ -5,16 +5,16 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 101s |  |
+| native fingerprint | ✔ pass | 3s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 92s |  |
 | unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 23s |  |
+| typecheck | ✔ pass | 20s |  |
 | verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
 | after: local backend | ✔ pass | 20s | after functions on :3270 |
-| after: web | ✔ pass | 503s | 78 screens, 0 broken, still moving: out-games_leaderboard, out-games_leaderboard_game_runner, admin-games_leaderboard, admin-games_leaderboard_game_runner. Checks passed: arcade-podium, game-over-back, cafe-back-confirm, swoop-letterbox, leaderboard-link-tab, hop. |
+| after: web | ✔ pass | 478s | 78 screens, 0 broken, still moving: out-games_leaderboard, out-games_leaderboard_game_runner, admin-games_leaderboard, admin-games_leaderboard_game_runner. Checks passed: arcade-podium, game-over-back, cafe-back-confirm, swoop-letterbox, leaderboard-link-tab, hop. |
 | after: iOS reset | ✔ pass | 3s |  |
-| after: iOS | ✔ pass | 829s | 41 screenshots; still moving after 10 frames: admin-games_leaderboard, admin-games_leaderboard_game_runner, admin-games_leaderboard_game_hop; checks passed: arcade-podium, game-over-back, cafe-back-confirm, status-bar-after-game, hop |
+| after: iOS | ✔ pass | 887s | 41 screenshots; still moving after 10 frames: admin-games_leaderboard, admin-games_leaderboard_game_runner, admin-games_leaderboard_game_hop; checks passed: arcade-podium, game-over-back, cafe-back-confirm, status-bar-after-game, hop |
 
 ## Screenshots
 
