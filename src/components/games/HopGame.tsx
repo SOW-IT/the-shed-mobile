@@ -21,7 +21,7 @@ import { blend } from "@/lib/games/glider";
 import { HOP, HOP_MARK_EVERY } from "@/lib/games/hopTuning";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PanResponder, StyleSheet, Text, View, type GestureResponderEvent, type ViewInstance } from "react-native";
 import { GameFrame, startHintFor, useGameSession, useLatest } from "./GameFrame";
 import type { LeaveGuard } from "./GameFrame";
@@ -41,6 +41,11 @@ const PH = HOP.platform.height;
 const BOX = HOP.box;
 /** The drawn character is a little bigger than the box everyone collides with. */
 const FIGURE = { width: 50, height: 62 };
+/** The Doodle Hopper's round body, and how far a hat sinks into its top. */
+const HOPPER_BODY = 36;
+const HOPPER_SINK = 5;
+/** Degrees the propeller hat tips toward the way you're facing. */
+const HAT_TILT = 8;
 const MARK_UNITS = HOP_MARK_EVERY * HOP.unitsPerPoint;
 /** Clouds and stars are laid out in tiles this tall, the same tile the same way every time. */
 const TILE = 420;
@@ -455,10 +460,13 @@ const Effect = ({ effect, state, outline }: { effect: HopEffect; state: HopState
 
 // Original: the Doodle Hopper.
 
-const DoodleHopper = ({ facing, stretch }: { facing: -1 | 1; stretch: number }) => {
+const DoodleHopper = ({ facing, stretch, headwear }: { facing: -1 | 1; stretch: number; headwear?: ReactNode }) => {
   const legs = 12 * stretch;
   return (
     <View style={styles.hopper}>
+      {headwear === undefined ? null : (
+        <View style={[styles.hopperHeadwear, { bottom: legs + HOPPER_BODY - HOPPER_SINK }]}>{headwear}</View>
+      )}
       <View style={[styles.hopperBody, { backgroundColor: c.hopper, borderColor: c.hopperInk }]}>
         <View style={[styles.hopperBelly, { backgroundColor: c.hopperBelly }]} />
         <View style={[styles.hopperEyes, { transform: [{ translateX: facing * 4 }] }]}>
@@ -492,10 +500,17 @@ const Character = ({ state, look, art }: { state: HopState; look: Look | null; a
   const flightAge = state.flight ? state.time - state.flight.at : null;
   const y = screenY(state, state.y);
   const boosting = state.flight !== null;
+  // The propeller hat, on the head, tipped the way you're going.
+  const headwear =
+    state.flight?.kind === "propeller" && flightAge !== null ? (
+      <View style={{ transform: [{ rotate: `${state.facing * HAT_TILT}deg` }] }}>
+        <PropellerHat spin={flightAge * 40} />
+      </View>
+    ) : undefined;
   const figure = look && art ? (
-    <art.HopperCharacter look={look} width={FIGURE.width} height={FIGURE.height} facing={state.facing} boosting={boosting} />
+    <art.HopperCharacter look={look} width={FIGURE.width} height={FIGURE.height} facing={state.facing} boosting={boosting} headwear={headwear} />
   ) : (
-    <DoodleHopper facing={state.facing} stretch={1 + 0.5 * rising - 0.5 * landing} />
+    <DoodleHopper facing={state.facing} stretch={1 + 0.5 * rising - 0.5 * landing} headwear={headwear} />
   );
   return (
     <>
@@ -515,11 +530,6 @@ const Character = ({ state, look, art }: { state: HopState; look: Look | null; a
             </View>
           ) : null}
           {figure}
-          {state.flight?.kind === "propeller" && flightAge !== null ? (
-            <View style={styles.onHead}>
-              <PropellerHat spin={flightAge * 40} />
-            </View>
-          ) : null}
         </View>
       ))}
     </>
@@ -794,9 +804,9 @@ const styles = StyleSheet.create({
   ring: { position: "absolute", borderWidth: 3 },
   player: { position: "absolute", left: 0, top: 0, width: FIGURE.width, height: FIGURE.height, alignItems: "center", justifyContent: "flex-end", transformOrigin: "bottom center" },
   onBack: { position: "absolute", top: 16 },
-  onHead: { position: "absolute", top: -16, alignSelf: "center" },
+  hopperHeadwear: { position: "absolute", left: 0, right: 0, alignItems: "center", zIndex: 1 },
   hopper: { width: BOX.width, height: BOX.height, alignItems: "center", justifyContent: "flex-end" },
-  hopperBody: { width: BOX.width, height: 36, borderRadius: 18, borderWidth: 2.5, alignItems: "center", overflow: "hidden" },
+  hopperBody: { width: BOX.width, height: HOPPER_BODY, borderRadius: 18, borderWidth: 2.5, alignItems: "center", overflow: "hidden" },
   hopperBelly: { position: "absolute", bottom: -6, width: 26, height: 18, borderRadius: 13 },
   hopperEyes: { flexDirection: "row", gap: 3, marginTop: 7 },
   hopperEye: { width: 11, height: 12, borderRadius: 6, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },

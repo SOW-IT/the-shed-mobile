@@ -259,12 +259,30 @@ await run("wide", { width: 1280, height: 720 }, async (page) => {
   await expect(page, `wide: the board stays a portrait page (${board.width}×${board.height})`, board.height > board.width * 1.4);
 });
 
+// The propeller hat on the head of each character, facing each way. Read
+// these: the cap sits on the top of the head (in place of any hat), not
+// floating above it.
+await run("propeller", { width: 390, height: 844 }, async (page) => {
+  await page.goto(`${BASE}/games`);
+  for (const character of ["mine", "sij", "original"]) {
+    await page.evaluate((hop) => {
+      localStorage.setItem("games.characters", JSON.stringify({ runner: "mine", flappy: "mine", glider: "mine", hop }));
+    }, character);
+    for (const preview of ["propeller", "propellerleft"]) {
+      await page.goto(`${BASE}/games/hop?preview=${preview}`);
+      await id(page, "hop-scene").waitFor();
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${OUT}/hop-${preview}-${character}.png` });
+    }
+  }
+});
+
 await browser.close();
 
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop."
+    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

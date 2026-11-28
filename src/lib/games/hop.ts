@@ -408,6 +408,12 @@ const moveTrack = (platform: HopPlatform, dt: number): HopPlatform => {
 
 type Contact = { tau: number; top: number; platform: HopPlatform; spring: boolean };
 
+/**
+ * Where your feet are once the whole box has gone below the bottom of the
+ * board, and the run ends: nothing down there can be landed on or picked up.
+ */
+const deathLine = (state: HopState) => state.camera - HOP.box.height;
+
 /** The first top you come down onto in the next `rest` seconds, if any. */
 const firstContact = (
   state: HopState,
@@ -418,11 +424,14 @@ const firstContact = (
 ): Contact | null => {
   let best: Contact | null = null;
   const half = HOP.box.width / 2;
+  const floor = deathLine(state);
   for (const platform of state.platforms) {
     if (skip.has(platform.id)) continue;
     const surfaces = platform.spring ? [true, false] : [false];
     for (const spring of surfaces) {
       const top = platform.y + (spring ? HOP.spring.height : 0);
+      // Below the death line: the run ends before you'd get there.
+      if (top < floor) continue;
       // Only coming down onto a top: rising through one from below passes it.
       if (from.y < top) continue;
       const tau = (from.vy + Math.sqrt(from.vy * from.vy + 2 * g * (from.y - top))) / g;
@@ -511,7 +520,8 @@ const fly = (state: HopState, dt: number) => {
 
 /** Touching a boost sitting on a platform puts it on. One at a time. */
 const pickUp = (state: HopState) => {
-  if (state.flight) return;
+  // Fallen past the death line: this is the step the run ends.
+  if (state.flight || state.y < deathLine(state)) return;
   const { width: bw, height: bh } = HOP.box;
   const size = HOP.item.size;
   for (let i = 0; i < state.platforms.length; i++) {
@@ -680,6 +690,7 @@ export const HOP_PREVIEWS = [
   "onebounce",
   "spring",
   "propeller",
+  "propellerleft",
   "jetpack",
   "drop",
 ] as const;
@@ -698,6 +709,7 @@ const PREVIEW_POINTS: Record<HopPreview, number> = {
   onebounce: 1000,
   spring: 400,
   propeller: 600,
+  propellerleft: 600,
   jetpack: 1800,
   drop: 900,
 };
@@ -728,11 +740,13 @@ export const previewHop = (preview: HopPreview, width: number, height: number): 
     state.springAt = state.time - 0.08;
     state.vy = HOP.springSpeed * 0.9;
   }
-  if (preview === "propeller" || preview === "jetpack") {
-    state.flight = { kind: preview, at: state.time - 0.6 };
-    state.vy = flightOf(preview).speed;
-    state.steer = 1;
-    state.facing = 1;
+  if (preview === "propeller" || preview === "propellerleft" || preview === "jetpack") {
+    const kind = preview === "jetpack" ? "jetpack" : "propeller";
+    const facing = preview === "propellerleft" ? -1 : 1;
+    state.flight = { kind, at: state.time - 0.6 };
+    state.vy = flightOf(kind).speed;
+    state.steer = facing;
+    state.facing = facing;
   }
   if (preview === "drop") {
     addEffect(state, { kind: "drop", boost: "propeller", x: state.x + 30, y: state.y + 40, vx: -90, facing: 1, at: state.time - 0.25 });

@@ -1,5 +1,5 @@
 import { bodyScale, type Look } from "@shared/world";
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { Avatar, figureTop, type Doing } from "./Person";
 
@@ -12,6 +12,9 @@ const UP = 0.86;
 
 const fitScale = (look: Look, height: number) => height / figureTop(look, UP);
 
+/** How far into the top of the head something worn there sits, per scale. */
+const HEADWEAR_SINK = 0.1;
+
 const Figure = ({
   look,
   width,
@@ -19,6 +22,7 @@ const Figure = ({
   heading,
   stridePhase,
   doing,
+  fitTo = look,
 }: {
   look: Look;
   width: number;
@@ -26,8 +30,10 @@ const Figure = ({
   heading: number;
   stridePhase?: number;
   doing?: Doing;
+  /** The look whose height fills the box, when it isn't the one drawn. */
+  fitTo?: Look;
 }) => {
-  const s = fitScale(look, height);
+  const s = fitScale(fitTo, height);
   const foot = { x: width / 2, y: height, depth: 1, scale: s };
   return (
     <View pointerEvents="none" style={{ width, height }}>
@@ -58,6 +64,8 @@ const HOP_HEADING = 0.95;
 /**
  * Hop's character: the whole figure, turned to the side it's steering, with
  * its arms up while a boost carries it. Whoever draws it squashes it.
+ * `headwear` (a propeller hat) sits on the top of the head in place of any
+ * hat, over hair that stands up, at the same size as with the hat on.
  */
 export const HopperCharacter = memo(function HopperCharacter({
   look,
@@ -65,14 +73,27 @@ export const HopperCharacter = memo(function HopperCharacter({
   height,
   facing,
   boosting,
+  headwear,
 }: {
   look: Look;
   width: number;
   height: number;
   facing: -1 | 1;
   boosting: boolean;
+  headwear?: ReactNode;
 }) {
-  return <Figure look={look} width={width} height={height} heading={facing * HOP_HEADING} doing={boosting ? CHEER : undefined} />;
+  const heading = facing * HOP_HEADING;
+  const doing = boosting ? CHEER : undefined;
+  if (headwear === undefined) return <Figure look={look} width={width} height={height} heading={heading} doing={doing} />;
+  const bare = { ...look, hat: 0 };
+  const s = fitScale(look, height);
+  const headTop = height - s * figureTop(bare, UP);
+  return (
+    <View pointerEvents="none" style={{ width, height }}>
+      <Figure look={bare} fitTo={look} width={width} height={height} heading={heading} doing={doing} />
+      <View style={[styles.headwear, { bottom: height - headTop - s * HEADWEAR_SINK }]}>{headwear}</View>
+    </View>
+  );
 });
 
 export const RunnerCharacter = memo(function RunnerCharacter({
@@ -160,4 +181,5 @@ export const CharacterHead = memo(function CharacterHead({ look, size }: { look:
 const styles = StyleSheet.create({
   runner: { transformOrigin: "bottom center" },
   clip: { position: "absolute", overflow: "hidden" },
+  headwear: { position: "absolute", left: 0, right: 0, alignItems: "center" },
 });

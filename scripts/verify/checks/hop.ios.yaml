@@ -1,6 +1,7 @@
 appId: au.org.sow.theshed
 ---
-# Hop on a phone: the start card and its characters, the leave dialog and
+# Hop on a phone: the start card and its characters, the propeller hat on
+# Sij's and the Doodle Hopper's heads, the leave dialog and
 # Continue on a run, holding the left half to start and steer and sliding
 # across the middle to turn round, then a run that plays itself (test builds
 # only) to the fall-off ending, Play again, and the Leaderboard.
@@ -22,11 +23,43 @@ appId: au.org.sow.theshed
 - tapOn:
     id: character-sij
 - takeScreenshot: "${OUT}/check-hop-sij"
+# The propeller hat on Sij's head (in place of the party hat), facing right
+# and left (test builds only). Read these: the cap sits on the head.
+- openLink: "theshedmobile://games/hop?preview=propeller"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-hop-propeller-sij"
+- openLink: "theshedmobile://games/hop?preview=propellerleft"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-hop-propeller-left-sij"
+- openLink: "theshedmobile://games/hop"
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
 - tapOn:
     id: character-original
-# Back to the Games list (no run yet, so it doesn't ask), so the links below
-# open Hop fresh and leaving comes back to the list.
-- tapOn: "Back to the games"
+# And on the Doodle Hopper's.
+- openLink: "theshedmobile://games/hop?preview=propeller"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-hop-propeller-original"
+# Back to the Games list, so the links below open Hop fresh and leaving comes
+# back to the list.
+- openLink: "theshedmobile://games"
 - extendedWaitUntil:
     visible:
       id: games-open-hop
