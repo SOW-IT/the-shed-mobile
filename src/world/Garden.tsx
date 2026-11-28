@@ -56,6 +56,7 @@ import { animalAt, GoodThumb, PenAnimals, type PenAnimal } from "./Animals";
 import { penPoint, phaseFor, zoneOf, type PenCorners } from "./animalMotion";
 import { useGlide } from "./useGlide";
 import { seatAt } from "./seats";
+import { isPending } from "./homeDecor";
 import { MAHJONG_TABLE_NAMES, mahjongSeatOf, seatPlace } from "@shared/mahjong/table";
 import { myPoseLabel } from "./myPose";
 import { bubbleAge, mouthAt, nextFlapAt, talkAge } from "./talk";
@@ -546,7 +547,8 @@ export const Garden = ({
       if (item) return { kind: "item", key: item };
       if (decor.selected) return { kind: "floor" };
     }
-    const seat = seatAt(place, cam, x, y, homeItems);
+    // Never sit while decorating: a seat's tap area is a little bigger than its piece as drawn.
+    const seat = decor ? null : seatAt(place, cam, x, y, homeItems);
     if (seat) return { kind: "seat", id: seat };
     const spot = cam.ground(x, y);
     if (spot) {
@@ -582,7 +584,8 @@ export const Garden = ({
     const hit = hitAt(at.x, at.y);
     if (press.current.timer) clearTimeout(press.current.timer);
     if (hit.kind === "item" || hit.kind === "floor") {
-      const piece = hit.kind === "item" ? shownHome?.items.find((p) => p.key === hit.key) : undefined;
+      // A piece put down but not yet given its key by the server stays put until it has one.
+      const piece = hit.kind === "item" && !isPending(hit.key) ? shownHome?.items.find((p) => p.key === hit.key) : undefined;
       const under = cam?.ground(at.x, at.y);
       const grab = piece ? { dx: under ? piece.x - under.x : 0, dz: under ? piece.z - under.z : 0, at: null } : undefined;
       press.current = { ...at, hit, walking: false, timer: null, spot: null, grab };
@@ -1146,7 +1149,7 @@ export const Garden = ({
             </View>
           );
         })}
-        {itemTop && decor && selectedItem ? (
+        {itemTop && decor && selectedItem && decor.actions.length > 0 ? (
           <PersonHud key={`item-${selectedItem.key}`} x={itemTop.x} y={itemTop.y} stageWidth={cam.width} visible actions={decor.actions} onHidden={() => undefined} />
         ) : null}
         {hudAt && hudShown ? (

@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.67] - 2026-11-28
+## [2.13.70] - 2026-11-28
 
 ### Added
 - **The backyard has a How to farm card.** An (i) button at the bottom
@@ -28,6 +28,21 @@ All notable changes to **The SHED** mobile app. This project follows
   opens the editor at the top of the notice board, and the notice no longer
   also shows below it until you save or cancel. The editor no longer says
   "Everyone in the World sees it."
+
+## [2.13.68] - 2026-11-28
+
+### Fixed
+- **Home furniture: small follow-ups to sitting and dragging.**
+  - While decorating, a tap just beside a chair or sofa no longer sits you
+    down. It picks up the piece or moves the one you've chosen, as it should.
+  - A piece you've just put down stays put until it has saved. You can't
+    drag it yet, and Turn / Put away / Done only show once it has saved.
+  - Dragging another piece while one from the tray is still waiting puts
+    the waiting one down where it is, the same as tapping another piece
+    already did.
+  - Moving a piece frees its seats from anyone left sitting at its old spot.
+    A seat at the new spot counts as taken only once someone sits on it or
+    heads there.
 
 ## [2.13.65] - 2026-11-28
 
