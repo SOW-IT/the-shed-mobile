@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.9] - 2026-11-29
+
+### Fixed
+- **The dev backend deploy accepts current Convex dev deploy keys.** Convex
+  Deploy (dev) only took keys shaped `dev:successful-lynx-56|…`, but dev keys
+  made now are `dev:<token>` and don't name their deployment, so the new
+  `CONVEX_DEPLOY_KEY_DEV` was refused and dev never moved. It now takes both,
+  still refuses prod, preview and project keys, and runs a dry run first that
+  must target `successful-lynx-56` before anything is pushed.
+
 ## [2.14.1] - 2026-11-28
 
 ### Fixed

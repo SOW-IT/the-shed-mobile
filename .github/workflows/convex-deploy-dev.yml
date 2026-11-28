@@ -6,7 +6,10 @@
 #
 # Prod is deployed by convex-deploy.yml; this workflow never touches it. The
 # key it uses must be a dev deploy key for successful-lynx-56, and the job
-# checks that before pushing.
+# checks that twice before pushing: the key must start with `dev:`, and a dry
+# run with it must target successful-lynx-56. Older dev keys read
+# `dev:successful-lynx-56|<token>`; current ones are `dev:<token>` and don't
+# name their deployment, which is why the dry run asks Convex instead.
 name: Convex Deploy (dev)
 
 on:
@@ -47,8 +50,16 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Old format: dev:successful-lynx-56|<token>. New format: dev:<token>.
+          # An old-format key naming another deployment, or any prod:,
+          # preview: or project: key, is refused here. The key is never echoed.
           case "$CONVEX_DEPLOY_KEY_DEV" in
-            dev:successful-lynx-56\|*) ;;
+            dev:successful-lynx-56\|?*) ;;
+            dev:*\|*)
+              echo "::error::CONVEX_DEPLOY_KEY_DEV is a dev deploy key for another deployment, not successful-lynx-56. Refusing to deploy."
+              exit 1
+              ;;
+            dev:?*) ;;
             *)
               echo "::error::CONVEX_DEPLOY_KEY_DEV is not a dev deploy key for successful-lynx-56. Refusing to deploy."
               exit 1
@@ -66,6 +77,34 @@ jobs:
           cache: npm
       - if: steps.key.outputs.configured == 'true'
         run: npm ci
+      # A dev:<token> key doesn't say which deployment it's for, so ask Convex
+      # with a dry run (it pushes nothing) and require the target URL to be
+      # successful-lynx-56's. Only the target URL is printed, never the key.
+      - name: Check deploy target
+        if: steps.key.outputs.configured == 'true'
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_DEV }}
+        run: |
+          out="$RUNNER_TEMP/convex-dry-run.log"
+          if ! npx convex deploy --dry-run --typecheck disable --codegen disable > "$out" 2>&1; then
+            echo "::error::The dry run against dev Convex failed, so nothing was deployed. Its last lines:"
+            tail -n 30 "$out"
+            exit 1
+          fi
+          target=$(sed 's/\x1b\[[0-9;]*m//g' "$out" | grep -oE 'https://[a-z0-9-]+(\.[a-z0-9-]+)*\.convex\.cloud' | head -n 1 || true)
+          if [ -z "$target" ]; then
+            echo "::error::The dry run didn't print a deployment URL, so the key's target couldn't be checked. Refusing to deploy."
+            exit 1
+          fi
+          case "$target" in
+            https://successful-lynx-56.convex.cloud|https://successful-lynx-56.*.convex.cloud)
+              echo "Deploy key targets $target (successful-lynx-56)."
+              ;;
+            *)
+              echo "::error::This dev key points at $target, not the shared dev deployment successful-lynx-56. Refusing to deploy."
+              exit 1
+              ;;
+          esac
       - name: Deploy to dev Convex
         if: steps.key.outputs.configured == 'true'
         run: |
