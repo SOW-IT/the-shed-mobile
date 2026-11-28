@@ -20,7 +20,16 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 5000
 # Home from the title's menu, unless an earlier run (the web check shares
-# this backend and account) left you there.
+# this backend and account) left you there. Until your home has loaded the
+# title reads just "Home" (or "Backyard"), and neither the Decorate button
+# nor the menu knows yet that it's yours, so wait for it first. The
+# match takes the title alone or the whole label (the title, then
+# ". Outfit, bag, home, settings and leave").
+- extendedWaitUntil:
+    notVisible:
+      id: world-title
+      text: "(Home|Backyard)(\\..*)?"
+    timeout: 15000
 - runFlow:
     when:
       notVisible:

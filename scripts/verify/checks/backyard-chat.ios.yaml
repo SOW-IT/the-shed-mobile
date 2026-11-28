@@ -13,6 +13,9 @@ appId: au.org.sow.theshed
 # A chat line's label is what it says and where it was said ("You said …,
 # in Backyard") (view.ts saidLabel). The web check (two people) runs first
 # on this backend and account, so you may already be in the backyard.
+# The title reads "Backyard" until the backyard has loaded, then "Your
+# backyard", so it's matched in any case: in your own backyard, the menu
+# has no Backyard row.
 - openLink: "theshedmobile://world"
 - extendedWaitUntil:
     visible:
@@ -24,7 +27,7 @@ appId: au.org.sow.theshed
     when:
       notVisible:
         id: world-title
-        text: ".*backyard.*"
+        text: "(?i).*backyard.*"
     commands:
       - runFlow: flows/open-world-menu.yaml
       # The menu's Backyard row takes you there (through your home, from
@@ -41,7 +44,7 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     visible:
       id: world-title
-      text: ".*backyard.*"
+      text: "(?i).*backyard.*"
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 3000
@@ -94,7 +97,7 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     visible:
       id: world-title
-      text: ".*backyard.*"
+      text: "(?i).*backyard.*"
     timeout: 30000
 - assertVisible:
     id: world-chat-input

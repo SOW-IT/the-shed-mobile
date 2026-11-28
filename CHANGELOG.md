@@ -28,7 +28,13 @@ All notable changes to **The SHED** mobile app. This project follows
   - The iOS `backyard-chat` check goes to the backyard by the World menu's
     Backyard row. It no longer closes the menu with ✕ and walks to the
     home's Backyard pad, which raced the menu opening: a ✕ tap that missed
-    left the menu open to take the tap meant for the pad.
+    left the menu open to take the tap meant for the pad. It matches the
+    backyard's title in any case, since the title reads "Backyard" until
+    the backyard has loaded, and your own backyard's menu has no Backyard
+    row.
+  - The iOS `home-furniture` check waits for your home to load (the title
+    is no longer just "Home") before it decides whether you're home, so it
+    doesn't look for a Home row that the menu drops once it knows.
   - The iOS `home-furniture` check opens your home by the menu row's id and
     waits for the menu to be gone before its taps on the floor. The
     `chapel-pews` check waits the same way before its tap on the pew. Their
