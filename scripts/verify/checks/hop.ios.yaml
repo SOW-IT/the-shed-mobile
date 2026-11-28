@@ -3,7 +3,8 @@ appId: au.org.sow.theshed
 # Hop on a phone: the start card and its characters, the propeller hat on
 # Sij's and the Doodle Hopper's heads, the leave dialog and
 # Continue on a run, holding the left half to start and steer and sliding
-# across the middle to turn round, then a run that plays itself (test builds
+# across the middle to turn round, holding each side and quick taps either
+# side, then a run that plays itself (test builds
 # only) to the fall-off ending, Play again, and the Leaderboard.
 # Read the screenshots: the page, the character and the cards.
 - openLink: "theshedmobile://games"
@@ -110,6 +111,35 @@ appId: au.org.sow.theshed
 - assertNotVisible:
     id: character-picker-hop
 - takeScreenshot: "${OUT}/check-hop-steered"
+# Each side held, then let go, then quick taps either side: every touch
+# steers at once and letting go stops you. Read these: the character is
+# still on the board, nearer the side last held.
+# Only while the run is still going: steering off the first platform can
+# fall off, and these taps would land on the game-over card.
+- runFlow:
+    when:
+      notVisible:
+        id: game-over-back
+    commands:
+      - longPressOn:
+          point: "20%, 75%"
+      - takeScreenshot: "${OUT}/check-hop-held-left"
+      - longPressOn:
+          point: "80%, 75%"
+      - takeScreenshot: "${OUT}/check-hop-held-right"
+      - tapOn:
+          point: "20%, 75%"
+          retryTapIfNoChange: false
+      - tapOn:
+          point: "80%, 75%"
+          retryTapIfNoChange: false
+      - tapOn:
+          point: "20%, 75%"
+          retryTapIfNoChange: false
+      - tapOn:
+          point: "80%, 75%"
+          retryTapIfNoChange: false
+      - takeScreenshot: "${OUT}/check-hop-quick-taps"
 - tapOn: "Back to the games"
 - runFlow:
     when:

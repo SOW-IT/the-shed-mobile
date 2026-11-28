@@ -158,6 +158,39 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     const turned = await playerX(page);
     note(`→ straight after turns you round within three frames (${tapped.toFixed(1)} → ${turned.toFixed(1)})`, moved(tapped, turned) > 3);
     await page.keyboard.up("ArrowRight");
+    // Letting go mid-air is almost a dead stop: a few units at most, then still.
+    await frames(3);
+    const released = await playerX(page);
+    await frames(6);
+    const after = await playerX(page);
+    note(`letting go of → mid-air stops you almost dead (${released.toFixed(1)} → ${after.toFixed(1)})`, Math.abs(moved(released, after)) < 3);
+    // Each side held for a moment, then let go: it goes that way, then stops.
+    for (const [key, sign] of [["ArrowLeft", -1], ["ArrowRight", 1], ["a", -1], ["d", 1]]) {
+      const from = await playerX(page);
+      await page.keyboard.down(key);
+      await frames(10);
+      const held = await playerX(page);
+      await page.keyboard.up(key);
+      await frames(4);
+      const stopped = await playerX(page);
+      await frames(6);
+      const still = await playerX(page);
+      note(`holding ${key} moves you ${sign < 0 ? "left" : "right"} (${from.toFixed(0)} → ${held.toFixed(0)})`, moved(from, held) * sign > 30);
+      note(`letting go of ${key} stops you (${stopped.toFixed(1)} → ${still.toFixed(1)})`, Math.abs(moved(stopped, still)) < 3);
+    }
+    // Quick reversals, two frames each way: every press goes its own way at once.
+    let wrong = 0;
+    for (let i = 0; i < 6; i++) {
+      const key = i % 2 === 0 ? "ArrowLeft" : "ArrowRight";
+      const from = await playerX(page);
+      await page.keyboard.down(key);
+      await frames(2);
+      const to = await playerX(page);
+      await page.keyboard.up(key);
+      if (moved(from, to) * (i % 2 === 0 ? -1 : 1) <= 0) wrong++;
+    }
+    note(`six quick reversals each go the way pressed (${6 - wrong} of 6)`, wrong === 0);
+    await page.screenshot({ path: `${OUT}/hop-reversals.png` });
   });
 
   // Holding a half of the board steers that way; sliding across the middle turns round.
@@ -303,7 +336,7 @@ await browser.close();
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
+    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames, each side and A/D hold and stop dead when let go, quick reversals go the way pressed; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);
