@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Animated, Easing, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { togglePicked } from "@shared/churches";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme, fixedColours } from "@/theme";
 import { fieldTestID } from "./fieldTestID";
@@ -10,6 +10,8 @@ import { FastModal, SowSpinner, Txt } from "./primitives";
 import { useRevealFocusedInput } from "./revealFocus";
 import { styles } from "./styles";
 import { useSwipeToClose } from "./swipeToClose";
+
+const MAX_WEB_MULTILINE_HEIGHT = 320;
 
 export const Field = ({
   label,
@@ -40,7 +42,12 @@ export const Field = ({
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
+  const [webHeight, setWebHeight] = useState<number | null>(null);
   const reveal = useRevealFocusedInput();
+  // A native multiline input grows with its text. On web it's a textarea
+  // that keeps its minimum height, so a longer text was cut off mid-line
+  // (Edit Home's headline). Grow it to fit, up to a cap that then scrolls.
+  const growOnWeb = multiline && Platform.OS === "web";
   return (
     <View style={styles.field}>
       {label ? (
@@ -61,7 +68,13 @@ export const Field = ({
             styles.inputInner,
             { color: t.text },
             multiline && styles.inputMultiline,
+            growOnWeb && webHeight !== null && { height: webHeight },
           ]}
+          onContentSizeChange={
+            growOnWeb
+              ? (e) => setWebHeight(Math.min(e.nativeEvent.contentSize.height, MAX_WEB_MULTILINE_HEIGHT))
+              : undefined
+          }
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
