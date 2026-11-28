@@ -27,43 +27,40 @@ appId: au.org.sow.theshed
         id: world-title
         text: "(?i).*caf.*"
     commands:
-      - tapOn:
-          id: world-title
-          waitToSettleTimeoutMs: 2000
-      - waitForAnimationToEnd:
-          timeout: 2000
+      # Through the menu to the Garden only when somewhere else: in the Garden already, the menu stays shut (on
+      # main a tap meant for the Café's pad kept landing on the menu's Settings row).
       - runFlow:
           when:
-            visible:
-              id: world-menu-garden
+            notVisible:
+              id: world-title
+              text: "(?i).*garden.*"
           commands:
             - tapOn:
-                id: world-menu-garden
+                id: world-title
                 waitToSettleTimeoutMs: 2000
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
-            - tapOn:
-                id: world-menu-close
-                waitToSettleTimeoutMs: 2000
-      # A tap on ✕ while the menu is still opening can miss, and the menu then covers the Café's pad (its Settings
-      # row sits there since the menu grew a Home and a Backyard row). Make sure it's shut before going on.
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
             - waitForAnimationToEnd:
-                timeout: 1500
-            - tapOn:
-                id: world-menu-close
-                waitToSettleTimeoutMs: 2000
-      - extendedWaitUntil:
-          notVisible:
-            id: world-menu-close
-          timeout: 5000
+                timeout: 2000
+            - runFlow:
+                when:
+                  visible:
+                    id: world-menu-garden
+                commands:
+                  - tapOn:
+                      id: world-menu-garden
+                      waitToSettleTimeoutMs: 2000
+            - runFlow:
+                when:
+                  visible:
+                    id: world-menu-close
+                commands:
+                  - tapOn:
+                      id: world-menu-close
+                      waitToSettleTimeoutMs: 2000
+            - extendedWaitUntil:
+                visible:
+                  id: world-title
+                  text: "(?i).*garden.*"
+                timeout: 30000
       - extendedWaitUntil:
           visible: "Go to The Café"
           timeout: 30000
