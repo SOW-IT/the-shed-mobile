@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.2] - 2026-11-28
+
+### Changed
+- **Invite several people to a devotional group at once.** Tap people to tick
+  them, then send every invite with one button. The people you've picked stay
+  in a row at the top, even when your search changes, and tapping one takes
+  them off. A green line then says who was invited.
+- **The invite sheet says what an invite does and who's already in.** It names
+  the group, says invitees get a notification and join once they accept, and
+  lists the people you can add apart from members (green) and pending invites
+  (amber). A search with no matches says so and suggests what to try.
+- **The invite list holds still while you search.** It keeps the last results
+  on screen until new ones arrive instead of emptying with each letter, and
+  long names wrap onto a second line instead of being cut off. In Group
+  settings the button reads "Invite" so it fits on one line.
+
 ## [2.14.1] - 2026-11-28
 
 ### Fixed
