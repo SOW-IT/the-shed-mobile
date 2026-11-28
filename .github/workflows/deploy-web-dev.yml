@@ -3,7 +3,8 @@ name: Deploy web (dev)
 # Follows Convex Deploy (dev) for a merge to main, so the dev web app never
 # ships code that calls functions dev doesn't have yet. It still deploys when
 # that run failed or skipped (no key); only a cancelled run, which a newer
-# merge's run replaces, deploys nothing.
+# merge's run replaces, deploys nothing. Only main's tip deploys: a merge that
+# Release version numbered deploys once, from its `chore(release)` commit.
 on:
   workflow_run:
     workflows: ["Convex Deploy (dev)"]
@@ -14,17 +15,46 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-web-dev-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  deploy:
+  # No concurrency here on purpose: a run for a commit main has moved past
+  # stops in this job and never joins the deploy group, so it can't cancel a
+  # dev web deploy that is in progress for main's tip.
+  check:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.event == 'workflow_run' &&
       github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.current.outputs.deploy }}
+    steps:
+      - name: Skip a commit main has moved past
+        id: current
+        env:
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "workflow_run" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$main_sha" = "$DEPLOYED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is behind it, so the run for main's tip deploys the dev web app."
+          fi
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    # Job-level, so only runs that passed the check join it, and a newer
+    # deploy replaces an older one.
+    concurrency:
+      group: deploy-web-dev-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Check deploy secrets
         id: secrets

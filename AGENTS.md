@@ -57,6 +57,35 @@ Head, and a Budget Manager (Admin → "Other"; picker lists Finance members only
    CodeRabbit has reviewed the head with nothing left open, then mark it
    ready. `node scripts/pr-status.mjs <number>` says where it stands.
 
+## Versions and the changelog
+
+PRs never change the version. After each merge, `release-version.yml` gives
+`main` its next version (`package.json`, both `package-lock.json` version
+lines, `app.json`), turns the merged notes into a `## [x.y.z] - date` section
+of `CHANGELOG.md`, and pushes that as `chore(release): x.y.z`. The deploys
+(dev and prod Convex, EAS Update, dev web) run from that commit, once per
+merge, so phones and the Chat post see the new version.
+
+- Write the PR's notes in a new file, `changelog.d/<branch name, / as ->.md`
+  (e.g. `changelog.d/feat-more-eye-shapes.md`), in `CHANGELOG.md`'s voice
+  under its headings (`### Added`, `### Removed`, `### Changed`,
+  `### Fixed`), with no version heading. A file per PR is what keeps PRs from
+  conflicting; never edit `CHANGELOG.md`. A merge with no note gets its title
+  as the entry.
+- Leave the `package.json`, `package-lock.json` and `app.json` versions
+  alone, and keep the version out of the PR title and branch name. The number
+  isn't known until the PR merges.
+- Patch by default. For a minor or major release (only when the user asks),
+  start the note with front matter `---`, `bump: minor` (or `major`), `---`.
+  Setting the version by hand in all three files, with its own
+  `## [x.y.0] - date` section, still works: a merge that raised the version
+  itself keeps it, and any earlier merges it overtook before they were
+  numbered (and any notes left in `changelog.d/`) go into its section.
+- Two merges close together can share one version. If a release run fails
+  (say a `changelog.d` note's front matter is wrong), nothing deploys: fix it
+  and rerun the run from Actions; it numbers everything merged since the
+  last release.
+
 ## CodeRabbit reviews
 
 Automatic CodeRabbit reviews are off. Comment `@coderabbitai review` only

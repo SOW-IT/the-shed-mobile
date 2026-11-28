@@ -4,10 +4,17 @@
 
 A PR merged into `main` goes live straight away. Nothing else needs running:
 
+- **Version**: `release-version.yml` gives `main` its next version and moves
+  the merged `changelog.d/` notes into `CHANGELOG.md`, as a
+  `chore(release): x.y.z` commit. Every deploy below except prod web runs from
+  that commit (the merge's own runs skip it as no longer `main`'s tip), and
+  the Google Chat "merged" card names the version. PRs never touch the
+  version (AGENTS.md).
 - **Prod web** (<https://theshed.sow.org.au>): published by Vercel's git
   integration (project `the-shed-web`).
 - **Dev Convex** (`successful-lynx-56`, used by the staging app and dev web):
-  `convex-deploy-dev.yml`, with the `CONVEX_DEPLOY_KEY_DEV` secret. Sending a
+  `convex-deploy-dev.yml`, with the `CONVEX_DEPLOY_KEY_DEV` secret, once
+  Release version has finished. Sending a
   branch to the staging app? Run that workflow from the branch too, or the app
   may call functions dev doesn't have.
 - **Dev web** (<https://the-shed-web-dev.vercel.app>): `deploy-web-dev.yml`.

@@ -69,6 +69,19 @@ Other skip rules still apply when you do request a review:
   it (`git merge <base>`, or `git merge-tree` plus `git commit-tree` if a run
   is using the working tree).
 
+## Versions: never renumber
+
+PRs carry no version (AGENTS.md, "Versions and the changelog"); `main` is
+numbered after each merge, so merging `main` in never needs a renumber or a
+new CI run for the version's sake. If a PR still edits the version or
+`CHANGELOG.md` (opened before the change), convert it with your next merge of
+`main`: take `main`'s side of every version line in `package.json`,
+`package-lock.json` and `app.json`, move the PR's changelog section (without
+its `## [x.y.z]` heading) into `changelog.d/<branch, / as ->.md`, drop the
+version from the title (`gh pr edit <number> --title ...`), and commit that
+with the merge. If one merges unconverted, the release folds its stray
+section into the next number, so nothing is lost.
+
 ## The loop
 
 Repeat until `pr-status` exits 0 and the verification gate passes.

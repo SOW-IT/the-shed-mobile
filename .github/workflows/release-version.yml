@@ -1,0 +1,125 @@
+name: Release version
+
+# Numbers main after each merge, so pull requests never touch the version and
+# stop conflicting with each other over it. A push to main that didn't raise
+# app.json's version gets the next version (a patch, unless a changelog.d note
+# asks for `bump: minor` or `bump: major`) in package.json, package-lock.json
+# and app.json, a CHANGELOG.md section built from the merged changelog.d notes
+# (or the merge title when a merge wrote none), and is committed to main as
+# `chore(release): x.y.z` (scripts/release-version.mjs).
+#
+# The deploys follow this workflow, not the merge: Convex Deploy (dev) runs
+# when a run of this finishes, and only for a commit that is still main's tip.
+# The run for a merge pushes the release commit, so main has moved on and its
+# deploys skip; the push of the release commit runs this again, which finds
+# the version already raised, does nothing, and its deploys go ahead. Each
+# merge deploys once, from the commit that carries its version. A merge that
+# raised the version itself (a manual bump) keeps it: if earlier merges were
+# still waiting for a number when it landed, or notes are left in changelog.d,
+# their notes go into its section in a `chore(release)` commit; otherwise
+# nothing is pushed and it deploys as is.
+#
+# The push needs a credential that may push to main past the required `ci`
+# check and whose pushes start workflows (GITHUB_TOKEN can do neither): the
+# deploy key RELEASE_DEPLOY_KEY, or an admin's token RELEASE_PUSH_TOKEN. With
+# neither set, this posts the merge to Google Chat and stops with a notice, and
+# the merge deploys as it is.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# One at a time, never cancelled halfway. Each run works on main's tip, so a
+# newer queued run replacing an older one loses nothing.
+concurrency:
+  group: release-version
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check for a credential that can push to main
+        id: credential
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          RELEASE_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_DEPLOY_KEY" ] && [ -z "$RELEASE_PUSH_TOKEN" ]; then
+            echo "::notice title=main not numbered::Neither RELEASE_DEPLOY_KEY nor RELEASE_PUSH_TOKEN is set, so main keeps the version it has and this merge deploys as it is. See the Release version setup in README.md."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out main to number it
+        if: steps.credential.outputs.configured == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 100
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+
+      - name: Check out the merge
+        if: steps.credential.outputs.configured != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Give main its next version
+        id: release
+        if: steps.credential.outputs.configured == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch --quiet --depth=100 origin main
+            git reset --quiet --hard FETCH_HEAD
+            result="$(node scripts/release-version.mjs release)"
+            printf '%s\n' "$result"
+            released="$(printf '%s\n' "$result" | sed -n 's/^released=//p')"
+            if [ "$released" != "true" ]; then
+              echo "released=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            version="$(printf '%s\n' "$result" | sed -n 's/^version=//p')"
+            commits="$(printf '%s\n' "$result" | sed -n 's/^commits=//p')"
+            git add -A
+            git commit --quiet -m "chore(release): ${version}"
+            if git push origin HEAD:main; then
+              {
+                echo "released=true"
+                echo "version=${version}"
+                echo "commits=${commits}"
+              } >> "$GITHUB_OUTPUT"
+              echo "::notice title=Released ${version}::main is now ${version} at $(git rev-parse --short HEAD). Its deploys follow the run for that commit."
+              exit 0
+            fi
+            echo "::warning::main moved while it was being numbered (attempt ${attempt}), so it is numbered again from the new main."
+          done
+          echo "::error title=Release not pushed::main couldn't be given its next version after 3 attempts. Rerun this workflow; it numbers everything merged since the last release."
+          exit 1
+
+      - name: Post merged pull requests to Google Chat
+        if: ${{ steps.release.outcome == 'success' || steps.credential.outputs.configured != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+          RELEASE_CONFIGURED: ${{ steps.credential.outputs.configured }}
+          RELEASED: ${{ steps.release.outputs.released }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASED_COMMITS: ${{ steps.release.outputs.commits }}
+          TRIGGER_SHA: ${{ github.event_name == 'push' && github.sha || '' }}
+          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions?query=branch%3Amain
+        run: bash .github/scripts/pr-merged-chat.sh

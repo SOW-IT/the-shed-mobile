@@ -7,10 +7,21 @@
 # Prod is deployed by convex-deploy.yml; this workflow never touches it. The
 # key it uses must be a dev deploy key for successful-lynx-56, and the job
 # checks that before pushing.
+#
+# A merge to main runs Release version first (release-version.yml), which
+# pushes a `chore(release)` commit giving main its version. This runs once
+# each run of that has finished, and deploys only a commit that is still
+# main's tip: the merge's own run skips (main has moved on to the release
+# commit) and the release commit's run deploys, so every deploy that follows
+# (EAS Update, Deploy web (dev), then prod Convex) runs once per merge, with
+# the new version. When main isn't being numbered (no release credential) or a
+# merge raised the version itself, the merge stays main's tip and deploys.
 name: Convex Deploy (dev)
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Release version"]
+    types: [completed]
     branches: [main]
   # Run by hand from a branch to put that branch's functions on dev, e.g.
   # before sending the branch to the staging app with EAS Staging. The next
@@ -35,9 +46,36 @@ concurrency:
 
 jobs:
   deploy:
+    # Only a Release version run that succeeded. A failed one left main
+    # unnumbered (a bad changelog.d note, or the push kept losing races), so
+    # nothing deploys until it is rerun: deploying would ship the previous
+    # version's number and deploy the merge twice. A run with no release
+    # credential succeeds, so a repository without one still deploys every
+    # merge. A cancelled run was replaced by a newer one, which covers main's
+    # tip. A hand-started one that pushed a release is followed by the run
+    # for that push.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Skip a commit main has moved past
+        id: current
+        if: github.event_name == 'workflow_run'
+        env:
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$main_sha" = "$DEPLOYED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is behind it (a release commit or a newer merge), so the run for main's tip deploys."
+          fi
       - name: Check deploy key
+        if: steps.current.outputs.deploy != 'false'
         id: key
         env:
           CONVEX_DEPLOY_KEY_DEV: ${{ secrets.CONVEX_DEPLOY_KEY_DEV }}
@@ -59,6 +97,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - if: steps.key.outputs.configured == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
