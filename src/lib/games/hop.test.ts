@@ -536,10 +536,17 @@ describe("difficulty", () => {
   });
 });
 
-const botRun = (height: number, seed: number, until: number, each?: (s: HopState, before: HopState) => void) => {
+const botRun = (
+  height: number,
+  seed: number,
+  until: number,
+  each?: (s: HopState, before: HopState) => void,
+  turned?: (from: -1 | 0 | 1, to: -1 | 0 | 1) => void
+) => {
   let state = newHop(W, height, seed);
   for (let i = 0; i < 60 * 600 && !state.over && state.score < until; i++) {
     const before = withSteer(state, autoSteer(state));
+    turned?.(state.steer, before.steer);
     state = stepHop(before, FRAME);
     each?.(state, before);
   }
@@ -547,6 +554,20 @@ const botRun = (height: number, seed: number, until: number, each?: (s: HopState
 };
 
 describe("a whole climb", () => {
+  test("the bot that plays test builds' runs steers cleanly: it never flips straight from one way to the other", () => {
+    let flips = 0;
+    let steered = 0;
+    botRun(H, 3, 1500, (_, before) => {
+      if (before.steer !== 0) steered++;
+    }, (from, to) => {
+      if (from !== 0 && to === -from) flips++;
+    });
+    expect(steered).toBeGreaterThan(100);
+    // Turning round for a new target now and then, not every frame.
+    expect(flips).toBeLessThan(steered / 20);
+  });
+
+
   test.each(HEIGHTS)("a careful player on a board %d tall gets past peak difficulty", (height) => {
     for (const seed of [11, 12, 13, 14]) {
       const state = botRun(height, seed, HOP_LEVELS.peak + 500);

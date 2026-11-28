@@ -592,7 +592,9 @@ export const stepHop = (previous: HopState, dt: number): HopState => {
 
 /**
  * Steering a careful player would hold now: for the highest route platform
- * it can still reach on the way down, matching the speed that gets there.
+ * it can still reach on the way down, holding toward where it will be until
+ * letting go would glide the rest of the way, then coasting. Steering is
+ * instant, so it never flips back and forth to match a speed.
  */
 export const autoSteer = (state: HopState): -1 | 0 | 1 => {
   if (state.flight || state.dying || state.over) return 0;
@@ -611,8 +613,10 @@ export const autoSteer = (state: HopState): -1 | 0 | 1 => {
   if (!target) return 0;
   let dx = wrapX(target.x - state.x, state.width);
   if (dx > state.width / 2) dx -= state.width;
-  const wanted = dx / target.t;
-  return wanted > state.vx + 25 ? 1 : wanted < state.vx - 25 ? -1 : 0;
+  // How far letting go now would still carry you, the way you're going.
+  const glide = (state.vx * state.vx) / (2 * HOP.glide);
+  const carried = Math.sign(dx) === Math.sign(state.vx) ? glide : 0;
+  return Math.abs(dx) - carried > 4 ? (dx > 0 ? 1 : -1) : 0;
 };
 
 /** Every platform taken away and nothing more laid: you fall off. */
