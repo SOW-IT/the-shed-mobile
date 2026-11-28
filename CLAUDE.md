@@ -6,13 +6,20 @@ A PR merged into `main` goes live straight away. Nothing else needs running:
 
 - **Prod web** (<https://theshed.sow.org.au>): published by Vercel's git
   integration (project `the-shed-web`).
-- **Prod Convex**: `.github/workflows/convex-deploy.yml` runs `npx convex deploy`.
+- **Dev Convex** (`successful-lynx-56`, used by the staging app and dev web):
+  `convex-deploy-dev.yml`, with the `CONVEX_DEPLOY_KEY_DEV` secret. Sending a
+  branch to the staging app? Run that workflow from the branch too, or the app
+  may call functions dev doesn't have.
 - **Dev web** (<https://the-shed-web-dev.vercel.app>): `deploy-web-dev.yml`.
 - **Phones, JavaScript only**: `eas-update.yml` publishes an over-the-air
-  update after the prod Convex deploy, to builds whose native fingerprint
+  update once the dev Convex deploy has finished (whatever its result), to builds whose native fingerprint
   matches, then raises the update policy's `latestOta` to it so phones on
   older versions that ask about over-the-air updates restart into it. The
   recommended and minimum versions (the store prompt) are only set by hand.
+- **Prod Convex**: `.github/workflows/convex-deploy.yml` runs `npx convex deploy`
+  once that EAS Update run has finished (success or failure, not cancelled),
+  for the same commit. Phones can run the new JavaScript a few minutes before
+  the backend has the functions it calls.
 
 A change to native code waits for a store build. EAS builds
 (`eas-production.yml`, `eas-staging.yml`) are started by hand, and skip a

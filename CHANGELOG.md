@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.13.74] - 2026-11-28
+## [2.13.76] - 2026-11-28
 
 ### Changed
 - **Swoop v3: smoother Tiny Wings feel, Fever & Double Fever, Cloudtouch arcs, and high-altitude performance.**
@@ -17,6 +17,31 @@ All notable changes to **The SHED** mobile app. This project follows
   - The sun and day clock advance steadily without pausing on swoops, scaling logarithmically from 35s on Day 1 to 20s on Day 8 and 15s from Day 32 onward alongside a logarithmic terrain difficulty curve that plateaus at 3× old Day 10 by Day 32.
   - Swoop now plays on a fresh **v3** leaderboard with **v2 (legacy)** beside it (replacing v1 legacy on Swoop); Sky Shooter, Mystic Man, and Flap remain on v2 and v1 (legacy).
   - A Cloudtouch always counts when you reach the clouds you see, and the leaderboard accepts the higher scores Double Fever and Cloudtouch make possible.
+
+## [2.13.75] - 2026-11-28
+
+### Fixed
+- **The staging app stops showing "Could not find public function" after a
+  release.** The staging app talks to the dev backend, and nothing updated
+  the dev backend when a change reached `main`, so a new staging build could
+  ask for things dev didn't have yet (the café mahjong tables showed
+  "Could not find public function for 'mahjong:mine'"). Each merge to `main`
+  now deploys the backend to dev first. The over-the-air update and the dev
+  web app follow once that has finished, and prod Convex after the update as
+  before. A failed or skipped dev deploy never holds back phones or prod.
+  Nothing changes in the app itself.
+
+## [2.13.73] - 2026-11-28
+
+### Changed
+- **A merge to `main` now publishes the over-the-air update before it
+  deploys the prod backend.** EAS Update runs on the merge, and Convex Deploy
+  runs once it has finished (succeeded or failed, not cancelled), for the same
+  commit, and skips a commit a newer merge has replaced. A run of EAS Update
+  by hand can't cancel a merge's queued run, and a skipped Convex run can't
+  cancel a queued deploy, so prod Convex always ends on the newest `main`. Nothing in the app
+  changes. For the few minutes in between, a phone already on the new
+  JavaScript gets errors from any Convex function or argument the merge added.
 
 ## [2.13.72] - 2026-11-28
 
