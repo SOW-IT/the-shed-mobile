@@ -169,6 +169,24 @@ try {
   await open.click();
   expect("the button didn't close How to farm again", await gone(guide));
 
+  // How to farm and the emote tray take turns: each one puts the other away.
+  await open.click();
+  await shown(guide);
+  await page.waitForTimeout(600);
+  await shot("guide-before-tray");
+  await id("world-emotes").click();
+  expect("opening the emote tray didn't put How to farm away", await gone(guide));
+  expect("the emote tray didn't open", await shown(id("world-emote-tray")));
+  await page.waitForTimeout(600);
+  await shot("tray-over-guide");
+  await open.click();
+  expect("opening How to farm didn't put the emote tray away", await gone(id("world-emote-tray")));
+  expect("How to farm didn't open after the emote tray", await shown(guide));
+  await page.waitForTimeout(600);
+  await shot("guide-over-tray");
+  await id("world-backyard-guide-close").click();
+  await gone(guide);
+
   // The coop still opens (built, its sheet; not yet, its offer).
   const offer = page.locator('[data-testid="world-pen-sheet"], [data-testid="world-building-offer"]').first();
   const coop = page.getByLabel(/^Coop, /).first();

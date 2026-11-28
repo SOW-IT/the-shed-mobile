@@ -19,10 +19,27 @@ const ART = 52;
 const plantScale = (stage: string, progress: number) => Math.min(ART * 1.4, (ART * 0.9) / (stage === "ripe" ? 1 : 0.4 + 0.5 * Math.min(progress, 1)));
 
 /** A plant drawn the way the backyard draws it, standing in a little square. */
-const Plant = ({ stage, progress, wilted = false, thirsty = false, label }: { stage: "seed" | "sprout" | "half" | "ripe"; progress: number; wilted?: boolean; thirsty?: boolean; label?: string }) => (
+const Plant = ({
+  stage,
+  progress,
+  wilted = false,
+  thirsty = false,
+  sparkle = false,
+  calm = true,
+  label,
+}: {
+  stage: "seed" | "sprout" | "half" | "ripe";
+  progress: number;
+  wilted?: boolean;
+  thirsty?: boolean;
+  /** Twinkles like a ripe plant in the backyard (still, in battery saver). */
+  sparkle?: boolean;
+  calm?: boolean;
+  label?: string;
+}) => (
   <View style={styles.frame}>
     <View style={styles.plant}>
-      <PlantView x={ART / 2} y={ART - 6} scale={plantScale(stage, progress)} crop="tomato" stage={stage} progress={progress} wilted={wilted} thirsty={thirsty} live={false} />
+      <PlantView x={ART / 2} y={ART - 6} scale={plantScale(stage, progress)} crop="tomato" stage={stage} progress={progress} wilted={wilted} thirsty={thirsty} live={sparkle && !calm} sparkle={sparkle} />
     </View>
     {label ? <Text style={styles.caption}>{label}</Text> : null}
   </View>
@@ -30,7 +47,7 @@ const Plant = ({ stage, progress, wilted = false, thirsty = false, label }: { st
 
 const Arrow = () => <Ionicons name="chevron-forward" size={14} color={glass.muted} />;
 
-const pictureOf = (part: GuidePart): ReactNode => ({
+const pictureOf = (part: GuidePart, calm: boolean): ReactNode => ({
   plant: (
     <View style={styles.row}>
       <View style={[styles.frame, styles.soil]}>
@@ -63,7 +80,7 @@ const pictureOf = (part: GuidePart): ReactNode => ({
   ),
   harvest: (
     <View style={styles.row}>
-      <Plant stage="ripe" progress={1} label="Sparkles" />
+      <Plant stage="ripe" progress={1} sparkle calm={calm} label="Sparkles" />
       <Arrow />
       <View style={styles.frame}>
         <CropThumb crop="tomato" size={40} />
@@ -128,7 +145,7 @@ export const BackyardGuide = ({ open, onClose }: { open: boolean; onClose: () =>
         {GUIDE.map((tip, i) => (
           <Animated.View key={tip.part} style={[styles.tip, itemStyle(overlay, 1 + i)]} testID={`world-backyard-guide-${tip.part}`}>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              {pictureOf(tip.part)}
+              {pictureOf(tip.part, overlay.calm)}
             </View>
             <Text style={styles.tipTitle} accessibilityRole="header">
               {tip.title}

@@ -18,7 +18,10 @@ All notable changes to **The SHED** mobile app. This project follows
   working while it's open. It closes with its ×, with the same button
   (which turns into a ×), or by tapping the backyard, and it makes way when
   you tap a plot, a pen or an animal. It also steps aside while a duel's
-  card is up, so the duel's picks are never pushed out of reach.
+  card is up, so the duel's picks are never pushed out of reach. It and
+  the emote tray take turns: opening one puts the other away. It shuts
+  when the keyboard opens and doesn't pop back when it closes. The ripe
+  plant in the Harvest picture sparkles the way it does in the backyard.
 
 ### Changed
 - **Josh's animals and their feed are on one tab.** Josh's shop tabs are

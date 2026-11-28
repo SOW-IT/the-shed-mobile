@@ -503,6 +503,8 @@ export const WorldScreen = ({
   // A duel's card needs the room above the chat bar, and its picks are timed,
   // so How to farm puts itself away when one starts and stays shut during it.
   if (myDuel && guideOpen) setGuideOpen(false);
+  // It goes away with the keyboard and when you leave the backyard, and doesn't come back on its own.
+  if (guideOpen && (keyboard.open || !inBackyard)) setGuideOpen(false);
   const duelProps = {
     duel: myDuel,
     side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
@@ -1973,14 +1975,26 @@ export const WorldScreen = ({
           <>
             <BackyardGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
             <View style={styles.decorateRow} pointerEvents="box-none">
-              <RoundButton icon={guideOpen ? "close" : "information-circle-outline"} label={guideOpen ? "Close how to farm" : "How to farm"} onPress={() => setGuideOpen((was) => !was && !myDuel)} testID="world-backyard-guide-open" />
+              <RoundButton
+                icon={guideOpen ? "close" : "information-circle-outline"}
+                label={guideOpen ? "Close how to farm" : "How to farm"}
+                onPress={() => {
+                  // How to farm and the emote tray take turns, as Decorate and the tray do.
+                  setTray(false);
+                  setGuideOpen((was) => !was && !myDuel);
+                }}
+                testID="world-backyard-guide-open"
+              />
             </View>
           </>
         ) : null}
         <ChatBar
           keyboardOpen={keyboard.open}
           tray={tray}
-          onTray={setTray}
+          onTray={(open) => {
+            setTray(open);
+            if (open) setGuideOpen(false);
+          }}
           onEmote={emote}
           say={world.say}
           typing={world.typing}
