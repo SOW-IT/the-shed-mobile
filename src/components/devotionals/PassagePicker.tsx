@@ -81,12 +81,15 @@ const NumberGrid = ({
   selected,
   noun,
   onPick,
+  range,
 }: {
   from: number;
   to: number;
   selected: number | null;
   noun: string;
   onPick: (n: number) => void;
+  /** Shade the numbers before the selected one too: the grid picks the end of a range that starts before `from`. */
+  range?: boolean;
 }) => {
   const t = useAppTheme();
   const numbers = Array.from({ length: Math.max(to - from + 1, 0) }, (_, i) => from + i);
@@ -94,6 +97,7 @@ const NumberGrid = ({
     <View style={styles.grid}>
       {numbers.map((n) => {
         const on = n === selected;
+        const within = range === true && selected !== null && n < selected;
         return (
           <Pressable
             key={n}
@@ -103,7 +107,7 @@ const NumberGrid = ({
             testID={`passage-${noun.toLowerCase()}-${n}`}
             style={({ pressed }) => [
               styles.cell,
-              { backgroundColor: on ? t.primary : t.inputBackground },
+              { backgroundColor: on ? t.primary : within ? t.primarySoft : t.inputBackground },
               pressed && { opacity: 0.7 },
             ]}
           >
@@ -149,6 +153,9 @@ const BookList = ({
 
 const chapterLabel = (pick: PassagePick) =>
   pick.chapter === null ? pick.book.name : `${pick.book.singular ?? pick.book.name} ${pick.chapter}`;
+
+/** The book after this one, or null after Revelation. */
+const nextBook = (book: BibleBook): BibleBook | null => BIBLE_BOOKS[BIBLE_BOOKS.indexOf(book) + 1] ?? null;
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
@@ -196,7 +203,8 @@ const PickRow = ({
   const t = useAppTheme();
   const oneChapter = pick?.book.chapters.length === 1;
   const verses = pick ? versesInChapter(pick) : 0;
-  const laterChapters = pick?.chapter != null && pick.chapter < pick.book.chapters.length;
+  const laterChapters =
+    pick?.chapter != null && (pick.chapter < pick.book.chapters.length || nextBook(pick.book) !== null);
   const size = pick ? rangeSize(pick) : null;
   return (
     <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
@@ -336,10 +344,11 @@ export const PassagePicker = ({
    * a new one. A change that would take the passage over the length limit is
    * refused: the sheet closes and says why. Returns whether it was written.
    */
-  const write = (row: number, next: PassagePick | null): boolean => {
+  const write = (row: number, next: PassagePick | null, after?: PassagePick): boolean => {
     const nextPicks = [...picks];
     if (next) nextPicks[row] = next;
     else nextPicks.splice(row, 1);
+    if (next && after) nextPicks.splice(row + 1, 0, after);
     const nextPassage = passageFromPicks(nextPicks);
     if (!passageEditFits(nextPassage, passage)) {
       setTooLong(true);
@@ -410,6 +419,7 @@ export const PassagePicker = ({
   const oneChapter = current?.book.chapters.length === 1;
   const verses = current ? versesInChapter(current) : 0;
   const wholeLabel = oneChapter ? "Whole book" : "Whole chapter";
+  const following = current ? nextBook(current.book) : null;
   const canAdd = editable && picks.length > 0 && parseBibleReference(passage).ok && canAddPassage(passage);
 
   const title =
@@ -538,11 +548,34 @@ export const PassagePicker = ({
               to={current.book.chapters.length}
               selected={current.toChapter}
               noun="Chapter"
+              range
               onPick={(chapter) => {
                 write(row, chooseToChapter(current, chapter));
                 close();
               }}
             />
+            {following && canAddPassage(passage) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Run on into ${following.name}`}
+                accessibilityHint={`Ends this passage at ${current.book.name} ${current.book.chapters.length} and adds ${following.name}`}
+                testID="passage-run-on"
+                style={({ pressed }) => [styles.runOn, { borderColor: t.border }, pressed && { opacity: 0.7 }]}
+                onPress={() => {
+                  const end = chooseToChapter(current, current.book.chapters.length);
+                  if (!write(row, end, chooseChapter(chooseBook(following), 1))) return;
+                  setOpen(following.chapters.length === 1 ? null : { row: row + 1, step: "toChapter" });
+                }}
+              >
+                <View style={styles.runOnText}>
+                  <Text style={[typography.body, styles.cellText, { color: t.primary }]}>Run on into {following.name}</Text>
+                  <Text style={[typography.caption, { color: t.muted }]}>
+                    Ends at {current.book.name} {current.book.chapters.length} and adds {following.name}
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward" size={18} color={t.primary} />
+              </Pressable>
+            ) : null}
           </>
         ) : step === "to" && current.fromVerse !== null ? (
           <>
@@ -610,4 +643,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cellText: { fontWeight: "600" },
+  runOn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 56,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
+  runOnText: { flex: 1, gap: 2 },
 });

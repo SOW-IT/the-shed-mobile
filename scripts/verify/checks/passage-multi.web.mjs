@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Builds a day of two passages from the lists (Genesis 1-3 and Psalm 1),
-// saves it, opens it again, checks a change over the 120-character limit is
+// saves it, opens it again, runs Genesis on into Exodus, checks a change over the 120-character limit is
 // refused, and checks a saved one-chapter day still shows one row the way it
 // did before.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -80,6 +80,21 @@ try {
   await page.getByTestId("devotional-passage-remove-2").click();
   await expectText("devotional-passage-display", "Genesis 1-3", "after removing Psalm 1");
   await expectCount("devotional-passage-book-2", 0, "after removing Psalm 1");
+
+  // "Run on into Exodus" ends Genesis at its last chapter and adds Exodus,
+  // then asks where Exodus ends.
+  await page.getByTestId("devotional-passage-to-chapter").click();
+  await page.getByTestId("passage-run-on").click();
+  await page.getByText("Exodus 1: last chapter").waitFor();
+  await page.screenshot({ path: `${OUT}/multi-run-on-sheet.png` });
+  await page.getByTestId("passage-chapter-2").click();
+  await sheetClosed();
+  await expectText("devotional-passage-display", "Genesis 1-50\nExodus 1-2", "running on into the next book");
+  await page.getByTestId("devotional-passage-remove-2").click();
+  await page.getByTestId("devotional-passage-to-chapter").click();
+  await page.getByTestId("passage-chapter-3").click();
+  await sheetClosed();
+  await expectText("devotional-passage-display", "Genesis 1-3", "back to Genesis 1-3");
 
   // A change to a row that would take the passage over 120 characters is
   // refused with a note; changes up to the limit go through.
