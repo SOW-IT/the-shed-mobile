@@ -5,9 +5,12 @@ appId: au.org.sow.theshed
 # Maestro taps again when a tap seems to change nothing (retryTapIfNoChange).
 # In the World the screen never stops moving and the menu fades in, so that
 # second tap could land on the menu's backdrop and shut the menu the first
-# one opened (likely why an iOS run of home-furniture found no Home row). So the
-# title is tapped once, and only tapped again if the menu isn't up after the
-# animation. The Settings row is always in the menu, so it says the menu is up.
+# one opened (likely why an iOS run of home-furniture found no Home row).
+# So the title is tapped once, with Maestro's retry off, and the flow waits
+# up to 5 s for the menu. Only if it still isn't up is the title tapped
+# again. A fixed pause before that second tap wasn't enough: a first tap
+# whose effect arrived after the pause would have been undone by the second.
+# The Settings row is always in the menu, so it says the menu is up.
 #
 # Used as `- runFlow: flows/open-world-menu.yaml` from a check in the folder
 # above. Checks in this folder aren't run on their own: verify runs the
@@ -16,22 +19,21 @@ appId: au.org.sow.theshed
     id: world-title
     retryTapIfNoChange: false
     waitToSettleTimeoutMs: 2000
+# Not met is fine here: the step below taps again.
+- extendedWaitUntil:
+    visible:
+      id: world-menu-settings
+    timeout: 5000
+    optional: true
 - runFlow:
     when:
       notVisible:
         id: world-menu-settings
     commands:
-      - waitForAnimationToEnd:
-          timeout: 1500
-      - runFlow:
-          when:
-            notVisible:
-              id: world-menu-settings
-          commands:
-            - tapOn:
-                id: world-title
-                retryTapIfNoChange: false
-                waitToSettleTimeoutMs: 2000
+      - tapOn:
+          id: world-title
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     visible:
       id: world-menu-settings
