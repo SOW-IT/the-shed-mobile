@@ -12,10 +12,31 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+
+type Person = { email: string; name: string; photo: string | null };
+
+/** One person: avatar, name and email, with the action or status on the right. */
+const PersonRow = ({ person, children }: { person: Person; children: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <View style={[styles.personRow, { borderBottomColor: t.separator }]}>
+      <Avatar photo={person.photo} name={person.name} size={36} />
+      <View style={styles.personInfo}>
+        <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={1}>
+          {person.name}
+        </Text>
+        <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+          {person.email}
+        </Text>
+      </View>
+      {children}
+    </View>
+  );
+};
 
 const InviteMembersBody = ({
   groupId,
@@ -35,6 +56,8 @@ const InviteMembersBody = ({
     search: debounced,
   });
   const sendInvite = useMutation(api.devotionalGroups.invite);
+  const invitable = (people ?? []).filter((person) => person.status === "none");
+  const already = (people ?? []).filter((person) => person.status !== "none");
 
   const handleInvite = async (email: string) => {
     setError(null);
@@ -75,26 +98,13 @@ const InviteMembersBody = ({
           />
         )
       ) : null}
-      <View style={styles.list}>
-        {(people ?? []).map((person) => (
-          <View
-            key={person.email}
-            style={[styles.personRow, { borderBottomColor: t.separator }]}
-          >
-            <Avatar photo={person.photo} name={person.name} size={36} />
-            <View style={styles.personInfo}>
-              <Text style={[typography.body, { color: t.text, fontWeight: "600" }]} numberOfLines={1}>
-                {person.name}
-              </Text>
-              <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
-                {person.email}
-              </Text>
-            </View>
-            {person.status === "member" ? (
-              <StatusPill label="Member" tone="done" />
-            ) : person.status === "invited" ? (
-              <StatusPill label="Invited" tone="waiting" />
-            ) : (
+      {invitable.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={[typography.label, { color: t.muted }]}>
+            Add to the group ({invitable.length})
+          </Text>
+          {invitable.map((person) => (
+            <PersonRow key={person.email} person={person}>
               <Btn
                 title="Invite"
                 variant="tonal"
@@ -102,10 +112,26 @@ const InviteMembersBody = ({
                 disabled={inviting !== null}
                 onPress={() => void handleInvite(person.email)}
               />
-            )}
-          </View>
-        ))}
-      </View>
+            </PersonRow>
+          ))}
+        </View>
+      ) : null}
+      {already.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={[typography.label, { color: t.muted }]}>
+            Already in the group ({already.length})
+          </Text>
+          {already.map((person) => (
+            <PersonRow key={person.email} person={person}>
+              {person.status === "member" ? (
+                <StatusPill label="Member" tone="done" />
+              ) : (
+                <StatusPill label="Invited" tone="waiting" />
+              )}
+            </PersonRow>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -128,7 +154,7 @@ export const InviteMembersSheet = ({
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
-  list: { gap: 0 },
+  section: { gap: spacing.xs },
   personRow: {
     flexDirection: "row",
     alignItems: "center",
