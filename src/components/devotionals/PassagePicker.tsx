@@ -469,7 +469,6 @@ export const PassagePicker = ({
             disabled={!editable}
             accessibilityRole="button"
             testID="devotional-passage-use-lists"
-            hitSlop={8}
             style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
           >
             <Ionicons name="list-outline" size={16} color={t.primary} />
@@ -531,13 +530,10 @@ export const PassagePicker = ({
           onPress={() => setOpen({ row: picks.length, step: "book" })}
           accessibilityRole="button"
           testID="devotional-passage-add"
-          hitSlop={8}
-          style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
+          style={({ pressed }) => [styles.addButton, { borderColor: t.border }, pressed && { opacity: 0.6 }]}
         >
-          <Ionicons name="add-circle-outline" size={16} color={t.primary} />
-          <Text style={[typography.caption, styles.switchText, { color: t.primary }]}>
-            Add another passage
-          </Text>
+          <Ionicons name="add" size={20} color={t.primary} />
+          <Text style={[typography.body, styles.switchText, { color: t.primary }]}>Add another passage</Text>
         </Pressable>
       ) : null}
       <Pressable
@@ -545,7 +541,6 @@ export const PassagePicker = ({
         disabled={!editable}
         accessibilityRole="button"
         testID="devotional-passage-type"
-        hitSlop={8}
         style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
       >
         <Ionicons name="create-outline" size={16} color={t.primary} />
@@ -705,7 +700,18 @@ const styles = StyleSheet.create({
   badge: { width: 24, height: 24, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
   rowSize: { flexShrink: 0 },
   removeButton: { minHeight: 44, minWidth: 44, justifyContent: "flex-end" },
-  switch: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" },
+  switch: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", minHeight: 44 },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    minHeight: 48,
+    marginTop: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
   switchText: { fontWeight: "700" },
   groupHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP, paddingTop: spacing.xs },
