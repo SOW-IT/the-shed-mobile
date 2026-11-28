@@ -552,16 +552,44 @@ export const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
     .order("desc")
     .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
 
+// Paid requests are most of a staff year, and none of them is waiting on anyone, so
+// readers that only want open work read the unpaid ones (no receipt yet, or awaiting
+// payment) by index instead of the whole year.
+const unpaidYearRequests = async (ctx: QueryCtx | MutationCtx, year: number) => {
+  const unpaid = async (paid: false | undefined) =>
+    await ctx.db
+      .query("requests")
+      .withIndex("by_paid", (q) =>
+        q
+          .eq("paid", paid)
+          .gte("_creationTime", staffYearStartMs(year))
+          .lt("_creationTime", staffYearStartMs(year + 1))
+      )
+      .order("desc")
+      .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
+  const [noReceipt, awaitingPayment] = await Promise.all([unpaid(undefined), unpaid(false)]);
+  return [...noReceipt, ...awaitingPayment]
+    .sort((a, b) => b._creationTime - a._creationTime)
+    .slice(0, LIVE_REQUESTS_PER_YEAR_LIMIT);
+};
+
+const carriedOverRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
+  (await unpaidYearRequests(ctx, year - 1)).filter((r) => !requestCompleted(r));
+
+/** This staff year's requests, newest first, then last year's still-open ones. */
 export const openRequestsAcrossYears = async (
   ctx: QueryCtx | MutationCtx,
   year: number
-) => {
-  const current = await yearRequests(ctx, year);
-  const carriedOver = (await yearRequests(ctx, year - 1)).filter(
-    (r) => !requestCompleted(r)
-  );
-  return [...current, ...carriedOver];
-};
+) => [...(await yearRequests(ctx, year)), ...(await carriedOverRequests(ctx, year))];
+
+/**
+ * {@link openRequestsAcrossYears} without this year's paid requests: everything a
+ * review queue, the Reviewed list or a reminder can still act on.
+ */
+export const unpaidRequestsAcrossYears = async (
+  ctx: QueryCtx | MutationCtx,
+  year: number
+) => [...(await unpaidYearRequests(ctx, year)), ...(await carriedOverRequests(ctx, year))];
 
 export const makeApproverResolver = (ctx: Ctx) =>
   memoAsync((year: number, department: string) => getApprovers(ctx, year, department));
@@ -957,7 +985,7 @@ export const toReview = query({
     return await reviewQueues(
       ctx,
       caller,
-      await openRequestsAcrossYears(ctx, caller.year),
+      await unpaidRequestsAcrossYears(ctx, caller.year),
       await lensFor(ctx, caller)
     );
   },
@@ -971,7 +999,7 @@ export const reviewed = query({
     if (!caller) return null;
     const lens = await lensFor(ctx, caller);
     if (lens.kind === "as") return [];
-    const open = await openRequestsAcrossYears(ctx, caller.year);
+    const open = await unpaidRequestsAcrossYears(ctx, caller.year);
     const queues = await reviewQueues(ctx, caller, open, lens);
     const seen = new Set<Id<"requests">>(
       Object.values(queues).flatMap((rows) => rows.filter((r) => r.canAct).map((r) => r._id))

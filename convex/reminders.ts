@@ -58,7 +58,7 @@ import {
   makeApproverResolver,
   nextApproverWithYear,
   notify,
-  openRequestsAcrossYears,
+  unpaidRequestsAcrossYears,
 } from "./requests";
 
 const LIST_LIMIT = 300;
@@ -107,7 +107,7 @@ const preferRequestYear = (
 async function collectRequests(ctx: MutationCtx, digest: Digest, now: number) {
   const year = currentStaffYear();
   const getApprovers = makeApproverResolver(ctx);
-  for (const request of await openRequestsAcrossYears(ctx, year)) {
+  for (const request of await unpaidRequestsAcrossYears(ctx, year)) {
     if (requestCompleted(request)) continue;
     const { due, count, days } = reminderDue(request, await lastMovementAt(ctx, request), now);
     if (!due) continue;

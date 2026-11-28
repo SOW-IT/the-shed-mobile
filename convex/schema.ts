@@ -892,7 +892,8 @@ export default defineSchema({
     paidTime: v.optional(v.number()),
   })
     .index("by_requester", ["requesterEmail"])
-    .index("by_department", ["department"]),
+    .index("by_department", ["department"])
+    .index("by_paid", ["paid"]),
 
   notifications: defineTable({
     userEmail: v.string(),
