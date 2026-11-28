@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Builds a day of two passages from the lists (Genesis 1-3 and Psalm 1),
 // saves it, opens it again, runs Genesis on into Exodus, takes a typed chapter,
-// clears a typed reference the lists can't read, checks a change over the 120-character limit is
+// clears a typed reference the lists can't read, keeps a last chapter from
+// running on when another passage wouldn't fit, checks a change over the 120-character limit is
 // refused, and checks a saved one-chapter day still shows one row the way it
 // did before.
 import { mkdirSync, readFileSync } from "node:fs";
@@ -154,6 +155,20 @@ try {
   await page.getByTestId("devotional-passage-clear").click();
   await page.getByTestId("devotional-passage-book").waitFor();
   await expectCount("devotional-passage-input", 0, "after clearing");
+
+  // Near the limit, a book's last chapter can't run on into the next book,
+  // so its "to chapter" box is off; a chapter with later ones keeps it.
+  const nearLimit = ["Genesis 50", song, song, song, "Ruth 1:1-9"].join("; ");
+  await page.getByTestId("devotional-passage-type").click();
+  await page.getByTestId("devotional-passage-input").fill(nearLimit);
+  await page.getByTestId("devotional-passage-use-lists").click();
+  await page.getByTestId("devotional-passage-book-5").waitFor();
+  const offAt = async (testId) => (await page.getByTestId(testId).getAttribute("aria-disabled")) === "true";
+  if (!(await offAt("devotional-passage-to-chapter"))) failures.push("Genesis 50 near the limit: To chapter is still on");
+  if (await offAt("devotional-passage-to-chapter-5")) failures.push("Ruth 1 near the limit: To chapter is off");
+  await page.getByTestId("devotional-passage-type").click();
+  await page.getByTestId("devotional-passage-clear").click();
+  await page.getByTestId("devotional-passage-book").waitFor();
 
   // A saved one-chapter day looks as it always did: one row, no headings.
   await page.goto(`${BASE}/devotionals/${seed.devotionalDate}`);

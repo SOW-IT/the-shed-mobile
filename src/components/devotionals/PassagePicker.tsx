@@ -264,6 +264,7 @@ const PickRow = ({
   row,
   rows,
   editable,
+  canRunOn,
   onOpen,
   onRemove,
 }: {
@@ -271,6 +272,8 @@ const PickRow = ({
   row: number;
   rows: number;
   editable: boolean;
+  /** Whether another passage fits under the length limit, so a run can carry on into the next book. */
+  canRunOn: boolean;
   onOpen: (step: Step) => void;
   onRemove: () => void;
 }) => {
@@ -278,7 +281,8 @@ const PickRow = ({
   const oneChapter = pick?.book.chapters.length === 1;
   const verses = pick ? versesInChapter(pick) : 0;
   const laterChapters =
-    pick?.chapter != null && (pick.chapter < pick.book.chapters.length || nextBook(pick.book) !== null);
+    pick?.chapter != null &&
+    (pick.chapter < pick.book.chapters.length || (canRunOn && nextBook(pick.book) !== null));
   const size = pick ? rangeSize(pick) : null;
   return (
     <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
@@ -557,6 +561,7 @@ export const PassagePicker = ({
           row={index}
           rows={rows.length}
           editable={editable}
+          canRunOn={canAddPassage(passage)}
           onOpen={(next) => openAt(index, next)}
           onRemove={() => write(index, null)}
         />
