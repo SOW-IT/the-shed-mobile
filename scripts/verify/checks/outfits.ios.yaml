@@ -179,21 +179,28 @@ appId: au.org.sow.theshed
           duration: 400
 - tapOn:
     id: world-editor-shirt-custom
+# The picker's sliders take any drag that starts on them (so a colour drags
+# from anywhere on its thumb), and the list doesn't scroll under them. The
+# swipe at the middle landed on a slider, so the hex box never came up and
+# the check ran out of verify's 5 minutes here. Each picker row starts with
+# its name ("Hue", "Hex") at the left, which takes no touches, so this
+# swipe starts there.
 - repeat:
     while:
       notVisible:
         id: world-editor-shirt-hex
-    times: 12
+    times: 6
     commands:
       - swipe:
-          start: "50%, 80%"
-          end: "50%, 58%"
+          start: "12%, 80%"
+          end: "12%, 58%"
           duration: 400
 - tapOn:
     id: world-editor-shirt-hex
 - eraseText: 10
 - inputText: "#3A9AD9"
-- hideKeyboard
+# No hideKeyboard (about 30 s here): the preview at the top shows the
+# colour with the keyboard up, and ✕ closes the editor either way.
 - takeScreenshot: "${OUT}/check-outfits-colour-picker"
 - tapOn:
     id: world-editor-close
