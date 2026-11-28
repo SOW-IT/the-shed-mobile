@@ -16,7 +16,39 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 5000
 # Through the Garden's pad, unless an earlier run (the web check shares
-# this backend and account) left you in the Chapel already.
+# this backend and account) left you in the Chapel already. Another check
+# can leave you somewhere else (the mahjong web check ends in the Café), so
+# anywhere but the Chapel or the Garden goes back to the Garden first, by
+# the menu.
+- runFlow:
+    when:
+      notVisible:
+        id: world-title
+        text: "(?i).*(chapel|garden).*"
+    commands:
+      - tapOn:
+          id: world-title
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-garden
+          commands:
+            - tapOn:
+                id: world-menu-garden
+      - runFlow:
+          when:
+            visible:
+              id: world-menu-close
+          commands:
+            - tapOn:
+                id: world-menu-close
+      - extendedWaitUntil:
+          visible: "Go to The Chapel"
+          timeout: 30000
+      - waitForAnimationToEnd:
+          timeout: 3000
 - runFlow:
     when:
       visible: "Go to The Chapel"

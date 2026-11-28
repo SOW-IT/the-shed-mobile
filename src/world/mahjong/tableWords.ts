@@ -28,6 +28,17 @@ export const claimChoices = (offer: Offer, tile: number): ClaimChoice[] => {
   return choices;
 };
 
+/** The hand tiles a claim would use, to light them up: two for a pong, three for a kong, the chow's other two; none to win or pass. */
+export const claimUses = (choice: ClaimChoice, hand: readonly number[], tile: number): number[] => {
+  const kind = choice.answer.kind;
+  if (kind === "pong" || kind === "kong") return hand.filter((t) => kindOf(t) === kindOf(tile)).slice(0, kind === "pong" ? 2 : 3);
+  if (kind === "chow") return (choice.tiles ?? []).filter((t) => t !== tile);
+  return [];
+};
+
+/** The claim lit before you pick one: a pong or kong, else the first chow. */
+export const firstClaim = (choices: readonly ClaimChoice[]) => choices.find((c) => c.answer.kind === "pong" || c.answer.kind === "kong") ?? choices.find((c) => c.answer.kind === "chow") ?? null;
+
 export const faanLine = (id: string) => (Object.hasOwn(FAAN, id) ? FAAN[id as FaanId] : { zh: "", en: id, faan: 0 });
 
 export const coinsWords = (delta: number) => (delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : "0");
@@ -81,5 +92,8 @@ export const leaveQuestion = (stage: string, seated: boolean, forCoins: boolean,
   const coins = !forCoins ? null : cost > 0 ? `You'll lose ${cost} SOW coin${cost === 1 ? "" : "s"}, shared between the other players.` : "You won't lose any SOW coins.";
   return { title: forCoins ? "Give up this hand?" : "Leave the table?", lines: coins ? [bot, coins] : [bot], leave: forCoins && cost > 0 ? `Give up (−${cost})` : "Leave" };
 };
+
+/** The seats the host would start without: people (not bots, not the host) who haven't said they're ready. */
+export const lobbyWaiting = (seats: readonly { kind: string; ready: boolean }[], hostSeat: number) => seats.flatMap((s, i) => (s.kind === "human" && i !== hostSeat && !s.ready ? [i] : []));
 
 export const zoomShown = (zoomed: number | null, stage: string) => (stage === "over" ? null : zoomed);

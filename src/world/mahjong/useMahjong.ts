@@ -29,6 +29,9 @@ export const useMahjong = ({ status, place, roomId }: { status: string; place: s
   const leaveM = useMutation(api.mahjong.leave);
   const replaceM = useMutation(api.mahjong.replaceBot);
   const startM = useMutation(api.mahjong.start);
+  const cancelM = useMutation(api.mahjong.cancelStart);
+  const readyM = useMutation(api.mahjong.setReady);
+  const removeM = useMutation(api.mahjong.removePlayer);
   return {
     inCafe,
     mine: mine ?? null,
@@ -37,7 +40,10 @@ export const useMahjong = ({ status, place, roomId }: { status: string; place: s
     removeBot: useCallback((seat: number) => attempt(() => removeBotM({ seat })), [removeBotM]),
     setSettings: useCallback((settings: Settings) => attempt(() => settingsM({ settings })), [settingsM]),
     leave: useCallback((cost?: number) => attempt(() => leaveM(cost === undefined ? {} : { cost })), [leaveM]),
-    start: useCallback(() => attempt(() => startM({})), [startM]),
+    start: useCallback((anyway: boolean) => attempt(() => startM(anyway ? { anyway } : {})), [startM]),
+    cancelStart: useCallback(() => attempt(() => cancelM({})), [cancelM]),
+    setReady: useCallback((ready: boolean) => attempt(() => readyM({ ready })), [readyM]),
+    removePlayer: useCallback((seat: number, member: Id<"worldMembers"> | null) => attempt(() => removeM({ seat, member: member ?? undefined })), [removeM]),
     replaceBot: useCallback((tableId: Id<"mahjongTables">, seat: number) => attempt(() => replaceM({ tableId, seat })), [replaceM]),
   };
 };

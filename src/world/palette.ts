@@ -530,6 +530,15 @@ export const mahjong = {
   text: "#F5F3E3",
   muted: "rgba(245, 243, 227, 0.7)",
   chip: "rgba(0, 0, 0, 0.28)",
+  /** Pong, Chow and Kong floating over your discards: a vermilion that stands out from the felt and the ivory tiles (white text on it is 5.9:1). */
+  claimChip: "rgba(178, 54, 14, 0.94)",
+  claimChipEdge: "#FFB38A",
+  /** Pass: greyed out, so it reads as the quiet choice, but still legible (its text is 8:1). */
+  passChip: "rgba(46, 52, 50, 0.82)",
+  passChipEdge: "rgba(245, 243, 227, 0.32)",
+  passText: "#D3D7D1",
+  /** The timer's backing where it lies over the chat log. */
+  timerBacking: "rgba(0, 0, 0, 0.55)",
   win: "#F6D365",
   lose: "#FFB4A6",
   gain: "#9BF0B4",

@@ -466,6 +466,8 @@ export default defineSchema({
     // (shared/mahjong/coins.ts caps it), and which Sydney day that was.
     mahjongBankDay: v.optional(v.string()),
     mahjongBankToday: v.optional(v.number()),
+    // The rules this person last set as a mahjong host, for the next table they open.
+    mahjongSettings: v.optional(mahjongSettingsValidator),
   }).index("by_email", ["email"]),
 
   coinLedger: defineTable({
@@ -590,6 +592,8 @@ export default defineSchema({
     dealer: v.optional(v.number()),
     roundWind: v.number(),
     allAwayAt: v.optional(v.number()),
+    // When the host's start countdown ends and the first hand deals (lobby only).
+    startsAt: v.optional(v.number()),
   }).index("by_roomId_and_table", ["roomId", "table"]),
 
   // Who's at which table, so a move or a leave finds their seat at once.

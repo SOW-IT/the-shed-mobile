@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { type ViewStyle } from "react-native";
-import Reanimated, { Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from "react-native-reanimated";
+import Reanimated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming, type SharedValue } from "react-native-reanimated";
 
 /**
  * Comes into place once, when it first shows: from an offset (and a
@@ -40,6 +40,32 @@ export const Arrive = ({
     };
   });
   return <Reanimated.View style={[style, moved]}>{children}</Reanimated.View>;
+};
+
+/**
+ * A beat that flashes from dim to full and back while `on` (your turn), for
+ * a glow to follow (see Glow). With `calm` (the World's battery saver, or
+ * the system's reduce-motion) it holds at full, so the glow is still there,
+ * just steady.
+ */
+export const useBeat = (on: boolean, calm: boolean) => {
+  const t = useSharedValue(1);
+  useEffect(() => {
+    if (!on || calm) {
+      t.set(1);
+      return;
+    }
+    t.set(0);
+    t.set(withRepeat(withTiming(1, { duration: 520, easing: Easing.inOut(Easing.quad) }), -1, true));
+    return () => cancelAnimation(t);
+  }, [on, calm, t]);
+  return t;
+};
+
+/** A glow that follows a beat (useBeat). Never takes a touch. */
+export const Glow = ({ beat, style, testID }: { beat: SharedValue<number>; style?: ViewStyle; testID?: string }) => {
+  const flashing = useAnimatedStyle(() => ({ opacity: 0.3 + 0.7 * beat.get() }));
+  return <Reanimated.View style={[style, flashing]} pointerEvents="none" testID={testID} />;
 };
 
 /** A shout across the table (PONG!, HU!): it punches in, holds, and fades. */

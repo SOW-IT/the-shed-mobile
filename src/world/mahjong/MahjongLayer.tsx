@@ -36,6 +36,9 @@ const useClock = (serverNow: () => number, on: boolean) => {
   return now;
 };
 
+/** Whether the lobby is open for you: seated at a table that hasn't started. */
+export const inLobbyAt = (mine: MahjongMine | null, mySeat: string | undefined) => mine !== null && mine.phase === "lobby" && mySeat === mahjongSeatId(mine.table as MahjongTableId, mine.mySeat);
+
 export const playingAtTable = (mine: MahjongMine | null, mySeat: string | undefined) => {
   if (mine === null || mine.phase === "lobby" || mine.hand === null) return false;
   return mine.phase === "ended" || mySeat === mahjongSeatId(mine.table as MahjongTableId, mine.mySeat);
@@ -98,6 +101,7 @@ export const MahjongLayer = ({
   muted,
   serverNow,
   top,
+  lobbyTop,
   safeTop,
   bottom,
   nameOf,
@@ -114,6 +118,8 @@ export const MahjongLayer = ({
   muted: ReadonlySet<string>;
   serverNow: () => number;
   top: number;
+  /** Where the lobby opens: under the World's chat log, so the log stays readable. */
+  lobbyTop?: number;
   safeTop: number;
   bottom: number;
   nameOf: (name: string) => string;
@@ -136,7 +142,7 @@ export const MahjongLayer = ({
   const againM = useMutation(api.mahjong.again);
   const mySeatId = mine ? mahjongSeatId(mine.table as MahjongTableId, mine.mySeat) : null;
   const seatedHere = mine !== null && me?.seat === mySeatId;
-  const inLobby = mine !== null && mine.phase === "lobby" && seatedHere;
+  const inLobby = inLobbyAt(mine, me?.seat);
   const playing = playingAtTable(mine, me?.seat);
   const gotUp = mine !== null && mine.phase === "playing" && !seatedHere && mahjong.inCafe;
   const watched = useQuery(api.mahjong.watching, watch && !playing ? { tableId: watch } : "skip");
@@ -150,7 +156,8 @@ export const MahjongLayer = ({
       onNote("That game's over.");
     }
   }, [watch, watched, onStopWatching, onNote]);
-  const now = useClock(serverNow, playing || watching !== null);
+  const counting = inLobby && mine?.startsAt != null;
+  const now = useClock(serverNow, playing || watching !== null || counting);
   const stage = playing ? mine?.hand?.stage : undefined;
   const needsMe = playing && mine !== null && ((stage?.kind === "turn" && stage.seat === mine.mySeat) || (stage?.kind === "claim" && mine.hand?.mine?.offer != null && !mine.hand.mine.answered));
   const typing = useRef(keyboardOpen);
@@ -177,15 +184,19 @@ export const MahjongLayer = ({
       <MahjongLobby
         table={mine}
         open={inLobby}
-        top={top}
+        top={lobbyTop ?? top}
         bottom={bottom}
         lookOf={lookOf}
         nameOf={nameOf}
         onAddBot={(seat) => void mahjong.addBot(seat).then(say)}
         onRemoveBot={(seat) => void mahjong.removeBot(seat).then(say)}
         onSettings={(settings) => void mahjong.setSettings(settings).then(say)}
-        onStart={() => void mahjong.start().then(say)}
+        onStart={(anyway) => void mahjong.start(anyway).then(say)}
+        onCancelStart={() => void mahjong.cancelStart().then(say)}
+        onReady={(ready) => void mahjong.setReady(ready).then(say)}
+        onRemovePlayer={(seat, member) => void mahjong.removePlayer(seat, member).then(say)}
         onLeave={() => void mahjong.leave().then(say)}
+        now={now}
       />
       <Card
         open={bot !== null && dismissed !== botKey}
