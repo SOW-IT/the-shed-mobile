@@ -483,6 +483,44 @@ export const fixedColours = {
       /** The game-over card's Go back button: the bird's wing and belly. */
       goBack: { bg: "#1C655F", text: "#F4EAD2", onDark: true },
     },
+    /** Hop's sketchbook page: a wash that turns from morning to a chalk night as you climb. */
+    hop: {
+      page: {
+        morning: { paper: "#F5F3E3", grid: "#E2DECB", margin: "#D9826A", ink: "#2B2A26", mark: "#8C7B63", sketch: "#B9B29C" },
+        clouds: { paper: "#D7EAF2", grid: "#BDD8E4", margin: "#D9826A", ink: "#22313A", mark: "#5E7C8C", sketch: "#FFFFFF" },
+        dusk: { paper: "#F2CBA4", grid: "#E3B38A", margin: "#B85A3E", ink: "#3A2418", mark: "#8E5A3A", sketch: "#FBE3C4" },
+        night: { paper: "#1D2742", grid: "#33405F", margin: "#C9715A", ink: "#F3EFE0", mark: "#C8CCDD", sketch: "#F3EFE0" },
+      },
+      /** Outside the board: the same wash, darker, so it can't pass for page. */
+      outside: "#000000",
+      outsideShare: 0.12,
+      normal: "#8DBF8B",
+      moving: "#7D9CC4",
+      track: "#7D9CC4",
+      breakable: "#B98A5E",
+      crack: "#5B3B22",
+      oneBounce: "#EDEBDF",
+      spring: "#C9CED6",
+      springBase: "#7A8592",
+      outline: "#2B2A26",
+      best: "#C2473A",
+      bestBadge: "#FFF4D6",
+      /** Original, the Doodle Hopper. */
+      hopper: "#9CC59A",
+      hopperBelly: "#D7E9C9",
+      hopperInk: "#25352A",
+      eyeWhite: "#FFFFFF",
+      pupil: "#25352A",
+      propeller: "#F2B84B",
+      propellerCap: "#D9503F",
+      jetpack: "#8A97A6",
+      jetpackStrap: "#4B5563",
+      flame: "#FF8F3A",
+      flameCore: "#FFE08A",
+      sparkle: "#FFE08A",
+      /** The game-over card's Go back button: a sage platform with an inked edge. */
+      goBack: { bg: "#3F6B4A", text: "#F5F3E3", onDark: true },
+    },
   },
 } as const;
 

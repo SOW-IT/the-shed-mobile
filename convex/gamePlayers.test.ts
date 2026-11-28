@@ -73,6 +73,13 @@ describe("playing and left", () => {
     expect((await tables(t)).players).toMatchObject([{ game: "glider", since: Date.now() }]);
   });
 
+  test("playing Hop shows on its row like any game", async () => {
+    const t = newConvex();
+    await asUser(t, ANNA).mutation(api.gamePlayers.playing, { game: "hop" });
+    expect((await tables(t)).players).toMatchObject([{ game: "hop" }]);
+    expect(await asUser(t, BEN).query(api.gamePlayers.nowPlaying, {})).toMatchObject([{ game: "hop", count: 1 }]);
+  });
+
   test("switching game picks up a name changed since you went in", async () => {
     const t = newConvex();
     await named(t, ANNA, "Anna Bell");

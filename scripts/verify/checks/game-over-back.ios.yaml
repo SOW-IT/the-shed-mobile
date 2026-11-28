@@ -2,7 +2,8 @@ appId: au.org.sow.theshed
 ---
 # Every arcade game's game-over card: start a run, leave it alone until it
 # ends, then the card's Go back button comes back to the Games list. A
-# practice start (?start=) makes Sky Shooter and Swoop end sooner.
+# practice start (?start=) makes Sky Shooter and Swoop end sooner, and Hop
+# (which never ends on its own) plays itself and falls off (?autoplay=).
 # flappy
 - openLink: "theshedmobile://games"
 - extendedWaitUntil:
@@ -110,6 +111,33 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     visible:
       id: games-open-glider
+    timeout: 20000
+- assertNotVisible:
+    id: game-over
+# hop: a run that plays itself to 300 and falls off (test builds only)
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 30000
+- openLink: "theshedmobile://games/hop?autoplay=300"
+- extendedWaitUntil:
+    visible:
+      id: game-play-area
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- takeScreenshot: "${OUT}/check-hop-game-over"
+- tapOn:
+    id: game-over-back
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
     timeout: 20000
 - assertNotVisible:
     id: game-over

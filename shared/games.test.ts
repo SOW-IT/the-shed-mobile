@@ -40,8 +40,8 @@ const entry = (overrides: Partial<QueuedScore> = {}): QueuedScore => ({
 });
 
 describe("isGameId", () => {
-  test("knows the four games", () => {
-    expect(["shooter", "runner", "flappy", "glider", "snake"].map(isGameId)).toEqual([true, true, true, true, false]);
+  test("knows the five games", () => {
+    expect(["shooter", "runner", "flappy", "glider", "hop", "snake"].map(isGameId)).toEqual([true, true, true, true, true, false]);
   });
 });
 
@@ -49,6 +49,12 @@ describe("scoreProblem", () => {
   test("accepts a believable run", () => {
     expect(scoreProblem(entry(), NOW)).toBeNull();
     expect(scoreProblem(entry({ playedAt: NOW + CLOCK_SKEW_MS }), NOW)).toBeNull();
+  });
+
+  test("takes a Hop run climbing as fast as a spring launches you, the whole way", () => {
+    // 653 points a second is the fastest Hop can climb (src/lib/games/hop.test.ts).
+    expect(scoreProblem(entry({ game: "hop", score: 653 * 60, durationMs: 60_000 }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ game: "hop", score: 14_000_000, durationMs: MAX_RUN_MS }), NOW)).toBeNull();
   });
 
   test.each<[string, Partial<QueuedScore>, RegExp]>([
@@ -64,6 +70,9 @@ describe("scoreProblem", () => {
     ["too many points for the time", { score: 50_000, durationMs: 10_000 }, /too high/],
     ["a Swoop score over its cap", { game: "glider", score: SCORE_LIMITS[2].glider.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
     ["a Swoop score too fast for its run", { game: "glider", score: 25_000, durationMs: 10_000 }, /too high/],
+    ["a Hop score over its cap", { game: "hop", score: SCORE_LIMITS[2].hop.max + 1, durationMs: MAX_RUN_MS }, /over the game's limit/],
+    ["a Hop score too fast for its run", { game: "hop", score: 8_000, durationMs: 10_000 }, /too high/],
+    ["a Hop score from before Hop had a v1", { game: "hop", version: undefined, score: 500, durationMs: 60_000 }, /over the game's limit/],
     ["a run in the future", { playedAt: NOW + CLOCK_SKEW_MS + 1 }, /future/],
     ["a NaN end time", { playedAt: Number.NaN }, /future/],
     ["a stale run", { playedAt: NOW - MAX_SCORE_AGE_MS - 1 }, /too old/],
@@ -170,11 +179,12 @@ describe("parseQueue", () => {
 
 describe("local bests", () => {
   test("parse what was saved, with zero for anything unusable", () => {
-    expect(parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321 }))).toEqual({
+    expect(parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321, hop: 812.9 }))).toEqual({
       shooter: 12,
       runner: 0,
       flappy: 0,
       glider: 4321,
+      hop: 812,
     });
     expect(parseBests("null")).toEqual(NO_BESTS);
     expect(parseBests("{")).toEqual(NO_BESTS);
@@ -182,8 +192,8 @@ describe("local bests", () => {
 
   test("a best saved before its game was reset no longer counts; others carry over", () => {
     const old = JSON.stringify({ shooter: 50, runner: 900, flappy: 30 });
-    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0 });
-    const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20 };
+    expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0, hop: 0 });
+    const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20, hop: 10 };
     expect(parseBests(stringifyBests(saved))).toEqual(saved);
     const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 } });
     expect(parseBests(beforeLastReset)).toEqual({ ...saved, runner: 0 });

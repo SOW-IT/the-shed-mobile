@@ -257,8 +257,8 @@
         "convex/{gameScores,gameScoreData,gameCharacters,gamePlayers}.ts",
         "shared/{games,gameCharacters,names,leaderboard,cafeGames}.ts"
       ],
-      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night"],
-      "checks": ["arcade-podium", "game-over-back", "cafe-back-confirm", "swoop-letterbox", "leaderboard-link-tab", "status-bar-after-game"]
+      "routes": ["/games", "/games/cafe", "/games/shooter", "/games/runner", "/games/flappy", "/games/glider", "/games/hop", "/games/leaderboard", "/games/leaderboard?game=runner", "/games/leaderboard?game=glider", "/games/leaderboard?game=hop", "/games/runner?preview=double", "/games/runner?preview=tall", "/games/runner?preview=wide", "/games/runner?preview=hang", "/games/glider?preview=dive", "/games/glider?preview=launch", "/games/glider?preview=high", "/games/glider?preview=world", "/games/glider?preview=world3", "/games/glider?preview=world6", "/games/glider?preview=night", "/games/hop?preview=opening", "/games/hop?preview=clouds", "/games/hop?preview=dusk", "/games/hop?preview=night", "/games/hop?preview=best", "/games/hop?preview=crossed", "/games/hop?preview=break", "/games/hop?preview=onebounce", "/games/hop?preview=spring", "/games/hop?preview=propeller", "/games/hop?preview=jetpack", "/games/hop?preview=drop"],
+      "checks": ["arcade-podium", "game-over-back", "cafe-back-confirm", "swoop-letterbox", "leaderboard-link-tab", "status-bar-after-game", "hop"]
     },
     "world": {
       "files": [
@@ -274,7 +274,7 @@
         "convex/{world,worldData,worldHome,worldNotices,coins,coinsBackfill,cafeGames,cafeGamesData,farm,farmData,animals}.ts",
         "shared/{world,worldPath,worldNotices,home,coins,ball,names,cafeGames,farm,animals}.ts"
       ],
-      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/world-calendar", "/world-praise", "/world-devotionals"],
+      "routes": ["/world", "/world?sheet=character", "/world?sheet=poke", "/world?sheet=arcade", "/games", "/games/runner", "/games/flappy", "/games/glider", "/games/hop", "/world-calendar", "/world-praise", "/world-devotionals"],
       "checks": ["chapel-pews", "arcade-podium", "rps-ask", "backyard-chat", "outfits", "eye-shapes", "character-camera", "steps-drag", "mahjong", "world-fullscreen", "home-furniture"]
     },
     "mahjong": {

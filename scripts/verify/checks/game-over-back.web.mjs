@@ -2,7 +2,7 @@
 // Every arcade game's game-over card, driven: open the game from the Games
 // list, start a run and don't touch it until it's over, then the card's
 // Go back button comes back to the Games list. A practice start (?start=)
-// makes Sky Shooter and Swoop end sooner.
+// makes Sky Shooter and Swoop end sooner; Hop plays itself (?autoplay=).
 import { mkdirSync, readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -23,6 +23,9 @@ const GAMES = [
   { game: "runner", start: "" },
   { game: "shooter", start: "?start=20000" },
   { game: "glider", start: "?start=200" },
+  // Left alone, Hop bounces on its first platform for ever: this run plays
+  // itself to 300 and falls off.
+  { game: "hop", start: "?autoplay=300" },
 ];
 
 mkdirSync(OUT, { recursive: true });
@@ -87,7 +90,7 @@ try {
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Game over, Go back: Flap, Mystic Man, Sky Shooter and Swoop each end, show a Go back button on the card, and come back to the Games list."
+    ? "Game over, Go back: Flap, Mystic Man, Sky Shooter, Swoop and Hop each end, show a Go back button on the card, and come back to the Games list."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

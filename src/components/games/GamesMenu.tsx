@@ -30,6 +30,7 @@ const GAME_ICONS: Record<GameId, keyof typeof Ionicons.glyphMap> = {
   runner: "footsteps",
   flappy: "egg",
   glider: "partly-sunny",
+  hop: "arrow-up-circle",
 };
 
 // One plain line under each game's name. The how-to-play text
@@ -39,6 +40,7 @@ const GAME_LINES: Record<GameId, string> = {
   runner: "Run and jump.",
   flappy: "Tap through the gaps.",
   glider: "Swoop over the hills before dark.",
+  hop: "Bounce up the page as high as you can.",
 };
 
 /** The World's panels let the garden show through, blurred, on the web. */

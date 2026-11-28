@@ -19,10 +19,13 @@ import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameI
 const PAGE_SIZE = 25;
 
 /**
- * The tabs share a phone's width four ways, where "Sky Shooter" doesn't
+ * The tabs share a phone's width five ways, where "Sky Shooter" doesn't
  * fit; its page's Play button still says the whole name.
  */
 const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
+
+/** Games that came after v1, with no legacy board to switch to. */
+const NO_LEGACY_BOARD: readonly GameId[] = ["hop"];
 
 const versionSegments = (game: GameId) =>
   ([GAME_VERSION, 1] as const).map((version) => ({
@@ -117,12 +120,14 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
-      <Segmented
-        pill
-        segments={versionSegments(game)}
-        active={String(version)}
-        onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
-      />
+      {NO_LEGACY_BOARD.includes(game) ? null : (
+        <Segmented
+          pill
+          segments={versionSegments(game)}
+          active={String(version)}
+          onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
+        />
+      )}
       {/* Signed out, nothing else says why your scores aren't on the board. */}
       {!isAuthenticated && !isLoading ? (
         <View style={[styles.device, { backgroundColor: t.primarySoft }]}>

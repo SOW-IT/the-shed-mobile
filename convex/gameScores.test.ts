@@ -100,6 +100,43 @@ describe("versions", () => {
     expect((await paidRows(t)).filter(([, , , paidBoard]) => paidBoard !== board)).toEqual([]);
   });
 
+  test("Hop has only a v2 board: a v1 Hop score is turned away, and its board pays like any v2 board", async () => {
+    const t = newConvex();
+    const anna = asUser(t, ANNA);
+    const first = await anna.mutation(api.gameScores.submitScores, {
+      scores: [run("run-anna-hop-v1", 400, "hop"), v2("run-anna-hop-fast", 50_000, "hop"), v2("run-anna-hop", 1_200, "hop")],
+    });
+    expect(first.accepted).toEqual(["run-anna-hop"]);
+    expect(first.rejected).toEqual([
+      { runId: "run-anna-hop-v1", reason: "That score is over the game's limit." },
+      { runId: "run-anna-hop-fast", reason: "That score is too high for how long the run lasted." },
+    ]);
+    expect(first.coins).toEqual([]);
+    expect((await anna.query(api.gameScores.leaderboard, { game: "hop" })).top).toEqual([]);
+    const board = await anna.query(api.gameScores.leaderboard, { game: "hop", version: 2 });
+    expect(board.top.map((row) => row.score)).toEqual([1_200]);
+    expect(board.me).toEqual({ score: 1_200, rank: 1 });
+    // A retry of the same run changes nothing; a lower run doesn't replace the best.
+    await anna.mutation(api.gameScores.submitScores, { scores: [v2("run-anna-hop", 1_200, "hop"), v2("run-anna-hop-2", 900, "hop")] });
+    expect(await bests(t)).toEqual([[ANNA, "hop", 1_200, "run-anna-hop"]]);
+    for (let i = 1; i < PAYOUT_MIN_ENTRIES - 1; i++) {
+      await asUser(t, player(i)).mutation(api.gameScores.submitScores, { scores: [v2(`run-hop-${i}`, i * 100, "hop")] });
+    }
+    expect(await paidRows(t)).toEqual([]);
+    const tenth = await asUser(t, BEN).mutation(api.gameScores.submitScores, { scores: [v2("run-ben-hop", 2_000, "hop")] });
+    expect(tenth.coins).toEqual([{ runId: "run-ben-hop", coins: 50, place: 1 }]);
+    const hop = boardOf("hop", 2);
+    expect((await paidRows(t)).sort()).toEqual(
+      [
+        [BEN, 50, 1, hop],
+        [ANNA, 25, 2, hop],
+        [player(8), 10, 3, hop],
+      ].sort()
+    );
+    const podium = await t.query(api.gameScores.podium, { game: "hop", version: 2 });
+    expect(podium.map((row) => row.score)).toEqual([2_000, 1_200, 800]);
+  });
+
   test("a v2 board's payouts don't count what a v1 board paid", async () => {
     const t = newConvex();
     await asUser(t, ANNA).mutation(api.gameScores.submitScores, { scores: [run("run-anna-old", 30, "flappy")] });

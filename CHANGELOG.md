@@ -6,6 +6,40 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.74] - 2026-11-28
+
+### Added
+- **Hop, a new game: bounce up a sketchbook page as high as you can.** You
+  bounce on your own; hold the left or right half of the screen to steer
+  (slide across the middle to turn round without lifting), or use ←/→ or
+  A/D on a computer. Go off one side and you come back on the other. Your
+  score is the highest you've climbed, so bouncing in place earns nothing.
+  Fall below the page and the run ends. Play as your World character, Sij,
+  or the original Doodle Hopper, and your choice is remembered like the
+  other games.
+- **Four kinds of platform and three boosts.** Green ones bounce you as
+  often as you like, blue ones slide side to side, brown cracked ones snap
+  under you (no bounce), and pale dashed ones crumble to chalk after one
+  bounce. Springs send you 2.2 times as high, a propeller hat lifts you for
+  2.5 seconds and a jetpack (higher up, and rarer) for 3.5, both steering
+  freely. Moving platforms come in from 300 points, cracked ones from 500
+  and one-bounce ones from 900, and it stops getting harder around 4,500.
+  Every gap can be made without a cracked platform or a boost, and after a
+  spring or a boost there are platforms both sides of the page to come down
+  on.
+- **The page changes as you climb.** Warm morning graph paper, then a blue
+  sky with pencil clouds, a golden dusk, and from about 3,000 points a chalk
+  night with stars and constellations that stays. Altitude is inked in the
+  margin every 500 points. When you have a best, a dashed **BEST** line
+  marks it, and passing it says so once.
+- **Hop has its own leaderboard tab, pays coins like the other games, and
+  shows on the Games list and in the World arcade**, with who's playing.
+  Runs played offline wait on the phone and go up when you're back online.
+
+### Changed
+- **Sij looks like Sijin's own World character now**, in the Cafe and in
+  Mystic Man, Flap, Swoop and Hop.
+
 ## [2.13.69] - 2026-11-28
 
 ### Added

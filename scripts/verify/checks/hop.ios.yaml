@@ -1,0 +1,77 @@
+appId: au.org.sow.theshed
+---
+# Hop on a phone: the start card and its characters, holding the left half
+# to start and steer, sliding across the middle to turn round, the leave
+# dialog and Continue, then a run that plays itself (test builds only) past
+# the BEST line to the fall-off ending, Play again, and the Leaderboard.
+# Read the screenshots: the page, the character and the cards.
+- openLink: "theshedmobile://games"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 30000
+- tapOn:
+    id: games-open-hop
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-hop-start"
+- tapOn:
+    id: character-sij
+- takeScreenshot: "${OUT}/check-hop-sij"
+- tapOn:
+    id: character-original
+# Hold the left half: the run starts and steers left, then the finger slides
+# to the right half without lifting.
+- swipe:
+    start: "20%, 75%"
+    end: "80%, 75%"
+    duration: 1500
+- assertNotVisible:
+    id: character-picker-hop
+- takeScreenshot: "${OUT}/check-hop-steered"
+- tapOn: "Back to the games"
+- extendedWaitUntil:
+    visible: "Leave this game?"
+    timeout: 10000
+- takeScreenshot: "${OUT}/check-hop-leave"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    notVisible: "Leave this game?"
+    timeout: 10000
+# A run that plays itself to 400 and falls off.
+- openLink: "theshedmobile://games/hop?autoplay=400"
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- tapOn:
+    id: game-play-area
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      id: hop-player
+    timeout: 10000
+- takeScreenshot: "${OUT}/check-hop-climbing"
+- extendedWaitUntil:
+    visible:
+      id: game-over-back
+    timeout: 120000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${OUT}/check-hop-game-over"
+- assertVisible: "Practice run. Not saved."
+- tapOn: "Play again"
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 10000
+- openLink: "theshedmobile://games/leaderboard?game=hop"
+- extendedWaitUntil:
+    visible:
+      id: leaderboard-page-hop
+    timeout: 20000
+- takeScreenshot: "${OUT}/check-hop-leaderboard"

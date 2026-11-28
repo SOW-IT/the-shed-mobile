@@ -1,7 +1,7 @@
 // The offline mini-games' ids, score limits and the queue of scores waiting
 // to go on the leaderboard. The app and the backend both read these, so a
 // score the app saves is one the server accepts.
-export const GAME_IDS = ["shooter", "runner", "flappy", "glider"] as const;
+export const GAME_IDS = ["shooter", "runner", "flappy", "glider", "hop"] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
 export const isGameId = (value: string): value is GameId =>
@@ -23,6 +23,10 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   glider: {
     title: "Swoop",
     blurb: "Hold to dive into the valleys, let go to fly off the hills. Finish each day before dark. Best sideways.",
+  },
+  hop: {
+    title: "Hop",
+    blurb: "You bounce on your own. Hold the left or right side to steer, and climb as high as you can.",
   },
 };
 
@@ -51,12 +55,19 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     // speed, or past the world where even that can't beat the sunset
     // (src/lib/games/glider.ts, maxGliderScore, checked by its tests).
     glider: { perSecond: 1000, max: 500_000 },
+    // Hop came after v1: a v1 Hop score can't be real.
+    hop: { perSecond: 0, max: 0 },
   },
   2: {
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 250, max: 2_000_000 },
     flappy: { perSecond: 3, max: 100_000 },
     glider: { perSecond: 2100, max: 2_000_000 },
+    // Hop scores a point per 2 units climbed, and nothing climbs faster than
+    // a spring's launch (1,305 units a second, so 653 points), so no run can
+    // average more. The cap is that pace for the longest run allowed
+    // (src/lib/games/hop.ts, checked by its tests).
+    hop: { perSecond: 700, max: 15_000_000 },
   },
 };
 
@@ -173,7 +184,7 @@ export const parseQueue = (saved: string): QueuedScore[] => {
 
 export type LocalBests = Record<GameId, number>;
 
-export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0 };
+export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0, hop: 0 };
 
 /**
  * Saves bests with the reset each was made after, so a later reset can tell
@@ -197,7 +208,7 @@ export const parseBests = (saved: string): LocalBests => {
       if (savedAfter !== (SCORES_RESET_AT[game] ?? 0)) return 0;
       return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
     };
-    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider") };
+    return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider"), hop: best("hop") };
   } catch {
     return { ...NO_BESTS };
   }
