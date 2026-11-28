@@ -214,21 +214,28 @@ npx convex run churches:locateAll '{}'
 
 ## CI/CD
 
-Nine workflows, in `.github/workflows/`:
+Ten workflows, in `.github/workflows/`:
 
 | Workflow | File | Trigger |
 | --- | --- | --- |
 | Lint, Typecheck & Test | `ci.yml` | every PR and push to `main`. Lints the whole repo with warnings failing (`eslint . --max-warnings 0`), checks for unused files, exports and dependencies (`knip`), and runs the tests with coverage thresholds. Also runs `expo install --check` with `EXPO_OFFLINE=1`, so an Expo package that drifts from the versions the installed `expo` lists fails here rather than in an iOS release build. Offline, the check reads that list from the locked `expo` package instead of Expo's server, so a new Expo patch release can't turn `main` red on its own; patches move with a deliberate `npx expo install --fix`. A second job, **Web sweep**, uses `scripts/verify/feature-map.json` (`scripts/sweep-plan.mjs`) to decide which screens a PR can affect: static-only PRs skip Playwright, local Convex and Expo and pass straight away (unless sweep or CI tooling itself changed); feature PRs sweep the smoke routes and the affected area's routes; core or unmapped changes and pushes to `main` sweep every screen. When screens run, it starts a throwaway local Convex backend, seeds it (`scripts/sweep-backend.sh`, `scripts/sweep-seed.mjs`), serves the web app and opens each planned screen signed out and as a leader, a Head and an admin (`scripts/sweep.mjs`, Playwright), failing on a crash screen or page error and keeping screenshots as a run artifact |
 | Convex Deploy | `convex-deploy.yml` | after each EAS Update run on `main` has finished (succeeded, failed or timed out, not cancelled) → deploys the **prod** backend for the commit that run was for. It deploys nothing if `main` has moved on since, because the Convex Deploy after that newer merge's EAS Update deploys it. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
-| Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
+| Convex Deploy (dev) | `convex-deploy-dev.yml` | merges to `main`, first of the deploys → deploys the same functions and schema to the shared **dev** backend (`successful-lynx-56`), which the staging app, the dev web app and local runs use, so a staging build of `main` never calls a function dev doesn't have. Skips with a notice when `CONVEX_DEPLOY_KEY_DEV` isn't set, and refuses a key that isn't a dev key for `successful-lynx-56`. Run by hand from a branch to put that branch's functions on dev (do this before sending a branch to the staging app with EAS Staging); the next merge to `main` puts `main` back |
+| Deploy web (dev) | `deploy-web-dev.yml` | after each Convex Deploy (dev) run for a merge to `main` has finished (succeeded, failed or skipped for no key, not cancelled), and by hand → publishes the dev web app to `the-shed-web-dev`, so it never ships ahead of the dev backend |
 | Backup Convex to GCS | `convex-backup.yml` | weekly, Sundays at 15:17 UTC (Monday 01:17 AEST / 02:17 AEDT), and by hand. Weekly because each export reads the whole prod database, about 9.5 MB of database bandwidth a run. Database export as a zip, then Convex file storage (receipts, event attachments, avatars) copied incrementally to `storage/files/<sha256>` in the same bucket: each file is downloaded once, on the first run after it exists, and `storage/manifest.json` records what is there and which files Convex has since deleted. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped. The BigQuery job then checks the warehouse against the previous run (`scripts/warehouse-checks.mjs`): a core table missing or empty, a table that shrank by more than a fifth, or a report view missing posts to Google Chat and fails the step |
-| EAS Update | `eas-update.yml` | merges to `main` (and by hand) → runs before Convex Deploy, then publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build. Then checks each production update's runtime against the newest finished production store build, raises `appUpdatePolicy.latestOta` to the published version for each platform whose update reaches its store build (`appInstalls:raiseLatestOta`, never lowers it, never touches `recommended` or `minimum`), writes the result to the job summary and posts it to Google Chat (`scripts/eas-update-report.mjs`); the run fails when an update reaches no store build or the latest over-the-air version couldn't be raised. Convex Deploy still follows a failed run. Merges queue in one concurrency group and runs by hand in another, so a run by hand can't cancel a merge's queued run |
+| EAS Update | `eas-update.yml` | after each Convex Deploy (dev) run for a merge to `main` has finished, whatever its result (succeeded, failed, skipped for no key or cancelled), for that commit, and by hand → runs before Convex Deploy, then publishes the JavaScript bundle over the air to the `production` and `staging` channels. Only builds whose native fingerprint matches receive it, so a change to native code waits for the next store build. Then checks each production update's runtime against the newest finished production store build, raises `appUpdatePolicy.latestOta` to the published version for each platform whose update reaches its store build (`appInstalls:raiseLatestOta`, never lowers it, never touches `recommended` or `minimum`), writes the result to the job summary and posts it to Google Chat (`scripts/eas-update-report.mjs`); the run fails when an update reaches no store build or the latest over-the-air version couldn't be raised. Convex Deploy still follows a failed run. Merges queue in one concurrency group and runs by hand in another, so a run by hand can't cancel a merge's queued run. A run of Convex Deploy (dev) by hand doesn't start it |
 | Convex usage check | `convex-usage.yml` | Sundays 22:00 UTC, Monday morning in Sydney (and by hand) → reads this billing period's usage and posts to Google Chat when database bandwidth or file storage passes 70% of the plan, or bandwidth is on track to exceed it (`scripts/convex-usage-alert.mjs`) |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`) instead, or is skipped if it already has it |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app. A platform whose native code hasn't changed since its last store build gets the commit over the air (`eas update`, from `main` only) instead, or is skipped if it already has it. Then posts the result (version, build numbers, commit, links) to Google Chat (`.github/scripts/eas-production-chat.sh`) |
 | PR Merged | `pr-merged-chat.yml` | each pull request merged into `main` → posts the new version, the PR title and author, who merged it and the merge commit to Google Chat (`.github/scripts/pr-merged-chat.sh`) |
 
-A merge to `main` therefore reaches phones before the prod backend: EAS
+A merge to `main` therefore runs **Convex Deploy (dev)** → **EAS Update** →
+**Convex Deploy** (prod), each starting when the one before finishes, with
+**Deploy web (dev)** also following the dev deploy. The staging app and the
+dev web app get new code only after dev has its functions, and a dev problem
+never holds back phones or prod. That chain is three `workflow_run` levels,
+the most GitHub allows, so nothing more can be chained after Convex Deploy.
+It reaches production phones before the prod backend: EAS
 Update publishes the JavaScript, and Convex Deploy starts when it finishes,
 usually a few minutes later. In that gap, a phone that has restarted into the
 new JavaScript gets an error from any call to a Convex function, or argument,
@@ -262,14 +269,15 @@ because the Convex URL is inlined at build time. A separate backend means a
 separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
-the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` +
+the GCS backup), `CONVEX_DEPLOY_KEY_DEV` (dev backend deploys; a dev deploy
+key for `successful-lynx-56`), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` +
 `GOOGLE_MAPS_WEB_KEY_DEV` (dev web), `EXPO_TOKEN` (EAS Update and both EAS
 builds), `CONVEX_ACCESS_TOKEN` (the usage check) and `GOOGLE_CHAT_WEBHOOK_URL`
 (the incoming webhook of the Google Chat space that gets merges, releases
 and alerts: PR Merged, EAS Update, EAS Production, the backup checks and the
 usage check all post there).
-Only **Deploy web (dev)** and the Chat post degrade gracefully when their
-secrets are missing. They skip. Convex Deploy, the backup, EAS Update, the
+Only **Convex Deploy (dev)**, **Deploy web (dev)** and the Chat post degrade
+gracefully when their secrets are missing. They skip. Convex Deploy, the backup, EAS Update, the
 usage check and both EAS builds have no such guard and will **fail** the run,
 which is the right behaviour for a deploy but worth knowing before you add a
 workflow to a fork. The backup also

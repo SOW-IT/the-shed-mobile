@@ -1,7 +1,13 @@
 name: Deploy web (dev)
 
+# Follows Convex Deploy (dev) for a merge to main, so the dev web app never
+# ships code that calls functions dev doesn't have yet. It still deploys when
+# that run failed or skipped (no key); only a cancelled run, which a newer
+# merge's run replaces, deploys nothing.
 on:
-  push:
+  workflow_run:
+    workflows: ["Convex Deploy (dev)"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -14,6 +20,10 @@ concurrency:
 
 jobs:
   deploy:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check deploy secrets
@@ -32,6 +42,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - if: steps.secrets.outputs.configured == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
