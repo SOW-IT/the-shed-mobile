@@ -159,10 +159,6 @@ export const releaseChangelog = ({ changelog, parentChangelog, version, date, fr
   const sections = splitSections(changelog);
   const unreleasedIndex = sections.findIndex((section) => section.heading === UNRELEASED_HEADING);
   if (unreleasedIndex === -1) throw new Error(`CHANGELOG.md has no "${UNRELEASED_HEADING}" heading.`);
-  if (sections.some((section) => section.heading?.startsWith(`## [${version}]`))) {
-    throw new Error(`CHANGELOG.md already has a ${version} section.`);
-  }
-
   const handNumbered = new Set();
   if (parentChangelog != null) {
     const parentCounts = headingCounts(splitSections(parentChangelog));
@@ -175,6 +171,13 @@ export const releaseChangelog = ({ changelog, parentChangelog, version, date, fr
         .sort((a, b) => Number(parentChangelog.includes(a.section.text.trimEnd())) - Number(parentChangelog.includes(b.section.text.trimEnd())));
       candidates.slice(0, extra).forEach(({ index }) => handNumbered.add(index));
     }
+  }
+
+  // A section for this version is only allowed when a merge since the parent
+  // added it (a manual bump whose section the release completes); it is then
+  // folded into the released section like any other hand-numbered one.
+  if (sections.some((section, index) => section.heading?.startsWith(`## [${version}]`) && !handNumbered.has(index))) {
+    throw new Error(`CHANGELOG.md already has a ${version} section.`);
   }
 
   const noteTexts = [

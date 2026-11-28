@@ -79,7 +79,8 @@ merge, so phones and the Chat post see the new version.
   start the note with front matter `---`, `bump: minor` (or `major`), `---`.
   Setting the version by hand in all three files, with its own
   `## [x.y.0] - date` section, still works: a merge that raised the version
-  itself is left as it is.
+  itself keeps it, and any earlier merges it overtook before they were
+  numbered (and any notes left in `changelog.d/`) go into its section.
 - Two merges close together can share one version. If a release run fails
   (say a `changelog.d` note's front matter is wrong), nothing deploys: fix it
   and rerun the run from Actions; it numbers everything merged since the

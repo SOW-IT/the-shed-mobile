@@ -22,15 +22,22 @@ const FRAGMENT_DIR = "changelog.d";
 const isFragment = (name) => name.endsWith(".md") && name !== "README.md";
 const MAX_UNRELEASED = 50;
 
-const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+// CHANGELOG.md is already 400 KB; Node's default 1 MiB would soon cut it off.
+const git = (...args) =>
+  execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 256 * 1024 * 1024 });
 
-const fileAt = (ref, file) => {
+const exists = (ref, file) => {
   try {
-    return git("show", `${ref}:${file}`);
+    git("cat-file", "-e", `${ref}:${file}`);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 };
+
+// null only when the file isn't there; any other failure (a huge file, a bad
+// ref) throws rather than quietly passing as "no file".
+const fileAt = (ref, file) => (exists(ref, file) ? git("show", `${ref}:${file}`) : null);
 
 const hasParent = (ref) => {
   try {
@@ -47,13 +54,23 @@ const versionAt = (ref) => {
   return appJsonVersion(text);
 };
 
-const pendingAt = (ref) => hasParent(ref) && awaitsRelease(versionAt(ref), versionAt(`${ref}^`));
+const RELEASE_SUBJECT = "chore(release): ";
 
-const unreleasedCommits = () => {
+// The workflow's own commits. A release that completes a manual bump's section
+// keeps the version, so the subject is what marks it as numbered.
+const isReleaseCommit = (ref) => git("log", "-1", "--format=%s", ref).startsWith(RELEASE_SUBJECT);
+
+const pendingAt = (ref) =>
+  hasParent(ref) && !isReleaseCommit(ref) && awaitsRelease(versionAt(ref), versionAt(`${ref}^`));
+
+/** The merges from `start` back that are still waiting for a number, oldest first. */
+const unreleasedCommits = (start) => {
   const commits = [];
-  let ref = git("rev-parse", "HEAD").trim();
+  if (!hasParent(start)) return commits;
+  let ref = git("rev-parse", start).trim();
   while (commits.length < MAX_UNRELEASED && pendingAt(ref)) {
     commits.unshift(ref);
+    if (!hasParent(ref)) break;
     ref = git("rev-parse", `${ref}^`).trim();
   }
   return commits;
@@ -64,48 +81,73 @@ const wroteNotes = (sha) =>
     .split("\n")
     .some((file) => file === "CHANGELOG.md" || (file.startsWith(`${FRAGMENT_DIR}/`) && isFragment(path.basename(file))));
 
+// Every note file under changelog.d, nested ones too (a branch name whose `/`
+// wasn't turned into `-`), so what counts as writing notes above and what
+// gets released here agree.
 const fragmentFiles = () =>
   existsSync(FRAGMENT_DIR)
-    ? readdirSync(FRAGMENT_DIR)
-        .filter(isFragment)
+    ? readdirSync(FRAGMENT_DIR, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && isFragment(entry.name))
+        .map((entry) => path.join(entry.parentPath, entry.name))
         .sort()
-        .map((name) => path.join(FRAGMENT_DIR, name))
     : [];
 
 const output = (values) => {
   for (const [key, value] of Object.entries(values)) console.log(`${key}=${value}`);
 };
 
+const subjectOf = (sha) => git("log", "-1", "--format=%s", sha).trim();
+
 const release = (date) => {
-  if (!pendingAt("HEAD")) {
-    console.log(`HEAD already carries its own version (${versionAt("HEAD")}), so there is nothing to release.`);
-    output({ released: "false" });
-    return;
-  }
-  const commits = unreleasedCommits();
-  const packageJson = readFileSync("package.json", "utf8");
-  const currentChangelog = readFileSync("CHANGELOG.md", "utf8");
   const fragments = fragmentFiles().map((file) => ({ file, ...parseFragment(readFileSync(file, "utf8"), file) }));
-  const bump = largestBump(fragments.map((fragment) => fragment.bump));
-  const version = nextVersion(
-    bump,
-    versionAt("HEAD"),
-    versionAt("HEAD^"),
-    packageJsonVersion(packageJson),
-    ...changelogVersions(currentChangelog)
-  );
+  const currentChangelog = readFileSync("CHANGELOG.md", "utf8");
+  const headPending = pendingAt("HEAD");
+  let commits;
+  let version;
+  let bump;
+
+  if (headPending) {
+    commits = unreleasedCommits("HEAD");
+    bump = largestBump(fragments.map((fragment) => fragment.bump));
+    version = nextVersion(
+      bump,
+      versionAt("HEAD"),
+      versionAt("HEAD^"),
+      packageJsonVersion(readFileSync("package.json", "utf8")),
+      ...changelogVersions(currentChangelog)
+    );
+  } else {
+    // HEAD is a release commit, or a merge that set its own version. Merges
+    // below a manual bump that were never numbered (the bump merged before
+    // their run), and any notes left behind, go into the manual version's
+    // section, so none are orphaned for a later release.
+    commits = isReleaseCommit("HEAD") || !hasParent("HEAD") ? [] : unreleasedCommits("HEAD^");
+    version = versionAt("HEAD");
+    if (isReleaseCommit("HEAD") || (commits.length === 0 && fragments.length === 0)) {
+      console.log(`HEAD already carries its own version (${version}), so there is nothing to release.`);
+      output({ released: "false" });
+      return;
+    }
+    bump = "manual";
+    console.log(
+      `HEAD set its own version (${version}); its section takes ${commits.length} earlier merge(s) and ${fragments.length} note(s) still waiting for one.`
+    );
+  }
+
   const changelog = releaseChangelog({
     changelog: currentChangelog,
-    parentChangelog: fileAt(`${commits[0]}^`, "CHANGELOG.md"),
+    parentChangelog: fileAt(`${commits[0] ?? "HEAD"}^`, "CHANGELOG.md"),
     version,
     date,
     fragments: fragments.map((fragment) => fragment.notes),
-    fallbackSubjects: commits.filter((sha) => !wroteNotes(sha)).map((sha) => git("log", "-1", "--format=%s", sha).trim()),
+    fallbackSubjects: commits.filter((sha) => !wroteNotes(sha)).map(subjectOf),
   });
 
-  writeFileSync("package.json", setPackageJsonVersion(packageJson, version));
-  writeFileSync("package-lock.json", setPackageLockVersion(readFileSync("package-lock.json", "utf8"), version));
-  writeFileSync("app.json", setAppJsonVersion(readFileSync("app.json", "utf8"), version));
+  if (headPending) {
+    writeFileSync("package.json", setPackageJsonVersion(readFileSync("package.json", "utf8"), version));
+    writeFileSync("package-lock.json", setPackageLockVersion(readFileSync("package-lock.json", "utf8"), version));
+    writeFileSync("app.json", setAppJsonVersion(readFileSync("app.json", "utf8"), version));
+  }
   writeFileSync("CHANGELOG.md", changelog);
   for (const { file } of fragments) rmSync(file);
 

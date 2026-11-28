@@ -14,7 +14,10 @@ name: Release version
 # deploys skip; the push of the release commit runs this again, which finds
 # the version already raised, does nothing, and its deploys go ahead. Each
 # merge deploys once, from the commit that carries its version. A merge that
-# raised the version itself (a manual bump) releases nothing and deploys as is.
+# raised the version itself (a manual bump) keeps it: if earlier merges were
+# still waiting for a number when it landed, or notes are left in changelog.d,
+# their notes go into its section in a `chore(release)` commit; otherwise
+# nothing is pushed and it deploys as is.
 #
 # The push needs a credential that may push to main past the required `ci`
 # check and whose pushes start workflows (GITHUB_TOKEN can do neither): the

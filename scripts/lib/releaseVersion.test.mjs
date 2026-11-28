@@ -225,3 +225,20 @@ describe("bumps", () => {
     expect(largestBump(["minor", "major"])).toBe("major");
   });
 });
+
+describe("a manual bump's own section", () => {
+  test("is completed when a merge since the parent added it, and still refused otherwise", () => {
+    const manual = released("2.14.0", "### Added\n- **Big.** New.").replace("2026-11-26", "2026-11-27");
+    const next = releaseChangelog({
+      changelog: changelogOf(manual, OLD),
+      parentChangelog: changelogOf(OLD),
+      version: "2.14.0",
+      date: "2026-11-27",
+      fragments: ["### Fixed\n- **Overtaken.** Fixed.\n"],
+    });
+    expect(next).toBe(changelogOf(released("2.14.0", "### Added\n- **Big.** New.\n\n### Fixed\n- **Overtaken.** Fixed.").replace("2026-11-26", "2026-11-27"), OLD));
+    expect(() =>
+      releaseChangelog({ changelog: changelogOf(manual, OLD), parentChangelog: changelogOf(manual, OLD), version: "2.14.0", date: "2026-11-27" })
+    ).toThrow("already has a 2.14.0 section");
+  });
+});
