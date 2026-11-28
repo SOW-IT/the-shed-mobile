@@ -63,7 +63,9 @@ export const list = query({
       row: m,
       words: nameWords(m.name),
     }));
-    const linkedMembers = new Map<Id<"attendanceMembers">, Promise<boolean>>();
+    const linkedMembers = new Map<Id<"attendanceMembers">, Promise<boolean>>(
+      yearProfiles.flatMap((p) => (p.memberId ? [[p.memberId, Promise.resolve(true)] as const] : []))
+    );
     const isLinked = (memberId: Id<"attendanceMembers">) => {
       let linked = linkedMembers.get(memberId);
       if (!linked) {
