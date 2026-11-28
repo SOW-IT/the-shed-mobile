@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import { FRAME_GAP_MS, FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
 import { strayMaestro } from "./lib/strayMaestro.mjs";
 import { acquire, currentHolder, ownRecord, release } from "./lib/verifyLock.mjs";
+import { runScreens } from "./lib/verifyPhase.mjs";
+import { reservePorts } from "./lib/verifyPorts.mjs";
 import { classify, isVersionOnlyDiff, planVerification, resolveRoutes, routeSlug, VERSION_FILES } from "./lib/verifyPlan.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
@@ -18,11 +20,18 @@ const STATE = join(ROOT, ".verify");
 // Outside the repo, so tsc, vitest and eslint never pick up a second copy.
 // Named after the checkout, so two worktrees running verify can't remove
 // each other's.
-const BASE_TREE = join(tmpdir(), `theshed-verify-base-${createHash("sha256").update(ROOT).digest("hex").slice(0, 8)}`);
+const TREE_HASH = createHash("sha256").update(ROOT).digest("hex").slice(0, 8);
+const BASE_TREE = join(tmpdir(), `theshed-verify-base-${TREE_HASH}`);
+// Metro keeps its cache under $TMPDIR, and `expo start --clear` empties all
+// of it, so a run that shares $TMPDIR would wipe the bundle another worktree's
+// run is building. Each checkout's Expo servers get a $TMPDIR of their own.
+const EXPO_TMP = join(tmpdir(), `theshed-verify-tmp-${TREE_HASH}`);
 const MAP = JSON.parse(readFileSync(join(ROOT, "scripts/verify/feature-map.json"), "utf8"));
 // One for the whole Mac, outside every worktree and $TMPDIR (which a sandbox
-// may move): screen runs share the simulator and the ports (verifyLock.mjs).
+// may move): iOS steps share the simulator (verifyLock.mjs). Ports are
+// reserved one by one next to it (verifyPorts.mjs).
 const LOCK_FILE = join(homedir(), ".cache/theshed-verify/verify.lock");
+const PORTS_DIR = join(homedir(), ".cache/theshed-verify/ports");
 
 const HELP = `node scripts/verify.mjs [options]
 
@@ -39,9 +48,11 @@ const HELP = `node scripts/verify.mjs [options]
   --publish-only       publish the last run's screenshots without running anything
   --clean              stop anything a crashed run left behind, then exit
 
-Runs that take screenshots go one at a time on this Mac: a run waits while
-another worktree's run has the simulator and ports, then starts by itself.
-Start it and let it wait; don't poll for other runs.`;
+iOS steps go one at a time on this Mac: a run waits while another worktree's
+run has the simulator, then carries on by itself. Start it and let it wait;
+don't poll for other runs. Web steps don't wait: each run picks free ports
+(VERIFY_CONVEX_PORT, VERIFY_CONVEX_SITE_PORT, VERIFY_METRO_PORT and
+VERIFY_WEB_PORT fix them).`;
 
 const parseArgs = (argv) => {
   const flags = new Set();
@@ -73,26 +84,15 @@ const parseArgs = (argv) => {
   };
 };
 
-// Another worktree's run may hold the defaults; VERIFY_*_PORT moves this one.
-// Node's fetch refuses these ports (undici's bad-ports list, 1024 and up), so
-// the readiness checks would time out against them.
-const FETCH_BLOCKED_PORTS = new Set([
-  1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669,
-  6679, 6697, 10080,
-]);
-const port = (name, value, fallback) => {
-  if (value === undefined || value === "") return fallback;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 1024 || n > 65535) throw new Error(`${name}=${value} isn't a port`);
-  if (FETCH_BLOCKED_PORTS.has(n)) throw new Error(`${name}=${value} is a port Node's fetch refuses; pick another`);
-  return n;
-};
-const PORTS = {
-  convex: port("VERIFY_CONVEX_PORT", process.env.VERIFY_CONVEX_PORT, 3270),
-  convexSite: port("VERIFY_CONVEX_SITE_PORT", process.env.VERIFY_CONVEX_SITE_PORT, 3271),
-  metro: port("VERIFY_METRO_PORT", process.env.VERIFY_METRO_PORT, 8092),
-  web: port("VERIFY_WEB_PORT", process.env.VERIFY_WEB_PORT, 8192),
-};
+// Picked and reserved before the first screen step (verifyPorts.mjs): the
+// first free port from each default up, unless VERIFY_*_PORT fixes it.
+const PORT_ROLES = [
+  { name: "convex", variable: "VERIFY_CONVEX_PORT", preferred: 3270 },
+  { name: "convexSite", variable: "VERIFY_CONVEX_SITE_PORT", preferred: 3271 },
+  { name: "web", variable: "VERIFY_WEB_PORT", preferred: 8192, web: true },
+  { name: "metro", variable: "VERIFY_METRO_PORT", preferred: 8092, ios: true },
+];
+let PORTS = null;
 const BUNDLE_ID = "au.org.sow.theshed";
 const APP_SCHEME = "theshedmobile";
 const DEV_CLIENT_SCHEME = "exp+the-shed-mobile";
@@ -226,11 +226,12 @@ const printPlan = (plan, mergeBase, args) => {
   }
 };
 
-// Held from the first screen step until everything is stopped. Given back
-// on every way out: return, crash, Ctrl-C, SIGTERM, a closed terminal. A run
-// killed outright leaves it behind, and the next run takes it over once the
-// holder's pid is gone.
+// Held for each phase's iOS steps only (verifyPhase.mjs). Given back on every
+// way out: return, crash, Ctrl-C, SIGTERM, a closed terminal. A run killed
+// outright leaves it behind, and the next run takes it over once the holder's
+// pid is gone. The port reservations are given back the same way.
 let lock = null;
+let ports = null;
 const releaseLock = () => {
   if (lock) release(LOCK_FILE, lock);
   lock = null;
@@ -242,14 +243,33 @@ const takeLock = async () => {
   await acquire(LOCK_FILE, record, {
     onWait: (holder) => {
       waitedFor = holder;
-      log(`waiting for the run that has the simulator and ports: ${holderText(holder)}`);
+      log(`waiting for the run that has the simulator: ${holderText(holder)}`);
     },
   });
   lock = record;
   const waited = Math.round((Date.now() - started) / 1000);
   return waitedFor ? `took it after waiting ${waited}s for ${holderText(waitedFor)}` : "free, taken at once";
 };
-process.on("exit", releaseLock);
+const releasePorts = () => {
+  ports?.release();
+  ports = null;
+};
+const takePorts = (args) => {
+  const roles = PORT_ROLES.filter((role) => (role.web ? args.web : role.ios ? args.ios : true));
+  ports = reservePorts({
+    roles,
+    env: process.env,
+    dir: PORTS_DIR,
+    record: ownRecord({ root: ROOT, branch: git("rev-parse", "--abbrev-ref", "HEAD") }),
+    listening: (port) => portOwner(port) !== "",
+  });
+  PORTS = ports.ports;
+  return roles.map(({ name }) => `${name} :${PORTS[name]}`).join(", ");
+};
+process.on("exit", () => {
+  releaseLock();
+  releasePorts();
+});
 
 const steps = [];
 const step = async (name, fn, { soft = false } = {}) => {
@@ -344,12 +364,13 @@ const startBackend = async (label, tree, work) => {
   return `${label} functions on :${PORTS.convex}`;
 };
 
-const appEnv = {
+const appEnv = () => ({
   EXPO_PUBLIC_CONVEX_URL: `http://127.0.0.1:${PORTS.convex}`,
   EXPO_PUBLIC_CONVEX_SITE_URL: `http://127.0.0.1:${PORTS.convexSite}`,
   EXPO_PUBLIC_E2E: "1",
   CI: "1",
-};
+  TMPDIR: EXPO_TMP,
+});
 
 const CHECKS_DIR = join(ROOT, "scripts/verify/checks");
 const planChecks = (areas, extension) =>
@@ -364,7 +385,7 @@ const seedVariables = (seed) =>
 const runWeb = async (label, tree, work, routes, roles, out, checks = []) => {
   requireFreePort(PORTS.web);
   start("web", "npx", ["expo", "start", "--web", "--port", String(PORTS.web), "--clear"], {
-    cwd: tree, env: appEnv, marker: `--port ${PORTS.web}`, logFile: join(work, "logs/web.log"),
+    cwd: tree, env: appEnv(), marker: `--port ${PORTS.web}`, logFile: join(work, "logs/web.log"),
   });
   try {
     await waitFor("web server", () => httpOk(`http://localhost:${PORTS.web}/`), 180_000);
@@ -579,7 +600,7 @@ const runIos = async (label, tree, work, routes, smoke, out, udid, checks = []) 
   const metroLog = join(work, "logs/metro.log");
   let frames;
   start("metro", "npx", ["expo", "start", "--dev-client", "--port", String(PORTS.metro), "--clear"], {
-    cwd: tree, env: appEnv, marker: `--port ${PORTS.metro}`, logFile: metroLog,
+    cwd: tree, env: appEnv(), marker: `--port ${PORTS.metro}`, logFile: metroLog,
   });
   try {
     await waitFor("Metro", async () => (await (await fetch(`http://localhost:${PORTS.metro}/status`)).text()).includes("running"), 180_000);
@@ -699,7 +720,7 @@ const main = async () => {
   const plan = planVerification({ changed: files, map: MAP, full: args.full, only: args.only, unattended: args.unattended });
   printPlan(plan, mergeBase, args);
   const holder = currentHolder(LOCK_FILE);
-  if (plan.routes.length > 0) log(holder ? `verify lock: held by ${holderText(holder)}; this run will wait for it` : "verify lock: free");
+  if (plan.routes.length > 0 && args.ios) log(holder ? `simulator lock: held by ${holderText(holder)}; the iOS steps will wait for it` : "simulator lock: free");
   if (plan.tier === "blocked") {
     log("Classify each file above in scripts/verify/feature-map.json (an area, a new area with its routes, core, or static), then rerun.");
     return 3;
@@ -740,7 +761,9 @@ const main = async () => {
     }
 
     if (plan.routes.length > 0 && (args.web || args.ios)) {
-      await step("verify lock", takeLock);
+      await step("ports", () => takePorts(args));
+      rmSync(EXPO_TMP, { recursive: true, force: true });
+      mkdirSync(EXPO_TMP, { recursive: true });
       if (args.web) await step("Playwright Chromium", () => void sh("npx", ["playwright", "install", "chromium"]));
       const udid = args.ios ? simulator(args.device) : null;
       const roles = plan.tier === "full" ? ["out", "leader", "staff", "admin"] : ["out", "admin"];
@@ -755,11 +778,15 @@ const main = async () => {
           if (steps.at(-1).warning) continue;
           const seed = JSON.parse(readFileSync(join(work, "convex/sweep-seed.json"), "utf8"));
           const routes = resolveRoutes(plan.routes, seed);
-          if (args.web) await step(`${label}: web`, () => runWeb(label, tree, work, plan.routes, roles, join(artifacts, label, "web"), planChecks(plan.areas, "web.mjs")), { soft });
-          if (args.ios) {
-            await step(`${label}: iOS reset`, () => resetApp(udid, args.app), { soft });
-            await step(`${label}: iOS`, () => runIos(label, tree, work, routes, MAP.smoke, join(artifacts, label, "ios"), udid, planChecks(plan.areas, "ios.yaml")), { soft });
-          }
+          await runScreens({
+            web: args.web && (() => step(`${label}: web`, () => runWeb(label, tree, work, plan.routes, roles, join(artifacts, label, "web"), planChecks(plan.areas, "web.mjs")), { soft })),
+            ios: args.ios && (async () => {
+              await step(`${label}: iOS reset`, () => resetApp(udid, args.app), { soft });
+              await step(`${label}: iOS`, () => runIos(label, tree, work, routes, MAP.smoke, join(artifacts, label, "ios"), udid, planChecks(plan.areas, "ios.yaml")), { soft });
+            }),
+            lockSimulator: () => step(`${label}: simulator lock`, takeLock),
+            unlockSimulator: releaseLock,
+          });
         } finally {
           for (const file of readdirSync(join(work, "logs"))) copyFileSync(join(work, "logs", file), join(logs, `${label}-${file}`));
           await stopRecorded("convex");
@@ -775,7 +802,9 @@ const main = async () => {
   } finally {
     await stopAll();
     releaseLock();
+    releasePorts();
     rmSync(baseTree, { recursive: true, force: true });
+    rmSync(EXPO_TMP, { recursive: true, force: true });
   }
 
   const summary = [
