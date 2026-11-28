@@ -1,6 +1,7 @@
 # verify: scoped
 
 - because world: src/world/BackyardGuide.tsx
+- because world: src/world/ChatBar.tsx
 - because world: src/world/Farm.tsx
 - because world: src/world/NoticeBoard.tsx
 - because world: src/world/Shop.tsx
@@ -11,17 +12,17 @@
 | Step | Result | Time | Detail |
 | --- | --- | --- | --- |
 | base tree | ✔ pass | 0s |  |
-| native fingerprint | ✔ pass | 8s | unchanged on iOS and Android: over-the-air updates reach current builds |
-| lint | ✔ pass | 127s |  |
+| native fingerprint | ✔ pass | 4s | unchanged on iOS and Android: over-the-air updates reach current builds |
+| lint | ✔ pass | 103s |  |
 | unused code (knip) | ✔ pass | 5s |  |
-| typecheck | ✔ pass | 20s |  |
+| typecheck | ✔ pass | 22s |  |
 | related unit tests | ✔ pass | 1s | 4 passed (4) |
 | verify lock | ✔ pass | 0s | free, taken at once |
 | Playwright Chromium | ✔ pass | 1s |  |
-| before: local backend | ✔ pass | 20s | before functions on :3270 |
-| before: web | ⚠ warning | 249s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check farm-help-notices failed: ✘ a new notice's editor still says "Everyone in the World sees it." ✘ the notice being edited still shows below the editor ✘ the edit's editor still says "Everyone in the World sees it." ✘ the Animals and feed tab has no grain ✘ the Animals and feed tab has no hay ✘ t |
-| after: local backend | ✔ pass | 20s | after functions on :3270 |
-| after: web | ✘ fail | 460s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check mahjong failed: ✘ watcher: sitting in a bot's seat didn't ask to take it over |
+| before: local backend | ✔ pass | 21s | before functions on :3270 |
+| before: web | ⚠ warning | 261s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade.; check farm-help-notices failed: ✘ a new notice's editor still says "Everyone in the World sees it." ✘ the notice being edited still shows below the editor ✘ the edit's editor still says "Everyone in the World sees it." ✘ the Animals and feed tab has no grain ✘ the Animals and feed tab has no hay ✘ t |
+| after: local backend | ✔ pass | 21s | after functions on :3270 |
+| after: web | ✔ pass | 553s | 20 screens, 0 broken, still moving: admin-world, admin-world_sheet_poke, admin-world_sheet_arcade. Checks passed: farm-help-notices, chapel-pews, arcade-podium, rps-ask, backyard-chat, outfits, eye-shapes, character-camera, steps-drag, mahjong, world-fullscreen, home-furniture. |
 
 ## Screenshots
 
