@@ -258,19 +258,19 @@ const BestBadge = ({ state }: { state: HopState }) => {
 const fillOf = (kind: HopPlatform["kind"]) =>
   kind === "moving" ? c.moving : kind === "breakable" ? c.breakable : kind === "oneBounce" ? c.oneBounce : c.normal;
 
-const PlatformShape = ({ kind, outline }: { kind: HopPlatform["kind"]; outline: string }) => (
+const PlatformShape = ({ kind, width, outline }: { kind: HopPlatform["kind"]; width: number; outline: string }) => (
   <View
     style={[
       styles.platform,
-      { backgroundColor: fillOf(kind), borderColor: outline },
+      { width, backgroundColor: fillOf(kind), borderColor: outline },
       kind === "oneBounce" && styles.platformDashed,
     ]}
   >
     <View style={[styles.platformStroke, { backgroundColor: c.oneBounce }]} />
     {kind === "breakable" ? (
       <>
-        <View style={[styles.crack, styles.crackA, { backgroundColor: c.crack }]} />
-        <View style={[styles.crack, styles.crackB, { backgroundColor: c.crack }]} />
+        <View style={[styles.crack, styles.crackA, { left: width / 2 - 4, backgroundColor: c.crack }]} />
+        <View style={[styles.crack, styles.crackB, { left: width / 2 + 2, backgroundColor: c.crack }]} />
       </>
     ) : null}
   </View>
@@ -353,23 +353,24 @@ const Platforms = ({ state, outline }: { state: HopState; outline: string }) => 
       const landed = platform.landedAt !== null && state.time - platform.landedAt < HOP.landSeconds;
       const squash = landed ? 1 - 0.25 * Math.sin(((state.time - (platform.landedAt ?? 0)) / HOP.landSeconds) * Math.PI) : 1;
       const track = platform.track;
+      const w = platform.width;
       return (
         <View key={platform.id} pointerEvents="none">
-          {track ? <Track left={track.centre - track.range - PW / 2} top={y + PH / 2 - 1} width={track.range * 2 + PW} /> : null}
-          {seamCopies(platform.x, PW / 2, state.width).map((x) => (
+          {track ? <Track left={track.centre - track.range - w / 2} top={y + PH / 2 - 1} width={track.range * 2 + w} /> : null}
+          {seamCopies(platform.x, w / 2, state.width).map((x) => (
             <View
               key={`p-${x > platform.x ? "r" : x < platform.x ? "l" : "m"}`}
               testID={`hop-platform-${platform.kind}`}
-              style={[styles.platformAt, { transform: [{ translateX: x - PW / 2 }, { translateY: y }, { scaleY: squash }] }]}
+              style={[styles.platformAt, { width: w, transform: [{ translateX: x - w / 2 }, { translateY: y }, { scaleY: squash }] }]}
             >
-              <PlatformShape kind={platform.kind} outline={outline} />
+              <PlatformShape kind={platform.kind} width={w} outline={outline} />
               {platform.spring ? (
-                <View style={[styles.onTop, { left: PW / 2 + platform.spring.offset - HOP.spring.width / 2 }]}>
+                <View style={[styles.onTop, { left: w / 2 + platform.spring.offset - HOP.spring.width / 2 }]}>
                   <Spring time={state.time} firedAt={platform.spring.firedAt} outline={outline} />
                 </View>
               ) : null}
               {platform.item ? (
-                <View style={[styles.onTop, { left: PW / 2 + platform.item.offset - HOP.item.size / 2 }]}>
+                <View style={[styles.onTop, { left: w / 2 + platform.item.offset - HOP.item.size / 2 }]}>
                   <Item kind={platform.item.kind} />
                 </View>
               ) : null}
@@ -400,10 +401,11 @@ const Effect = ({ effect, state, outline }: { effect: HopEffect; state: HopState
             style={[
               styles.half,
               {
+                width: effect.width / 2,
                 backgroundColor: c.breakable,
                 borderColor: outline,
                 transform: [
-                  { translateX: x + (side < 0 ? -PW / 2 : 0) + side * age * 40 },
+                  { translateX: x + (side < 0 ? -effect.width / 2 : 0) + side * age * 40 },
                   { translateY: y + drop },
                   { rotate: `${side * age * 260}deg` },
                 ],
@@ -414,7 +416,7 @@ const Effect = ({ effect, state, outline }: { effect: HopEffect; state: HopState
         {FRAGMENTS.map((f) => (
           <View
             key={`bit-${f}`}
-            style={[styles.bit, { backgroundColor: c.crack, transform: [{ translateX: x + f * 30 + f * age * 60 }, { translateY: y + 4 + drop * 1.2 }] }]}
+            style={[styles.bit, { backgroundColor: c.crack, transform: [{ translateX: x + f * (effect.width / 2 - 2) + f * age * 60 }, { translateY: y + 4 + drop * 1.2 }] }]}
           />
         ))}
       </View>
@@ -765,8 +767,8 @@ const styles = StyleSheet.create({
   platformDashed: { borderStyle: "dashed", opacity: 0.85 },
   platformStroke: { position: "absolute", left: 8, right: 14, top: 2, height: 2, borderRadius: 1, opacity: 0.45 },
   crack: { position: "absolute", top: 0, width: 2, height: PH },
-  crackA: { left: PW / 2 - 4, transform: [{ rotate: "24deg" }] },
-  crackB: { left: PW / 2 + 2, transform: [{ rotate: "-28deg" }] },
+  crackA: { transform: [{ rotate: "24deg" }] },
+  crackB: { transform: [{ rotate: "-28deg" }] },
   onTop: { position: "absolute", bottom: PH - 1 },
   spring: { width: HOP.spring.width, justifyContent: "flex-end" },
   springTop: { position: "absolute", top: 0, left: 0, right: 0, height: 4, borderRadius: 2, borderWidth: 1 },

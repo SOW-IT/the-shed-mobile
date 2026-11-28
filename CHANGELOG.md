@@ -17,6 +17,14 @@ All notable changes to **The SHED** mobile app. This project follows
   held.** Holding left and pressing right goes right straight away; let go
   of right and you're straight back to left. The same with ←/→ and A/D on a
   computer.
+- **Hop keeps getting harder the higher you go.** It used to stop getting
+  harder at 4,500. Now it keeps climbing, more gently the higher you are.
+  From 1,200 some platforms are narrower (down to just wider than you, the
+  higher you go), and so are some of the breakable ones. Moving platforms
+  speed up all the way. From 2,000 some breakable platforms slide, and from
+  2,600 some one-bounce platforms slide too. Narrow moving platforms mix in
+  as well. Every platform you need is still always reachable, and breakable
+  ones are never the only way up.
 
 ## [2.14.2] - 2026-11-28
 

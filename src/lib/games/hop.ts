@@ -17,6 +17,8 @@ export type HopPlatform = {
   /** The middle of its top edge. */
   x: number;
   y: number;
+  /** Narrower higher up; HOP.platform.width at most. */
+  width: number;
   /** A moving platform's track: its middle, how far either side it goes, and how fast. */
   track?: { centre: number; range: number; speed: number; dir: 1 | -1 };
   spring?: { offset: number; firedAt: number | null };
@@ -28,7 +30,7 @@ export type HopPlatform = {
 
 type EffectAt = { x: number; y: number; at: number };
 type EffectBody =
-  | (EffectAt & { kind: "break" })
+  | (EffectAt & { kind: "break"; width: number })
   | (EffectAt & { kind: "chalk" })
   | (EffectAt & { kind: "pickup"; boost: BoostKind })
   | (EffectAt & { kind: "drop"; boost: BoostKind; vx: number; facing: -1 | 1 });
@@ -81,7 +83,6 @@ export const HOP_MAX_SCORE = SCORE_LIMITS[CURRENT_GAME_VERSION.hop].hop.max;
 
 const g = HOP.gravity;
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-const lerp = ([from, to]: readonly [number, number], t: number) => from + (to - from) * t;
 
 export const wrapX = (x: number, width: number) => ((x % width) + width) % width;
 
@@ -168,32 +169,53 @@ export const flightRise = (kind: BoostKind) => flightClimb(kind, flightOf(kind).
 export const CORRIDOR_DEPTH = 380;
 
 const pointsAt = (altitude: number) => Math.max(0, altitude) / HOP.unitsPerPoint;
-const levelAt = (points: number) => clamp01(points / HOP_LEVELS.peak);
-const after = (points: number, from: number, range: readonly [number, number]) =>
-  points < from ? 0 : lerp(range, clamp01((points - from) / (HOP_LEVELS.peak - from)));
+/**
+ * A number of the climb at this many points: from its first value at
+ * `from` straight up to its second at the peak, then on toward its third,
+ * slowing as it goes, at the same rate where the two meet so there's no
+ * kink. Below `from` it's the first value.
+ */
+export const climb = (points: number, from: number, [start, atPeak, ceiling]: readonly [number, number, number]) => {
+  const { peak } = HOP_LEVELS;
+  if (points <= from) return start;
+  if (points <= peak) return start + ((atPeak - start) * (points - from)) / (peak - from);
+  const slope = (atPeak - start) / (peak - from);
+  const room = ceiling - atPeak;
+  // Flat at the peak, or a ceiling the other way: it holds.
+  if (slope === 0 || room === 0 || room / slope <= 0) return atPeak;
+  return atPeak + room * (1 - Math.exp(-((points - peak) * slope) / room));
+};
 
-/** How hard the climb is at this many points: the gap range and each platform's chance. */
+/** A chance that's nothing until `from` points, then climbs. */
+const after = (points: number, from: number, range: readonly [number, number, number]) => (points < from ? 0 : climb(points, from, range));
+
+/** How hard the climb is at this many points: the gap range, each platform's chance, and how small and fast they get. */
 export const hopDifficulty = (points: number) => {
-  const t = levelAt(points);
+  const d = HOP_DIFFICULTY;
+  const p = Math.max(0, points);
   return {
-    gapMin: lerp(HOP_DIFFICULTY.gapMin, t),
-    gapMax: Math.min(MAX_ROUTE_GAP, lerp(HOP_DIFFICULTY.gapMax, t)),
-    moving: after(points, HOP_LEVELS.moving, HOP_DIFFICULTY.movingChance),
-    movingSpeed: lerp(HOP_DIFFICULTY.movingSpeed, t),
-    movingRange: lerp(HOP_DIFFICULTY.movingRange, t),
-    breakable: after(points, HOP_LEVELS.breakable, HOP_DIFFICULTY.breakableChance),
-    oneBounce: after(points, HOP_LEVELS.oneBounce, HOP_DIFFICULTY.oneBounceChance),
-    oneBounceDecoy: after(points, HOP_LEVELS.oneBounce, HOP_DIFFICULTY.oneBounceDecoyChance),
-    spring: lerp(HOP_DIFFICULTY.springChance, t),
-    propeller: points < HOP_LEVELS.propeller ? 0 : HOP_DIFFICULTY.propellerChance,
-    jetpack: points < HOP_LEVELS.jetpack ? 0 : HOP_DIFFICULTY.jetpackChance,
+    gapMin: climb(p, 0, d.gapMin),
+    gapMax: Math.min(MAX_ROUTE_GAP, climb(p, 0, d.gapMax)),
+    moving: after(p, HOP_LEVELS.moving, d.movingChance),
+    movingSpeed: climb(p, 0, d.movingSpeed),
+    movingRange: climb(p, 0, d.movingRange),
+    breakable: after(p, HOP_LEVELS.breakable, d.breakableChance),
+    oneBounce: after(p, HOP_LEVELS.oneBounce, d.oneBounceChance),
+    oneBounceDecoy: after(p, HOP_LEVELS.oneBounce, d.oneBounceDecoyChance),
+    small: after(p, HOP_LEVELS.small, d.smallChance),
+    smallWidth: climb(p, HOP_LEVELS.small, d.smallWidth),
+    breakableMoving: after(p, HOP_LEVELS.breakableMoving, d.breakableMovingChance),
+    oneBounceMoving: after(p, HOP_LEVELS.oneBounceMoving, d.oneBounceMovingChance),
+    spring: climb(p, 0, d.springChance),
+    propeller: p < HOP_LEVELS.propeller ? 0 : d.propellerChance,
+    jetpack: p < HOP_LEVELS.jetpack ? 0 : d.jetpackChance,
   };
 };
 
 const PW = HOP.platform.width;
 
-const addPlatform = (state: HopState, platform: Omit<HopPlatform, "id" | "landedAt">) => {
-  const made: HopPlatform = { ...platform, id: state.nextId++, landedAt: null };
+const addPlatform = (state: HopState, platform: Omit<HopPlatform, "id" | "landedAt" | "width"> & { width?: number }) => {
+  const made: HopPlatform = { width: PW, ...platform, id: state.nextId++, landedAt: null };
   state.platforms.push(made);
   return made;
 };
@@ -203,9 +225,24 @@ const inCorridor = (state: HopState, y: number) => state.corridors.some((c) => y
 /** Far enough from a platform (and its whole track) not to crowd it. */
 const clearOf = (state: HopState, x: number, platform: { x: number; track?: HopPlatform["track"] }) => {
   const centre = platform.track?.centre ?? platform.x;
-  const range = platform.track?.range ?? 0;
-  return seamDistance(x, centre, state.width) > PW + 8 + range;
+  return seamDistance(x, centre, state.width) > PW + 8 + (platform.track?.range ?? 0);
 };
+
+/**
+ * How far either side of a platform's middle the route treats a landing on
+ * it as being: anywhere along its track, and the width it's short of a full
+ * platform, since a narrow one needs you nearer its middle.
+ */
+export const landingSpread = (platform: Pick<HopPlatform, "width" | "track">) =>
+  (platform.track?.range ?? 0) + (PW - platform.width) / 2;
+
+/** A track for a platform at x, this far either side, at this level's speed. */
+const trackFor = (state: HopState, x: number, range: number, speed: number): NonNullable<HopPlatform["track"]> => ({
+  centre: x,
+  range,
+  speed: speed * between(state, 0.8, 1.1),
+  dir: random(state) < 0.5 ? -1 : 1,
+});
 
 const addCorridor = (state: HopState, corridor: Corridor) => {
   state.corridors.push(corridor);
@@ -217,7 +254,7 @@ const addExtras = (state: HopState, platform: HopPlatform, points: number) => {
   const level = hopDifficulty(points);
   if (platform.y < state.boostClearAt) return;
   const roll = random(state);
-  const offset = between(state, -PW / 2 + 14, PW / 2 - 14);
+  const offset = between(state, -platform.width / 2 + 14, platform.width / 2 - 14);
   if (roll < level.jetpack || roll < level.jetpack + level.propeller) {
     const kind: BoostKind = roll < level.jetpack ? "jetpack" : "propeller";
     platform.item = { kind, offset };
@@ -244,17 +281,22 @@ const addRouteStep = (state: HopState) => {
   let kind: PlatformKind = "normal";
   if (!corridor && roll < level.moving) kind = "moving";
   else if (!corridor && roll < level.moving + level.oneBounce) kind = "oneBounce";
+  // Higher up, one-bounce platforms slide too, and any of them can be narrow.
+  const slides = kind === "moving" || (kind === "oneBounce" && random(state) < level.oneBounceMoving);
+  let platformWidth = !corridor && random(state) < level.small ? level.smallWidth : PW;
 
   let placed: { x: number; range: number } | null = null;
   for (let attempt = 0; attempt < 12 && placed === null; attempt++) {
-    const range = kind === "moving" ? between(state, level.movingRange * 0.6, level.movingRange) : 0;
+    const range = slides ? between(state, level.movingRange * 0.6, level.movingRange) : 0;
     const x = corridor ? between(state, 0, width) : between(state, PW / 2 + range, width - PW / 2 - range);
-    if (worstTrip(prev.x, prev.spread, x, range, width) <= routeReach(dy)) placed = { x, range };
+    const spread = landingSpread({ width: platformWidth, track: range > 0 ? { centre: x, range, speed: 0, dir: 1 } : undefined });
+    if (worstTrip(prev.x, prev.spread, x, spread, width) <= routeReach(dy)) placed = { x, range };
     else if (attempt % 2 === 1) dy = Math.max(level.gapMin * 0.5, dy * 0.88);
   }
   if (placed === null) {
     // Straight above, low enough that any jump reaches it from anywhere.
     kind = "normal";
+    platformWidth = PW;
     dy = Math.min(dy, 60);
     placed = { x: prev.x, range: 0 };
   }
@@ -263,17 +305,9 @@ const addRouteStep = (state: HopState) => {
     kind,
     x: placed.x,
     y,
+    width: platformWidth,
     route: true,
-    ...(kind === "moving"
-      ? {
-          track: {
-            centre: placed.x,
-            range: placed.range,
-            speed: level.movingSpeed * between(state, 0.8, 1.1),
-            dir: random(state) < 0.5 ? -1 : 1,
-          },
-        }
-      : {}),
+    ...(placed.range > 0 ? { track: trackFor(state, placed.x, placed.range, level.movingSpeed) } : {}),
   });
   if (platform.track) platform.x = platform.track.centre + between(state, -platform.track.range, platform.track.range);
   let spread = placed.range;
@@ -285,11 +319,22 @@ const addRouteStep = (state: HopState) => {
   } else {
     if (kind === "normal") addExtras(state, platform, points);
     if (random(state) < level.breakable) {
-      const decoyY = y + between(state, -24, 24);
+      // Higher up, decoys slide and come narrow too. One that slides sits
+      // well above or below the route platform, so it passes it by.
+      const range = random(state) < level.breakableMoving ? between(state, level.movingRange * 0.5, level.movingRange) : 0;
+      const decoyWidth = random(state) < level.small ? level.smallWidth : PW;
+      const decoyY = range > 0 ? y + (random(state) < 0.5 ? -1 : 1) * between(state, 30, 40) : y + between(state, -24, 24);
       for (let attempt = 0; attempt < 6; attempt++) {
-        const x = between(state, PW / 2, width - PW / 2);
+        const x = between(state, PW / 2 + range, width - PW / 2 - range);
         if (clearOf(state, x, platform) && seamDistance(x, prev.x, width) > PW + 8 + prev.spread) {
-          addPlatform(state, { kind: "breakable", x, y: decoyY, route: false });
+          addPlatform(state, {
+            kind: "breakable",
+            x,
+            y: decoyY,
+            width: decoyWidth,
+            route: false,
+            ...(range > 0 ? { track: trackFor(state, x, range, level.movingSpeed) } : {}),
+          });
           break;
         }
       }
@@ -299,7 +344,7 @@ const addRouteStep = (state: HopState) => {
       for (let attempt = 0; attempt < 6; attempt++) {
         const x = between(state, PW / 2, width - PW / 2);
         // Bouncing off it by accident must still reach the route.
-        const reaches = worstTrip(x, 0, placed.x, placed.range, width) <= routeReach(y - decoyY);
+        const reaches = worstTrip(x, 0, placed.x, landingSpread(platform), width) <= routeReach(y - decoyY);
         if (reaches && clearOf(state, x, platform) && seamDistance(x, prev.x, width) > PW + 8 + prev.spread) {
           addPlatform(state, { kind: "oneBounce", x, y: decoyY, route: false });
           break;
@@ -441,7 +486,7 @@ const firstContact = (
       // Where it was at that moment: from where and which way it was going at
       // the start of the step, turning at the end of its track if it got there.
       const centre = trackAt(before.get(platform.id) ?? platform, at) + (spring && platform.spring ? platform.spring.offset : 0);
-      const reach = (spring ? HOP.spring.width : PW) / 2 + half;
+      const reach = (spring ? HOP.spring.width : platform.width) / 2 + half;
       if (seamDistance(feet, centre, state.width) > reach) continue;
       const better =
         best === null ||
@@ -481,7 +526,7 @@ const fall = (state: HopState, dt: number, x0: number, before: ReadonlyMap<numbe
     } else if (platform.kind === "breakable") {
       // Snaps under you: no bounce, and you keep falling.
       gone.add(platform.id);
-      addEffect(state, { kind: "break", x: platform.x, y: platform.y, at });
+      addEffect(state, { kind: "break", x: platform.x, y: platform.y, width: platform.width, at });
     } else {
       vy = HOP.jumpSpeed;
       state.landedAt = at;
@@ -598,7 +643,6 @@ export const stepHop = (previous: HopState, dt: number): HopState => {
  */
 export const autoSteer = (state: HopState): -1 | 0 | 1 => {
   if (state.flight || state.dying || state.over) return 0;
-  const half = PW / 2 + HOP.box.width / 2;
   let target: { x: number; y: number; t: number } | null = null;
   for (const platform of state.platforms) {
     if (!platform.route) continue;
@@ -607,6 +651,7 @@ export const autoSteer = (state: HopState): -1 | 0 | 1 => {
     const t = (state.vy + Math.sqrt(disc)) / g;
     if (t < 0.02) continue;
     const x = trackAt(platform, t);
+    const half = platform.width / 2 + HOP.box.width / 2;
     const reachable = seamDistance(state.x, x, state.width) - half + 8 <= sideReach(t) + Math.abs(state.vx) * 0.1;
     if (reachable && (target === null || platform.y > target.y)) target = { x, y: platform.y, t };
   }
@@ -697,6 +742,8 @@ export const HOP_PREVIEWS = [
   "propellerleft",
   "jetpack",
   "drop",
+  "high",
+  "summit",
 ] as const;
 export type HopPreview = (typeof HOP_PREVIEWS)[number];
 
@@ -716,6 +763,9 @@ const PREVIEW_POINTS: Record<HopPreview, number> = {
   propellerleft: 600,
   jetpack: 1800,
   drop: 900,
+  // Past the peak: narrow, fast and sliding platforms, and their mixes.
+  high: 7000,
+  summit: 12_000,
 };
 
 /**
@@ -736,7 +786,7 @@ export const previewHop = (preview: HopPreview, width: number, height: number): 
   const mid = state.time - 0.22;
   const nearby = (y: number) => ({ x: width * 0.7, y });
   if (preview === "crossed") state.bestAt = state.time - 0.2;
-  if (preview === "break") addEffect(state, { kind: "break", ...nearby(state.y - 20), at: mid });
+  if (preview === "break") addEffect(state, { kind: "break", ...nearby(state.y - 20), width: PW, at: mid });
   if (preview === "onebounce") addEffect(state, { kind: "chalk", ...nearby(state.y - 10), at: mid });
   if (preview === "spring") {
     const under = { kind: "normal" as const, x: state.x, y: state.y - 60, route: true, spring: { offset: 0, firedAt: state.time - 0.08 } };
