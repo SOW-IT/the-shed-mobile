@@ -106,6 +106,7 @@ export const Screen = ({
               {onBack ? (
                 <Pressable
                   onPress={onBack}
+                  hitSlop={8}
                   accessibilityRole="button"
                   accessibilityLabel="Go back"
                   style={({ pressed }) => [styles.headerBack, pressed && { opacity: 0.6 }]}

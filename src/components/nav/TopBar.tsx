@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { UpdateButton } from "@/components/AppUpdatePrompt";
@@ -69,6 +69,7 @@ export const TopBar = ({
         {onBack ? (
           <Pressable
             onPress={onBack}
+            hitSlop={NATIVE_HIT_SLOP}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             testID="top-bar-back"
@@ -123,6 +124,7 @@ export const TopBar = ({
               onPress={() => router.push("/notifications")}
               onPressIn={bell.onPressIn}
               onPressOut={bell.onPressOut}
+              hitSlop={NATIVE_HIT_SLOP}
               accessibilityRole="button"
               accessibilityLabel={
                 unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
@@ -149,6 +151,9 @@ export const TopBar = ({
   );
 };
 
+// Native only: react-native-web ignores hitSlop, so web gets bigger boxes.
+const NATIVE_HIT_SLOP = 8;
+
 const styles = StyleSheet.create({
   topBar: {
     flexDirection: "row",
@@ -157,10 +162,17 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  // 44pt targets. hitSlop doesn't reach web, so the box itself is the target;
-  // negative margins keep the icons where they were.
-  backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginLeft: -10 },
-  bellBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", margin: -10 },
+  backBtn: Platform.select({
+    // hitSlop doesn't reach web, so there the box itself is the 44pt target;
+    // the margins keep the chevron where it was and the bar 56pt tall.
+    web: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginLeft: -10, marginVertical: -2 },
+    // Native keeps its box inside the bar and reaches 44pt+ with hitSlop.
+    default: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 },
+  }),
+  bellBtn: Platform.select({
+    web: { width: 44, height: 44, alignItems: "center", justifyContent: "center", margin: -10 },
+    default: {},
+  }),
   center: {
     position: "absolute",
     top: 0,

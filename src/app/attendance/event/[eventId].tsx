@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import type { FunctionReturnType } from "convex/server";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -1236,6 +1237,7 @@ export default function EventAttendanceScreen() {
         if (!canEdit) return;
         setEventEditOpen(true);
       }}
+      hitSlop={PILL_HIT_SLOP}
       style={({ pressed }) => [
         styles.actionTarget,
         { opacity: canEdit ? 1 : 0.4 },
@@ -1256,6 +1258,7 @@ export default function EventAttendanceScreen() {
           : "Self check-in"
       }
       onPress={() => setCheckInOpen(true)}
+      hitSlop={PILL_HIT_SLOP}
       style={({ pressed }) => [styles.actionTarget, pressed && { opacity: 0.7 }]}
     >
       <View
@@ -1284,6 +1287,7 @@ export default function EventAttendanceScreen() {
       accessibilityRole="button"
       accessibilityLabel="Export event attendance"
       onPress={() => setExportOpen(true)}
+      hitSlop={PILL_HIT_SLOP}
       style={({ pressed }) => [styles.actionTarget, pressed && { opacity: 0.7 }]}
     >
       <View style={[styles.editEventButton, { borderColor: t.primary }]}>
@@ -1508,6 +1512,9 @@ export default function EventAttendanceScreen() {
   );
 }
 
+// Native only (react-native-web ignores hitSlop): 27pt pills reach 45pt.
+const PILL_HIT_SLOP = { top: 9, bottom: 9, left: 2, right: 2 };
+
 const styles = StyleSheet.create({
   headerMeta: {
     alignItems: "flex-end",
@@ -1533,15 +1540,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  // The pills are 27pt tall; this transparent box around each makes the tap
-  // target 44pt without moving them (hitSlop doesn't reach web).
-  actionTarget: {
-    minHeight: 44,
-    minWidth: 44,
-    marginVertical: -8.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  // The pills are 27pt tall. On web (no hitSlop) a transparent box around
+  // each makes the target 44pt without moving them; native uses hitSlop.
+  actionTarget: Platform.select({
+    web: { minHeight: 44, minWidth: 44, marginVertical: -8.5, alignItems: "center", justifyContent: "center" },
+    default: {},
+  }),
   editEventButton: {
     borderWidth: 1.5,
     borderRadius: radius.full,
