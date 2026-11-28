@@ -117,6 +117,41 @@ const strips = (
 };
 
 /**
+ * Draws `children` (in world coordinates) clipped to x in [left, right] and
+ * world height in [low, high]. Used at a flag so the rotated band and grass
+ * pieces of one island can't poke across it into the other's ground.
+ */
+const ClipX = ({ left, right, low, high, children }: { left: number; right: number; low: number; high: number; children: ReactNode }) => (
+  <View style={[styles.clip, { left, top: -high, width: right - left, height: high - low }]}>
+    <View style={[styles.clipInner, { left: -left, top: high }]}>{children}</View>
+  </View>
+);
+
+/**
+ * Splits a chunk's strips at its flag and clips each side to its own ground.
+ * The old island's side reaches half a unit past the flag, under the new
+ * island's side (drawn after it), so no seam shows between them.
+ */
+const atFlag = (parts: Strip[], props: ChunkProps, draw: (pieces: Strip[]) => ReactNode) => {
+  const { splitX, index, strip, chunkStrips, floor } = props;
+  if (splitX === null) return draw(parts);
+  const start = index * strip * chunkStrips;
+  const end = start + strip * chunkStrips;
+  const high = Math.max(...parts.map((p) => Math.max(p.y0, p.y1))) + 40;
+  const low = Math.min(floor, ...parts.map((p) => Math.min(p.y0, p.y1))) - 40;
+  return (
+    <>
+      <ClipX left={start - 40} right={splitX + 0.5} low={low} high={high}>
+        {draw(parts.filter((p) => p.x0 < splitX))}
+      </ClipX>
+      <ClipX left={splitX} right={end + 40} low={low} high={high}>
+        {draw(parts.filter((p) => p.x0 >= splitX))}
+      </ClipX>
+    </>
+  );
+};
+
+/**
  * One chunk of earth. Each strip is a column up to its lower end, under a
  * band turned along the slope, so the hill's outline is smooth rather than
  * stepped. Strip width scales up with camera zoom (LOD) so flying high never
@@ -124,9 +159,8 @@ const strips = (
  * the chunk, ground past the flag already wears the next island's colour.
  */
 const EarthChunk = memo(function EarthChunk(props: ChunkProps) {
-  const parts = strips(props);
   const { floor } = props;
-  return (
+  return atFlag(strips(props), props, (parts) => (
     <>
       {parts.map(({ key, x0, w, y0, y1, fill }) => (
         <View
@@ -151,14 +185,14 @@ const EarthChunk = memo(function EarthChunk(props: ChunkProps) {
         />
       ))}
     </>
-  );
+  ));
 }, sameChunk);
 
 /** The grass along one chunk's top, drawn over all the earth so no strip covers its neighbour's. */
 const GrassChunk = memo(function GrassChunk(props: ChunkProps) {
-  return (
+  return atFlag(strips(props), props, (parts) => (
     <>
-      {strips(props).map(({ key, x0, w, y0, y1, fill }) => (
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
         <View
           key={`g${key}`}
           style={[
@@ -174,7 +208,7 @@ const GrassChunk = memo(function GrassChunk(props: ChunkProps) {
         />
       ))}
     </>
-  );
+  ));
 }, sameChunk);
 
 /** Soft clouds drifting along the Cloudtouch ceiling band so players see the height goal. */
@@ -727,6 +761,8 @@ const styles = StyleSheet.create({
   column: { position: "absolute", backgroundColor: c.ground },
   band: { position: "absolute", backgroundColor: c.ground, transformOrigin: "top left" },
   grass: { position: "absolute", height: GRASS, backgroundColor: c.grass, transformOrigin: "top left" },
+  clip: { position: "absolute", overflow: "hidden" },
+  clipInner: { position: "absolute", width: 0, height: 0 },
   flag: { position: "absolute", width: 60, height: 96 },
   pole: { position: "absolute", left: 0, top: 0, width: 6, height: 96, borderRadius: 3 },
   pennant: {

@@ -991,6 +991,7 @@ describe("score", () => {
     expect(mult).toBe(GLIDER.doubleFeverMultiplier);
     // A flight scores at most once each: a perfect landing (needs perfectAir
     // in the air), a Cloudtouch, and big-flight points (needs longFlight).
+    // This counts the Cloudtouch even on the shortest perfect flight.
     // Its points over its air time give the rate; time on the ground in
     // between only lowers it.
     const flightRate = Math.max(
@@ -1000,13 +1001,42 @@ describe("score", () => {
         return ((GLIDER.perfectPoints * GLIDER.maxStreak + GLIDER.cloudPoints + flight) * mult) / air;
       })
     );
+    // Cloudtouch can come before perfectAir, so a flight whose only award is
+    // a Cloudtouch needs its own rate. Launch straight off the ground at the
+    // top speed, at every angle and across worlds, and time the shortest
+    // climb into the band; then halve it to leave room for peakRef lagging
+    // the hills during a real run.
+    let fastestClimb = Infinity;
+    for (const world of [1, 4, 8, 16, 32]) {
+      const run = newGlider(3, 2, world);
+      for (let k = 0; k < 30; k++) {
+        const x = 300 + k * 151;
+        for (const angle of [0.5, 0.8, 1.1, 1.35, 1.5]) {
+          let flight: GliderState = {
+            ...run,
+            x,
+            y: groundAt(run.hills, x).y,
+            peakRef: localPeak(run.hills, x),
+            grounded: false,
+            vx: top * Math.cos(angle),
+            vy: top * Math.sin(angle),
+            feverLevel: 2,
+            fever: true,
+          };
+          for (let i = 0; i < 240 && !flight.grounded && flight.cloudTouches === 0; i++) flight = stepGlider(hold(flight, false), FRAME);
+          if (flight.cloudTouches > 0) fastestClimb = Math.min(fastestClimb, flight.air);
+        }
+      }
+    }
+    expect(fastestClimb).toBeGreaterThanOrEqual(GLIDER.cloudAbovePeaks / top);
+    const cloudOnlyRate = (GLIDER.cloudPoints * mult) / (fastestClimb / 2);
     const worldBonusPerSecond = Math.max(
       ...Array.from({ length: 300 }, (_, i) => {
         const rules = worldRules(i + 1);
         return (worldBonus(rules.world) + rules.day * GLIDER.daylightPoints) / (rules.length / top);
       })
     );
-    const perSecond = top / GLIDER.unitsPerPoint + flightRate + worldBonusPerSecond;
+    const perSecond = top / GLIDER.unitsPerPoint + Math.max(flightRate, cloudOnlyRate) + worldBonusPerSecond;
     expect(perSecond).toBeLessThanOrEqual(limit.perSecond);
     // A run scoring at that bound the whole way is still accepted.
     const durationMs = 10 * 60_000;
