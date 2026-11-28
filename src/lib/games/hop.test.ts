@@ -151,6 +151,22 @@ describe("bouncing", () => {
     expect(state.vy).toBeGreaterThan(0);
   });
 
+  test("a moving platform that turns at the end of its track during a step is caught where it really was", () => {
+    // Heading right, 10 short of the end: in 0.05 s it reaches the end and comes back 10.
+    const track = { centre: W / 2, range: 60, speed: 400, dir: 1 as const };
+    const end = W / 2 + 60;
+    const vy = -200;
+    const tau = 0.05;
+    const y = -vy * tau + 0.5 * HOP.gravity * tau * tau;
+    // You're in reach of where it turned back to, but not of where it would be
+    // had it gone the way it faces after the step (end - 30).
+    const start = bare([{ kind: "moving", y: 0, x: end - 10, track }], { y, vy, x: end - 10 + HALF_OVERLAP - 2 });
+    const state = stepHop(start, 0.1);
+    expect(state.platforms[0].landedAt).toBeCloseTo(tau, 3);
+    const outOfReach = bare([{ kind: "moving", y: 0, x: end - 10, track }], { y, vy, x: end - 10 + HALF_OVERLAP + 2 });
+    expect(stepHop(outOfReach, 0.1).platforms[0].landedAt).toBeNull();
+  });
+
   test("a moving platform turns at the ends of its track", () => {
     const track = { centre: 200, range: 50, speed: 100, dir: 1 as const };
     let state = bare([{ kind: "moving", x: 240, y: 650, track }], { x: 20, y: 900, vy: 0, camera: 600 });

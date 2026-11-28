@@ -377,8 +377,17 @@ const addEffect = (state: HopState, effect: EffectBody) => {
   state.effects = [...state.effects, { ...effect, id: state.nextId++ }].slice(-HOP.maxEffects);
 };
 
-const platformXAt = (platform: HopPlatform, x0: number, t: number) =>
-  platform.track ? x0 + platform.track.dir * platform.track.speed * t : x0;
+/** Where a moving platform will be in t seconds, bouncing off the ends of its track. */
+const trackAt = (platform: HopPlatform, t: number) => {
+  const track = platform.track;
+  if (!track) return platform.x;
+  const span = 2 * track.range;
+  const left = track.centre - track.range;
+  const along = track.dir > 0 ? platform.x - left : 2 * span - (platform.x - left);
+  const where = (((along + track.speed * t) % (2 * span)) + 2 * span) % (2 * span);
+  return left + (where <= span ? where : 2 * span - where);
+};
+
 
 const moveTrack = (platform: HopPlatform, dt: number): HopPlatform => {
   const track = platform.track;
@@ -404,14 +413,13 @@ const firstContact = (
   state: HopState,
   from: { x: number; y: number; vy: number; elapsed: number },
   rest: number,
-  startX: ReadonlyMap<number, number>,
+  before: ReadonlyMap<number, HopPlatform>,
   skip: ReadonlySet<number>
 ): Contact | null => {
   let best: Contact | null = null;
   const half = HOP.box.width / 2;
   for (const platform of state.platforms) {
     if (skip.has(platform.id)) continue;
-    const x0 = startX.get(platform.id) ?? platform.x;
     const surfaces = platform.spring ? [true, false] : [false];
     for (const spring of surfaces) {
       const top = platform.y + (spring ? HOP.spring.height : 0);
@@ -421,7 +429,9 @@ const firstContact = (
       if (tau > rest) continue;
       const at = from.elapsed + tau;
       const feet = from.x + state.vx * tau;
-      const centre = platformXAt(platform, x0, at) + (spring && platform.spring ? platform.spring.offset : 0);
+      // Where it was at that moment: from where and which way it was going at
+      // the start of the step, turning at the end of its track if it got there.
+      const centre = trackAt(before.get(platform.id) ?? platform, at) + (spring && platform.spring ? platform.spring.offset : 0);
       const reach = (spring ? HOP.spring.width : PW) / 2 + half;
       if (seamDistance(feet, centre, state.width) > reach) continue;
       const better =
@@ -435,7 +445,7 @@ const firstContact = (
 };
 
 /** Falling: gravity, and every top you come down on in the step, in order. */
-const fall = (state: HopState, dt: number, x0: number, startX: ReadonlyMap<number, number>, startTime: number) => {
+const fall = (state: HopState, dt: number, x0: number, before: ReadonlyMap<number, HopPlatform>, startTime: number) => {
   let rest = dt;
   let elapsed = 0;
   let { y, vy } = state;
@@ -443,7 +453,7 @@ const fall = (state: HopState, dt: number, x0: number, startX: ReadonlyMap<numbe
   const hit = new Set<number>();
   const gone = new Set<number>();
   for (let contacts = 0; contacts < 8; contacts++) {
-    const contact = firstContact(state, { x, y, vy, elapsed }, rest, startX, hit);
+    const contact = firstContact(state, { x, y, vy, elapsed }, rest, before, hit);
     if (contact === null) break;
     const { tau, platform } = contact;
     const at = startTime + elapsed + tau;
@@ -540,15 +550,15 @@ export const stepHop = (previous: HopState, dt: number): HopState => {
 
   state.vx = steerSpeed(previous.vx, previous.steer, dt);
   if (previous.steer !== 0) state.facing = previous.steer;
-  const startX = new Map<number, number>();
+  const before = new Map<number, HopPlatform>();
   state.platforms = previous.platforms.map((platform) => {
     if (!platform.track) return platform;
-    startX.set(platform.id, platform.x);
+    before.set(platform.id, platform);
     return moveTrack(platform, dt);
   });
 
   if (state.flight) fly(state, dt);
-  else fall(state, dt, previous.x, startX, startTime);
+  else fall(state, dt, previous.x, before, startTime);
   state.x = wrapX(previous.x + state.vx * dt, state.width);
   pickUp(state);
 
@@ -568,17 +578,6 @@ export const stepHop = (previous: HopState, dt: number): HopState => {
 
 // Test builds can play a run on their own, for checks that need one to
 // climb and end.
-
-/** Where a moving platform will be in t seconds, bouncing off the ends of its track. */
-const trackAt = (platform: HopPlatform, t: number) => {
-  const track = platform.track;
-  if (!track) return platform.x;
-  const span = 2 * track.range;
-  const left = track.centre - track.range;
-  const along = track.dir > 0 ? platform.x - left : 2 * span - (platform.x - left);
-  const where = (((along + track.speed * t) % (2 * span)) + 2 * span) % (2 * span);
-  return left + (where <= span ? where : 2 * span - where);
-};
 
 /**
  * Steering a careful player would hold now: for the highest route platform

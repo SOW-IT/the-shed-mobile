@@ -329,6 +329,18 @@ const Item = ({ kind }: { kind: BoostKind }) =>
     </View>
   );
 
+/**
+ * A moving platform's pencil track, drawn dash by dash: a dashed border on
+ * one side only comes out solid on iOS.
+ */
+const Track = ({ left, top, width }: { left: number; top: number; width: number }) => (
+  <View style={[styles.track, { left, top, width }]}>
+    {Array.from({ length: Math.ceil(width / 10) }, (_, i) => (
+      <View key={`dash-${i * 10}`} style={[styles.trackDash, { left: i * 10, backgroundColor: c.track }]} />
+    ))}
+  </View>
+);
+
 const Platforms = ({ state, outline }: { state: HopState; outline: string }) => (
   <>
     {state.platforms.map((platform) => {
@@ -339,14 +351,7 @@ const Platforms = ({ state, outline }: { state: HopState; outline: string }) => 
       const track = platform.track;
       return (
         <View key={platform.id} pointerEvents="none">
-          {track ? (
-            <View
-              style={[
-                styles.track,
-                { left: track.centre - track.range - PW / 2, top: y + PH / 2 - 1, width: track.range * 2 + PW, borderColor: c.track },
-              ]}
-            />
-          ) : null}
+          {track ? <Track left={track.centre - track.range - PW / 2} top={y + PH / 2 - 1} width={track.range * 2 + PW} /> : null}
           {seamCopies(platform.x, PW / 2, state.width).map((x) => (
             <View
               key={`p-${x > platform.x ? "r" : x < platform.x ? "l" : "m"}`}
@@ -580,13 +585,17 @@ export const HopGame = ({
 
   // What's held: keys, and fingers either side of the board's middle.
   const held = useRef<{ left: boolean; right: boolean; touch: Steer }>({ left: false, right: false, touch: 0 });
+  /** Where the fingers are, so a fresh measurement of the board can steer them again. */
+  const fingers = useRef<number[]>([]);
   const middle = useRef<number | null>(null);
   const boardRef = useRef<ViewInstance | null>(null);
-  const measure = useCallback(() => {
+  const measure = useCallback((then?: () => void) => {
     boardRef.current?.measureInWindow((x, _y, w) => {
       if (w > 0) middle.current = x + w / 2;
+      then?.();
     });
   }, []);
+  const remeasure = useCallback(() => measure(), [measure]);
 
   const apply = () => {
     const { left, right, touch } = held.current;
@@ -616,34 +625,41 @@ export const HopGame = ({
     current.begin(from ? hopAt(w, h, seed, from, current.best) : newHop(w, h, seed, current.best), !!from || !!auto);
   };
 
-  const touch = (event: GestureResponderEvent, ended: boolean) => {
-    const native = event.nativeEvent;
-    const gone = new Set(ended ? native.changedTouches.map((t) => t.identifier) : []);
-    const fingers: Touch[] = native.touches.filter((t) => !gone.has(t.identifier));
-    // A mouse press on the web comes with no touch list.
-    const points = fingers.length === 0 && !ended && native.touches.length === 0 ? [native] : fingers;
+  const steerFingers = () => {
     const mid = middle.current;
-    const left = mid !== null && points.some((t) => t.pageX < mid);
-    const right = mid !== null && points.some((t) => t.pageX >= mid);
+    const left = mid !== null && fingers.current.some((x) => x < mid);
+    const right = mid !== null && fingers.current.some((x) => x >= mid);
     held.current = { ...held.current, touch: left === right ? 0 : left ? -1 : 1 };
     apply();
   };
 
+  const touch = (event: GestureResponderEvent, ended: boolean) => {
+    const native = event.nativeEvent;
+    const gone = new Set(ended ? native.changedTouches.map((t) => t.identifier) : []);
+    const down: Touch[] = native.touches.filter((t) => !gone.has(t.identifier));
+    // A mouse press on the web comes with no touch list.
+    fingers.current = (down.length === 0 && !ended && native.touches.length === 0 ? [native] : down).map((t) => t.pageX);
+    steerFingers();
+  };
+
   const letGo = () => {
+    fingers.current = [];
     held.current = { ...held.current, touch: 0 };
     apply();
   };
 
   // Made once, so the handlers it calls are read fresh each time.
-  const hands = useLatest({ measure, start, touch, letGo });
+  const hands = useLatest({ measure, start, touch, letGo, steerFingers });
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => latest.current.session.phase !== "over",
       onMoveShouldSetPanResponder: () => latest.current.session.phase !== "over",
       onPanResponderGrant: (event) => {
-        hands.current.measure();
         hands.current.start();
         hands.current.touch(event, false);
+        // On a phone the measurement comes back a moment later: steer the
+        // first finger again by it, in case the board had moved.
+        hands.current.measure(() => hands.current.steerFingers());
       },
       onPanResponderStart: (event) => hands.current.touch(event, false),
       onPanResponderMove: (event) => hands.current.touch(event, false),
@@ -693,7 +709,7 @@ export const HopGame = ({
       score={run?.score ?? (hopScene ? scene.score : 0)}
       world={run ? { width: run.width, height: run.height } : board}
       onBoard={setBoard}
-      onScale={measure}
+      onScale={remeasure}
       stageHandlers={responder.panHandlers}
       startHint={startHintFor("Hold a side", "press ← or →")}
       hideStartCard={!!hopScene}
@@ -708,7 +724,7 @@ export const HopGame = ({
       guard={guard}
       onLeaderboard={onLeaderboard}
     >
-      <View ref={boardRef} onLayout={measure} style={[styles.measure, { width, height }]} pointerEvents="none" />
+      <View ref={boardRef} onLayout={remeasure} style={[styles.measure, { width, height }]} pointerEvents="none" />
       <Scene state={scene} look={look} />
     </GameFrame>
   );
@@ -740,7 +756,8 @@ const styles = StyleSheet.create({
   bestLabel: { position: "absolute", right: 8, top: -17, fontFamily: fonts.display, fontSize: 13, letterSpacing: 1 },
   bestBadge: { position: "absolute", right: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1.5 },
   bestBadgeText: { fontSize: 12, fontWeight: "700" },
-  track: { position: "absolute", height: 2, borderTopWidth: 2, borderStyle: "dashed", opacity: 0.45 },
+  track: { position: "absolute", height: 2, opacity: 0.45, overflow: "hidden" },
+  trackDash: { position: "absolute", top: 0, width: 5, height: 2, borderRadius: 1 },
   platformAt: { position: "absolute", left: 0, top: 0, width: PW, height: PH, transformOrigin: "top center" },
   platform: { width: PW, height: PH, borderRadius: PH / 2, borderWidth: 2, overflow: "hidden" },
   platformDashed: { borderStyle: "dashed", opacity: 0.85 },

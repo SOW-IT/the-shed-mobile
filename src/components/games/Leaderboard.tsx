@@ -19,10 +19,10 @@ import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameI
 const PAGE_SIZE = 25;
 
 /**
- * The tabs share a phone's width five ways, where "Sky Shooter" doesn't
- * fit; its page's Play button still says the whole name.
+ * The tabs share a phone's width five ways, where "Sky Shooter" and
+ * "Mystic Man" don't fit; their pages' Play buttons still say the whole name.
  */
-const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter" };
+const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter", runner: "Mystic" };
 
 /** Games that came after v1, with no legacy board to switch to. */
 const NO_LEGACY_BOARD: readonly GameId[] = ["hop"];
