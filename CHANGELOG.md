@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.13] - 2026-11-29
+
+### Fixed
+- **Possible duplicates says when there's nothing to merge.** The screen was
+  blank while it loaded and stayed blank when there were no suggestions. It
+  now shows a spinner, then "No possible duplicates".
+- **Tab labels stay inside their tab.** A label too long for its share of the
+  bar ran past the screen edge (Praise List's "Praise Managers" on a phone);
+  it's now cut with an ellipsis, and that tab reads "Managers".
+- **Long text in a multiline field shows in full on the web.** The box kept
+  its starting height and cut the text off mid-line (Edit Home's headline);
+  it now grows with the text.
+- **Back, notifications and the event's Edit, check-in and export buttons are
+  easier to tap.** Each now has a 44pt tap target, on the web as well as on
+  iPhone, without moving anything on screen.
+
 ## [2.14.2] - 2026-11-28
 
 ### Changed

@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { FOOTER_GAP } from "@/lib/footerClearance";
 import { radius, spacing, fixedColours } from "@/theme";
 
@@ -19,8 +19,11 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 4,
+    // A label longer than its share of the bar ellipsizes instead of running
+    // into the next tab or off the screen.
+    maxWidth: "100%",
   },
-  tabText: { fontSize: 14.5, letterSpacing: -0.15 },
+  tabText: { fontSize: 14.5, letterSpacing: -0.15, flexShrink: 1 },
   tabIndicator: { height: 3, alignSelf: "stretch" },
   tabIndicatorBar: {
     position: "absolute",
@@ -49,7 +52,21 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   headerText: { flex: 1 },
-  headerBack: { marginLeft: -6, justifyContent: "center" },
+  headerBack: Platform.select({
+    // hitSlop doesn't reach web, so there the box itself is a 44pt target;
+    // the margins keep the chevron where it sat as a bare 26pt icon.
+    web: {
+      width: 44,
+      height: 44,
+      marginLeft: -15,
+      marginRight: -9,
+      marginVertical: -8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    // Native reaches 44pt with hitSlop and keeps its box inside the header.
+    default: { marginLeft: -6, justifyContent: "center" },
+  }),
   card: {
     borderRadius: radius.lg,
     padding: spacing.lg + 2,

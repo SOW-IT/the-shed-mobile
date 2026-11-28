@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { type ReactNode, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { UpdateButton } from "@/components/AppUpdatePrompt";
@@ -69,7 +69,7 @@ export const TopBar = ({
         {onBack ? (
           <Pressable
             onPress={onBack}
-            hitSlop={8}
+            hitSlop={NATIVE_HIT_SLOP}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             testID="top-bar-back"
@@ -124,22 +124,25 @@ export const TopBar = ({
               onPress={() => router.push("/notifications")}
               onPressIn={bell.onPressIn}
               onPressOut={bell.onPressOut}
-              hitSlop={8}
+              hitSlop={NATIVE_HIT_SLOP}
               accessibilityRole="button"
               accessibilityLabel={
                 unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
               }
+              style={styles.bellBtn}
             >
-              <Ionicons
-                name={unread > 0 ? "notifications" : "notifications-outline"}
-                size={24}
-                color={t.text}
-              />
-              {unread > 0 ? (
-                <View style={[styles.badge, { backgroundColor: t.accent }]}>
-                  <Text style={styles.badgeText}>{badgeText(unread)}</Text>
-                </View>
-              ) : null}
+              <View>
+                <Ionicons
+                  name={unread > 0 ? "notifications" : "notifications-outline"}
+                  size={24}
+                  color={t.text}
+                />
+                {unread > 0 ? (
+                  <View style={[styles.badge, { backgroundColor: t.accent }]}>
+                    <Text style={styles.badgeText}>{badgeText(unread)}</Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           </Animated.View>
         ) : null}
@@ -147,6 +150,9 @@ export const TopBar = ({
     </View>
   );
 };
+
+// Native only: react-native-web ignores hitSlop, so web gets bigger boxes.
+const NATIVE_HIT_SLOP = 8;
 
 const styles = StyleSheet.create({
   topBar: {
@@ -156,7 +162,17 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 },
+  backBtn: Platform.select({
+    // hitSlop doesn't reach web, so there the box itself is the 44pt target;
+    // the margins keep the chevron where it was and the bar 56pt tall.
+    web: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginLeft: -10, marginVertical: -2 },
+    // Native keeps its box inside the bar and reaches 44pt+ with hitSlop.
+    default: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginLeft: -8 },
+  }),
+  bellBtn: Platform.select({
+    web: { width: 44, height: 44, alignItems: "center", justifyContent: "center", margin: -10 },
+    default: {},
+  }),
   center: {
     position: "absolute",
     top: 0,

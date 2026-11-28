@@ -180,7 +180,9 @@ export default function MusicScreen({ onBack }: { onBack?: () => void } = {}) {
       ? [
           {
             key: "praiseManagers",
-            label: "Praise Managers",
+            // The screen is already the Praise List; "Praise Managers" ellipsized
+            // in a four-tab bar at phone width.
+            label: "Managers",
             render: () => <PraiseManagersTab currentYear={me.year} />,
           },
         ]
