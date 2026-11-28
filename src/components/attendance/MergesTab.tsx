@@ -3,7 +3,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { api } from "@convex/_generated/api";
 import { SuggestedMerges } from "@/components/attendance/SuggestedMerges";
-import { ErrorBanner, errorMessage, Toast, type ToastState } from "@/components/ui";
+import { EmptyState, ErrorBanner, errorMessage, LoadingState, Toast, type ToastState } from "@/components/ui";
 import { spacing } from "@/theme";
 
 export const useMergeSuggestions = (enabled: boolean) => {
@@ -28,10 +28,17 @@ export const MergesTab = ({ staffYear }: { staffYear: number }) => {
       return false;
     }
   };
-  if (!suggestions || !pairs) return null;
+  if (!suggestions || !pairs) return <LoadingState />;
   return (
     <View style={{ gap: spacing.md }}>
       <ErrorBanner message={error} />
+      {suggestions.length === 0 && pairs.length === 0 ? (
+        <EmptyState
+          icon="git-merge-outline"
+          title="No possible duplicates"
+          message="Members who look like the same person show up here."
+        />
+      ) : null}
       <SuggestedMerges
         suggestions={suggestions}
         memberPairs={pairs}
