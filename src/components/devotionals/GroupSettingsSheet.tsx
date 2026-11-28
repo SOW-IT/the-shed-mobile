@@ -103,7 +103,7 @@ export const GroupSettingsSheet = ({
                 }}
               />
               <Btn
-                title="Invite Members"
+                title="Invite"
                 variant="primary"
                 icon="person-add-outline"
                 onPress={() => {
