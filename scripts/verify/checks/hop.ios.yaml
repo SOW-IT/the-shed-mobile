@@ -121,57 +121,75 @@ appId: au.org.sow.theshed
     visible:
       id: games-open-hop
     timeout: 20000
-# A fresh run for holding each side and quick taps either side: the first
-# hold starts it. A hold is a short press in one spot (left, then right, so
-# you end up about where you began), then four quick taps alternating. Every
-# touch steers at once and letting go stops you. Each step only runs while
-# the run is still going, so a tap never lands on the game-over card. Read
-# these: the character is still on the board, a little toward the side last
-# held, with no game-over card.
+# Holding each side, and quick taps either side, each on a fresh run of
+# its own (as the web check does): steering off the start platform falls
+# off within a second, so one shared run would end partway. The first touch
+# starts the run. A hold is a short press in one spot, about 43 units of
+# steering, inside the 52 the start platform catches you over, so the
+# screenshot comes while you're still on it. The taps alternate, so they
+# net out. Read these: the character on the board, nudged toward the side
+# held, and no game-over card.
 - tapOn:
     id: games-open-hop
 - extendedWaitUntil:
     visible:
       id: character-picker-hop
     timeout: 30000
+- swipe:
+    start: "20%, 75%"
+    end: "21%, 75%"
+    duration: 120
+- takeScreenshot: "${OUT}/check-hop-held-left"
+- tapOn: "Back to the games"
 - runFlow:
     when:
-      notVisible:
-        id: game-over-back
+      visible: "Leave this game?"
     commands:
-      - swipe:
-          start: "20%, 75%"
-          end: "21%, 75%"
-          duration: 300
-      - takeScreenshot: "${OUT}/check-hop-held-left"
+      - tapOn: "Leave game"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 20000
+- tapOn:
+    id: games-open-hop
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- swipe:
+    start: "80%, 75%"
+    end: "79%, 75%"
+    duration: 120
+- takeScreenshot: "${OUT}/check-hop-held-right"
+- tapOn: "Back to the games"
 - runFlow:
     when:
-      notVisible:
-        id: game-over-back
+      visible: "Leave this game?"
     commands:
-      - swipe:
-          start: "80%, 75%"
-          end: "79%, 75%"
-          duration: 300
-      - takeScreenshot: "${OUT}/check-hop-held-right"
-- runFlow:
-    when:
-      notVisible:
-        id: game-over-back
-    commands:
-      - tapOn:
-          point: "20%, 75%"
-          retryTapIfNoChange: false
-      - tapOn:
-          point: "80%, 75%"
-          retryTapIfNoChange: false
-      - tapOn:
-          point: "20%, 75%"
-          retryTapIfNoChange: false
-      - tapOn:
-          point: "80%, 75%"
-          retryTapIfNoChange: false
-      - takeScreenshot: "${OUT}/check-hop-quick-taps"
+      - tapOn: "Leave game"
+- extendedWaitUntil:
+    visible:
+      id: games-open-hop
+    timeout: 20000
+- tapOn:
+    id: games-open-hop
+- extendedWaitUntil:
+    visible:
+      id: character-picker-hop
+    timeout: 30000
+- tapOn:
+    point: "20%, 75%"
+    retryTapIfNoChange: false
+- tapOn:
+    point: "80%, 75%"
+    retryTapIfNoChange: false
+- tapOn:
+    point: "20%, 75%"
+    retryTapIfNoChange: false
+- tapOn:
+    point: "80%, 75%"
+    retryTapIfNoChange: false
+- takeScreenshot: "${OUT}/check-hop-quick-taps"
 - tapOn: "Back to the games"
 - runFlow:
     when:
