@@ -127,6 +127,12 @@ Everything a run starts lives under `.verify/`, which ignores itself
    back to normal afterwards. A screen still moving after ten frames, like
    one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
+   After each iOS phase, still holding the simulator lock, it empties the
+   XCTest attachments testmanagerd keeps for every Maestro run
+   (`tmp/Attachments` in the simulator container whose metadata identifier is
+   `com.apple.testmanagerd`, `scripts/lib/simAttachments.mjs`). Nothing reads
+   them, and they had grown to 23 GB by 28 Nov 2026. Maestro's own output in
+   `.verify/run/<phase>/maestro` is kept.
 
 Before Maestro starts, the run stops any Maestro (and its `xcodebuild`
 driver) that a run which has since gone left on the same simulator: launchd

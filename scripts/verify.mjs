@@ -9,6 +9,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FRAME_GAP_MS, FRAME_TRIES, frameJudge, seedInstant } from "./lib/stableFrames.mjs";
+import { clearTestAttachments } from "./lib/simAttachments.mjs";
 import { strayMaestro } from "./lib/strayMaestro.mjs";
 import { acquire, currentHolder, ownRecord, release } from "./lib/verifyLock.mjs";
 import { runScreens } from "./lib/verifyPhase.mjs";
@@ -639,6 +640,13 @@ const runIos = async (label, tree, work, routes, smoke, out, udid, checks = []) 
     spawnSync("xcrun", ["simctl", "status_bar", udid, "clear"]);
     spawnSync("xcrun", ["simctl", "terminate", udid, BUNDLE_ID]);
     await stopRecorded("metro");
+    // Still inside the simulator lock (simAttachments.mjs says why).
+    try {
+      const removed = clearTestAttachments(join(homedir(), "Library/Developer/CoreSimulator/Devices", udid, "data"));
+      if (removed > 0) log(`removed ${removed} XCTest attachment folder(s) testmanagerd kept on the simulator`);
+    } catch (error) {
+      log(`couldn't clear the simulator's XCTest attachments: ${error?.message ?? error}`);
+    }
   }
 };
 
