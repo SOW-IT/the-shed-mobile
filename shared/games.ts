@@ -78,7 +78,8 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     shooter: { perSecond: 1000, max: 5_000_000 },
     runner: { perSecond: 250, max: 2_000_000 },
     flappy: { perSecond: 3, max: 100_000 },
-    glider: { perSecond: 2100, max: 2_000_000 },
+    // Covers Double Fever (×3 bonuses, top speed 1600) and Cloudtouch; glider.test.ts derives the bound.
+    glider: { perSecond: 3000, max: 2_000_000 },
   },
 };
 

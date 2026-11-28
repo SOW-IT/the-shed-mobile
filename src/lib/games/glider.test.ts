@@ -872,6 +872,24 @@ describe("Tiny Wings fever, cloud ceiling, and terrain LOD", () => {
     expect(fast.speedAfterExit).toBeGreaterThan(fast.speedAtExit + 80);
   });
 
+  test("Cloudtouch counts when the bird ends a frame inside the band as drawn, even if the band moved down onto it", () => {
+    // peakRef well above the valley's own peak, so the band sinks this frame.
+    const start = onValley({ x: 200, vx: 700, vy: 0, grounded: false, heavy: false });
+    const peakRef = localPeak(start.hills, start.x) + 500;
+    const before = cloudAltitude(peakRef);
+    let state = stepGlider({ ...start, peakRef, y: before - 3 }, FRAME);
+    // Below the band the physics step used, but inside the band drawn this frame.
+    expect(state.y).toBeLessThan(before);
+    expect(state.y).toBeGreaterThanOrEqual(cloudAltitude(state.peakRef));
+    expect(state.cloudTouched).toBe(true);
+    expect(state.cloudTouches).toBe(1);
+    expect(state.bonus).toBe(GLIDER.cloudPoints);
+    expect(state.popups.some((p) => p.kind === "cloud")).toBe(true);
+    // Still once per flight, however often the bird crosses the band again.
+    for (let i = 0; i < 600 && !state.grounded; i++) state = stepGlider(state, FRAME);
+    expect(state.cloudTouches).toBe(1);
+  });
+
   test("islandPalette never repeats colours across worlds and worldAtX splits colours at the finish flag", () => {
     /* eslint-disable no-restricted-syntax -- test stub palette for non-repeating check */
     const stub = [
@@ -931,18 +949,40 @@ describe("score", () => {
     expect(worldBonus(500)).toBe(worldBonus(GLIDER.pointedWorlds));
     expect(maxWorldScore(1000)).toBe(maxWorldScore(200));
     expect(maxGliderScore(15)).toBeLessThanOrEqual(limit.max);
+    // Upper bound on v3's scoring rate. Every term takes the best case: the
+    // bird always at the Double Fever top speed, every bonus at the Double
+    // Fever multiplier and the full streak, and a Cloudtouch on every flight.
+    const top = Math.max(GLIDER.maxSpeed, GLIDER.feverMaxSpeed, GLIDER.doubleFeverMaxSpeed);
+    expect(top).toBe(GLIDER.doubleFeverMaxSpeed);
+    const mult = Math.max(1, GLIDER.feverMultiplier, GLIDER.doubleFeverMultiplier);
+    expect(mult).toBe(GLIDER.doubleFeverMultiplier);
+    // A flight scores at most once each: a perfect landing (needs perfectAir
+    // in the air), a Cloudtouch, and big-flight points (needs longFlight).
+    // Its points over its air time give the rate; time on the ground in
+    // between only lowers it.
+    const flightRate = Math.max(
+      ...Array.from({ length: 2000 }, (_, i) => {
+        const air = GLIDER.perfectAir + i * 0.005;
+        const flight = air >= GLIDER.longFlight ? GLIDER.flightPoints * Math.floor(air / 0.5) : 0;
+        return ((GLIDER.perfectPoints * GLIDER.maxStreak + GLIDER.cloudPoints + flight) * mult) / air;
+      })
+    );
     const worldBonusPerSecond = Math.max(
       ...Array.from({ length: 300 }, (_, i) => {
         const rules = worldRules(i + 1);
-        return (worldBonus(rules.world) + rules.day * GLIDER.daylightPoints) / (rules.length / GLIDER.maxSpeed);
+        return (worldBonus(rules.world) + rules.day * GLIDER.daylightPoints) / (rules.length / top);
       })
     );
-    const perSecond =
-      GLIDER.maxSpeed / GLIDER.unitsPerPoint +
-      (GLIDER.perfectPoints * GLIDER.maxStreak) / GLIDER.perfectAir +
-      GLIDER.flightPoints / 0.5 +
-      worldBonusPerSecond;
+    const perSecond = top / GLIDER.unitsPerPoint + flightRate + worldBonusPerSecond;
     expect(perSecond).toBeLessThanOrEqual(limit.perSecond);
+    // A run scoring at that bound the whole way is still accepted.
+    const durationMs = 10 * 60_000;
+    expect(
+      scoreProblem(
+        { runId: "run-swoop-max", game: "glider", version, score: Math.floor((perSecond * durationMs) / 1000), durationMs, playedAt: Date.now() },
+        Date.now()
+      )
+    ).toBeNull();
     const flown = (pilot: Pilot) => {
       let run = newGlider(1, 2, 20);
       while (!run.over && run.world === 20) run = stepGlider(hold(run, pilot(run)), FRAME);

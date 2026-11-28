@@ -71,7 +71,7 @@ type ChunkProps = {
   floor: number;
   /** World colour before `splitX` (or the whole chunk when `splitX` is null). */
   colour: string;
-  /** If a world flag sits inside this chunk, strips at/past `splitX` already use `nextColour`. */
+  /** If a world flag sits inside this chunk, ground past `splitX` already uses `nextColour`. */
   splitX: number | null;
   nextColour: string;
 };
@@ -87,82 +87,91 @@ const sameChunk = (a: ChunkProps, b: ChunkProps) =>
   a.splitX === b.splitX &&
   a.nextColour === b.nextColour;
 
-const strips = (hills: readonly HillPoint[], index: number, strip: number, chunkStrips: number) => {
-  const chunk = strip * chunkStrips;
-  return Array.from({ length: chunkStrips }, (_, i) => {
-    const x0 = index * chunk + i * strip;
-    return { i, x0, y0: groundAt(hills, x0).y, y1: groundAt(hills, x0 + strip).y };
-  });
-};
+type Strip = { key: string; x0: number; w: number; y0: number; y1: number; fill: string };
 
-const stripColour = (x0: number, strip: number, colour: string, splitX: number | null, nextColour: string) =>
-  splitX !== null && x0 + strip * 0.5 >= splitX ? nextColour : colour;
+/**
+ * The chunk's strips, left to right. The one strip a world flag crosses is cut
+ * in two at the flag, both halves meeting at the ground's height there, so the
+ * island colour changes exactly at the flag at every zoom level.
+ */
+const strips = (
+  { hills, index, strip, chunkStrips, colour, splitX, nextColour }: ChunkProps,
+): Strip[] => {
+  const chunk = strip * chunkStrips;
+  const out: Strip[] = [];
+  for (let i = 0; i < chunkStrips; i++) {
+    const x0 = index * chunk + i * strip;
+    const x1 = x0 + strip;
+    const y0 = groundAt(hills, x0).y;
+    const y1 = groundAt(hills, x1).y;
+    if (splitX !== null && splitX > x0 && splitX < x1) {
+      const ys = groundAt(hills, splitX).y;
+      out.push({ key: `${i}a`, x0, w: splitX - x0, y0, y1: ys, fill: colour });
+      out.push({ key: `${i}b`, x0: splitX, w: x1 - splitX, y0: ys, y1, fill: nextColour });
+    } else {
+      out.push({ key: `${i}`, x0, w: strip, y0, y1, fill: splitX !== null && x0 >= splitX ? nextColour : colour });
+    }
+  }
+  return out;
+};
 
 /**
  * One chunk of earth. Each strip is a column up to its lower end, under a
  * band turned along the slope, so the hill's outline is smooth rather than
  * stepped. Strip width scales up with camera zoom (LOD) so flying high never
  * floods the view tree with thousands of views. When a finish flag sits inside
- * the chunk, strips after the flag already wear the next island's colour.
+ * the chunk, ground past the flag already wears the next island's colour.
  */
-const EarthChunk = memo(function EarthChunk({ hills, index, strip, chunkStrips, floor, colour, splitX, nextColour }: ChunkProps) {
-  const parts = strips(hills, index, strip, chunkStrips);
+const EarthChunk = memo(function EarthChunk(props: ChunkProps) {
+  const parts = strips(props);
+  const { floor } = props;
   return (
     <>
-      {parts.map(({ i, x0, y0, y1 }) => {
-        const fill = stripColour(x0, strip, colour, splitX, nextColour);
-        return (
-          <View
-            key={`c${i}`}
-            style={[styles.column, { backgroundColor: fill, left: x0, top: -Math.min(y0, y1), width: strip + 1, height: Math.min(y0, y1) - floor }]}
-          />
-        );
-      })}
-      {parts.map(({ i, x0, y0, y1 }) => {
-        const fill = stripColour(x0, strip, colour, splitX, nextColour);
-        return (
-          <View
-            key={`b${i}`}
-            style={[
-              styles.band,
-              {
-                backgroundColor: fill,
-                left: x0,
-                top: -y0,
-                width: Math.hypot(strip, y1 - y0) + 1,
-                height: Math.abs(y1 - y0) + 3,
-                transform: [{ rotate: `${Math.atan2(y0 - y1, strip)}rad` }],
-              },
-            ]}
-          />
-        );
-      })}
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
+        <View
+          key={`c${key}`}
+          style={[styles.column, { backgroundColor: fill, left: x0, top: -Math.min(y0, y1), width: w + 1, height: Math.min(y0, y1) - floor }]}
+        />
+      ))}
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
+        <View
+          key={`b${key}`}
+          style={[
+            styles.band,
+            {
+              backgroundColor: fill,
+              left: x0,
+              top: -y0,
+              width: Math.hypot(w, y1 - y0) + 1,
+              height: Math.abs(y1 - y0) + 3,
+              transform: [{ rotate: `${Math.atan2(y0 - y1, w)}rad` }],
+            },
+          ]}
+        />
+      ))}
     </>
   );
 }, sameChunk);
 
 /** The grass along one chunk's top, drawn over all the earth so no strip covers its neighbour's. */
-const GrassChunk = memo(function GrassChunk({ hills, index, strip, chunkStrips, colour, splitX, nextColour }: ChunkProps) {
+const GrassChunk = memo(function GrassChunk(props: ChunkProps) {
   return (
     <>
-      {strips(hills, index, strip, chunkStrips).map(({ i, x0, y0, y1 }) => {
-        const fill = stripColour(x0, strip, colour, splitX, nextColour);
-        return (
-          <View
-            key={`g${i}`}
-            style={[
-              styles.grass,
-              {
-                backgroundColor: fill,
-                left: x0,
-                top: -y0,
-                width: Math.hypot(strip, y1 - y0) + 1.25,
-                transform: [{ rotate: `${Math.atan2(y0 - y1, strip)}rad` }],
-              },
-            ]}
-          />
-        );
-      })}
+      {strips(props).map(({ key, x0, w, y0, y1, fill }) => (
+        <View
+          key={`g${key}`}
+          style={[
+            styles.grass,
+            {
+              backgroundColor: fill,
+              left: x0,
+              top: -y0,
+              width: Math.hypot(w, y1 - y0) + 1.25,
+              transform: [{ rotate: `${Math.atan2(y0 - y1, w)}rad` }],
+            },
+          ]}
+        />
+      ))}
     </>
   );
 }, sameChunk);

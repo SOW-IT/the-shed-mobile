@@ -480,7 +480,8 @@ export const fixedColours = {
       cloudShade: "rgba(220, 232, 242, 0.55)",
       fever: "#FFD147",
       feverGlow: "rgba(255, 209, 71, 0.42)",
-      feverPillBg: "#D97706",
+      // Dark enough for the white 12pt label (5.0:1).
+      feverPillBg: "#B45309",
       doubleFever: "#C084FC",
       doubleFeverGlow: "rgba(168, 85, 247, 0.50)",
       doubleFeverPillBg: "#7C3AED",

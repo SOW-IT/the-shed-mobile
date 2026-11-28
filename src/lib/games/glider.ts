@@ -487,6 +487,13 @@ export type GliderState = {
   peakRef: number;
   /** Whether this flight has already touched the clouds. */
   cloudTouched: boolean;
+  /**
+   * Whether the bird was at or above the cloud band the last time it was
+   * checked. The band follows `peakRef`, so it moves between frames; keeping
+   * this flag (rather than comparing against a band that has since moved)
+   * means crossing the band the player sees always counts as entering it.
+   */
+  inClouds: boolean;
   cloudTouches: number;
   /** 0..1 strength of how fast the bird entered the clouds (controls hang time and exit pickup). */
   cloudFloat: number;
@@ -742,6 +749,7 @@ export const newGlider = (seed: number, aspect = 2, world = 1): GliderState => {
     feverLevel: 0,
     peakRef: localPeak(hills, 0),
     cloudTouched: false,
+    inClouds: false,
     cloudTouches: 0,
     cloudFloat: 0,
     cloudPace: 1,
@@ -831,6 +839,7 @@ const touchDown = (state: GliderState, ground: Ground) => {
   state.y = ground.y;
   state.air = 0;
   state.cloudTouched = false;
+  state.inClouds = false;
   state.cloudFloat = 0;
   state.cloudPace = 1;
   state.cloudExitBoost = 0;
@@ -893,11 +902,38 @@ const moveOnGround = (state: GliderState, dt: number) => {
   }
 };
 
+const levelOf = (state: GliderState): FeverLevel => state.feverLevel ?? (state.fever ? 1 : 0);
+
+/**
+ * Entering or leaving the cloud band at `cloudY`. Entering scores Cloudtouch
+ * once per flight and records the entry speed for hang time and the pickup on
+ * the way down; velocity and curvature stay continuous.
+ */
+const crossClouds = (state: GliderState, cloudY: number) => {
+  const inBand = state.y >= cloudY;
+  if (inBand && !state.inClouds) {
+    if (!state.cloudTouched) {
+      state.cloudTouched = true;
+      state.cloudTouches += 1;
+      state.bonus += GLIDER.cloudPoints * feverMultiplierOf(levelOf(state));
+      popup(state, "cloud", "Cloudtouch!");
+    }
+    if (!state.heavy && state.vy > 0) {
+      const entrySpeed = Math.hypot(state.vx, state.vy);
+      const strength = Math.max(0, Math.min(1, (entrySpeed - 500) / 850));
+      state.cloudFloat = Math.max(state.cloudFloat, strength);
+      state.cloudExitBoost = Math.max(state.cloudExitBoost, 0.3 + 0.7 * strength);
+    }
+  } else if (!inBand && state.inClouds) {
+    state.cloudFloat = 0;
+  }
+  state.inClouds = inBand;
+};
+
 const moveInAir = (state: GliderState, dt: number) => {
-  const level: FeverLevel = state.feverLevel ?? (state.fever ? 1 : 0);
+  const level = levelOf(state);
   const cloudY = cloudAltitude(state.peakRef);
   const maxY = maxFlightAltitude(state.peakRef);
-  const wasInClouds = state.y >= cloudY;
   // Holding to dive clears cloud float immediately for crisp drop-ins.
   if (state.heavy) {
     state.cloudFloat = 0;
@@ -910,7 +946,7 @@ const moveInAir = (state: GliderState, dt: number) => {
   // while keeping full horizontal speed vx. Dropping back below cloudY after a Cloudtouch
   // gradually ramps cloudPace back up to 1 so you can prepare for descent.
   let gravity: number = state.heavy ? GLIDER.heavyGravity : GLIDER.lightGravity;
-  if (!state.heavy && wasInClouds) {
+  if (!state.heavy && state.inClouds) {
     const above = Math.max(0, state.y - cloudY);
     gravity = GLIDER.lightGravity * (1 + CLOUD_GRAVITY_GAIN * Math.min(1.8, above / CLOUD_GRAVITY_SPAN));
     const minPace = 0.78 - 0.2 * state.cloudFloat;
@@ -938,23 +974,8 @@ const moveInAir = (state: GliderState, dt: number) => {
   state.y += state.vy * vertDt;
   state.air += dt;
 
-  // Entering the clouds from below: keep velocity & curvature 100% continuous;
-  // record entry speed for hang time and gradual post-cloud pickup.
-  if (!wasInClouds && state.y >= cloudY) {
-    if (!state.cloudTouched) {
-      state.cloudTouched = true;
-      state.cloudTouches += 1;
-      state.bonus += GLIDER.cloudPoints * feverMultiplierOf(level);
-      popup(state, "cloud", "Cloudtouch!");
-    }
-    if (!state.heavy && state.vy > 0) {
-      const entrySpeed = Math.hypot(state.vx, state.vy);
-      const strength = Math.max(0, Math.min(1, (entrySpeed - 500) / 850));
-      state.cloudFloat = Math.max(state.cloudFloat, strength);
-      state.cloudExitBoost = Math.max(state.cloudExitBoost, 0.3 + 0.7 * strength);
-    }
-  } else if (state.y < cloudY) {
-    if (wasInClouds) state.cloudFloat = 0;
+  crossClouds(state, cloudY);
+  if (state.y < cloudY) {
     // Coming back below the clouds after Cloudtouch: brisker-yet-smooth speed pickup.
     if (!state.heavy && state.cloudTouched && state.cloudExitBoost > 0 && state.vy < 0) {
       const spend = Math.min(state.cloudExitBoost, 1.15 * dt);
@@ -1028,6 +1049,8 @@ export const stepGlider = (previous: GliderState, dt: number): GliderState => {
   const targetPeak = localPeak(state.hills, state.x);
   const peakRate = targetPeak > state.peakRef ? 4 : 1.2;
   state.peakRef = state.peakRef + (targetPeak - state.peakRef) * (1 - Math.exp(-peakRate * dt));
+  // The band just moved with peakRef; check the bird against the band that is drawn this frame.
+  if (!state.grounded && !state.over) crossClouds(state, cloudAltitude(state.peakRef));
   if (state.fever) {
     state.trailClock += dt;
     if (state.trailClock >= 0.035) {
