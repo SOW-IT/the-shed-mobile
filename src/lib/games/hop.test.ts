@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { GAME_VERSION, SCORE_LIMITS, scoreProblem } from "../../../shared/games";
+import { CURRENT_GAME_VERSION, SCORE_LIMITS, scoreProblem } from "../../../shared/games";
 import {
   autoSteer,
   CORRIDOR_DEPTH,
@@ -643,7 +643,7 @@ describe("your best", () => {
 });
 
 describe("scores the leaderboard takes", () => {
-  const limit = SCORE_LIMITS[GAME_VERSION].hop;
+  const limit = SCORE_LIMITS[CURRENT_GAME_VERSION.hop].hop;
 
   test("nothing climbs faster than the per-second limit allows", () => {
     const fastest = Math.max(HOP.springSpeed, HOP.jetpack.speed, HOP.propeller.speed, HOP.jumpSpeed) / HOP.unitsPerPoint;
@@ -657,7 +657,7 @@ describe("scores the leaderboard takes", () => {
     const queued = (score: number, seconds: number) => ({
       runId: "hop-run-0001",
       game: "hop" as const,
-      version: GAME_VERSION,
+      version: CURRENT_GAME_VERSION.hop,
       score,
       durationMs: seconds * 1000,
       playedAt: Date.now(),

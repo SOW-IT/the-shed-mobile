@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 import {
   bestsFromRuns,
   bestsToSync,
+  BOARD_VERSIONS,
   CLOCK_SKEW_MS,
+  CURRENT_GAME_VERSION,
   enqueueScore,
   isGameId,
   MAX_RUN_MS,
@@ -17,7 +19,7 @@ import {
   SCORES_RESET_AT,
   scoreProblem,
   shownBests,
-  VERSION_LABELS,
+  versionLabel,
   versionOf,
   stringifyBests,
   submittableFor,
@@ -98,8 +100,24 @@ describe("versions", () => {
     expect(SCORE_LIMITS[2].runner.perSecond).toBeGreaterThan(SCORE_LIMITS[1].runner.perSecond);
   });
 
-  test("the old boards are named v1 (legacy)", () => {
-    expect(VERSION_LABELS).toEqual({ 1: "v1 (legacy)", 2: "v2" });
+  test("Swoop uses v3 and v2 (legacy), while the other games stay on v2 and v1 (legacy)", () => {
+    expect(CURRENT_GAME_VERSION).toEqual({ shooter: 2, runner: 2, flappy: 2, glider: 3, hop: 2 });
+    expect(BOARD_VERSIONS.glider).toEqual([3, 2]);
+    expect(BOARD_VERSIONS.runner).toEqual([2, 1]);
+    expect(BOARD_VERSIONS.glider.map((v) => versionLabel("glider", v))).toEqual(["v3", "v2 (legacy)"]);
+    expect(BOARD_VERSIONS.runner.map((v) => versionLabel("runner", v))).toEqual(["v2", "v1 (legacy)"]);
+    expect(scoreProblem(entry({ game: "glider", version: 3 }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ game: "runner", version: 3 }), NOW)).toMatch(/isn't a version/);
+  });
+
+  test("Hop is on v2 with no legacy board, and takes no v1 or v3 score", () => {
+    expect(CURRENT_GAME_VERSION.hop).toBe(2);
+    expect(BOARD_VERSIONS.hop).toEqual([2]);
+    expect(versionLabel("hop", 2)).toBe("v2");
+    expect(scoreProblem(entry({ game: "hop", version: 2, score: 900 }), NOW)).toBeNull();
+    expect(scoreProblem(entry({ game: "hop", version: 3, score: 900 }), NOW)).not.toBeNull();
+    expect(SCORE_LIMITS[1].hop.max).toBe(0);
+    expect(SCORE_LIMITS[3].hop.max).toBe(0);
   });
 
   test("a saved queue keeps a run's version and drops one with a version that isn't", () => {
@@ -178,13 +196,25 @@ describe("parseQueue", () => {
 });
 
 describe("local bests", () => {
-  test("parse what was saved, with zero for anything unusable", () => {
-    expect(parseBests(JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321, hop: 812.9 }))).toEqual({
+  test("parse what was saved, with zero for anything unusable or from an older game version", () => {
+    expect(
+      parseBests(
+        JSON.stringify({ shooter: 12.7, runner: "9", flappy: -3, glider: 4321, hop: 812.9, versions: CURRENT_GAME_VERSION })
+      )
+    ).toEqual({
       shooter: 12,
       runner: 0,
       flappy: 0,
       glider: 4321,
       hop: 812,
+    });
+    // A saved v2 record without per-game versions keeps v2 games and clears Swoop for v3.
+    expect(parseBests(JSON.stringify({ shooter: 12, flappy: 7, glider: 4321 }))).toEqual({
+      shooter: 12,
+      runner: 0,
+      flappy: 7,
+      glider: 0,
+      hop: 0,
     });
     expect(parseBests("null")).toEqual(NO_BESTS);
     expect(parseBests("{")).toEqual(NO_BESTS);
@@ -195,7 +225,7 @@ describe("local bests", () => {
     expect(parseBests(old)).toEqual({ shooter: 50, runner: 0, flappy: 30, glider: 0, hop: 0 });
     const saved = { shooter: 50, runner: 40, flappy: 30, glider: 20, hop: 10 };
     expect(parseBests(stringifyBests(saved))).toEqual(saved);
-    const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 } });
+    const beforeLastReset = JSON.stringify({ ...saved, resets: { runner: SCORES_RESET_AT.runner! - 1 }, versions: CURRENT_GAME_VERSION });
     expect(parseBests(beforeLastReset)).toEqual({ ...saved, runner: 0 });
   });
 

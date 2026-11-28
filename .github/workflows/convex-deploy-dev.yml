@@ -1,0 +1,77 @@
+# Pushes the Convex functions and schema to the shared **dev** deployment
+# (successful-lynx-56), which the staging app, the dev web app and local runs
+# all talk to. Without this, dev only moved when someone ran `npx convex dev`
+# by hand, so a staging build of main could call functions dev didn't have
+# ("Could not find public function for 'mahjong:mine'").
+#
+# Prod is deployed by convex-deploy.yml; this workflow never touches it. The
+# key it uses must be a dev deploy key for successful-lynx-56, and the job
+# checks that before pushing.
+name: Convex Deploy (dev)
+
+on:
+  push:
+    branches: [main]
+  # Run by hand from a branch to put that branch's functions on dev, e.g.
+  # before sending the branch to the staging app with EAS Staging. The next
+  # merge to main puts main's functions back, unless the branch's schema let
+  # dev store documents main's schema rejects: then that push fails schema
+  # validation (prod is unaffected) until the documents are fixed on dev or
+  # main's schema accepts them.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Merges queue in their own group and runs by hand in another, so a run by
+# hand can never evict a merge's queued run (GitHub keeps one running and one
+# queued per group, and a newer queued run cancels the older queued one).
+# Within a group nothing is cancelled halfway. A run by hand and a merge's run
+# can overlap; dev ends on whichever finishes last, and the next merge to main
+# puts main back either way.
+concurrency:
+  group: convex-deploy-dev-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deploy key
+        id: key
+        env:
+          CONVEX_DEPLOY_KEY_DEV: ${{ secrets.CONVEX_DEPLOY_KEY_DEV }}
+        run: |
+          if [ -z "$CONVEX_DEPLOY_KEY_DEV" ]; then
+            echo "::notice::CONVEX_DEPLOY_KEY_DEV is not set, so dev Convex was not deployed. Add a dev deploy key for successful-lynx-56 (Convex dashboard → dev deployment → Settings → Deploy keys) as a repository secret."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$CONVEX_DEPLOY_KEY_DEV" in
+            dev:successful-lynx-56\|*) ;;
+            *)
+              echo "::error::CONVEX_DEPLOY_KEY_DEV is not a dev deploy key for successful-lynx-56. Refusing to deploy."
+              exit 1
+              ;;
+          esac
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+      - if: steps.key.outputs.configured == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: steps.key.outputs.configured == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.key.outputs.configured == 'true'
+        run: npm ci
+      - name: Deploy to dev Convex
+        if: steps.key.outputs.configured == 'true'
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::notice::Deploying $GITHUB_REF_NAME to the shared dev deployment. The next merge to main replaces it."
+          fi
+          npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_DEV }}

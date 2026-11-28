@@ -13,7 +13,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { OnlineBanner } from "./OnlineBanner";
 import { Podium } from "./Podium";
-import { GAME_IDS, GAME_INFO, GAME_VERSION, isGameId, VERSION_LABELS, type GameId, type GameVersion } from "../../../shared/games";
+import {
+  BOARD_VERSIONS,
+  CURRENT_GAME_VERSION,
+  GAME_IDS,
+  GAME_INFO,
+  isGameId,
+  versionLabel,
+  type GameId,
+  type GameVersion,
+} from "../../../shared/games";
 
 /** Rows per page; "Load more" fetches the next page until every score is shown. */
 const PAGE_SIZE = 25;
@@ -24,14 +33,11 @@ const PAGE_SIZE = 25;
  */
 const TAB_LABELS: Partial<Record<GameId, string>> = { shooter: "Shooter", runner: "Mystic" };
 
-/** Games that came after v1, with no legacy board to switch to. */
-const NO_LEGACY_BOARD: readonly GameId[] = ["hop"];
-
 const versionSegments = (game: GameId) =>
-  ([GAME_VERSION, 1] as const).map((version) => ({
+  BOARD_VERSIONS[game].map((version) => ({
     key: String(version),
-    label: VERSION_LABELS[version],
-    accessibilityLabel: `${GAME_INFO[game].title} ${VERSION_LABELS[version]} leaderboard`,
+    label: versionLabel(game, version),
+    accessibilityLabel: `${GAME_INFO[game].title} ${versionLabel(game, version)} leaderboard`,
   }));
 
 const Board = ({ game, version }: { game: GameId; version: GameVersion }) => {
@@ -111,7 +117,7 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const offline = useOffline();
-  const [version, setVersion] = useState<GameVersion>(GAME_VERSION);
+  const [version, setVersion] = useState<GameVersion>(CURRENT_GAME_VERSION[game]);
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -120,14 +126,17 @@ const GamePage = ({ game, onPlay }: { game: GameId; onPlay: (game: GameId) => vo
       testID={`leaderboard-page-${game}`}
     >
       <Btn title={`Play ${GAME_INFO[game].title}`} icon="play" onPress={() => onPlay(game)} />
-      {NO_LEGACY_BOARD.includes(game) ? null : (
+      {BOARD_VERSIONS[game].length > 1 ? (
         <Segmented
           pill
           segments={versionSegments(game)}
           active={String(version)}
-          onChange={(key) => setVersion(Number(key) === 1 ? 1 : GAME_VERSION)}
+          onChange={(key) => {
+            const picked = BOARD_VERSIONS[game].find((v) => String(v) === key);
+            setVersion(picked ?? CURRENT_GAME_VERSION[game]);
+          }}
         />
-      )}
+      ) : null}
       {/* Signed out, nothing else says why your scores aren't on the board. */}
       {!isAuthenticated && !isLoading ? (
         <View style={[styles.device, { backgroundColor: t.primarySoft }]}>

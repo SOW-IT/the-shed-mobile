@@ -3,7 +3,7 @@
 // state and returns the next, with no clock, network or React. Altitude goes
 // up (the board turns it over to draw it), and x wraps around the board's
 // sides.
-import { GAME_VERSION, SCORE_LIMITS } from "../../../shared/games";
+import { CURRENT_GAME_VERSION, SCORE_LIMITS } from "../../../shared/games";
 import { blend } from "./glider";
 import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
 import { between, random } from "./random";
@@ -77,7 +77,7 @@ export type HopState = {
 };
 
 /** The most a run can score: the leaderboard's cap. Past it the score stays put. */
-export const HOP_MAX_SCORE = SCORE_LIMITS[GAME_VERSION].hop.max;
+export const HOP_MAX_SCORE = SCORE_LIMITS[CURRENT_GAME_VERSION.hop].hop.max;
 
 const g = HOP.gravity;
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
