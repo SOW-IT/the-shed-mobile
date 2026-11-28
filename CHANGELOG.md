@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.72] - 2026-11-28
+
+### Fixed
+- **The mahjong host's "take them off the table?" question no longer comes
+  back on its own.** If the person the host asked about got up while the
+  lobby stayed open and then sat back down in the same seat, the question
+  popped up again. Now it's forgotten as soon as they get up.
+
 ## [2.13.71] - 2026-11-28
 
 ### Fixed

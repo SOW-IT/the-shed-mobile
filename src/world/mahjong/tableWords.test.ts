@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handRows, leaveQuestion, tileIndex, zoomShown, claimChoices, claimUses, firstClaim, lobbyWaiting, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
+import { handRows, leaveQuestion, tileIndex, zoomShown, claimChoices, claimUses, firstClaim, lobbyWaiting, removalStands, dealtCount, introElapsed, tumblingFace, coinsWords, faanLine, resultTitle, roundWords, seatAt, secondsLeft, sideOf, tileLabel, windBadge, windWords } from "./tableWords";
 
 describe("the table's words", () => {
   it("puts you at the bottom and the next seat on your right", () => {
@@ -48,6 +48,23 @@ describe("the table's words", () => {
     const seats = [{ kind: "human", ready: false }, { kind: "human", ready: true }, { kind: "bot", ready: false }, { kind: "human", ready: false }];
     expect(lobbyWaiting(seats, 0)).toEqual([3]);
     expect(lobbyWaiting(seats, 3)).toEqual([0]);
+  });
+
+  it("keeps the host's take-them-off question only while that person is still in that seat", () => {
+    const ben = { kind: "human", isMe: false, member: "m-ben", name: "Ben" };
+    const seats = [{ kind: "human", isMe: true, member: "m-me", name: "Me" }, ben, { kind: "empty", isMe: false, member: null, name: "" }, { kind: "bot", isMe: false, member: null, name: "Lucky Bot" }];
+    const asking = { seat: 1, member: "m-ben", name: "Ben" };
+    expect(removalStands(asking, seats, true, false)).toBe(true);
+    expect(removalStands(null, seats, true, false)).toBe(false);
+    // Ben gets up: the question goes, so the lobby forgets it and it can't come back when he sits down again.
+    expect(removalStands(asking, [seats[0], seats[2], seats[2], seats[3]], true, false)).toBe(false);
+    expect(removalStands({ seat: 1, member: "m-sam", name: "Sam" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 1, member: "m-ben", name: "Benny" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 0, member: "m-me", name: "Me" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 3, member: null, name: "Lucky Bot" }, seats, true, false)).toBe(false);
+    expect(removalStands({ seat: 7, member: "m-ben", name: "Ben" }, seats, true, false)).toBe(false);
+    expect(removalStands(asking, seats, false, false)).toBe(false);
+    expect(removalStands(asking, seats, true, true)).toBe(false);
   });
 
   it("titles the breakdown", () => {

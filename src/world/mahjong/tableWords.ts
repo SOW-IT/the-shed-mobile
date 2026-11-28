@@ -96,4 +96,11 @@ export const leaveQuestion = (stage: string, seated: boolean, forCoins: boolean,
 /** The seats the host would start without: people (not bots, not the host) who haven't said they're ready. */
 export const lobbyWaiting = (seats: readonly { kind: string; ready: boolean }[], hostSeat: number) => seats.flatMap((s, i) => (s.kind === "human" && i !== hostSeat && !s.ready ? [i] : []));
 
+/** A host's "take them off?" question, which stands only while that same person is still in that seat and no countdown is running. */
+type Removal = { seat: number; member: string | null; name: string };
+export const removalStands = (removing: Removal | null, seats: readonly { kind: string; isMe: boolean; member: string | null; name: string }[], isHost: boolean, counting: boolean) => {
+  const seat = removing && seats[removing.seat];
+  return removing !== null && seat !== null && seat !== undefined && isHost && !counting && seat.kind === "human" && !seat.isMe && seat.member === removing.member && seat.name === removing.name;
+};
+
 export const zoomShown = (zoomed: number | null, stage: string) => (stage === "over" ? null : zoomed);

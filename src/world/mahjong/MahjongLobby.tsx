@@ -4,7 +4,7 @@ import { fonts } from "@/theme";
 import { worldColours } from "@/worldColours";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CLAIM_SECONDS, FAAN_LIMITS, MIN_FAAN_CHOICES, TURN_SECONDS, type Settings } from "@shared/mahjong/table";
-import { lobbyWaiting, secondsLeft } from "./tableWords";
+import { lobbyWaiting, removalStands, secondsLeft } from "./tableWords";
 import { isMahjongTable, MAHJONG_TABLE_NAMES, seatPlace } from "@shared/mahjong/table";
 import type { Look } from "@shared/world";
 import { useState, type ReactNode } from "react";
@@ -138,9 +138,10 @@ export const MahjongLobby = ({
   const waiting = lobbyWaiting(t.seats, t.hostSeat).map((i) => nameOf(t.seats[i].name));
   const me = t.seats[t.mySeat];
   const counting = t.startsAt !== null;
-  // The question only stands while the host still has the person they asked about in that seat.
-  const asked = removing && t.seats[removing.seat];
-  const removed = removing && asked && t.isHost && !counting && asked.kind === "human" && !asked.isMe && asked.member === removing.member && asked.name === removing.name ? removing : null;
+  // The question only stands while the host still has the person they asked about in that seat. Once it doesn't, it's
+  // forgotten, so it can't pop up again on its own if they get up and sit back down in the same seat.
+  const removed = removalStands(removing, t.seats, t.isHost, counting) ? removing : null;
+  if (removing !== null && removed === null) setRemoving(null);
   const rows: ReactNode[] = t.seats.map((seat, i) => (
     <MenuRow
       key={seatPlace(i)}
