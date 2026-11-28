@@ -39,6 +39,73 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Changed
 - **Sij looks like Sijin's own World character now**, in the Cafe and in
   Mystic Man, Flap, Swoop and Hop.
+## [2.13.71] - 2026-11-28
+
+### Fixed
+- **Verify's character editor and World walk checks stop failing on their
+  own, for contributors.** Nothing in the app changes.
+  - The web `steps-drag` check failed on main every time, either with
+    `page.goto: net::ERR_ABORTED` at `/world?sheet=character` or with a
+    60-second timeout. It drags with touch, and a Mac browser with touch is
+    how an iPad looks, so the web page did what it does on an iPad: it tried
+    to open the app, and two seconds later went to the App Store, which
+    cancelled the check's move to the editor. The check now tells the page,
+    before it loads, that it has already tried, the way the page remembers
+    that itself after its first try.
+  - The iOS checks open the World menu through one shared step,
+    `flows/open-world-menu.yaml` (`backyard-chat`, `home-furniture`, and
+    `chapel-pews` on its way back to the Garden). It taps the place title
+    once, waits up to 5 seconds for the menu, and taps again only if the
+    menu still isn't up. Maestro's own second try at a tap that seemed
+    to change nothing could land on the menu's backdrop and shut the menu
+    the first tap had opened, the likely reason an iOS run of
+    `home-furniture` found no Home row.
+  - The iOS `backyard-chat` check goes to the backyard by the World menu's
+    Backyard row. It no longer closes the menu with ✕ and walks to the
+    home's Backyard pad, which raced the menu opening: a ✕ tap that missed
+    left the menu open to take the tap meant for the pad. It matches the
+    backyard's title in any case, since the title reads "Backyard" until
+    the backyard has loaded, and your own backyard's menu has no Backyard
+    row.
+  - The iOS `home-furniture` check waits for your home to load (the title
+    is no longer just "Home") before it decides whether you're home, so it
+    doesn't look for a Home row that the menu drops once it knows.
+  - The iOS `home-furniture` check opens your home by the menu row's id and
+    waits for the menu to be gone before its taps on the floor. The
+    `chapel-pews` check waits the same way before its tap on the pew. Their
+    taps in the World wait at most 2 seconds for a screen that never stops
+    moving, so neither runs past verify's 5 minutes per check.
+
+## [2.13.70] - 2026-11-28
+
+### Added
+- **The backyard has a How to farm card.** An (i) button at the bottom
+  right of the backyard opens a card just above it, with a picture and a
+  line or two for each step: planting seeds, "Water every day so plants
+  don't wilt!" (a thirsty, a watered and a wilted plant), the growth stages
+  from seed to ripe, harvesting and selling, and feeding chickens and cows
+  for eggs and milk. The menu, coins and chat stay where they are and keep
+  working while it's open. It closes with its ×, with the same button
+  (which turns into a ×), or by tapping the backyard, and it makes way when
+  you tap a plot, a pen or an animal. It also steps aside while a duel's
+  card is up, so the duel's picks are never pushed out of reach. It and
+  the emote tray take turns: opening one puts the other away. It shuts
+  when you start typing in the chat (on web too) and doesn't pop back
+  when the keyboard closes. On a short
+  window it shrinks to fit between the chat lines and the (i), and
+  tapping a person puts it away too. The ripe
+  plant in the Harvest picture sparkles the way it does in the backyard.
+
+### Changed
+- **Josh's animals and their feed are on one tab.** Josh's shop tabs are
+  now Seeds, Animals and feed, and Sell. The Animals and feed tab lists the
+  chicken and the cow, then grain, hay and name tags under "Feed and name tags", so everything for
+  your animals is in one place. Buying works the same as before.
+- **A notice being edited shows once.** Tapping Edit on a pinned notice
+  opens the editor at the top of the notice board, and the notice no longer
+  also shows below it until you save or cancel. Edit on a notice further
+  down scrolls the board up to the editor. The editor no longer says
+  "Everyone in the World sees it."
 
 ## [2.13.69] - 2026-11-28
 
