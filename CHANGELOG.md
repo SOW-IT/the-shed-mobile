@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.8] - 2026-11-28
+
+### Changed
+- **Web-only verify runs no longer wait for the iOS simulator.** Developer
+  tooling only, no change in the app. `node scripts/verify.mjs` now holds
+  the simulator lock just for each phase's iOS steps, and each run picks
+  and reserves free ports, so `--no-ios` and static runs from other
+  worktrees go at the same time instead of waiting 45 to 90 minutes behind
+  a full iOS run.
+- **Verify clears the XCTest attachments Maestro leaves on the simulator.**
+  Developer tooling only. They had filled 23 GB of disk.
+
 ## [2.14.1] - 2026-11-28
 
 ### Fixed

@@ -85,10 +85,10 @@ Everything a run starts lives under `.verify/`, which ignores itself
    recorded in `.verify/pids/` and nothing else. Daniel's Metro on 8081 is
    never touched. Then it runs lint, knip, typecheck and unit tests, which
    share nothing with other worktrees.
-   Before the first screen step it takes the verify lock (see "One run at a
-   time" below), and it holds the lock until it has stopped everything below.
+   Before the first screen step it reserves its ports (see "Runs at the same
+   time" below). It takes the simulator lock only for each phase's iOS steps.
 2. Starts a fresh local Convex backend from the binary the Convex CLI caches
-   (`~/.cache/convex/binaries`), on ports 3270/3271 (see below to move them), with its database in
+   (`~/.cache/convex/binaries`), on ports 3270/3271 or the next free ones, with its database in
    `.verify/run/<before|after>/convex/`. It doesn't read `.env.local`, so the shared
    dev deployment is never used. The Convex CLI writes the local backend's URLs
    into `.env.local` when it pushes, so verify puts that file back as it was.
@@ -96,8 +96,10 @@ Everything a run starts lives under `.verify/`, which ignores itself
    data (`scripts/sweep-seed.mjs`). Events are seeded around the top of the
    next hour, the same instant for both phases, so their times read the same
    in before and after and in a rerun within the hour.
-4. Serves the web app on 8192 and Metro for iOS on 8092, both pointed at the
-   local backend.
+4. Serves the web app on 8192 and Metro for iOS on 8092 (or the next free
+   ports), both pointed at the local backend. Both Expo servers get a
+   `$TMPDIR` of their own for the checkout (`theshed-verify-tmp-<hash>`), because
+   Metro caches there and `--clear` empties the whole folder.
 5. Boots the simulator `iPhone 17 Pro` (`--device` to change it) and waits
    until it can launch apps. Then it terminates the app, empties its data
    container, marks the dev menu as already seen, and opens the app in the
@@ -125,21 +127,34 @@ Everything a run starts lives under `.verify/`, which ignores itself
    back to normal afterwards. A screen still moving after ten frames, like
    one with a spinner, is kept as it was and named in the step's detail.
 7. Stops everything it started and frees the ports, even when a step fails.
+   After each iOS phase, still holding the simulator lock, it empties the
+   XCTest attachments testmanagerd keeps for every Maestro run
+   (`tmp/Attachments` in the simulator container whose metadata identifier is
+   `com.apple.testmanagerd`, `scripts/lib/simAttachments.mjs`). Nothing reads
+   them, and they had grown to 23 GB by 28 Nov 2026. Maestro's own output in
+   `.verify/run/<phase>/maestro` is kept.
 
 Before Maestro starts, the run stops any Maestro (and its `xcodebuild`
 driver) that a run which has since gone left on the same simulator: launchd
 has adopted it, so nothing owns it, but it stays attached and makes the next
 run's screenshots hang or its Maestro quit with no output. The run holds the
-verify lock at that point, so such a process is always stale
+simulator lock at that point, so such a process is always stale
 (`scripts/lib/strayMaestro.mjs`). One was found on 24 Nov 2026, attached for
 about five hours.
 
-### One run at a time
+### Runs at the same time
 
-The simulator and the ports are shared by every worktree and tmux session
-on this Mac, so only one run drives screens at a time. The lock is
-`~/.cache/theshed-verify/verify.lock`, a file holding the holder's pid,
-process start time, branch and worktree (`scripts/lib/verifyLock.mjs`).
+Several worktrees and tmux sessions on this Mac can run verify at once.
+The simulator is the one thing they can't share, so only the iOS steps go
+one at a time. Web and static runs (`--no-ios`, or a branch with no screens)
+never wait for the simulator.
+
+**The simulator lock** is `~/.cache/theshed-verify/verify.lock`, a file
+holding the holder's pid, process start time, branch and worktree
+(`scripts/lib/verifyLock.mjs`). A run takes it just before a phase's iOS
+reset and gives it back as soon as that phase's iOS steps end, pass or fail
+(`scripts/lib/verifyPhase.mjs`). Before and after are separate phases, so
+another run's iOS steps may go in between; each phase resets the app first.
 
 - A run that finds the lock held prints who holds it and waits, polling
   every two seconds, then carries on by itself. `--dry-run` prints whether
@@ -156,14 +171,27 @@ process start time, branch and worktree (`scripts/lib/verifyLock.mjs`).
   that started later. A takeover first creates a `verify.lock.takeover`
   guard, so two runs taking over the same stale lock can't remove each
   other's new one.
-- Static runs take no lock, and neither does `--dry-run`, `--clean` or
-  `--publish-only`.
+- `--no-ios`, static runs, `--dry-run`, `--clean` and `--publish-only` take no
+  lock.
 
-When a process that isn't a verify run holds a port, give this run other
-ports with `VERIFY_CONVEX_PORT`, `VERIFY_CONVEX_SITE_PORT`,
-`VERIFY_METRO_PORT` and `VERIFY_WEB_PORT` (for example 3280, 3281, 8097,
-8197). Never 8081. Other ports don't let two runs go at once: the lock is
-for the whole Mac.
+**Ports** are picked per run (`scripts/lib/verifyPorts.mjs`). For each of
+Convex (3270), the Convex site (3271), web (8192) and, with iOS, Metro (8092),
+the run takes the first port from the default up that nothing listens on and
+no live run has reserved. A reservation is a lock file per port in
+`~/.cache/theshed-verify/ports/`, taken like the simulator lock and given back
+the same way, so a port stays this run's between its before and after
+phases. 8081 and ports Node's `fetch` refuses are never picked. The `ports`
+step lists what it got. To fix a port, set `VERIFY_CONVEX_PORT`,
+`VERIFY_CONVEX_SITE_PORT`, `VERIFY_METRO_PORT` or `VERIFY_WEB_PORT`; the run
+fails if another run has reserved it.
+
+Everything else a run writes is per worktree: `.verify/` (pids, work folders,
+artifacts), the base tree and the Expo `$TMPDIR` under `$TMPDIR` named after
+the checkout. Running two verifies in the same worktree at once isn't
+supported.
+
+On this Mac, agents wrap every run in `~/agent-ops/verify-lock.sh`, which
+queues iOS runs one at a time and web runs two at a time (memory is tight).
 
 For **before** screenshots it does the same against the merge base. That
 tree comes from `git archive` into a folder under `$TMPDIR` named after the

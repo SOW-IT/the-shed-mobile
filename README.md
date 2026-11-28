@@ -433,7 +433,9 @@ every screen against a seeded local backend, signed out and as three roles.
 
 `node scripts/verify.mjs` runs the checks and opens the screens a branch
 affects on web and the iOS Simulator, with before and after screenshots
-([docs/verification.md](docs/verification.md)).
+([docs/verification.md](docs/verification.md)). Runs from several worktrees
+can go at once: each picks free ports, and only the iOS steps wait for the
+one simulator (`--no-ios` runs never wait).
 
 Signed-in testing uses the `e2e-auth` bypass: `src/app/e2e-auth.tsx` handles
 `/e2e-auth?email=…&secret=…` in dev builds (or with `EXPO_PUBLIC_E2E=1`), and
