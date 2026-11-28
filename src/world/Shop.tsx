@@ -254,11 +254,6 @@ export const ShopPanel = ({
                 </Pressable>
               </Animated.View>
             ))}
-            {error && !choice ? (
-              <Text style={[styles.error, styles.full]} numberOfLines={2}>
-                {error}
-              </Text>
-            ) : null}
           </SharpScrollView>
         ) : tab === "animals" ? (
           <SharpScrollView style={styles.scroll} contentContainerStyle={styles.list}>
@@ -342,7 +337,7 @@ export const ShopPanel = ({
               </Pressable>
             </View>
             {error && !naming.open ? (
-              <Text style={[styles.error, styles.full]} numberOfLines={2}>
+              <Text style={styles.listError} numberOfLines={2}>
                 {error}
               </Text>
             ) : null}
@@ -591,6 +586,8 @@ const styles = StyleSheet.create({
   buyBar: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: glass.edge },
   buyName: { color: glass.text, fontFamily: fonts.display, fontSize: 16, flexShrink: 1 },
   error: { color: glass.error, fontSize: 12, flex: 1 },
+  // In a column, flex: 1 can squash a line to nothing on iOS, so the Animals and feed tab's error doesn't flex.
+  listError: { color: glass.error, fontSize: 12.5, textAlign: "center" },
   buy: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: hud.accent },
   buyOff: { opacity: 0.45 },
   buyText: { color: hud.onAccent, fontWeight: "800", fontSize: 15 },

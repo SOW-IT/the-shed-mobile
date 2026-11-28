@@ -20,7 +20,9 @@ All notable changes to **The SHED** mobile app. This project follows
   you tap a plot, a pen or an animal. It also steps aside while a duel's
   card is up, so the duel's picks are never pushed out of reach. It and
   the emote tray take turns: opening one puts the other away. It shuts
-  when the keyboard opens and doesn't pop back when it closes. The ripe
+  when the keyboard opens and doesn't pop back when it closes. On a short
+  window it shrinks to fit between the chat lines and the (i), and
+  tapping a person puts it away too. The ripe
   plant in the Harvest picture sparkles the way it does in the backyard.
 
 ### Changed

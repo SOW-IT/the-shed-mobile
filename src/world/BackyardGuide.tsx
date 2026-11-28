@@ -118,13 +118,22 @@ const pictureOf = (part: GuidePart, calm: boolean): ReactNode => ({
  * stands just above that button and leaves the rest of the screen alone, so
  * the menu, bag and chat still work while it's open.
  */
-export const BackyardGuide = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+export const BackyardGuide = ({
+  open,
+  room,
+  onClose,
+}: {
+  open: boolean;
+  /** The height free between the chat lines under the coins and the (i) button. */
+  room: number;
+  onClose: () => void;
+}) => {
   const overlay = useOverlayClock(open, GUIDE.length + 1);
   const { width, height } = useWindowDimensions();
   if (!overlay.mounted) return null;
   return (
     <Animated.View
-      style={[styles.card, blurBehind, { width: Math.min(380, width - 28), maxHeight: Math.max(240, Math.min(540, height * 0.5)) }, popStyle(overlay)]}
+      style={[styles.card, blurBehind, { width: Math.min(380, width - 28), maxHeight: Math.max(0, Math.min(540, height * 0.5, room)) }, popStyle(overlay)]}
       pointerEvents={open ? "auto" : "none"}
       accessibilityRole="summary"
       testID="world-backyard-guide"

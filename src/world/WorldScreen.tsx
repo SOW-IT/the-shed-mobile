@@ -418,7 +418,8 @@ export const WorldScreen = ({
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set());
   const insets = useSafeAreaInsets();
   const worldName = useWorldName();
-  const coinsBeside = useWindowDimensions().width >= COINS_BESIDE_FROM;
+  const viewport = useWindowDimensions();
+  const coinsBeside = viewport.width >= COINS_BESIDE_FROM;
   const keyboard = useKeyboardLift(Math.max(insets.bottom, 12));
   const chatLift = useAnimatedStyle(() => ({ transform: [{ translateY: -keyboard.lift.get() }] }));
 
@@ -1774,10 +1775,12 @@ export const WorldScreen = ({
           // Tapping yourself opens nothing; it only puts away what was open.
           if (live.current.world.people.some((p) => p.isMe && p.memberId === memberId)) {
             setTray(false);
+            setGuideOpen(false);
             setPerson(null);
             return;
           }
           setTray(false);
+          setGuideOpen(false);
           setPropTrip(null);
           setPlotTrip(null);
           setAnimalTrip(null);
@@ -1973,7 +1976,12 @@ export const WorldScreen = ({
         ) : null}
         {inBackyard && !keyboard.open ? (
           <>
-            <BackyardGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+            <BackyardGuide
+              open={guideOpen}
+              // Below the chat lines, above the (i) and the chat bar, with the column's gaps.
+              room={viewport.height - logBottom - GUIDE_GAP - (Math.max(insets.bottom, 12) + CHAT_BAR_HEIGHT + GUIDE_BUTTON + 2 * GUIDE_GAP)}
+              onClose={() => setGuideOpen(false)}
+            />
             <View style={styles.decorateRow} pointerEvents="box-none">
               <RoundButton
                 icon={guideOpen ? "close" : "information-circle-outline"}
@@ -2022,6 +2030,8 @@ const COINS_BESIDE_FROM = 400;
 const TOP_BAR_GAP = 62;
 const UNDER_CHAT_SLACK = 10;
 const SHOP_CHAT_GAP = 14;
+const GUIDE_BUTTON = 44;
+const GUIDE_GAP = 10;
 
 const ink = { borderWidth: 2.5, borderColor: hud.forest };
 const pop = popShadow();

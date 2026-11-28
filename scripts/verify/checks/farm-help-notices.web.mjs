@@ -187,6 +187,23 @@ try {
   await id("world-backyard-guide-close").click();
   await gone(guide);
 
+  // A short window: the card shrinks to the room between the chat lines and the (i), clear of the title.
+  await page.setViewportSize({ width: 390, height: 480 });
+  await page.waitForTimeout(1000);
+  await open.click();
+  await shown(guide);
+  await page.waitForTimeout(900);
+  await shot("guide-short");
+  const shortBox = await guide.boundingBox();
+  for (const control of ["world-title", "world-chat-input", "world-backyard-guide-open"]) {
+    const box = await id(control).boundingBox();
+    expect(`on a short window How to farm covers ${control}`, box !== null && shortBox !== null && apart(box, shortBox));
+  }
+  await id("world-backyard-guide-close").click();
+  await gone(guide);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(1000);
+
   // The coop still opens (built, its sheet; not yet, its offer).
   const offer = page.locator('[data-testid="world-pen-sheet"], [data-testid="world-building-offer"]').first();
   const coop = page.getByLabel(/^Coop, /).first();
