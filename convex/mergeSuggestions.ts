@@ -46,11 +46,36 @@ export const list = query({
 
     const fields = await ctx.db.query("attendanceMetadata").collect();
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
-    const allProfiles = await ctx.db.query("staffProfiles").collect();
-    const linked = new Set(allProfiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
-    const members = (await ctx.db.query("attendanceMembers").collect())
-      .filter((m) => !linked.has(m._id))
-      .map((m) => ({ row: m, words: nameWords(m.name) }));
+    // Only this year's and next year's staff get suggestions, so only their profiles
+    // are read. Whether a member is already linked to a profile from any year is
+    // looked up for the few members whose name matches, not by reading every profile.
+    const yearProfiles = (
+      await Promise.all(
+        [...years].map((y) =>
+          ctx.db
+            .query("staffProfiles")
+            .withIndex("by_year", (q) => q.eq("year", y))
+            .collect()
+        )
+      )
+    ).flat();
+    const members = (await ctx.db.query("attendanceMembers").collect()).map((m) => ({
+      row: m,
+      words: nameWords(m.name),
+    }));
+    const linkedMembers = new Map<Id<"attendanceMembers">, Promise<boolean>>();
+    const isLinked = (memberId: Id<"attendanceMembers">) => {
+      let linked = linkedMembers.get(memberId);
+      if (!linked) {
+        linked = ctx.db
+          .query("staffProfiles")
+          .withIndex("by_memberId_and_year", (q) => q.eq("memberId", memberId))
+          .first()
+          .then((profile) => profile !== null);
+        linkedMembers.set(memberId, linked);
+      }
+      return linked;
+    };
     const dismissed = new Set(
       (await ctx.db.query("mergeSuggestionDismissals").collect()).map(
         (d) => `${d.staffEmail}|${d.memberId}`
@@ -81,8 +106,8 @@ export const list = query({
 
     const suggestions: MergeSuggestion[] = [];
     const suggested = new Set<string>();
-    const staffProfiles = allProfiles
-      .filter((p) => years.has(p.year) && isAssigned(p))
+    const staffProfiles = yearProfiles
+      .filter((p) => isAssigned(p))
       .sort((a, b) => a.year - b.year);
     for (const profile of staffProfiles) {
       const staffKey = canonicalEmailKey(profile.email)!;
@@ -98,6 +123,7 @@ export const list = query({
         if (!match || dismissed.has(`${staffKey}|${row._id}`)) continue;
         const campus = resolveUniversity(fields, row.metadata);
         if (!campusCompatible(universities, campus)) continue;
+        if (await isLinked(row._id)) continue;
         candidates.push({
           memberId: row._id,
           name: row.name,
