@@ -9,7 +9,7 @@ import { blurBehind, itemStyle, popStyle, scrimStyle, useOverlayClock, WifiBars 
 import { glass, hud } from "./palette";
 import { saverOn, useWorldSetting, type WorldSettingKey, type WorldSettingValue } from "./settings";
 
-const Toggle = ({ on, label, onChange, testID }: { on: boolean; label: string; onChange: (on: boolean) => void; testID: string }) => (
+export const Toggle = ({ on, label, onChange, testID }: { on: boolean; label: string; onChange: (on: boolean) => void; testID: string }) => (
   <Pressable
     onPress={() => onChange(!on)}
     accessibilityRole="switch"
@@ -56,7 +56,7 @@ const Choice = <K extends WorldSettingKey>({
   );
 };
 
-const Row = ({ icon, title, note, children, style }: { icon: string; title: string; note?: string; children: ReactNode; style: object | null }) => (
+export const Row = ({ icon, title, note, children, style }: { icon: string; title: string; note?: string; children: ReactNode; style: object | null }) => (
   <Animated.View style={[styles.row, style]}>
     <Text style={styles.rowIcon}>{icon}</Text>
     <View style={styles.rowText}>
