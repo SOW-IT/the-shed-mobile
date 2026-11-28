@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.76] - 2026-11-28
+
+### Changed
+- **Swoop v3: smoother Tiny Wings feel, Fever & Double Fever, Cloudtouch arcs, and high-altitude performance.**
+  - Flying high no longer stutters: the hills stay smooth however far up you go.
+  - Chaining 3 smooth swoops triggers **Gold Fever** (`FEVER` badge, golden trail, faster top speed); chaining 3 consecutive Fevers triggers **Purple Double Fever** (`FEVER ×2`, purple aura & trail, higher top speed and 3× bonuses).
+  - Soaring into the high cloud band triggers **Cloudtouch** with a smooth shortened parabola (no sharp ceiling stop), longer hang time on faster entries without losing horizontal speed, and a gradual speed pickup when descending back below the clouds.
+  - Each day wears its own non-repeating Tiny Wings-inspired colour palette, changing exactly at the finish flag so hills past the flag already show the next day's colours.
+  - The sun and day clock advance steadily without pausing on swoops, scaling logarithmically from 35s on Day 1 to 20s on Day 8 and 15s from Day 32 onward alongside a logarithmic terrain difficulty curve that plateaus at 3× old Day 10 by Day 32.
+  - Swoop now plays on a fresh **v3** leaderboard with **v2 (legacy)** beside it (replacing v1 legacy on Swoop); Sky Shooter, Mystic Man, and Flap remain on v2 and v1 (legacy).
+  - A Cloudtouch always counts when you reach the clouds you see, and the leaderboard accepts the higher scores Double Fever and Cloudtouch make possible.
+
 ## [2.13.75] - 2026-11-28
 
 ### Fixed

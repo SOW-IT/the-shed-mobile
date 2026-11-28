@@ -26,14 +26,30 @@ export const GAME_INFO: Record<GameId, { title: string; blurb: string }> = {
   },
 };
 
-export const GAME_VERSIONS = [1, 2] as const;
+export const GAME_VERSIONS = [1, 2, 3] as const;
 export type GameVersion = (typeof GAME_VERSIONS)[number];
-export const GAME_VERSION: GameVersion = 2;
 
-const isGameVersion = (value: unknown): value is GameVersion =>
+/** Current playable version for each mini-game (Swoop moved to v3; others stay on v2). */
+export const CURRENT_GAME_VERSION: Record<GameId, GameVersion> = {
+  shooter: 2,
+  runner: 2,
+  flappy: 2,
+  glider: 3,
+};
+
+/** Leaderboard tabs shown for each game: current version first, previous legacy board second. */
+export const BOARD_VERSIONS: Record<GameId, readonly GameVersion[]> = {
+  shooter: [2, 1],
+  runner: [2, 1],
+  flappy: [2, 1],
+  glider: [3, 2],
+};
+
+export const isGameVersion = (value: unknown): value is GameVersion =>
   (GAME_VERSIONS as readonly unknown[]).includes(value);
 
-export const VERSION_LABELS: Record<GameVersion, string> = { 1: "v1 (legacy)", 2: "v2" };
+export const versionLabel = (game: GameId, version: GameVersion): string =>
+  version === CURRENT_GAME_VERSION[game] ? `v${version}` : `v${version} (legacy)`;
 
 export const versionOf = (version: GameVersion | undefined): GameVersion => version ?? 1;
 
@@ -57,6 +73,13 @@ export const SCORE_LIMITS: Record<GameVersion, Record<GameId, { perSecond: numbe
     runner: { perSecond: 250, max: 2_000_000 },
     flappy: { perSecond: 3, max: 100_000 },
     glider: { perSecond: 2100, max: 2_000_000 },
+  },
+  3: {
+    shooter: { perSecond: 1000, max: 5_000_000 },
+    runner: { perSecond: 250, max: 2_000_000 },
+    flappy: { perSecond: 3, max: 100_000 },
+    // Covers Double Fever (×3 bonuses, top speed 1600) and Cloudtouch; glider.test.ts derives the bound.
+    glider: { perSecond: 3000, max: 2_000_000 },
   },
 };
 
@@ -102,7 +125,9 @@ export const submittableFor = (queue: readonly QueuedScore[], account: string): 
 export const scoreProblem = (entry: QueuedScore, now: number): string | null => {
   if (!RUN_ID_PATTERN.test(entry.runId)) return "That run has no usable id.";
   if (!isGameId(entry.game)) return "That isn't one of the games.";
-  if (entry.version !== undefined && !isGameVersion(entry.version)) return "That isn't a version of the game.";
+  if (entry.version !== undefined && (!isGameVersion(entry.version) || entry.version > CURRENT_GAME_VERSION[entry.game])) {
+    return "That isn't a version of the game.";
+  }
   if (!Number.isInteger(entry.score) || entry.score < 1) return "A score is a whole number above zero.";
   if (!Number.isFinite(entry.durationMs) || entry.durationMs <= 0 || entry.durationMs > MAX_RUN_MS) {
     return "That run's length isn't believable.";
@@ -176,14 +201,15 @@ export type LocalBests = Record<GameId, number>;
 export const NO_BESTS: LocalBests = { shooter: 0, runner: 0, flappy: 0, glider: 0 };
 
 /**
- * Saves bests with the reset each was made after, so a later reset can tell
- * which saved bests came before it.
+ * Saves bests with the reset and version each was made under, so a later reset
+ * or per-game version bump can clear only the games that changed.
  */
-export const stringifyBests = (bests: LocalBests): string => JSON.stringify({ ...bests, resets: SCORES_RESET_AT });
+export const stringifyBests = (bests: LocalBests): string =>
+  JSON.stringify({ ...bests, resets: SCORES_RESET_AT, versions: CURRENT_GAME_VERSION });
 
 /**
  * Reads saved bests, keeping zero for a game with nothing usable saved, or
- * whose best was saved before its scores were last reset.
+ * whose best was saved before its scores were reset or its version changed.
  */
 export const parseBests = (saved: string): LocalBests => {
   try {
@@ -191,10 +217,14 @@ export const parseBests = (saved: string): LocalBests => {
     const record = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
     const resets =
       typeof record.resets === "object" && record.resets !== null ? (record.resets as Record<string, unknown>) : {};
+    const versions =
+      typeof record.versions === "object" && record.versions !== null ? (record.versions as Record<string, unknown>) : {};
     const best = (game: GameId) => {
       const value = record[game];
       const savedAfter = resets[game] ?? 0;
       if (savedAfter !== (SCORES_RESET_AT[game] ?? 0)) return 0;
+      const savedVersion = versions[game] ?? 2;
+      if (savedVersion !== CURRENT_GAME_VERSION[game]) return 0;
       return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
     };
     return { shooter: best("shooter"), runner: best("runner"), flappy: best("flappy"), glider: best("glider") };
@@ -246,7 +276,8 @@ export type BestRunsByAccount = Record<string, BestRuns>;
 
 const SIGNED_OUT = "";
 
-const stillCounts = (run: QueuedScore, now: number) => scoreProblem(run, now) === null;
+const stillCounts = (run: QueuedScore, now: number) =>
+  scoreProblem(run, now) === null && versionOf(run.version) === CURRENT_GAME_VERSION[run.game];
 
 export const parseBestRuns = (saved: string, now: number): BestRunsByAccount => {
   try {

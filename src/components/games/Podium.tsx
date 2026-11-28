@@ -5,7 +5,7 @@ import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { lookFor, withHeight, type Look } from "@shared/world";
 import { api } from "../../../convex/_generated/api";
-import { GAME_VERSION, type GameId, type GameVersion } from "../../../shared/games";
+import { CURRENT_GAME_VERSION, type GameId, type GameVersion } from "../../../shared/games";
 import { podiumSteps, type PodiumStep } from "@/lib/games/podium";
 import { useAvatarArt, type AvatarArt } from "./GameCharacter";
 import { useSavedNames } from "./useSavedNames";
@@ -129,7 +129,7 @@ type PodiumRow = { id: string; name: string; score: number; isMe: boolean; look:
  * top of their step as their full Garden character. Nothing shows until
  * someone has a score.
  */
-export const Podium = ({ game, version = GAME_VERSION }: { game: GameId; version?: GameVersion }) => {
+export const Podium = ({ game, version = CURRENT_GAME_VERSION[game] }: { game: GameId; version?: GameVersion }) => {
   const rows = useQuery(api.gameScores.podium, { game, version });
   const nameOf = useSavedNames();
   const art = useAvatarArt((rows?.length ?? 0) > 0);

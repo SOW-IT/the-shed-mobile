@@ -5,9 +5,14 @@ import type { Size } from "@/lib/games/fit";
 import {
   colourAt,
   blend,
+  cloudAltitude,
   farHillTiles,
+  islandPalette,
   parallaxAnchor,
   parallaxShift,
+  terrainLod,
+  flagWithin,
+  worldAtX,
   GLIDER,
   groundAt,
   hold,
@@ -41,10 +46,6 @@ const HOLD_KEYS = new Set([" ", "ArrowDown", "s", "S"]);
 const START_HINT =
   Platform.OS === "web" ? "Hold the screen, or space, to start. Hold to dive, let go to fly." : "Hold to start.";
 
-/** The ground is drawn in strips this wide, in chunks of this many, each drawn once. */
-const STRIP = 12;
-const CHUNK_STRIPS = 32;
-const CHUNK = STRIP * CHUNK_STRIPS;
 /** How far below the bottom of the world the ground is filled. */
 const GRASS = 6;
 /** The bird's own drawing, before it's scaled to the board. */
@@ -63,84 +64,193 @@ const STARS = [
   { x: 0.95, y: 0.28 },
 ];
 
-/** Each strip's two ends: x, and the ground's height there. */
-const chunkPoints = (hills: readonly HillPoint[], index: number): HillPoint[] => {
-  const from = index * CHUNK;
-  const to = from + CHUNK;
-  const first = Math.max(0, hills.findIndex((point) => point.x > from) - 1);
-  const after = hills.findIndex((point) => point.x >= to);
-  return hills.slice(first, after < 0 ? hills.length : after + 1);
+type ChunkProps = {
+  hills: readonly HillPoint[];
+  index: number;
+  strip: number;
+  chunkStrips: number;
+  floor: number;
+  /** World colour before `splitX` (or the whole chunk when `splitX` is null). */
+  colour: string;
+  /** If a world flag sits inside this chunk, ground past `splitX` already uses `nextColour`. */
+  splitX: number | null;
+  nextColour: string;
 };
 
-const samePoints = (a: readonly HillPoint[], b: readonly HillPoint[]) =>
-  a === b || (a.length === b.length && a.every((point, i) => point.x === b[i].x && point.y === b[i].y));
+// `state.hills` keeps the same array reference all world, so reference equality is O(1) with zero per-frame allocations.
+const sameChunk = (a: ChunkProps, b: ChunkProps) =>
+  a.hills === b.hills &&
+  a.index === b.index &&
+  a.strip === b.strip &&
+  a.chunkStrips === b.chunkStrips &&
+  a.floor === b.floor &&
+  a.colour === b.colour &&
+  a.splitX === b.splitX &&
+  a.nextColour === b.nextColour;
 
-type ChunkProps = { hills: HillPoint[]; index: number; floor: number };
+type Strip = { key: string; x0: number; w: number; y0: number; y1: number; fill: string };
 
-const sameChunk = (a: ChunkProps, b: ChunkProps) => a.index === b.index && a.floor === b.floor && samePoints(a.hills, b.hills);
+/**
+ * The chunk's strips, left to right. The one strip a world flag crosses is cut
+ * in two at the flag, both halves meeting at the ground's height there, so the
+ * island colour changes exactly at the flag at every zoom level.
+ */
+const strips = (
+  { hills, index, strip, chunkStrips, colour, splitX, nextColour }: ChunkProps,
+): Strip[] => {
+  const chunk = strip * chunkStrips;
+  const out: Strip[] = [];
+  for (let i = 0; i < chunkStrips; i++) {
+    const x0 = index * chunk + i * strip;
+    const x1 = x0 + strip;
+    const y0 = groundAt(hills, x0).y;
+    const y1 = groundAt(hills, x1).y;
+    if (splitX !== null && splitX > x0 && splitX < x1) {
+      const ys = groundAt(hills, splitX).y;
+      out.push({ key: `${i}a`, x0, w: splitX - x0, y0, y1: ys, fill: colour });
+      out.push({ key: `${i}b`, x0: splitX, w: x1 - splitX, y0: ys, y1, fill: nextColour });
+    } else {
+      out.push({ key: `${i}`, x0, w: strip, y0, y1, fill: splitX !== null && x0 >= splitX ? nextColour : colour });
+    }
+  }
+  return out;
+};
 
-const strips = (hills: HillPoint[], index: number) =>
-  Array.from({ length: CHUNK_STRIPS }, (_, i) => {
-    const x0 = index * CHUNK + i * STRIP;
-    return { i, x0, y0: groundAt(hills, x0).y, y1: groundAt(hills, x0 + STRIP).y };
-  });
+/**
+ * Draws `children` (in world coordinates) clipped to x in [left, right] and
+ * world height in [low, high]. Used at a flag so the rotated band and grass
+ * pieces of one island can't poke across it into the other's ground.
+ */
+const ClipX = ({ left, right, low, high, children }: { left: number; right: number; low: number; high: number; children: ReactNode }) => (
+  <View style={[styles.clip, { left, top: -high, width: right - left, height: high - low }]}>
+    <View style={[styles.clipInner, { left: -left, top: high }]}>{children}</View>
+  </View>
+);
+
+/**
+ * Splits a chunk's strips at its flag and clips each side to its own ground.
+ * The old island's side reaches half a unit past the flag, under the new
+ * island's side (drawn after it), so no seam shows between them.
+ */
+const atFlag = (parts: Strip[], props: ChunkProps, draw: (pieces: Strip[]) => ReactNode) => {
+  const { splitX, index, strip, chunkStrips, floor } = props;
+  if (splitX === null) return draw(parts);
+  const start = index * strip * chunkStrips;
+  const end = start + strip * chunkStrips;
+  const high = Math.max(...parts.map((p) => Math.max(p.y0, p.y1))) + 40;
+  const low = Math.min(floor, ...parts.map((p) => Math.min(p.y0, p.y1))) - 40;
+  return (
+    <>
+      <ClipX left={start - 40} right={splitX + 0.5} low={low} high={high}>
+        {draw(parts.filter((p) => p.x0 < splitX))}
+      </ClipX>
+      <ClipX left={splitX} right={end + 40} low={low} high={high}>
+        {draw(parts.filter((p) => p.x0 >= splitX))}
+      </ClipX>
+    </>
+  );
+};
 
 /**
  * One chunk of earth. Each strip is a column up to its lower end, under a
  * band turned along the slope, so the hill's outline is smooth rather than
- * stepped. The ground never changes, so a chunk draws once and the camera
- * moves over it.
+ * stepped. Strip width scales up with camera zoom (LOD) so flying high never
+ * floods the view tree with thousands of views. When a finish flag sits inside
+ * the chunk, ground past the flag already wears the next island's colour.
  */
-const EarthChunk = memo(function EarthChunk({ hills, index, floor }: ChunkProps) {
-  const parts = strips(hills, index);
-  return (
+const EarthChunk = memo(function EarthChunk(props: ChunkProps) {
+  const { floor } = props;
+  return atFlag(strips(props), props, (parts) => (
     <>
-      {parts.map(({ i, x0, y0, y1 }) => (
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
         <View
-          key={`c${i}`}
-          style={[styles.column, { left: x0, top: -Math.min(y0, y1), width: STRIP + 0.75, height: Math.min(y0, y1) - floor }]}
+          key={`c${key}`}
+          style={[styles.column, { backgroundColor: fill, left: x0, top: -Math.min(y0, y1), width: w + 1, height: Math.min(y0, y1) - floor }]}
         />
       ))}
-      {parts.map(({ i, x0, y0, y1 }) => (
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
         <View
-          key={`b${i}`}
+          key={`b${key}`}
           style={[
             styles.band,
             {
+              backgroundColor: fill,
               left: x0,
               top: -y0,
-              width: Math.hypot(STRIP, y1 - y0) + 0.75,
+              width: Math.hypot(w, y1 - y0) + 1,
               height: Math.abs(y1 - y0) + 3,
-              transform: [{ rotate: `${Math.atan2(y0 - y1, STRIP)}rad` }],
+              transform: [{ rotate: `${Math.atan2(y0 - y1, w)}rad` }],
             },
           ]}
         />
       ))}
     </>
-  );
+  ));
 }, sameChunk);
 
 /** The grass along one chunk's top, drawn over all the earth so no strip covers its neighbour's. */
-const GrassChunk = memo(function GrassChunk({ hills, index }: ChunkProps) {
-  return (
+const GrassChunk = memo(function GrassChunk(props: ChunkProps) {
+  return atFlag(strips(props), props, (parts) => (
     <>
-      {strips(hills, index).map(({ i, x0, y0, y1 }) => (
+      {parts.map(({ key, x0, w, y0, y1, fill }) => (
         <View
-          key={`g${i}`}
+          key={`g${key}`}
           style={[
             styles.grass,
             {
+              backgroundColor: fill,
               left: x0,
               top: -y0,
-              width: Math.hypot(STRIP, y1 - y0) + 1,
-              transform: [{ rotate: `${Math.atan2(y0 - y1, STRIP)}rad` }],
+              width: Math.hypot(w, y1 - y0) + 1.25,
+              transform: [{ rotate: `${Math.atan2(y0 - y1, w)}rad` }],
             },
           ]}
         />
       ))}
     </>
-  );
+  ));
 }, sameChunk);
+
+/** Soft clouds drifting along the Cloudtouch ceiling band so players see the height goal. */
+const CloudBand = ({ shift, width, top, opacity }: { shift: number; width: number; top: number; opacity: number }) => (
+  <>
+    {farHillTiles(shift, width, 240).map(({ tile, left, stagger }) => {
+      const w = 110 + stagger * 22;
+      const h = 28 + stagger * 4;
+      return (
+        <View
+          key={`cl${tile}`}
+          style={[
+            styles.cloud,
+            {
+              left,
+              top: top + (stagger - 1) * 14,
+              width: w,
+              height: h,
+              borderRadius: h / 2,
+              backgroundColor: c.cloud,
+              opacity,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View
+            style={[
+              styles.cloudPuff,
+              { left: w * 0.18, top: -h * 0.45, width: w * 0.42, height: h * 0.9, borderRadius: h * 0.45, backgroundColor: c.cloud },
+            ]}
+          />
+          <View
+            style={[
+              styles.cloudPuff,
+              { left: w * 0.48, top: -h * 0.3, width: w * 0.34, height: h * 0.75, borderRadius: h * 0.38, backgroundColor: c.cloud },
+            ]}
+          />
+        </View>
+      );
+    })}
+  </>
+);
 
 const FinishFlag = ({ x, y, world }: { x: number; y: number; world: number }) => (
   <View style={[styles.flag, { left: x - 3, top: -y - 96 }]} pointerEvents="none">
@@ -195,7 +305,18 @@ const Flyer = ({ state, look: wanted }: { state: GliderState; look: Look | null 
 
 const PopupText = ({ popup, time, x, y }: { popup: Popup; time: number; x: number; y: number }) => {
   const age = (time - popup.born) / GLIDER.popupSeconds;
-  const colour = popup.kind === "rough" ? c.rough : popup.kind === "perfect" ? c.perfect : c.label;
+  const colour =
+    popup.kind === "rough"
+      ? c.rough
+      : popup.kind === "doubleFever"
+        ? c.doubleFever
+        : popup.kind === "fever"
+          ? c.fever
+          : popup.kind === "cloud"
+            ? c.cloudText
+            : popup.kind === "perfect"
+              ? c.perfect
+              : c.label;
   if (popup.kind === "world") {
     return (
       <View style={[StyleSheet.absoluteFill, styles.banner]} pointerEvents="none">
@@ -218,13 +339,60 @@ const PopupText = ({ popup, time, x, y }: { popup: Popup; time: number; x: numbe
   );
 };
 
-const WorldBadge = ({ world }: { world: number }) => (
-  <View style={styles.worldPill}>
-    <Text style={styles.worldText} numberOfLines={1} testID="glider-world">
-      Day {world}
-    </Text>
-  </View>
-);
+const FEVER_PIPS = [1, 2, 3] as const;
+
+const WorldBadge = ({
+  world,
+  streak,
+  feverLevel,
+}: {
+  world: number;
+  streak: number;
+  feverLevel: GliderState["feverLevel"];
+}) => {
+  const doubleProgress = Math.max(0, streak - GLIDER.feverStreak);
+  return (
+    <View style={styles.badgeRow}>
+      <View style={styles.worldPill}>
+        <Text style={styles.worldText} numberOfLines={1} testID="glider-world">
+          Day {world}
+        </Text>
+      </View>
+      {feverLevel >= 2 ? (
+        <View style={[styles.feverPill, { backgroundColor: c.doubleFeverPillBg }]} testID="glider-double-fever">
+          <Text style={styles.feverText} numberOfLines={1}>
+            FEVER ×2
+          </Text>
+        </View>
+      ) : feverLevel === 1 ? (
+        <>
+          <View style={[styles.feverPill, { backgroundColor: c.feverPillBg }]} testID="glider-fever">
+            <Text style={styles.feverText} numberOfLines={1}>
+              FEVER
+            </Text>
+          </View>
+          <View style={styles.pipPill} testID="glider-double-fever-streak">
+            {FEVER_PIPS.map((step) => (
+              <View
+                key={`df-${step}`}
+                style={[styles.pip, { backgroundColor: step <= doubleProgress ? c.doubleFever : c.feverPipEmpty }]}
+              />
+            ))}
+          </View>
+        </>
+      ) : streak > 0 ? (
+        <View style={styles.pipPill} testID="glider-streak">
+          {FEVER_PIPS.map((step) => (
+            <View
+              key={`f-${step}`}
+              style={[styles.pip, { backgroundColor: step <= streak ? c.fever : c.feverPipEmpty }]}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+};
 
 const WorldBar = ({ state, dark }: { state: GliderState; dark: boolean }) => {
   const done = worldProgress(state);
@@ -284,16 +452,36 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const reach = useBoardReach();
   const progress = state.daySeen;
   const sky = colourAt(c.sky, progress);
+  const currPalette = islandPalette(state.world, c.palettes);
+  const nextPalette = islandPalette(state.world + 1, c.palettes);
+  const prevPalette = state.world > 1 ? islandPalette(state.world - 1, c.palettes) : currPalette;
+  // Smoothly ease distant parallax hills into the upcoming island near the finish flag.
+  const flagBlend = Math.max(0, Math.min(1, (worldProgress(state) - 0.88) / 0.12));
+  const farHillColour = blend(currPalette.farHill, nextPalette.farHill, flagBlend);
+  const nearHillColour = blend(currPalette.nearHill, nextPalette.nearHill, flagBlend);
   const { camera } = state;
   const view = viewSize(width / height, camera.zoom);
   const px = unitPixels({ width, height }, camera.zoom);
   const steadyPx = height / viewSize(width / height, 1).height;
   const anchor = parallaxAnchor(state);
   const top = camera.y + view.height;
-  const first = Math.floor((camera.x - reach.left / px) / CHUNK) - 1;
-  const last = Math.floor((camera.x + view.width + reach.right / px) / CHUNK);
+  const lod = terrainLod(camera.zoom, state.terrainLevel);
+  const first = Math.floor((camera.x - reach.left / px) / lod.chunk) - 1;
+  const last = Math.floor((camera.x + view.width + reach.right / px) / lod.chunk);
+  const chunkInfo = (index: number) => {
+    const startX = index * lod.chunk;
+    const endX = startX + lod.chunk;
+    const paletteAt = (x: number) => {
+      const w = worldAtX(x, state.world, state.worldStart, state.worldEnd);
+      return w < state.world ? prevPalette : w > state.world ? nextPalette : currPalette;
+    };
+    const splitX = flagWithin(startX, endX, state.world, state.worldStart, state.worldEnd);
+    const p0 = paletteAt(startX);
+    const p1 = splitX === null ? p0 : paletteAt(splitX);
+    return { index, p0, p1, splitX };
+  };
   const chunks = [];
-  for (let i = Math.max(-1, first); i <= last; i++) chunks.push(i);
+  for (let i = Math.max(-1, first); i <= last; i++) chunks.push(chunkInfo(i));
   const screenX = (x: number) => (x - camera.x) * px;
   const screenY = (y: number) => (top - y) * px;
   const birdScale = birdPixels(px) / BIRD;
@@ -301,6 +489,7 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
   const tilt = state.tilt;
   const birdX = screenX(state.x);
   const birdY = screenY(state.y);
+  const cloudY = screenY(cloudAltitude(state.peakRef));
   const sunSize = Math.max(34, height * 0.11);
   const sunX = width * 0.05 + progress * (width * 0.9 - sunSize);
   // Over the top of the sky through the day, then down behind the hills at nightfall.
@@ -331,17 +520,25 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         <FarHills
           shift={parallaxShift(anchor, "far") * steadyPx - reach.left}
           width={width + reach.left + reach.right}
-          colour={blend(c.farHill, c.night, dusk * 0.6)}
+          colour={blend(farHillColour, c.night, dusk * 0.6)}
           size={height * 0.42}
           top={height * 0.42}
         />
         <FarHills
           shift={parallaxShift(anchor, "near") * steadyPx - reach.left}
           width={width + reach.left + reach.right}
-          colour={blend(c.nearHill, c.night, dusk * 0.6)}
+          colour={blend(nearHillColour, c.night, dusk * 0.6)}
           size={height * 0.32}
           top={height * 0.6}
         />
+        {cloudY > -80 && cloudY < height + 40 ? (
+          <CloudBand
+            shift={parallaxShift(anchor, "near") * steadyPx * 1.4 - reach.left}
+            width={width + reach.left + reach.right}
+            top={cloudY - 14}
+            opacity={Math.max(0.2, 0.58 - dusk * 0.35)}
+          />
+        ) : null}
       </View>
       <View
         style={[
@@ -350,11 +547,31 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ]}
         pointerEvents="none"
       >
-        {chunks.map((index) => (
-          <EarthChunk key={index} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
+        {chunks.map(({ index, p0, p1, splitX }) => (
+          <EarthChunk
+            key={`e${lod.level}-${index}`}
+            hills={state.hills}
+            index={index}
+            strip={lod.strip}
+            chunkStrips={lod.chunkStrips}
+            floor={floor}
+            colour={p0.ground}
+            splitX={splitX}
+            nextColour={p1.ground}
+          />
         ))}
-        {chunks.map((index) => (
-          <GrassChunk key={`g${index}`} hills={chunkPoints(state.hills, index)} index={index} floor={floor} />
+        {chunks.map(({ index, p0, p1, splitX }) => (
+          <GrassChunk
+            key={`g${lod.level}-${index}`}
+            hills={state.hills}
+            index={index}
+            strip={lod.strip}
+            chunkStrips={lod.chunkStrips}
+            floor={floor}
+            colour={p0.grass}
+            splitX={splitX}
+            nextColour={p1.grass}
+          />
         ))}
       </View>
       <View style={[styles.flagClip, { width, height }]} pointerEvents="none">
@@ -369,6 +586,29 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ]}
         pointerEvents="none"
       />
+      {state.fever &&
+        state.trail.map((pt, i) => {
+          const share = (i + 1) / (state.trail.length + 1);
+          const dotSize = Math.max(4, birdPixels(px) * (state.feverLevel >= 2 ? 0.54 : 0.45) * share);
+          const trailColour = state.feverLevel >= 2 ? c.doubleFever : c.fever;
+          return (
+            <View
+              key={pt.id}
+              pointerEvents="none"
+              style={[
+                styles.trailDot,
+                {
+                  width: dotSize,
+                  height: dotSize,
+                  borderRadius: dotSize / 2,
+                  backgroundColor: trailColour,
+                  opacity: share * (state.feverLevel >= 2 ? 0.78 : 0.65),
+                  transform: [{ translateX: screenX(pt.x) - dotSize / 2 }, { translateY: screenY(pt.y) - dotSize * 0.9 }],
+                },
+              ]}
+            />
+          );
+        })}
       <View
         style={[
           styles.bird,
@@ -383,6 +623,12 @@ const Scene = ({ state, width, height, look }: { state: GliderState; width: numb
         ]}
         testID="glider-bird"
       >
+        {state.fever ? (
+          <View
+            style={[styles.feverAura, { backgroundColor: state.feverLevel >= 2 ? c.doubleFeverGlow : c.feverGlow }]}
+            pointerEvents="none"
+          />
+        ) : null}
         <Flyer state={state} look={look} />
       </View>
       {state.popups.map((p) => (
@@ -489,7 +735,7 @@ export const GliderGame = ({
           original={<SwoopBird heavy={false} />}
         />
       }
-      titleExtra={<WorldBadge world={shown.world} />}
+      titleExtra={<WorldBadge world={shown.world} streak={shown.streak} feverLevel={shown.feverLevel} />}
       underBar={<WorldBar state={shown} dark={dark} />}
       hideStartCard={!!scene}
       overDetail={run?.ended === "night" ? `Night fell on day ${run.world}.` : null}
@@ -515,6 +761,8 @@ const styles = StyleSheet.create({
   column: { position: "absolute", backgroundColor: c.ground },
   band: { position: "absolute", backgroundColor: c.ground, transformOrigin: "top left" },
   grass: { position: "absolute", height: GRASS, backgroundColor: c.grass, transformOrigin: "top left" },
+  clip: { position: "absolute", overflow: "hidden" },
+  clipInner: { position: "absolute", width: 0, height: 0 },
   flag: { position: "absolute", width: 60, height: 96 },
   pole: { position: "absolute", left: 0, top: 0, width: 6, height: 96, borderRadius: 3 },
   pennant: {
@@ -584,6 +832,15 @@ const styles = StyleSheet.create({
   },
   worldPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, backgroundColor: fixedColours.games.panel },
   worldText: { fontFamily: fonts.display, fontSize: 14, color: c.label },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  feverPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 12 },
+  feverText: { fontFamily: fonts.display, fontSize: 12, color: c.label, letterSpacing: 0.6 },
+  pipPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, backgroundColor: fixedColours.games.panel },
+  pip: { width: 7, height: 7, borderRadius: 3.5 },
+  cloud: { position: "absolute" },
+  cloudPuff: { position: "absolute" },
+  trailDot: { position: "absolute", left: 0, top: 0 },
+  feverAura: { position: "absolute", left: -6, top: -6, right: -6, bottom: -6, borderRadius: 26 },
   track: { alignSelf: "stretch", height: 6, overflow: "hidden" },
   trackFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   trackFlag: { position: "absolute", right: 0, top: 0, bottom: 0, width: 6 },
