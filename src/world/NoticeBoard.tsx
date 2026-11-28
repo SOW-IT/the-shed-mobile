@@ -5,7 +5,7 @@ import { compactAgo } from "@shared/datetime";
 import { boardCards, draftAfterSave, NOTICE_TEXT_MAX, NOTICE_TITLE_MAX } from "@shared/worldNotices";
 import { useMutation, useQuery } from "convex/react";
 import { useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View, type ScrollViewInstance } from "react-native";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { itemStyle, popStyle, scrimStyle, useOverlayClock } from "./Overlays";
@@ -70,6 +70,7 @@ export const NoticeBoardPanel = ({
   const [removing, setRemoving] = useState<Id<"worldNotices"> | null>(null);
   const [saving, setSaving] = useState(false);
   const reopen = useRef(0);
+  const scroll = useRef<ScrollViewInstance>(null);
   const worldName = useWorldName();
   if (!live) return null;
   /** Who pinned a notice, named as the World names people, or "Admin" when only an email is known. */
@@ -152,7 +153,7 @@ export const NoticeBoardPanel = ({
               <Ionicons name="close" size={18} color={board.ink} />
             </Pressable>
           </Animated.View>
-          <SharpScrollView style={styles.scroll} contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
+          <SharpScrollView ref={scroll} style={styles.scroll} contentContainerStyle={styles.stack} keyboardShouldPersistTaps="handled">
             {loading ? <Text style={styles.chalk}>Pinning things up…</Text> : null}
             {noAccess ? <Text style={styles.chalk}>The notice board is for people on this year&apos;s team.</Text> : null}
 
@@ -231,7 +232,15 @@ export const NoticeBoardPanel = ({
                       ) : (
                         <>
                           <View style={styles.grow} />
-                          <TextButton label="Edit" onPress={() => setDraft({ id: n.id, title: n.title ?? "", text: n.text })} testID="world-board-edit" />
+                          <TextButton
+                            label="Edit"
+                            onPress={() => {
+                              setDraft({ id: n.id, title: n.title ?? "", text: n.text });
+                              // The editor opens at the top of the board, so go up to it from a notice further down.
+                              scroll.current?.scrollTo({ y: 0, animated: true });
+                            }}
+                            testID="world-board-edit"
+                          />
                           <TextButton label="Take down" onPress={() => setRemoving(n.id)} testID="world-board-remove" />
                         </>
                       )}

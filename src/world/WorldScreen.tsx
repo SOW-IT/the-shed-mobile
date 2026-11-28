@@ -500,6 +500,9 @@ export const WorldScreen = ({
   const pickInMyDuel = (pick: DuelPick) => {
     if (myDuel) void world.pickInDuel(myDuel.id, myDuel.round, pick).then((problem) => problem && setNote(problem));
   };
+  // A duel's card needs the room above the chat bar, and its picks are timed,
+  // so How to farm puts itself away when one starts and stays shut during it.
+  if (myDuel && guideOpen) setGuideOpen(false);
   const duelProps = {
     duel: myDuel,
     side: myDuel && myDuel.b === world.memberId ? ("b" as const) : ("a" as const),
@@ -1970,7 +1973,7 @@ export const WorldScreen = ({
           <>
             <BackyardGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
             <View style={styles.decorateRow} pointerEvents="box-none">
-              <RoundButton icon={guideOpen ? "close" : "information-circle-outline"} label={guideOpen ? "Close how to farm" : "How to farm"} onPress={() => setGuideOpen((was) => !was)} testID="world-backyard-guide-open" />
+              <RoundButton icon={guideOpen ? "close" : "information-circle-outline"} label={guideOpen ? "Close how to farm" : "How to farm"} onPress={() => setGuideOpen((was) => !was && !myDuel)} testID="world-backyard-guide-open" />
             </View>
           </>
         ) : null}

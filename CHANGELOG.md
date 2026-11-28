@@ -17,7 +17,8 @@ All notable changes to **The SHED** mobile app. This project follows
   for eggs and milk. The menu, coins and chat stay where they are and keep
   working while it's open. It closes with its ×, with the same button
   (which turns into a ×), or by tapping the backyard, and it makes way when
-  you tap a plot, a pen or an animal.
+  you tap a plot, a pen or an animal. It also steps aside while a duel's
+  card is up, so the duel's picks are never pushed out of reach.
 
 ### Changed
 - **Josh's animals and their feed are on one tab.** Josh's shop tabs are
@@ -26,7 +27,8 @@ All notable changes to **The SHED** mobile app. This project follows
   your animals is in one place. Buying works the same as before.
 - **A notice being edited shows once.** Tapping Edit on a pinned notice
   opens the editor at the top of the notice board, and the notice no longer
-  also shows below it until you save or cancel. The editor no longer says
+  also shows below it until you save or cancel. Edit on a notice further
+  down scrolls the board up to the editor. The editor no longer says
   "Everyone in the World sees it."
 
 ## [2.13.68] - 2026-11-28

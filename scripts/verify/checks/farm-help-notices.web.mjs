@@ -98,6 +98,8 @@ try {
   await card.getByTestId("world-board-edit").click();
   await id("world-board-draft").waitFor();
   await page.waitForTimeout(600);
+  const editor = await id("field-notice").boundingBox();
+  expect("Edit left the editor off screen", editor !== null && editor.y >= 0 && editor.y + editor.height <= (await page.viewportSize()).height);
   await shot("editing");
   expect("the notice being edited still shows below the editor", await gone(card, 5_000));
   expect(`the edit's editor still says "${VISIBILITY}"`, (await id("world-board-draft").getByText(VISIBILITY).count()) === 0);
