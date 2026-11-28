@@ -12,7 +12,9 @@ All notable changes to **The SHED** mobile app. This project follows
 - **A merge to `main` now publishes the over-the-air update before it
   deploys the prod backend.** EAS Update runs on the merge, and Convex Deploy
   runs once it has finished (succeeded or failed, not cancelled), for the same
-  commit, and skips a commit a newer merge has replaced. Nothing in the app
+  commit, and skips a commit a newer merge has replaced. A run of EAS Update
+  by hand can't cancel a merge's queued run, and a skipped Convex run can't
+  cancel a queued deploy, so prod Convex always ends on the newest `main`. Nothing in the app
   changes. For the few minutes in between, a phone already on the new
   JavaScript gets errors from any Convex function or argument the merge added.
 

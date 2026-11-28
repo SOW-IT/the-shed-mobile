@@ -3,8 +3,9 @@ name: Convex Deploy
 # A merge to main publishes the phones' JavaScript first (EAS Update), then
 # deploys the prod backend here once that run has finished, whether it
 # succeeded or failed, for the commit it ran for. A cancelled EAS Update run
-# deploys nothing: GitHub only cancels a queued one when a newer merge is
-# queued behind it, and that merge's own run deploys the newer code.
+# deploys nothing: only a newer merge can cancel a queued merge's run, and
+# that merge's own run deploys the newer code. A finished EAS Update run by
+# hand on main also deploys, if main hasn't moved past its commit.
 on:
   workflow_run:
     workflows: ["EAS Update"]
@@ -15,30 +16,55 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: convex-deploy-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    # Only the run a merge started (not EAS Update by hand), and only once it
-    # has finished: success, failure (the update reached no store build, or
-    # latestOta couldn't be raised) or a timeout all still deploy Convex.
+  # No concurrency here on purpose: a run that won't deploy (a superseded
+  # commit) stops in this job and never joins the deploy queue, so it can't
+  # cancel a queued deploy of main's tip.
+  check:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
-      contains(fromJSON('["success", "failure", "timed_out"]'), github.event.workflow_run.conclusion)) }}
+      contains(fromJSON('["success", "failure", "timed_out"]'), github.event.workflow_run.conclusion) }}
     runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.current.outputs.deploy }}
+    steps:
+      - name: Skip a commit a newer merge has replaced
+        id: current
+        env:
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "workflow_run" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$main_sha" = "$DEPLOYED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is superseded, so the Convex Deploy that follows that merge's EAS Update run deploys the newer code."
+          fi
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    # Job-level, so only runs that passed the check queue here. A newer one
+    # arriving cancels an older queued one, never the other way round.
+    concurrency:
+      group: convex-deploy-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Skip a commit a newer merge has replaced
+      - name: Skip a commit a newer merge has replaced while this waited
         id: current
         env:
-          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != "workflow_run" ]; then

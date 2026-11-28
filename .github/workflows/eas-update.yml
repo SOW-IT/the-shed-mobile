@@ -11,8 +11,11 @@ permissions:
   contents: read
   actions: read
 
+# Merges queue in their own group, so only a newer merge can cancel a queued
+# merge's run (and that newer merge's run publishes and deploys Convex). A run
+# by hand has its own group and can never cancel a merge's queued run.
 concurrency:
-  group: eas-update
+  group: eas-update-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
