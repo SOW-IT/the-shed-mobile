@@ -9,8 +9,8 @@ export const SHOP_TABS: Record<Keeper, readonly { id: Tab; icon: string; label: 
     { id: "wallpaper", icon: "🖼️", label: "Wallpaper" },
   ],
   josh: [
-    { id: "seeds", icon: "🌱", label: "Seeds and feed" },
-    { id: "animals", icon: "🐔", label: "Animals" },
+    { id: "seeds", icon: "🌱", label: "Seeds" },
+    { id: "animals", icon: "🐔", label: "Animals and feed" },
     { id: "sell", icon: "🧺", label: "Sell" },
   ],
 };

@@ -6,6 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.13.70] - 2026-11-28
+
+### Added
+- **The backyard has a How to farm card.** An (i) button at the bottom
+  right of the backyard opens a card just above it, with a picture and a
+  line or two for each step: planting seeds, "Water every day so plants
+  don't wilt!" (a thirsty, a watered and a wilted plant), the growth stages
+  from seed to ripe, harvesting and selling, and feeding chickens and cows
+  for eggs and milk. The menu, coins and chat stay where they are and keep
+  working while it's open. It closes with its ×, with the same button
+  (which turns into a ×), or by tapping the backyard, and it makes way when
+  you tap a plot, a pen or an animal. It also steps aside while a duel's
+  card is up, so the duel's picks are never pushed out of reach. It and
+  the emote tray take turns: opening one puts the other away. It shuts
+  when you start typing in the chat (on web too) and doesn't pop back
+  when the keyboard closes. On a short
+  window it shrinks to fit between the chat lines and the (i), and
+  tapping a person puts it away too. The ripe
+  plant in the Harvest picture sparkles the way it does in the backyard.
+
+### Changed
+- **Josh's animals and their feed are on one tab.** Josh's shop tabs are
+  now Seeds, Animals and feed, and Sell. The Animals and feed tab lists the
+  chicken and the cow, then grain, hay and name tags under "Feed and name tags", so everything for
+  your animals is in one place. Buying works the same as before.
+- **A notice being edited shows once.** Tapping Edit on a pinned notice
+  opens the editor at the top of the notice board, and the notice no longer
+  also shows below it until you save or cancel. Edit on a notice further
+  down scrolls the board up to the editor. The editor no longer says
+  "Everyone in the World sees it."
+
 ## [2.13.69] - 2026-11-28
 
 ### Added
