@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Hop, driven on the web: the character picker's own arrow keys, steering
-// with held keys (left, right, both at once, and a lost window focus letting
-// go), steering by holding either half of the board and sliding across the
-// middle, the leave dialog pausing the run, the BEST line crossed once, the
+// with held keys (left, right, the last pressed winning over one still
+// held, and a lost window focus letting go), steering by holding either
+// half of the board and sliding across the middle, a second finger taking
+// over from the first, the leave dialog pausing the run, the BEST line crossed once, the
 // fall-off ending, Space not restarting while you're still mashing, the
 // leaderboard and back, a tap steering within a few frames, and a tall
 // phone and a wide desktop window. The run that ends plays itself
@@ -110,7 +111,7 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
   await expect(page, "phone: the picker's arrow keys don't start a run", startCard(page).isVisible());
   await page.evaluate(() => document.activeElement?.blur());
 
-  // Held keys steer; both at once steer neither way; letting go of one leaves the other.
+  // Held keys steer, the last pressed winning; letting go of it hands back to the other still held.
   await steering(page, "keys", async (note) => {
     const start = await playerX(page);
     await page.keyboard.down("ArrowLeft");
@@ -120,15 +121,19 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     note(`holding ← moves you left (${start.toFixed(0)} → ${left.toFixed(0)})`, moved(start, left) < -40);
     await page.screenshot({ path: `${OUT}/hop-steer-left.png` });
     await page.keyboard.down("ArrowRight");
-    await page.waitForTimeout(450);
-    const both = await playerX(page);
     await page.waitForTimeout(300);
-    const stillBoth = await playerX(page);
-    note(`← and → together hold still (${both.toFixed(0)} → ${stillBoth.toFixed(0)})`, Math.abs(moved(both, stillBoth)) < 6);
+    const over = await playerX(page);
+    note(`pressing → while still holding ← goes right (${left.toFixed(0)} → ${over.toFixed(0)})`, moved(left, over) > 30);
+    await page.keyboard.up("ArrowRight");
+    await page.waitForTimeout(300);
+    const back = await playerX(page);
+    note(`letting go of → goes straight back to ← (${over.toFixed(0)} → ${back.toFixed(0)})`, moved(over, back) < -30);
+    await page.keyboard.down("ArrowRight");
     await page.keyboard.up("ArrowLeft");
-    await page.waitForTimeout(500);
+    const stillRight = await playerX(page);
+    await page.waitForTimeout(400);
     const right = await playerX(page);
-    note(`letting go of ← leaves → steering right (${stillBoth.toFixed(0)} → ${right.toFixed(0)})`, moved(stillBoth, right) > 20);
+    note(`letting go of the older ← leaves → steering right (${stillRight.toFixed(0)} → ${right.toFixed(0)})`, moved(stillRight, right) > 30);
     // The window losing focus lets go of a held key whose release it won't see.
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
     await page.waitForTimeout(450);
@@ -250,13 +255,28 @@ await run("phone-touch", { width: 390, height: 844 }, async (page) => {
     await page.waitForTimeout(400);
     const slid = await playerX(page);
     note(`sliding the finger across the middle steers right (${heldLeft.toFixed(0)} → ${slid.toFixed(0)})`, moved(heldLeft, slid) > 30);
-    // A second finger on the other half: both at once hold still.
+    // A second finger on the other half takes over while the first is still down; lifting it hands straight back.
     await finger("touchMove", [[board.x + board.width * 0.8, y], [board.x + board.width * 0.2, y]]);
-    await page.waitForTimeout(450);
-    const both = await playerX(page);
     await page.waitForTimeout(300);
-    const stillBoth = await playerX(page);
-    note(`a finger on each half holds still (${both.toFixed(0)} → ${stillBoth.toFixed(0)})`, Math.abs(moved(both, stillBoth)) < 6);
+    const second = await playerX(page);
+    note(`a second finger on the left half, the first still down on the right, goes left (${slid.toFixed(0)} → ${second.toFixed(0)})`, moved(slid, second) < -30);
+    await finger("touchMove", [[board.x + board.width * 0.8, y]]);
+    await page.waitForTimeout(300);
+    const handedBack = await playerX(page);
+    note(`lifting the second finger goes straight back right (${second.toFixed(0)} → ${handedBack.toFixed(0)})`, moved(second, handedBack) > 30);
+    // Holding right, tapping left three times: left for each tap, right again after.
+    let taps = 0;
+    for (let i = 0; i < 3; i++) {
+      const from = await playerX(page);
+      await finger("touchMove", [[board.x + board.width * 0.8, y], [board.x + board.width * 0.2, y]]);
+      await page.waitForTimeout(120);
+      const during = await playerX(page);
+      await finger("touchMove", [[board.x + board.width * 0.8, y]]);
+      await page.waitForTimeout(180);
+      const after = await playerX(page);
+      if (moved(from, during) < 0 && moved(during, after) > 0) taps++;
+    }
+    note(`holding right, each of three taps on the left goes left, then back right (${taps} of 3)`, taps === 3);
     await finger("touchEnd", []);
     await page.screenshot({ path: `${OUT}/hop-touch-screen.png` });
   });
@@ -336,7 +356,7 @@ await browser.close();
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames, each side and A/D hold and stop dead when let go, quick reversals go the way pressed; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
+    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, the last pressed wins over one still held (keys and fingers), a lost focus lets go; a tap moves you within three frames, each side and A/D hold and stop dead when let go, quick reversals go the way pressed; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

@@ -13,6 +13,10 @@ All notable changes to **The SHED** mobile app. This project follows
   and you're moving that way at full speed on the very next frame, with no
   wind-up; turning round is just as instant, with no slide the wrong way
   first. Letting go is almost a dead stop, within a couple of frames.
+- **In Hop, the side you pressed last steers, even with the other still
+  held.** Holding left and pressing right goes right straight away; let go
+  of right and you're straight back to left. The same with ←/→ and A/D on a
+  computer.
 
 ## [2.14.1] - 2026-11-28
 

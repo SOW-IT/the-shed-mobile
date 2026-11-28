@@ -19,6 +19,7 @@ import {
 } from "@/lib/games/hop";
 import { blend } from "@/lib/games/glider";
 import { HOP, HOP_MARK_EVERY } from "@/lib/games/hopTuning";
+import { fingers as heldFingers, lift, liftFingers, press, steerOf, type HeldStack } from "@/lib/games/hopSteer";
 import { newSeed } from "@/lib/games/random";
 import { fixedColours, fonts } from "@/theme";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -50,8 +51,6 @@ const MARK_UNITS = HOP_MARK_EVERY * HOP.unitsPerPoint;
 /** Clouds and stars are laid out in tiles this tall, the same tile the same way every time. */
 const TILE = 420;
 const BADGE_SECONDS = 1.6;
-
-type Steer = -1 | 0 | 1;
 
 /**
  * Test builds' own runs: steer like a careful player up to `target` points,
@@ -593,11 +592,10 @@ export const HopGame = ({
   const step = useMemo(() => (autoplay ? autoStep(autoplay) : stepHop), [autoplay]);
   useGameLoop(running, (dt) => setRun((state) => state && advance(state, dt, step)));
 
-  // What's held: keys, and fingers either side of the board's middle.
-  // Each steering key on its own, so letting go of A leaves ← held.
-  const held = useRef<{ keys: readonly string[]; touch: Steer }>({ keys: [], touch: 0 });
-  /** Where the fingers are, so a fresh measurement of the board can steer them again. */
-  const fingers = useRef<number[]>([]);
+  // What's held: keys, and fingers either side of the board's middle, in
+  // the order pressed. The newest still down steers; lifting it hands back
+  // to the one before (hold left, tap right: right for the tap, then left).
+  const held = useRef<HeldStack>([]);
   const middle = useRef<number | null>(null);
   const boardRef = useRef<ViewInstance | null>(null);
   const measure = useCallback((then?: () => void) => {
@@ -609,24 +607,19 @@ export const HopGame = ({
   const remeasure = useCallback(() => measure(), [measure]);
 
   const apply = () => {
-    const { keys, touch } = held.current;
-    const left = keys.some((key) => LEFT_KEYS.has(key));
-    const right = keys.some((key) => RIGHT_KEYS.has(key));
-    // Both sides at once steer neither way; letting go of one leaves the other.
-    const fromKeys: Steer = left === right ? 0 : left ? -1 : 1;
-    const steer = fromKeys !== 0 ? fromKeys : touch;
+    const steer = steerOf(held.current, middle.current);
     setRun((state) => (state && !state.over && !state.dying ? withSteer(state, steer) : state));
   };
 
   const clearHeld = () => {
-    held.current = { keys: [], touch: 0 };
+    held.current = [];
     apply();
   };
 
   // Nothing stays held across a pause, a screen in front, the leave dialog or a restart.
   useEffect(() => {
     if (running) return;
-    held.current = { keys: [], touch: 0 };
+    held.current = [];
     setRun((state) => (state && !state.over && !state.dying ? withSteer(state, 0) : state));
   }, [running, setRun]);
 
@@ -638,31 +631,23 @@ export const HopGame = ({
     current.begin(from ? hopAt(w, h, seed, from, current.best) : newHop(w, h, seed, current.best), !!from || !!auto);
   };
 
-  const steerFingers = () => {
-    const mid = middle.current;
-    const left = mid !== null && fingers.current.some((x) => x < mid);
-    const right = mid !== null && fingers.current.some((x) => x >= mid);
-    held.current = { ...held.current, touch: left === right ? 0 : left ? -1 : 1 };
-    apply();
-  };
-
   const touch = (event: GestureResponderEvent, ended: boolean) => {
     const native = event.nativeEvent;
     const gone = new Set(ended ? native.changedTouches.map((t) => t.identifier) : []);
     const down: Touch[] = native.touches.filter((t) => !gone.has(t.identifier));
     // A mouse press on the web comes with no touch list.
-    fingers.current = (down.length === 0 && !ended && native.touches.length === 0 ? [native] : down).map((t) => t.pageX);
-    steerFingers();
+    const now = down.length === 0 && !ended && native.touches.length === 0 ? [native] : down;
+    held.current = heldFingers(held.current, now.map((t) => ({ id: `touch-${t.identifier ?? "mouse"}`, x: t.pageX })));
+    apply();
   };
 
   const letGo = () => {
-    fingers.current = [];
-    held.current = { ...held.current, touch: 0 };
+    held.current = liftFingers(held.current);
     apply();
   };
 
   // Made once, so the handlers it calls are read fresh each time.
-  const hands = useLatest({ measure, start, touch, letGo, steerFingers });
+  const hands = useLatest({ measure, start, touch, letGo, apply });
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => latest.current.session.phase !== "over",
@@ -672,7 +657,7 @@ export const HopGame = ({
         hands.current.touch(event, false);
         // On a phone the measurement comes back a moment later: steer the
         // first finger again by it, in case the board had moved.
-        hands.current.measure(() => hands.current.steerFingers());
+        hands.current.measure(() => hands.current.apply());
       },
       onPanResponderStart: (event) => hands.current.touch(event, false),
       onPanResponderMove: (event) => hands.current.touch(event, false),
@@ -706,8 +691,9 @@ export const HopGame = ({
       if (down && !event.repeat && current.phase === "ready") start();
       // A shifted letter comes back up unshifted: hold them as one.
       const name = key.length === 1 ? key.toLowerCase() : key;
-      const others = held.current.keys.filter((k) => k !== name);
-      held.current = { ...held.current, keys: down ? [...others, name] : others };
+      // The last pressed steers; a key's own repeats don't take it back from a newer one.
+      if (down && event.repeat) return;
+      held.current = down ? press(held.current, { id: `key-${name}`, side: left ? -1 : 1 }) : lift(held.current, `key-${name}`);
       apply();
     },
     clearHeld,
