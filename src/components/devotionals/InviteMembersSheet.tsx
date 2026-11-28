@@ -76,7 +76,15 @@ const SelectableRow = ({
 };
 
 /** The people picked so far, whatever the search shows; tapping one takes them out. */
-const SelectedTray = ({ people, onRemove }: { people: Person[]; onRemove: (person: Person) => void }) => {
+const SelectedTray = ({
+  people,
+  disabled,
+  onRemove,
+}: {
+  people: Person[];
+  disabled: boolean;
+  onRemove: (person: Person) => void;
+}) => {
   const t = useAppTheme();
   return (
     <View style={styles.tray} testID="invite-selected">
@@ -84,13 +92,15 @@ const SelectedTray = ({ people, onRemove }: { people: Person[]; onRemove: (perso
         <Pressable
           key={person.email}
           onPress={() => onRemove(person)}
+          disabled={disabled}
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
           accessibilityLabel={`Remove ${person.name}`}
           hitSlop={4}
           style={({ pressed }) => [
             styles.trayChip,
             { backgroundColor: t.primarySoft },
-            pressed && { opacity: 0.7 },
+            (pressed || disabled) && { opacity: 0.6 },
           ]}
         >
           <Avatar photo={person.photo} name={person.name} size={24} />
@@ -132,11 +142,13 @@ export const InviteMembersSheet = ({
   );
   // Keep the last results on screen while the next search loads, so the list
   // doesn't empty and the sheet doesn't change height on every keystroke.
-  const [shown, setShown] = useState(people);
-  if (people !== undefined && people !== shown) setShown(people);
+  // The search those results answer goes with them, so the empty state names
+  // the search it's about and doesn't vanish while the next one loads.
+  const [shown, setShown] = useState<{ people: typeof people; search: string } | undefined>(undefined);
+  if (people !== undefined && people !== shown?.people) setShown({ people, search: debounced });
   const sendInvite = useMutation(api.devotionalGroups.invite);
-  const invitable = (shown ?? []).filter((person) => person.status === "none");
-  const already = (shown ?? []).filter((person) => person.status !== "none");
+  const invitable = (shown?.people ?? []).filter((person) => person.status === "none");
+  const already = (shown?.people ?? []).filter((person) => person.status !== "none");
   const isSelected = (email: string) => selected.some((person) => person.email === email);
 
   const toggle = (person: Person) => {
@@ -170,6 +182,9 @@ export const InviteMembersSheet = ({
   };
 
   const handleClose = () => {
+    // Invites already on their way would otherwise land in the next opening's
+    // state; the sheet stays open until they're done (a few seconds at most).
+    if (sending) return;
     setSearch("");
     setSelected([]);
     setSent([]);
@@ -201,7 +216,7 @@ export const InviteMembersSheet = ({
           placeholder="Search people"
           loading={visible && people === undefined}
         />
-        {selected.length > 0 ? <SelectedTray people={selected} onRemove={toggle} /> : null}
+        {selected.length > 0 ? <SelectedTray people={selected} disabled={sending} onRemove={toggle} /> : null}
         {sent.length > 0 ? (
           <View
             style={[styles.sent, { backgroundColor: t.successSoft }]}
@@ -217,12 +232,12 @@ export const InviteMembersSheet = ({
         ) : null}
         <ErrorBanner message={error} />
         {visible && shown === undefined ? <LoadingState /> : null}
-        {people && people.length === 0 ? (
-          debounced.trim() ? (
+        {shown && shown.people?.length === 0 ? (
+          shown.search.trim() ? (
             <EmptyState
               icon="search-outline"
               title="No people found"
-              message={`Nobody matches "${debounced.trim()}". Try a first name, surname or email.`}
+              message={`Nobody matches "${shown.search.trim()}". Try a first name, surname or email.`}
             />
           ) : (
             <EmptyState
