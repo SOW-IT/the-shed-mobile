@@ -96,10 +96,13 @@ appId: au.org.sow.theshed
 - tapOn:
     id: game-play-area
     retryTapIfNoChange: false
-- extendedWaitUntil:
-    visible:
-      id: hop-player
-    timeout: 10000
+# The drawing takes no touches, so it isn't in the accessibility tree to
+# wait on. The board never stops moving, so this waits the full 1.5 s: a
+# moment's climb, then a look.
+- assertNotVisible:
+    id: character-picker-hop
+- waitForAnimationToEnd:
+    timeout: 1500
 - takeScreenshot: "${OUT}/check-hop-climbing"
 - extendedWaitUntil:
     visible:
