@@ -2,9 +2,26 @@
 
 All notable changes to **The SHED** mobile app. This project follows
 [semantic versioning](https://semver.org/); the marketing version lives in
-`app.json` and the build number auto-increments per EAS build.
+`app.json` and the build number auto-increments per EAS build. From 2.14.11
+on, `main` is numbered after each merge from the notes in `changelog.d/`
+(see `changelog.d/README.md`); don't edit this file in a pull request.
 
 ## [Unreleased]
+
+## [2.14.11] - 2026-11-29
+
+### Changed
+- **Pull requests no longer pick their own version number.** After each
+  merge, the Release version workflow gives `main` the next version and
+  writes that version's changelog section from the notes the merged pull
+  requests left in `changelog.d/`. Open pull requests stop conflicting with
+  each other over the version and the changelog, and no number is used
+  twice. A note can ask for a minor or major release with `bump:` front
+  matter.
+- **Each merge deploys once, from the numbered commit.** Dev and prod Convex,
+  the over-the-air update and the dev web app now follow the release commit,
+  so phones and the "merged" message in Google Chat show the new version.
+  Until the release credential is set up, merges deploy as they did.
 
 ## [2.14.2] - 2026-11-28
 

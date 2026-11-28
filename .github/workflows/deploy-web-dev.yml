@@ -3,7 +3,8 @@ name: Deploy web (dev)
 # Follows Convex Deploy (dev) for a merge to main, so the dev web app never
 # ships code that calls functions dev doesn't have yet. It still deploys when
 # that run failed or skipped (no key); only a cancelled run, which a newer
-# merge's run replaces, deploys nothing.
+# merge's run replaces, deploys nothing. Only main's tip deploys: a merge that
+# Release version numbered deploys once, from its `chore(release)` commit.
 on:
   workflow_run:
     workflows: ["Convex Deploy (dev)"]
@@ -22,12 +23,27 @@ jobs:
   deploy:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.event == 'workflow_run' &&
       github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Skip a commit main has moved past
+        id: current
+        if: github.event_name == 'workflow_run'
+        env:
+          DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$main_sha" = "$DEPLOYED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main is now ${main_sha}; ${DEPLOYED_SHA} is behind it, so the run for main's tip deploys the dev web app."
+          fi
       - name: Check deploy secrets
         id: secrets
+        if: steps.current.outputs.deploy != 'false'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID_DEV: ${{ secrets.VERCEL_PROJECT_ID_DEV }}

@@ -1,7 +1,7 @@
 ---
 name: create-pr
 description: >-
-  Prepare and open a PR for The Shed Mobile — version bump, changelog, CI
+  Prepare and open a PR for The Shed Mobile — changelog note, CI
   checks, required baguette + web verification, GitHub PR, and phone-friendly
   Netlify HTML explain page. Use when the user asks to "make a PR", "open a PR",
   "ship this", explain a PR for phone, or verify UI before sending a PR.
@@ -22,44 +22,51 @@ skipped with a written reason). CI alone is not enough — this Mac has baguette
 ## 0. Preconditions
 
 - Work must be committed on a feature branch, **not** `main`. Branch naming
-  convention: `feat/<slug>` or `fix/<slug>`, optionally with the version
-  (e.g. `feat/1.7.0-public-home`, `fix/role-filter-custom-roles`). If work is
-  sitting on `main`, create a branch first and move the commits there.
+  convention: `feat/<slug>` or `fix/<slug>`, never with a version (e.g.
+  `feat/public-home`, `fix/role-filter-custom-roles`). If work is sitting on
+  `main`, create a branch first and move the commits there.
 - Working tree should contain only changes that belong in this PR. If there
   are unrelated modifications, ask the user what to include.
 - Prefer the **current worktree** for the change under review. Do not assume
   the main checkout at `~/GitHub/the-shed-mobile` is the branch
   being shipped — base Metro / emulator / verification on this worktree.
 
-## 1. Bump the patch version
+## 1. Never touch the version
 
-The marketing version lives in **three places that must stay in sync**:
-`package.json`, `package-lock.json`, and `app.json` (`expo.version`).
-The EAS build number auto-increments separately — never touch it.
+`main` is numbered after each merge (AGENTS.md, "Versions and the
+changelog"). Leave the `version` in `package.json`, `package-lock.json` and
+`app.json` alone, never run `npm version`, and keep the version out of the
+title and branch name: the number isn't known until the PR merges. The EAS
+build number auto-increments separately; never touch it either.
 
-```bash
-npm version patch --no-git-tag-version   # updates package.json + package-lock.json
-```
+## 2. Write the changelog note
 
-Then edit `app.json` → `expo.version` to the same new version.
+Add one new file, `changelog.d/<branch name, / as ->.md` (branch
+`feat/more-eye-shapes` → `changelog.d/feat-more-eye-shapes.md`). Never edit
+`CHANGELOG.md`: the release commit moves the note there, under the version it
+gets, and deletes the file. One file per PR is what stops PRs conflicting.
 
-Default is a **patch** bump (this repo ships features as patches too — see
-1.6.4/1.6.14). Only bump minor when the user asks or the change is a major
-user-facing milestone (like 1.6.0 Insights, 1.7.0 public app) — confirm first.
-
-## 2. Update CHANGELOG.md
-
-Format follows the existing file exactly:
-
-- Insert a new section under `## [Unreleased]`:
-  `## [X.Y.Z] - YYYY-MM-DD` (hyphen, today's date).
-- If `## [Unreleased]` already has entries, move them into the new section.
 - Group entries under `### Added` / `### Removed` / `### Changed` /
-  `### Fixed` (only the headings you need, in that order).
-- Write entries in the file's voice: **bold user-facing summary sentence**,
-  followed by plain-English detail of what changed and why. Describe behavior
-  from the user's point of view, not the implementation diff.
-- Leave an empty `## [Unreleased]` section at the top.
+  `### Fixed` (only the headings you need, in that order). No version or date
+  heading.
+- Write entries in `CHANGELOG.md`'s voice: **bold user-facing summary
+  sentence**, followed by plain-English detail of what changed and why.
+  Describe behavior from the user's point of view, not the implementation
+  diff.
+- Patch is the default (this repo ships features as patches too). Only when
+  the user asks for a minor or major release (a milestone like 1.7.0's public
+  app), start the note with front matter:
+
+  ```markdown
+  ---
+  bump: minor
+  ---
+  ### Added
+  - **…**
+  ```
+
+- A PR with no note still gets an entry, its merge title, so write one for
+  anything a user or teammate would notice.
 
 ## 2b. Keep the docs true (required)
 
@@ -135,10 +142,10 @@ or backend behavior change — and say so explicitly in the PR body. If the sim
 or Metro is down, fix/restart it or ask the user; do not silently ship UI
 changes on CI alone.
 
-## 5. Commit the release prep
+## 5. Commit the changelog note
 
-Commit the version bump + changelog (and any test fixes) on the feature
-branch. Release-prep commit style used in this repo: `chore(release): vX.Y.Z`.
+Commit the `changelog.d/` note (and any test fixes) on the feature branch.
+`chore(release): x.y.z` commits are the release workflow's; never write one.
 
 ## 6. Open the PR
 
@@ -149,10 +156,11 @@ gh pr create --title "<title>" --body "<body>"
 
 - **Never open as draft** — ready for review by default (`draft: false` /
   no `--draft`). Only draft if the user explicitly asks.
-- **Title convention:** conventional-commit prefix + summary + version in
-  parentheses, matching history:
-  - `feat: public Home tab + open org chart, staff tools behind sign-in (1.7.0)`
-  - `fix: attendance filter/search gaps for values outside the built-in sets (1.6.13)`
+- **Title convention:** conventional-commit prefix + summary, **no version**
+  (older titles ended in `(x.y.z)`; that stopped when `main` started numbering
+  itself). The title becomes the changelog entry if the PR has no note:
+  - `feat: public Home tab + open org chart, staff tools behind sign-in`
+  - `fix: attendance filter/search gaps for values outside the built-in sets`
 - **Body:** summarize what changed and why (changelog is a good base), list
   user-visible changes, note tests added, and include a **Verification**
   section from §4d (what baguette/web showed + what was skipped).
@@ -172,8 +180,8 @@ set -a && source "$HOME/.hermes/.env" && set +a
 
 ### Deploy
 
-1. Write `index.html` in a temp dir (e.g. `/tmp/pr-<n>-explain/`) with: title +
-   version, what changed, user-visible bullets, **Verification** (verified /
+1. Write `index.html` in a temp dir (e.g. `/tmp/pr-<n>-explain/`) with: title,
+   what changed, user-visible bullets, **Verification** (verified /
    not verified), how to try it, PR URL. Large type, short sections.
 2. Put screenshots under e.g. `shots/` and reference them relatively.
 3. **Always deploy with `--prod`** and hand the user the production HTTPS URL
@@ -210,7 +218,7 @@ a CodeRabbit review only when the PR is big, see AGENTS.md), then report.
 
 Give the user:
 
-1. PR URL + new version  
+1. PR URL (the version comes with the release commit after it merges)  
 2. Local CI results (lint / typecheck / coverage)  
 3. What baguette / web verified (and screenshots or Netlify link)  
 4. What was **not** verified  
