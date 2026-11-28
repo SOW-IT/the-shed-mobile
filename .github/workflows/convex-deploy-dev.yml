@@ -14,15 +14,23 @@ on:
     branches: [main]
   # Run by hand from a branch to put that branch's functions on dev, e.g.
   # before sending the branch to the staging app with EAS Staging. The next
-  # merge to main puts main's functions back.
+  # merge to main puts main's functions back, unless the branch's schema let
+  # dev store documents main's schema rejects: then that push fails schema
+  # validation (prod is unaffected) until the documents are fixed on dev or
+  # main's schema accepts them.
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# One push at a time, and never cancel one halfway: the next run waits.
+# Merges queue in their own group and runs by hand in another, so a run by
+# hand can never evict a merge's queued run (GitHub keeps one running and one
+# queued per group, and a newer queued run cancels the older queued one).
+# Within a group nothing is cancelled halfway. A run by hand and a merge's run
+# can overlap; dev ends on whichever finishes last, and the next merge to main
+# puts main back either way.
 concurrency:
-  group: convex-deploy-dev
+  group: convex-deploy-dev-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
