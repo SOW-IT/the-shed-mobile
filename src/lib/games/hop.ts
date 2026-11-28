@@ -108,17 +108,20 @@ export const landingTime = (dy: number, speed: number = HOP.jumpSpeed) => {
 };
 
 /**
- * How far sideways you can get in t seconds at worst: moving full speed the
- * wrong way to begin with, turning, then going flat out.
+ * How far sideways the route counts on you getting in t seconds: moving full
+ * speed the wrong way to begin with, turning, then going flat out, as if
+ * steering took a moment (HOP.routeSteer). Steering is instant, so you
+ * always get further than this.
  */
 export const sideReach = (t: number) => {
   const v = HOP.maxSpeed;
-  const turn = v / HOP.reverse;
-  const back = (v * v) / (2 * HOP.reverse);
-  if (t <= turn) return -(v * t - 0.5 * HOP.reverse * t * t);
+  const { accel, reverse } = HOP.routeSteer;
+  const turn = v / reverse;
+  const back = (v * v) / (2 * reverse);
+  if (t <= turn) return -(v * t - 0.5 * reverse * t * t);
   const u = t - turn;
-  const speedUp = v / HOP.accel;
-  const ahead = u <= speedUp ? 0.5 * HOP.accel * u * u : (v * v) / (2 * HOP.accel) + v * (u - speedUp);
+  const speedUp = v / accel;
+  const ahead = u <= speedUp ? 0.5 * accel * u * u : (v * v) / (2 * accel) + v * (u - speedUp);
   return ahead - back;
 };
 
@@ -133,12 +136,9 @@ export const routeReach = (dy: number) => {
 export const worstTrip = (a: number, aSpread: number, b: number, bSpread: number, width: number) =>
   Math.min(width / 2, seamDistance(a, b, width) + aSpread + bSpread);
 
-/** Steering for one step: quick to start, quicker to turn round, a short glide when let go. */
-export const steerSpeed = (vx: number, steer: -1 | 0 | 1, dt: number) => {
-  if (steer === 0) return Math.sign(vx) * Math.max(0, Math.abs(vx) - HOP.glide * dt);
-  const push = vx * steer < 0 ? HOP.reverse : HOP.accel;
-  return Math.max(-HOP.maxSpeed, Math.min(HOP.maxSpeed, vx + steer * push * dt));
-};
+/** Steering for one step: full speed the way you hold, straight away, and a short glide when let go. */
+export const steerSpeed = (vx: number, steer: -1 | 0 | 1, dt: number) =>
+  steer === 0 ? Math.sign(vx) * Math.max(0, Math.abs(vx) - HOP.glide * dt) : steer * HOP.maxSpeed;
 
 const flightOf = (kind: BoostKind) => HOP[kind];
 const fadeFrom = (kind: BoostKind) => flightOf(kind).seconds - HOP.boostFade.seconds;

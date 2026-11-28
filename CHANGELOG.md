@@ -22,6 +22,10 @@ All notable changes to **The SHED** mobile app. This project follows
   steering, boosts and moving platforms slow to match. Every jump goes just
   as high and as far sideways as before, so every platform is as reachable
   as it was.
+- **Hop steers the moment you press.** Tap or hold a side (or ←/→, A/D)
+  and you're moving that way at full speed on the very next frame, with no
+  wind-up; turning round is just as instant, with no slide the wrong way
+  first. Letting go keeps a short glide of about a tenth of a second.
 
 ## [2.14.1] - 2026-11-28
 

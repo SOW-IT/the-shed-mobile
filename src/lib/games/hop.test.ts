@@ -43,6 +43,8 @@ const FRAME = 1 / 60;
 /** Board heights Hop is shown at: a short web window to a tall phone (GAME_VIEWS.hop). */
 const HEIGHTS = [640, 760, 900];
 const HALF_OVERLAP = HOP.platform.width / 2 + HOP.box.width / 2;
+/** Close enough to a platform's middle to let go and glide onto it. */
+const PW_HALF_TARGET = HOP.platform.width / 4;
 
 /** A run with only these platforms, and nothing more laid as it climbs. */
 const bare = (platforms: Partial<HopPlatform>[], over: Partial<HopState> = {}): HopState => ({
@@ -364,21 +366,13 @@ describe("the pace", () => {
 });
 
 describe("steering", () => {
-  test("gets going quickly, turns round quicker, and glides a little when let go", () => {
-    let vx = 0;
-    let t = 0;
-    while (vx < HOP.maxSpeed) {
-      vx = steerSpeed(vx, 1, FRAME);
-      t += FRAME;
-    }
-    expect(t).toBeLessThan(0.16 / HOP_PACE);
-    let turn = 0;
-    while (vx > 0) {
-      vx = steerSpeed(vx, -1, FRAME);
-      turn += FRAME;
-    }
-    expect(turn).toBeLessThan(t);
-    vx = HOP.maxSpeed;
+  test("full speed the very next step you hold a way, turning round included, and a short glide when let go", () => {
+    expect(steerSpeed(0, 1, FRAME)).toBe(HOP.maxSpeed);
+    expect(steerSpeed(0, -1, FRAME)).toBe(-HOP.maxSpeed);
+    // Reversing: no slide the wrong way first.
+    expect(steerSpeed(HOP.maxSpeed, -1, FRAME)).toBe(-HOP.maxSpeed);
+    expect(steerSpeed(-HOP.maxSpeed, 1, FRAME)).toBe(HOP.maxSpeed);
+    let vx = HOP.maxSpeed;
     let glide = 0;
     let slid = 0;
     while (vx > 0) {
@@ -386,10 +380,21 @@ describe("steering", () => {
       slid += vx * FRAME;
       glide += FRAME;
     }
-    // Not icy: stopped within about a third of a second, having slid about a platform's width.
-    expect(glide).toBeLessThan(0.35 / HOP_PACE);
-    expect(slid).toBeGreaterThan(30);
-    expect(slid).toBeLessThan(HOP.platform.width * 1.2);
+    // Crisp, not icy: stopped in about a tenth of a second, having slid a third of a platform.
+    expect(glide).toBeLessThan(0.15 / HOP_PACE);
+    expect(slid).toBeGreaterThan(8);
+    expect(slid).toBeLessThan(HOP.platform.width / 2);
+  });
+
+  test("one tap moves you that way on the very next step, by a step at full speed", () => {
+    const still = bare([], { y: 500, vy: 0, camera: 0, x: W / 2, vx: 0 });
+    for (const steer of [-1, 1] as const) {
+      const next = stepHop(withSteer(still, steer), FRAME);
+      expect(next.x - still.x).toBeCloseTo(steer * HOP.maxSpeed * FRAME);
+      // And going the other way, it turns round in that same step.
+      const turned = stepHop(withSteer({ ...still, vx: -steer * HOP.maxSpeed }, steer), FRAME);
+      expect(turned.x - still.x).toBeCloseTo(steer * HOP.maxSpeed * FRAME);
+    }
   });
 
   test("keys and touch hold the same steering, which never changes how fast you can go", () => {
@@ -433,10 +438,15 @@ describe("every gap can be made", () => {
       vx: -HOP.maxSpeed,
       steer: 1,
     });
+    // Holding toward it, then letting go once over it: instant steering would carry you past a near one.
+    const target = state.platforms[1].x;
     let landed = false;
-    play(state, 1.2, FRAME, (s) => {
-      if (s.platforms[1].landedAt !== null) landed = true;
-    });
+    let current = state;
+    for (let t = 0; t < 1.2 && !landed; t += FRAME) {
+      const ahead = target - current.x;
+      current = stepHop(withSteer(current, ahead > PW_HALF_TARGET ? 1 : ahead < -PW_HALF_TARGET ? -1 : 0), FRAME);
+      if (current.platforms[1].landedAt !== null) landed = true;
+    }
     expect(landed).toBe(true);
   });
 

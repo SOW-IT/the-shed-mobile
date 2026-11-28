@@ -3,10 +3,11 @@
 // with held keys (left, right, both at once, and a lost window focus letting
 // go), steering by holding either half of the board and sliding across the
 // middle, the leave dialog pausing the run, the BEST line crossed once, the
-// fall-off ending, Space not restarting while you're still mashing, the
-// leaderboard and back, and a tall phone and a wide desktop window. The
-// run that ends plays itself (?autoplay=, test builds only), a practice run
-// that isn't saved.
+// fall-off ending, the page rising to catch a run left bouncing in place,
+// Space not restarting while you're still mashing, the leaderboard and
+// back, a tap steering within a few frames, and a tall phone and a wide
+// desktop window. The run that ends plays itself (?autoplay=, test builds
+// only), a practice run that isn't saved.
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -136,6 +137,27 @@ await run("phone", { width: 390, height: 844 }, async (page) => {
     await page.waitForTimeout(350);
     const afterBlur = await playerX(page);
     note(`a lost focus stops the steering (${blurred.toFixed(0)} → ${afterBlur.toFixed(0)})`, Math.abs(moved(blurred, afterBlur)) < 6);
+    await page.keyboard.up("ArrowRight");
+  });
+
+  // A tap counts straight away: the frame after pressing, you're already moving that way, turning round included.
+  await steering(page, "instant", async (note) => {
+    await page.keyboard.press(" ");
+    await page.waitForTimeout(400);
+    const frames = (n) => page.evaluate((count) => new Promise((done) => {
+      const tick = (left) => (left === 0 ? done() : requestAnimationFrame(() => tick(left - 1)));
+      tick(count);
+    }), n);
+    const before = await playerX(page);
+    await page.keyboard.down("ArrowLeft");
+    await frames(3);
+    const tapped = await playerX(page);
+    note(`a tap of ← moves you left within three frames (${before.toFixed(1)} → ${tapped.toFixed(1)})`, moved(before, tapped) < -3);
+    await page.keyboard.up("ArrowLeft");
+    await page.keyboard.down("ArrowRight");
+    await frames(3);
+    const turned = await playerX(page);
+    note(`→ straight after turns you round within three frames (${tapped.toFixed(1)} → ${turned.toFixed(1)})`, moved(tapped, turned) > 3);
     await page.keyboard.up("ArrowRight");
   });
 
@@ -305,7 +327,7 @@ await browser.close();
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; bouncing in place, the page rises and catches you; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
+    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; bouncing in place, the page rises and catches you; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

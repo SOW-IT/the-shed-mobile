@@ -29,11 +29,19 @@ export const HOP = {
    * the normal one.
    */
   springSpeed: JUMP_SPEED * Math.sqrt(SPRING_HEIGHT),
-  /** Steering: quick to get going, quicker to turn, a short glide when let go. */
+  /**
+   * Steering: full speed the frame you press, the same the frame you turn
+   * round, and a short, small glide to a stop when let go (about a tenth of
+   * a second and 20 units, never icy).
+   */
   maxSpeed: speed(360),
-  accel: accel(2800),
-  reverse: accel(5200),
-  glide: accel(1100),
+  glide: accel(3000),
+  /**
+   * The route is still laid as if steering took a moment to get going and to
+   * turn round, the first Hop's 2,800 and 5,200 units/s². Steering is
+   * instant now, so every jump has that much reach to spare.
+   */
+  routeSteer: { accel: accel(2800), reverse: accel(5200) },
   /** Everyone's collision box, whichever character is drawn. */
   box: { width: 40, height: 50 },
   platform: { width: 64, height: 14 },
