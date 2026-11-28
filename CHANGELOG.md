@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-11-28
+
+### Fixed
+- **Hop's propeller hat sits on your head.** It floated above the Doodle
+  Hopper and over the top of a World character's own hat. Now it sits on the
+  head for You, Sij and the Original, in place of any hat you wear, tips the
+  way you're facing, and squashes and stretches with you.
+- **A platform or boost below the bottom of the page can't catch you any
+  more.** In the moment you fell past the bottom, a platform or boost
+  already out of sight down there could still bounce you back up or lift
+  you. Now the run ends.
+
 ## [2.14.0] - 2026-11-28
 
 ### Added

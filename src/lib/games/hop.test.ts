@@ -73,6 +73,31 @@ const apexAfter = (state: HopState) => {
 };
 
 describe("bouncing", () => {
+  test("a platform below the bottom of the board can't save you: the run ends instead", () => {
+    // The camera is at 0, so the run ends once your feet are below -box height.
+    const floor = -HOP.box.height;
+    const start = bare([{ y: floor - 6 }], { y: floor + 2, vy: -600, camera: 0, top: 500, landedAt: null });
+    const state = stepHop(start, FRAME);
+    expect(state.landedAt).toBeNull();
+    expect(state.platforms[0].landedAt).toBeNull();
+    expect(state.vy).toBeLessThan(0);
+    expect(state.dying).not.toBeNull();
+    // One just above the line still bounces you.
+    const saved = stepHop(bare([{ y: floor + 1 }], { y: floor + 6, vy: -600, camera: 0, top: 500, landedAt: null }), FRAME);
+    expect(saved.landedAt).not.toBeNull();
+    expect(saved.dying).toBeNull();
+  });
+
+  test("a boost below the bottom of the board isn't picked up in the step the run ends", () => {
+    const floor = -HOP.box.height;
+    const item = { kind: "propeller" as const, offset: 0 };
+    const start = bare([{ y: floor - 20, item }], { y: floor + 2, vy: -600, camera: 0, top: 500, landedAt: null });
+    const state = stepHop(start, FRAME);
+    expect(state.flight).toBeNull();
+    expect(state.platforms[0].item).toEqual(item);
+    expect(state.dying).not.toBeNull();
+  });
+
   test("coming down onto a platform bounces you at jump speed", () => {
     const state = stepHop(bare([{ y: 0 }], { y: 4, vy: -300 }), FRAME);
     expect(state.vy).toBeCloseTo(HOP.jumpSpeed - HOP.gravity * (FRAME - 4 / 300), -1);
@@ -726,6 +751,9 @@ describe("previews", () => {
 
   test("the flying ones are flying, and the best ones have a best", () => {
     expect(previewHop("propeller", W, H).flight?.kind).toBe("propeller");
+    expect(previewHop("propeller", W, H).facing).toBe(1);
+    expect(previewHop("propellerleft", W, H).flight?.kind).toBe("propeller");
+    expect(previewHop("propellerleft", W, H).facing).toBe(-1);
     expect(previewHop("jetpack", W, H).flight?.kind).toBe("jetpack");
     expect(previewHop("best", W, H).bestAt).toBeNull();
     expect(previewHop("best", W, H).best).toBeGreaterThan(0);
