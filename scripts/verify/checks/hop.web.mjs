@@ -3,11 +3,10 @@
 // with held keys (left, right, both at once, and a lost window focus letting
 // go), steering by holding either half of the board and sliding across the
 // middle, the leave dialog pausing the run, the BEST line crossed once, the
-// fall-off ending, the page rising to catch a run left bouncing in place,
-// Space not restarting while you're still mashing, the leaderboard and
-// back, a tap steering within a few frames, and a tall phone and a wide
-// desktop window. The run that ends plays itself (?autoplay=, test builds
-// only), a practice run that isn't saved.
+// fall-off ending, Space not restarting while you're still mashing, the
+// leaderboard and back, a tap steering within a few frames, and a tall
+// phone and a wide desktop window. The run that ends plays itself
+// (?autoplay=, test builds only), a practice run that isn't saved.
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -265,29 +264,6 @@ await run("phone-run", { width: 390, height: 844 }, async (page) => {
   await expect(page, "phone: Space starts again after the leaderboard", startCard(page).waitFor({ timeout: 10_000 }).then(() => true, () => false));
 });
 
-// Bouncing in place, steering nowhere: after a few seconds the page rises
-// on its own, the wash at the bottom shows it catching up, and the run ends.
-// Read the screenshot: a soft red wash from the bottom edge, no text.
-await run("phone-idle", { width: 390, height: 844 }, async (page) => {
-  await page.goto(`${BASE}/games/hop`);
-  await id(page, "hop-scene").waitFor();
-  await startCard(page).waitFor();
-  await page.waitForTimeout(600);
-  await page.keyboard.press(" ");
-  const started = Date.now();
-  await expect(page, "phone idle: no wash in the opening grace", (async () => {
-    await page.waitForTimeout(1_500);
-    return (await page.getByTestId("hop-catching").count()) === 0;
-  })());
-  await id(page, "hop-catching").waitFor({ state: "attached", timeout: 15_000 });
-  await page.waitForTimeout(1_800);
-  await page.screenshot({ path: `${OUT}/hop-idle-catching.png` });
-  await id(page, "game-over").waitFor({ timeout: 45_000 });
-  const seconds = (Date.now() - started) / 1000;
-  await expect(page, `phone idle: the page catches you after a while (${seconds.toFixed(1)} s)`, seconds > 6);
-  await page.screenshot({ path: `${OUT}/hop-idle-over.png` });
-});
-
 await run("wide", { width: 1280, height: 720 }, async (page) => {
   await page.goto(`${BASE}/games/hop`);
   await id(page, "hop-scene").waitFor();
@@ -327,7 +303,7 @@ await browser.close();
 for (const failure of failures) console.log(`✘ ${failure}`);
 console.log(
   failures.length === 0
-    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; bouncing in place, the page rises and catches you; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
+    ? "Hop: the picker keeps its arrow keys; ←/→/A/D and either half of the board steer, both at once hold still, a lost focus lets go; a tap moves you within three frames; the leave dialog pauses; a run climbs past the BEST line (noted once), falls off and ends; Space waits out the mash; the leaderboard comes back to the card; tall phone and wide desktop; the propeller hat for each character."
     : `${failures.length} check(s) failed.`
 );
 process.exit(failures.length === 0 ? 0 : 1);

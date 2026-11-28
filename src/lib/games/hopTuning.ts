@@ -1,19 +1,7 @@
 // Hop's numbers. Board units are the board's own pixels (its width is
 // always GAME_VIEWS.hop.size), with altitude going up.
-
-/**
- * How fast the game runs, against the first Hop (2.14.0). Below 1 is calmer:
- * every speed is scaled by it, every acceleration by its square and every
- * duration by its inverse, so each jump goes as high and as far sideways as
- * before, only taking longer. Distances, the route and its reach stay put.
- */
-export const HOP_PACE = 0.88;
-const speed = (unitsPerSecond: number) => unitsPerSecond * HOP_PACE;
-const accel = (unitsPerSecond2: number) => unitsPerSecond2 * HOP_PACE * HOP_PACE;
-const seconds = (s: number) => s / HOP_PACE;
-
-const GRAVITY = accel(1800);
-const JUMP_SPEED = speed(880);
+const GRAVITY = 1800;
+const JUMP_SPEED = 880;
 /** A spring sends you this many times as high as a normal bounce. */
 const SPRING_HEIGHT = 2.2;
 
@@ -34,47 +22,38 @@ export const HOP = {
    * round, and a short, small glide to a stop when let go (about a tenth of
    * a second and 20 units, never icy).
    */
-  maxSpeed: speed(360),
-  glide: accel(3000),
+  maxSpeed: 360,
+  glide: 3000,
   /**
    * The route is still laid as if steering took a moment to get going and to
-   * turn round, the first Hop's 2,800 and 5,200 units/s². Steering is
-   * instant now, so every jump has that much reach to spare.
+   * turn round, as it did before 2.14.7. Steering is instant now, so every
+   * jump has that much reach to spare.
    */
-  routeSteer: { accel: accel(2800), reverse: accel(5200) },
+  routeSteer: { accel: 2800, reverse: 5200 },
   /** Everyone's collision box, whichever character is drawn. */
   box: { width: 40, height: 50 },
   platform: { width: 64, height: 14 },
   spring: { width: 22, height: 12 },
   item: { size: 28 },
-  propeller: { seconds: seconds(2.5), speed: speed(640) },
-  jetpack: { seconds: seconds(3.5), speed: speed(1150) },
+  propeller: { seconds: 2.5, speed: 640 },
+  jetpack: { seconds: 3.5, speed: 1150 },
   /** The last part of a flight, when the lift fades to a normal jump's speed. */
-  boostFade: { seconds: seconds(0.4), endSpeed: JUMP_SPEED * 0.6 },
+  boostFade: { seconds: 0.4, endSpeed: JUMP_SPEED * 0.6 },
   /** A route's next platform sits at least this far below the top of the jump that reaches it. */
   landingMargin: 26,
   /** And at least this far inside the sideways distance the jump can steer. */
   reachMargin: 14,
   /** The camera keeps you at most this share of the board above its bottom. */
   cameraShare: 0.45,
-  /**
-   * The page creeps up on its own when you stop climbing: nothing for
-   * `grace` seconds after the run starts, a flight ends or you land higher
-   * than you have before, then it speeds up over `ramp` seconds to a pace
-   * between `speed` (the opening) and its top (peak difficulty), in units a
-   * second. Its top stays under the slowest pace the route climbs at, and
-   * climbing lands you higher well inside the grace.
-   */
-  rise: { grace: seconds(3), ramp: seconds(2), speed: [speed(22), speed(46)] as const },
   /** Generated this far above the top of the board; dropped this far below its bottom. */
   ahead: 320,
   behind: 220,
   /** Falling off: how long the tumble lasts, and how far the camera follows you down. */
-  dyingSeconds: seconds(0.45),
+  dyingSeconds: 0.45,
   dyingPan: 70,
   /** How long landing squash, breaks and pickups take to play out. */
-  landSeconds: seconds(0.18),
-  effectSeconds: seconds(0.9),
+  landSeconds: 0.18,
+  effectSeconds: 0.9,
   maxEffects: 12,
 } as const;
 
@@ -95,7 +74,7 @@ export const HOP_DIFFICULTY = {
   /** Gaps inside a boost's landing corridor, where every jump can reach anywhere. */
   corridorGap: [60, 135],
   movingChance: [0.12, 0.34],
-  movingSpeed: [speed(45), speed(115)],
+  movingSpeed: [45, 115],
   movingRange: [36, 70],
   breakableChance: [0.22, 0.5],
   oneBounceChance: [0.08, 0.2],

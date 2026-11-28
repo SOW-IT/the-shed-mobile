@@ -6,22 +6,9 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [2.14.7] - 2026-11-28
+## [2.14.7] - 2026-11-29
 
 ### Changed
-- **Hop's page rises on its own when you stop climbing.** Bouncing on one
-  platform no longer lasts for ever: after a few seconds without landing
-  anywhere higher, the page starts to creep up, a soft red wash rising from
-  the bottom edge while it catches up, and if you stay put it catches you
-  (about 12 to 18 seconds of bouncing in place, depending on your screen).
-  Climbing normally keeps it still, a boost flight holds it, and it rises a
-  little faster higher up, never as fast as the slowest climb. It earns no
-  points.
-- **Hop is a little calmer.** Everything moves about 12% slower: a bounce
-  takes 1.11 seconds instead of 0.98, a spring 1.65 instead of 1.45, and
-  steering, boosts and moving platforms slow to match. Every jump goes just
-  as high and as far sideways as before, so every platform is as reachable
-  as it was.
 - **Hop steers the moment you press.** Tap or hold a side (or ←/→, A/D)
   and you're moving that way at full speed on the very next frame, with no
   wind-up; turning round is just as instant, with no slide the wrong way

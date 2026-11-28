@@ -9,9 +9,7 @@ import {
   HOP_MAX_SCORE,
   HOP_PREVIEWS,
   hopAt,
-  hopCatching,
   hopDifficulty,
-  hopRise,
   hopPage,
   hopScore,
   isHopPreview,
@@ -35,7 +33,7 @@ import {
   type HopPlatform,
   type HopState,
 } from "./hop";
-import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_PACE, HOP_STAGES } from "./hopTuning";
+import { HOP, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
 
 const W = 390;
 const H = 700;
@@ -44,7 +42,7 @@ const FRAME = 1 / 60;
 const HEIGHTS = [640, 760, 900];
 const HALF_OVERLAP = HOP.platform.width / 2 + HOP.box.width / 2;
 /** Close enough to a platform's middle to let go and glide onto it. */
-const PW_HALF_TARGET = HOP.platform.width / 4;
+const NEAR_ENOUGH = HOP.platform.width / 4;
 
 /** A run with only these platforms, and nothing more laid as it climbs. */
 const bare = (platforms: Partial<HopPlatform>[], over: Partial<HopState> = {}): HopState => ({
@@ -291,8 +289,8 @@ describe("boosts", () => {
 
   test("the jetpack is faster and lasts longer than the propeller", () => {
     expect(HOP.jetpack.speed).toBeGreaterThan(HOP.propeller.speed);
-    expect(HOP.propeller.seconds).toBeCloseTo(2.5 / HOP_PACE);
-    expect(HOP.jetpack.seconds).toBeCloseTo(3.5 / HOP_PACE);
+    expect(HOP.propeller.seconds).toBe(2.5);
+    expect(HOP.jetpack.seconds).toBe(3.5);
     expect(flightRise("jetpack")).toBeGreaterThan(flightRise("propeller"));
   });
 
@@ -325,43 +323,9 @@ describe("boosts", () => {
   test("a flight's time is run time: a pause holds it", () => {
     const flying = stepHop(withItem("propeller"), FRAME);
     // A pause is no steps; picking up after it, the flight has as long left as before.
-    const resumed = play(flying, HOP.propeller.seconds - 0.1);
+    const resumed = play(flying, 2.4);
     expect(resumed.flight).not.toBeNull();
     expect(play(resumed, 0.2).flight).toBeNull();
-  });
-});
-
-describe("the pace", () => {
-  // The first Hop's numbers, before it was calmed down.
-  const FIRST = { gravity: 1800, jumpSpeed: 880, maxSpeed: 360, accel: 2800, reverse: 5200 };
-
-  test("a little calmer than the first Hop: every bounce takes longer, by the same share", () => {
-    expect(HOP_PACE).toBeGreaterThanOrEqual(0.85);
-    expect(HOP_PACE).toBeLessThan(0.9);
-    const airtime = landingTime(0)!;
-    expect(airtime).toBeCloseTo((2 * FIRST.jumpSpeed) / FIRST.gravity / HOP_PACE);
-    expect(landingTime(0, HOP.springSpeed)!).toBeCloseTo(airtime * Math.sqrt(HOP.springHeight));
-  });
-
-  test("the same heights and sideways reach as before, so the route is just as fair", () => {
-    expect(JUMP_RISE).toBeCloseTo((FIRST.jumpSpeed * FIRST.jumpSpeed) / (2 * FIRST.gravity));
-    expect(SPRING_RISE).toBeCloseTo(JUMP_RISE * HOP.springHeight);
-    // Distance steered in a stretched time is the distance the first Hop steered.
-    const firstReach = (t: number) => {
-      const v = FIRST.maxSpeed;
-      const reverse = FIRST.reverse;
-      const turn = v / reverse;
-      const back = (v * v) / (2 * reverse);
-      if (t <= turn) return -(v * t - 0.5 * reverse * t * t);
-      const u = t - turn;
-      const speedUp = v / FIRST.accel;
-      const ahead = u <= speedUp ? 0.5 * FIRST.accel * u * u : (v * v) / (2 * FIRST.accel) + v * (u - speedUp);
-      return ahead - back;
-    };
-    for (const t of [0.05, 0.3, 0.6, 0.9]) expect(sideReach(t / HOP_PACE)).toBeCloseTo(firstReach(t), 6);
-    // A flight climbs as far as it did.
-    expect(HOP.propeller.speed * HOP.propeller.seconds).toBeCloseTo(640 * 2.5);
-    expect(HOP.jetpack.speed * HOP.jetpack.seconds).toBeCloseTo(1150 * 3.5);
   });
 });
 
@@ -372,7 +336,7 @@ describe("steering", () => {
     // Reversing: no slide the wrong way first.
     expect(steerSpeed(HOP.maxSpeed, -1, FRAME)).toBe(-HOP.maxSpeed);
     expect(steerSpeed(-HOP.maxSpeed, 1, FRAME)).toBe(HOP.maxSpeed);
-    let vx = HOP.maxSpeed;
+    let vx: number = HOP.maxSpeed;
     let glide = 0;
     let slid = 0;
     while (vx > 0) {
@@ -381,7 +345,7 @@ describe("steering", () => {
       glide += FRAME;
     }
     // Crisp, not icy: stopped in about a tenth of a second, having slid a third of a platform.
-    expect(glide).toBeLessThan(0.15 / HOP_PACE);
+    expect(glide).toBeLessThan(0.15);
     expect(slid).toBeGreaterThan(8);
     expect(slid).toBeLessThan(HOP.platform.width / 2);
   });
@@ -444,7 +408,7 @@ describe("every gap can be made", () => {
     let current = state;
     for (let t = 0; t < 1.2 && !landed; t += FRAME) {
       const ahead = target - current.x;
-      current = stepHop(withSteer(current, ahead > PW_HALF_TARGET ? 1 : ahead < -PW_HALF_TARGET ? -1 : 0), FRAME);
+      current = stepHop(withSteer(current, ahead > NEAR_ENOUGH ? 1 : ahead < -NEAR_ENOUGH ? -1 : 0), FRAME);
       if (current.platforms[1].landedAt !== null) landed = true;
     }
     expect(landed).toBe(true);
@@ -718,7 +682,7 @@ describe("scores the leaderboard takes", () => {
 
   test("nothing climbs faster than the per-second limit allows", () => {
     const fastest = Math.max(HOP.springSpeed, HOP.jetpack.speed, HOP.propeller.speed, HOP.jumpSpeed) / HOP.unitsPerPoint;
-    expect(Math.ceil(fastest)).toBe(575);
+    expect(Math.ceil(fastest)).toBe(653);
     expect(fastest).toBeLessThan(limit.perSecond);
     expect(fastest * 6 * 60 * 60).toBeLessThan(limit.max);
   });
@@ -783,126 +747,6 @@ describe("the page", () => {
     const between = hopPage(825, palette).paper;
     expect(between).not.toBe(grey(240));
     expect(between).not.toBe(grey(200));
-  });
-});
-
-describe("the page rising", () => {
-  const { grace, ramp, speed } = HOP.rise;
-  /** Bouncing straight up and down on one platform, steering nowhere. */
-  const idle = (height = H) => ({ ...bare([{ y: 0 }], { y: 0, vy: HOP.jumpSpeed }), height, camera: -height * 0.22 });
-  /** Where the camera sits following a bounce from 0 and nothing else. */
-  const followed = (height = H) => JUMP_RISE - height * HOP.cameraShare;
-
-  test("waits out a few seconds of grace at the start of a run", () => {
-    const state = play(idle(), grace - 0.05);
-    expect(hopRise(state)).toBe(0);
-    expect(hopCatching(state)).toBe(0);
-    expect(state.camera).toBeCloseTo(followed(), 0);
-  });
-
-  test("then speeds up over a moment to a slow pace, and holds it", () => {
-    const at = (t: number) => hopRise({ ...idle(), time: t });
-    expect(at(grace + ramp / 2)).toBeCloseTo(speed[0] / 2);
-    expect(at(grace + ramp)).toBeCloseTo(speed[0]);
-    expect(at(grace + ramp * 5)).toBeCloseTo(speed[0]);
-    expect(hopCatching({ ...idle(), time: grace + ramp / 2 })).toBeCloseTo(0.5);
-    // A little faster higher up, to its top at peak difficulty.
-    const high = (points: number) => hopRise({ ...idle(), time: 60, landed: points * HOP.unitsPerPoint });
-    expect(high(HOP_LEVELS.peak / 2)).toBeGreaterThan(speed[0]);
-    expect(high(HOP_LEVELS.peak)).toBeCloseTo(speed[1]);
-    expect(high(HOP_LEVELS.peak * 3)).toBeCloseTo(speed[1]);
-  });
-
-  test.each(HEIGHTS)("bouncing in place on a board %d tall ends the run, and earns nothing for it", (height) => {
-    let caught = 0;
-    const state = play(idle(height), 40, FRAME, (s) => {
-      if (!s.dying) caught = s.time;
-      expect(s.score).toBeLessThanOrEqual(hopScore(JUMP_RISE));
-    });
-    expect(state.score).toBe(hopScore(JUMP_RISE));
-    expect(state.over).toBe(true);
-    // Not straight away: well after the grace.
-    expect(caught).toBeGreaterThan(grace + ramp + 2);
-    expect(caught).toBeLessThan(25);
-  });
-
-  test("landing higher than you have before starts the grace again; landing back down doesn't", () => {
-    let state = bare([{ y: 0 }, { y: 120, x: W / 2 }], { y: 0, vy: HOP.jumpSpeed, time: 10, riseAt: 0 });
-    state = play(state, 1.2);
-    expect(state.landed).toBe(120);
-    expect(hopRise(state)).toBe(0);
-    const higher = state.riseAt;
-    expect(higher).toBeGreaterThan(10);
-    // Dropping back to a lower one keeps the clock where it was.
-    const back = play(bare([{ y: 0 }], { y: 40, vy: -100, time: 10, riseAt: 2, landed: 120 }), 0.2);
-    expect(back.landedAt).not.toBeNull();
-    expect(back.riseAt).toBe(2);
-    expect(back.landed).toBe(120);
-  });
-
-  test("a breakable you fall through isn't a landing", () => {
-    const state = play(bare([{ y: 0, kind: "breakable" }], { y: 10, vy: -100, time: 10, riseAt: 2, landed: -100 }), 0.1);
-    expect(state.riseAt).toBe(2);
-    expect(state.landed).toBe(-100);
-  });
-
-  test("never moves during a boost's flight, and gives a fresh grace after it", () => {
-    const start = bare([], { y: 0, vy: 0, time: 30, riseAt: 0, flight: { kind: "propeller", at: 30 } });
-    const end = play(start, HOP.propeller.seconds + 0.5, FRAME, (s, before) => {
-      if (s.flight) {
-        expect(hopRise(s)).toBe(0);
-        // Only following you up.
-        expect(s.camera).toBeCloseTo(Math.max(before.camera, s.y - H * HOP.cameraShare), 6);
-      }
-    });
-    expect(end.flight).toBeNull();
-    expect(hopRise(end)).toBe(0);
-    expect(end.time - end.riseAt).toBeLessThan(grace);
-  });
-
-  test("capped under the slowest pace the route climbs at, and climbing lands you higher inside the grace", () => {
-    // The smallest gap, made at the end of a whole bounce, is the slowest the route goes up.
-    const slowest = HOP_DIFFICULTY.gapMin[0] / landingTime(HOP_DIFFICULTY.gapMin[0])!;
-    expect(Math.max(...speed)).toBeLessThan(slowest);
-    // The longest a route step can take is a whole bounce back to the same height.
-    expect(landingTime(0)!).toBeLessThan(grace / 2);
-  });
-
-  test.each(HEIGHTS)("every route step on a board %d tall is reached inside the grace, so the page never moves for a climber", (height) => {
-    for (const seed of [1, 2, 3, 4, 5]) {
-      const state = layRoute(W, height, seed, (HOP_LEVELS.peak + 500) * HOP.unitsPerPoint);
-      const tops = [...new Set(state.platforms.filter((p) => p.route).map((p) => p.y))].sort((a, b) => a - b);
-      for (let i = 1; i < tops.length; i++) {
-        const t = landingTime(tops[i] - tops[i - 1]);
-        expect(t, `seed ${seed} step ${i}`).not.toBeNull();
-        expect(t!).toBeLessThan(grace);
-      }
-    }
-  });
-
-  test("a careful climber barely feels it: the page rises on its own a sliver of the time", () => {
-    let rising = 0;
-    let steps = 0;
-    const state = botRun(H, 17, 3000, (_, before) => {
-      steps++;
-      if (hopRise(before) > 0) rising++;
-    });
-    expect(state.score).toBeGreaterThanOrEqual(3000);
-    expect(rising / steps).toBeLessThan(0.05);
-  });
-
-  test("rises the same way at any frame rate, to within a unit", () => {
-    const at = (dt: number) => play(idle(), grace + ramp + 3, dt).camera;
-    const sixty = at(1 / 60);
-    expect(sixty).toBeGreaterThan(followed() + speed[0] * 2);
-    for (const dt of [1 / 30, 1 / 120, 1 / 144]) expect(Math.abs(at(dt) - sixty)).toBeLessThan(1);
-  });
-
-  test("the rising preview is catching up, its bottom just under your platform", () => {
-    const state = previewHop("rising", W, H);
-    expect(hopCatching(state)).toBeGreaterThan(0.5);
-    expect(state.camera).toBeLessThan(state.base);
-    expect(state.camera).toBeGreaterThan(state.base - 60);
   });
 });
 

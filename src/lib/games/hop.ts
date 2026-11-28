@@ -59,9 +59,6 @@ export type HopState = {
   camera: number;
   /** The highest your feet have been. */
   top: number;
-  /** The highest top you've landed on, and when the page's grace last began. */
-  landed: number;
-  riseAt: number;
   landedAt: number | null;
   springAt: number | null;
   flight: { kind: BoostKind; at: number } | null;
@@ -343,8 +340,6 @@ export const hopAt = (width: number, height: number, seed: number, points: numbe
     facing: 1,
     camera: base - height * START_SHARE,
     top: base,
-    landed: base,
-    riseAt: 0,
     landedAt: 0,
     springAt: null,
     flight: null,
@@ -477,10 +472,6 @@ const fall = (state: HopState, dt: number, x0: number, before: ReadonlyMap<numbe
     elapsed += tau;
     rest -= tau;
     hit.add(platform.id);
-    if (platform.kind !== "breakable" && contact.top > state.landed) {
-      state.landed = contact.top;
-      state.riseAt = at;
-    }
     const index = state.platforms.indexOf(platform);
     if (contact.spring && platform.spring) {
       vy = HOP.springSpeed;
@@ -547,25 +538,6 @@ const pickUp = (state: HopState) => {
   }
 };
 
-/**
- * How fast the page is rising on its own, in units a second: nothing in the
- * grace or while flying, then a slow ramp to a pace that grows a little with
- * the height you've reached.
- */
-export const hopRise = (state: Pick<HopState, "time" | "riseAt" | "landed" | "flight" | "dying" | "over">) => {
-  if (state.flight || state.dying || state.over) return 0;
-  const { grace, ramp, speed } = HOP.rise;
-  const into = clamp01((state.time - state.riseAt - grace) / ramp);
-  return into * lerp(speed, levelAt(pointsAt(state.landed)));
-};
-
-/** How hard the page is catching up, from 0 (not at all) to 1 (its full pace at this height). */
-export const hopCatching = (state: Parameters<typeof hopRise>[0]) => {
-  const { grace, ramp } = HOP.rise;
-  if (state.flight || state.dying || state.over) return 0;
-  return clamp01((state.time - state.riseAt - grace) / ramp);
-};
-
 const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
 
 export const stepHop = (previous: HopState, dt: number): HopState => {
@@ -601,10 +573,7 @@ export const stepHop = (previous: HopState, dt: number): HopState => {
   state.x = wrapX(previous.x + state.vx * dt, state.width);
   pickUp(state);
 
-  // A flight holds the page; its grace starts again once the flight is spent.
-  if (state.flight) state.riseAt = state.time;
-  // Rising at the pace it had at the start of the step, so a step's length doesn't change where it gets to.
-  state.camera = Math.max(state.camera + hopRise({ ...previous, flight: previous.flight ?? state.flight }) * dt, state.y - state.height * HOP.cameraShare);
+  state.camera = Math.max(state.camera, state.y - state.height * HOP.cameraShare);
   state.top = Math.max(state.top, state.y);
   state.score = hopScore(state.top);
   if (state.best > 0 && state.bestAt === null && state.score > state.best) state.bestAt = state.time;
@@ -724,7 +693,6 @@ export const HOP_PREVIEWS = [
   "propellerleft",
   "jetpack",
   "drop",
-  "rising",
 ] as const;
 export type HopPreview = (typeof HOP_PREVIEWS)[number];
 
@@ -744,7 +712,6 @@ const PREVIEW_POINTS: Record<HopPreview, number> = {
   propellerleft: 600,
   jetpack: 1800,
   drop: 900,
-  rising: 150,
 };
 
 /**
@@ -784,11 +751,6 @@ export const previewHop = (preview: HopPreview, width: number, height: number): 
   if (preview === "drop") {
     addEffect(state, { kind: "drop", boost: "propeller", x: state.x + 30, y: state.y + 40, vx: -90, facing: 1, at: state.time - 0.25 });
     addEffect(state, { kind: "drop", boost: "jetpack", x: state.x - 60, y: state.y + 10, vx: 90, facing: -1, at: state.time - 0.4 });
-  }
-  if (preview === "rising") {
-    // Bouncing in place long enough for the page to be catching up, its bottom near your platform.
-    state.riseAt = state.time - HOP.rise.grace - HOP.rise.ramp * 0.85;
-    state.camera = state.base - 24;
   }
   return state;
 };
