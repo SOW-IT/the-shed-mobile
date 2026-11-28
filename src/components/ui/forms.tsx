@@ -13,6 +13,21 @@ import { useSwipeToClose } from "./swipeToClose";
 
 const MAX_WEB_MULTILINE_HEIGHT = 320;
 
+/**
+ * Fit a web textarea to its text. scrollHeight never reads below the box's
+ * own height, so it's measured from auto (the 88px minimum still applies).
+ * The parent holds its height meanwhile, so the page doesn't shrink for that
+ * moment and a page scrolled near its end doesn't jump up.
+ */
+const fitTextarea = (el: HTMLTextAreaElement) => {
+  const parent = el.parentElement;
+  const held = parent?.style.minHeight ?? "";
+  if (parent) parent.style.minHeight = `${parent.offsetHeight}px`;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, MAX_WEB_MULTILINE_HEIGHT)}px`;
+  if (parent) parent.style.minHeight = held;
+};
+
 export const Field = ({
   label,
   value,
@@ -53,11 +68,22 @@ export const Field = ({
     if (!growOnWeb) return;
     const el = inputRef.current as unknown as HTMLTextAreaElement | null;
     if (!el?.style) return;
-    // scrollHeight never reads below the box's own height, so measure from
-    // auto (the 88px minimum still applies) and set the height directly.
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_WEB_MULTILINE_HEIGHT)}px`;
+    fitTextarea(el);
   }, [growOnWeb, value]);
+  // The same text wraps onto more or fewer lines when the width changes.
+  useEffect(() => {
+    if (!growOnWeb || typeof ResizeObserver === "undefined") return;
+    const el = inputRef.current as unknown as HTMLTextAreaElement | null;
+    if (!el?.style) return;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      fitTextarea(el);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [growOnWeb]);
   return (
     <View style={styles.field}>
       {label ? (
