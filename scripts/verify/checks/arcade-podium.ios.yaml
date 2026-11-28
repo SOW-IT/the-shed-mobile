@@ -17,21 +17,27 @@ appId: au.org.sow.theshed
     timeout: 10000
 - takeScreenshot: "${OUT}/check-arcade-panel"
 # A game goes full screen; leaving it comes back to the World, panel closed.
+# The panel animates out, so these wait for it to go (a one-shot assert
+# right after the tap could catch it still leaving).
 - tapOn:
     id: games-open-runner
 - extendedWaitUntil:
     visible: "Back to the games"
     timeout: 20000
-- assertNotVisible:
-    id: world-arcade
+- extendedWaitUntil:
+    notVisible:
+      id: world-arcade
+    timeout: 10000
 - takeScreenshot: "${OUT}/check-arcade-game"
 - tapOn: "Back to the games"
 - extendedWaitUntil:
     visible:
       id: world-stage
     timeout: 20000
-- assertNotVisible:
-    id: world-arcade
+- extendedWaitUntil:
+    notVisible:
+      id: world-arcade
+    timeout: 10000
 - takeScreenshot: "${OUT}/check-arcade-back-in-world"
 # The leaderboard from the panel shows the podium; back, the panel's still open.
 - openLink: "theshedmobile://world?sheet=arcade"
@@ -61,6 +67,9 @@ appId: au.org.sow.theshed
 # Close the panel, so the next check (chapel-pews) starts on a bare World.
 - tapOn:
     id: world-arcade-close
+    retryTapIfNoChange: false
+    # The World behind never settles; uncapped, this tap waited about 19 s.
+    waitToSettleTimeoutMs: 2000
 - extendedWaitUntil:
     notVisible:
       id: world-arcade

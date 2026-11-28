@@ -10,6 +10,12 @@ appId: au.org.sow.theshed
 # (waitToSettleTimeoutMs); the waits after each tap say what to wait for.
 # The menu opens through flows/open-world-menu.yaml, which makes sure it did.
 #
+# Even capped, each step in the World costs Maestro a lot (about 14 s a tap,
+# 25 s to type, about 30 s for hideKeyboard), and this check ran 287-294 s
+# against verify's 300 s. The keyboard goes by the chat bar's own ✕ ("Hide
+# keyboard"), a capped tap of about 15 s, not hideKeyboard; the check now
+# runs in about 250 s.
+#
 # A chat line's label is what it says and where it was said ("You said …,
 # in Backyard") (view.ts saidLabel). The web check (two people) runs first
 # on this backend and account, so you may already be in the backyard.
@@ -62,7 +68,15 @@ appId: au.org.sow.theshed
 - extendedWaitUntil:
     visible: "You said Hello from the backyard on iOS"
     timeout: 15000
-- hideKeyboard
+- runFlow:
+    when:
+      visible:
+        id: world-keyboard-close
+    commands:
+      - tapOn:
+          id: world-keyboard-close
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 2000
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: "${OUT}/check-backyard-chat-said"
