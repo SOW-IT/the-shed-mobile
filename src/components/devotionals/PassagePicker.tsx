@@ -15,14 +15,13 @@ import {
   passageFromPicks,
   picksFromPassage,
   searchBibleBooks,
-  toEndsChapters,
   versesInChapter,
 } from "@shared/bible";
 import { canAddPassage, MAX_PASSAGE_LENGTH, PASSAGE_TOO_LONG_TEXT, passageEditFits } from "@shared/devotionals";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-type Step = "book" | "chapter" | "from" | "to";
+type Step = "book" | "chapter" | "toChapter" | "from" | "to";
 
 const NEW_TESTAMENT_START = BIBLE_BOOKS[OLD_TESTAMENT_BOOKS];
 
@@ -34,6 +33,7 @@ const PickerFace = ({
   disabled,
   testID,
   inRow,
+  prefix,
 }: {
   label: string;
   value: string | null;
@@ -42,11 +42,13 @@ const PickerFace = ({
   disabled: boolean;
   testID: string;
   inRow?: boolean;
+  /** A word shown inside the box before the value ("from", "to"), in place of a label above it. */
+  prefix?: string;
 }) => {
   const t = useAppTheme();
   return (
     <View style={[styles.face, inRow && styles.faceInRow]}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      {prefix ? null : <Text style={[typography.label, { color: t.muted }]}>{label}</Text>}
       <Pressable
         onPress={onPress}
         disabled={disabled}
@@ -62,6 +64,7 @@ const PickerFace = ({
           !disabled && pressed && { opacity: 0.7 },
         ]}
       >
+        {prefix ? <Text style={[typography.caption, { color: t.muted }]}>{prefix}</Text> : null}
         <Text numberOfLines={1} style={[typography.body, { color: value ? t.text : t.faint, flex: 1 }]}>
           {value ?? placeholder}
         </Text>
@@ -149,8 +152,20 @@ const chapterLabel = (pick: PassagePick) =>
 /** Row 1 keeps the test ids it always had; later rows add their number. */
 const rowId = (id: string, row: number) => (row === 0 ? id : `${id}-${row + 1}`);
 
-const toValue = (pick: PassagePick | null) =>
-  pick?.toChapter != null ? `Ch ${pick.toChapter}` : pick?.toVerse != null ? String(pick.toVerse) : null;
+/** A from → to pair of boxes under a small heading: the chapters, or the verses, of a row. */
+const RangeRow = ({ label, from, to }: { label: string; from: ReactNode; to: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.face}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <View style={styles.row}>
+        {from}
+        <Ionicons name="arrow-forward" size={16} color={t.faint} style={styles.arrow} />
+        {to}
+      </View>
+    </View>
+  );
+};
 
 const PickRow = ({
   pick,
@@ -170,7 +185,7 @@ const PickRow = ({
   const t = useAppTheme();
   const oneChapter = pick?.book.chapters.length === 1;
   const verses = pick ? versesInChapter(pick) : 0;
-  const chaptersTo = pick !== null && toEndsChapters(pick);
+  const laterChapters = pick?.chapter != null && pick.chapter < pick.book.chapters.length;
   return (
     <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
       {rows > 1 ? (
@@ -199,37 +214,62 @@ const PickRow = ({
         disabled={!editable}
         testID={rowId("devotional-passage-book", row)}
       />
-      <View style={styles.row}>
-        {oneChapter ? null : (
+      {oneChapter ? null : (
+        <RangeRow
+          label="Chapters"
+          from={
+            <PickerFace
+              label="From chapter"
+              prefix="from"
+              value={pick?.chapter == null ? null : String(pick.chapter)}
+              placeholder="–"
+              onPress={() => onOpen("chapter")}
+              disabled={!editable || !pick}
+              testID={rowId("devotional-passage-chapter", row)}
+              inRow
+            />
+          }
+          to={
+            <PickerFace
+              label="To chapter"
+              prefix="to"
+              value={pick?.toChapter == null ? null : String(pick.toChapter)}
+              placeholder={pick?.chapter == null ? "–" : `${pick.chapter} only`}
+              onPress={() => onOpen("toChapter")}
+              disabled={!editable || !laterChapters}
+              testID={rowId("devotional-passage-to-chapter", row)}
+              inRow
+            />
+          }
+        />
+      )}
+      <RangeRow
+        label="Verses"
+        from={
           <PickerFace
-            label="Chapter"
-            value={pick?.chapter == null ? null : String(pick.chapter)}
-            placeholder="–"
-            onPress={() => onOpen("chapter")}
-            disabled={!editable || !pick}
-            testID={rowId("devotional-passage-chapter", row)}
+            label="From verse"
+            prefix="from"
+            value={pick?.fromVerse == null ? null : String(pick.fromVerse)}
+            placeholder={verses ? "All" : "–"}
+            onPress={() => onOpen("from")}
+            disabled={!editable || !verses}
+            testID={rowId("devotional-passage-from", row)}
             inRow
           />
-        )}
-        <PickerFace
-          label="Verse"
-          value={pick?.fromVerse == null ? null : String(pick.fromVerse)}
-          placeholder={verses ? "All" : "–"}
-          onPress={() => onOpen("from")}
-          disabled={!editable || !verses}
-          testID={rowId("devotional-passage-from", row)}
-          inRow
-        />
-        <PickerFace
-          label="To"
-          value={toValue(pick)}
-          placeholder="–"
-          onPress={() => onOpen("to")}
-          disabled={!editable || (pick?.fromVerse == null && !chaptersTo)}
-          testID={rowId("devotional-passage-to", row)}
-          inRow
-        />
-      </View>
+        }
+        to={
+          <PickerFace
+            label="To verse"
+            prefix="to"
+            value={pick?.toVerse == null ? null : String(pick.toVerse)}
+            placeholder={pick?.fromVerse == null ? "–" : `${pick.fromVerse} only`}
+            onPress={() => onOpen("to")}
+            disabled={!editable || pick?.fromVerse == null || pick.fromVerse >= verses}
+            testID={rowId("devotional-passage-to", row)}
+            inRow
+          />
+        }
+      />
     </View>
   );
 };
@@ -344,7 +384,6 @@ export const PassagePicker = ({
   const oneChapter = current?.book.chapters.length === 1;
   const verses = current ? versesInChapter(current) : 0;
   const wholeLabel = oneChapter ? "Whole book" : "Whole chapter";
-  const chaptersTo = current !== null && toEndsChapters(current);
   const canAdd = editable && picks.length > 0 && parseBibleReference(passage).ok && canAddPassage(passage);
 
   const title =
@@ -354,7 +393,7 @@ export const PassagePicker = ({
         ? `${current.book.name}: chapter`
         : step === "from"
           ? `${chapterLabel(current)}: first verse`
-          : chaptersTo
+          : step === "toChapter"
             ? `${chapterLabel(current)}: last chapter`
             : `${chapterLabel(current)}: last verse`;
 
@@ -458,7 +497,7 @@ export const PassagePicker = ({
               }}
             />
           </>
-        ) : chaptersTo && current.chapter !== null ? (
+        ) : step === "toChapter" && current.chapter !== null ? (
           <>
             <OptionRow
               label={`Just chapter ${current.chapter}`}
@@ -479,7 +518,7 @@ export const PassagePicker = ({
               }}
             />
           </>
-        ) : current.fromVerse !== null ? (
+        ) : step === "to" && current.fromVerse !== null ? (
           <>
             <OptionRow
               label={`Just verse ${current.fromVerse}`}
@@ -511,6 +550,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: spacing.sm },
   face: { gap: 6 },
   faceInRow: { flex: 1, minWidth: 0 },
+  arrow: { alignSelf: "center" },
   faceButton: {
     flexDirection: "row",
     alignItems: "center",

@@ -49,7 +49,7 @@ try {
   await chooseBook("devotional-passage-book", "Gen", "Genesis");
   await page.getByTestId("passage-chapter-1").click();
   await sheetClosed();
-  await page.getByTestId("devotional-passage-to").click();
+  await page.getByTestId("devotional-passage-to-chapter").click();
   await page.getByText("Genesis 1: last chapter").waitFor();
   await page.screenshot({ path: `${OUT}/multi-last-chapter-sheet.png` });
   await page.getByTestId("passage-chapter-3").click();
@@ -72,8 +72,8 @@ try {
   await page.goto(`${BASE}/devotionals/${seed.devotionalEmptyDate}`);
   await page.getByTestId("devotional-passage-book-2").waitFor();
   await expectText("devotional-passage-display", "Genesis 1-3\nPsalm 1", "the saved day");
-  const to = await page.getByTestId("devotional-passage-to").getAttribute("aria-label");
-  if (to !== "To, Ch 3") failures.push(`the saved run of chapters: To reads ${JSON.stringify(to)}`);
+  const to = await page.getByTestId("devotional-passage-to-chapter").getAttribute("aria-label");
+  if (to !== "To chapter, 3") failures.push(`the saved run of chapters: To reads ${JSON.stringify(to)}`);
   await page.screenshot({ path: `${OUT}/multi-reopened.png`, fullPage: true });
 
   // Removing a row leaves the other.
@@ -116,7 +116,7 @@ try {
   await expectCount("devotional-passage-book-2", 0, "the single-passage day");
   await expectCount("devotional-passage-remove", 0, "the single-passage day");
   const verse = await page.getByTestId("devotional-passage-to").getAttribute("aria-label");
-  if (verse !== "To, 17") failures.push(`the single-passage day: To reads ${JSON.stringify(verse)}`);
+  if (verse !== "To verse, 17") failures.push(`the single-passage day: To reads ${JSON.stringify(verse)}`);
   await page.screenshot({ path: `${OUT}/single-passage-day.png`, fullPage: true });
 } catch (error) {
   failures.push(String(error).split("\n")[0]);
