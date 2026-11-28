@@ -12,6 +12,7 @@ import {
   OLD_TESTAMENT_BOOKS,
   type PassagePick,
   parseBibleReference,
+  passageFromPick,
   passageFromPicks,
   picksFromPassage,
   searchBibleBooks,
@@ -149,6 +150,16 @@ const BookList = ({
 const chapterLabel = (pick: PassagePick) =>
   pick.chapter === null ? pick.book.name : `${pick.book.singular ?? pick.book.name} ${pick.chapter}`;
 
+const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** How long a row's passage is ("3 chapters", "7 verses"), or null before a chapter is chosen. */
+const rangeSize = (pick: PassagePick): string | null => {
+  if (pick.chapter === null) return null;
+  if (pick.fromVerse !== null) return plural(pick.toVerse === null ? 1 : pick.toVerse - pick.fromVerse + 1, "verse");
+  if (pick.toChapter !== null) return plural(pick.toChapter - pick.chapter + 1, "chapter");
+  return plural(versesInChapter(pick), "verse");
+};
+
 /** Row 1 keeps the test ids it always had; later rows add their number. */
 const rowId = (id: string, row: number) => (row === 0 ? id : `${id}-${row + 1}`);
 
@@ -186,22 +197,37 @@ const PickRow = ({
   const oneChapter = pick?.book.chapters.length === 1;
   const verses = pick ? versesInChapter(pick) : 0;
   const laterChapters = pick?.chapter != null && pick.chapter < pick.book.chapters.length;
+  const size = pick ? rangeSize(pick) : null;
   return (
     <View style={[styles.wrap, row > 0 && [styles.laterRow, { borderTopColor: t.border }]]}>
       {rows > 1 ? (
         <View style={styles.rowHeader}>
-          <Text style={[typography.label, { color: t.muted }]}>Passage {row + 1}</Text>
+          <View style={styles.rowTitle}>
+            <View style={[styles.badge, { backgroundColor: t.primarySoft }]}>
+              <Text style={[typography.label, { color: t.primary }]}>{row + 1}</Text>
+            </View>
+            <Text
+              numberOfLines={1}
+              accessibilityLabel={`Passage ${row + 1}${pick ? `, ${passageFromPick(pick)}` : ""}${size ? `, ${size}` : ""}`}
+              style={[typography.label, styles.rowTitleText, { color: pick ? t.text : t.muted }]}
+            >
+              {pick ? passageFromPick(pick) : `Passage ${row + 1}`}
+            </Text>
+            {size ? (
+              <Text numberOfLines={1} importantForAccessibility="no" style={[typography.caption, styles.rowSize, { color: t.muted }]}>
+                {size}
+              </Text>
+            ) : null}
+          </View>
           {editable ? (
             <Pressable
               onPress={onRemove}
               accessibilityRole="button"
               accessibilityLabel={`Remove passage ${row + 1}`}
               testID={rowId("devotional-passage-remove", row)}
-              hitSlop={8}
-              style={({ pressed }) => [styles.switch, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [styles.switch, styles.removeButton, pressed && { opacity: 0.6 }]}
             >
-              <Ionicons name="close-circle-outline" size={16} color={t.muted} />
-              <Text style={[typography.caption, styles.switchText, { color: t.muted }]}>Remove</Text>
+              <Ionicons name="close-circle-outline" size={22} color={t.muted} />
             </Pressable>
           ) : null}
         </View>
@@ -566,7 +592,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   laterRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, marginTop: spacing.xs },
-  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  rowTitle: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1, minWidth: 0 },
+  rowTitleText: { flexShrink: 1, fontSize: 15 },
+  badge: { width: 24, height: 24, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
+  rowSize: { flexShrink: 0 },
+  removeButton: { minHeight: 44, minWidth: 44, justifyContent: "flex-end" },
   switch: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start" },
   switchText: { fontWeight: "700" },
   groupHeader: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
