@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.12] - 2026-11-29
+
+### Fixed
+- **Verify's iOS checks finish inside their 5 minutes.** `outfits` no longer
+  runs out of time in the shirt's colour picker: its swipe started on a
+  colour slider, which takes the drag, so the list never scrolled to the hex
+  box. It now swipes on the rows' labels. `backyard-chat` hides the keyboard
+  with the chat bar's ✕ instead of Maestro's slow `hideKeyboard` (about
+  290 s → 250 s). `arcade-podium` waits for the arcade panel to finish
+  closing instead of asserting once mid-animation.
+
 ## [2.14.2] - 2026-11-28
 
 ### Changed
