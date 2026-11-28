@@ -176,9 +176,15 @@ appId: au.org.sow.theshed
 - waitForAnimationToEnd:
     timeout: 2000
 - takeScreenshot: "${OUT}/check-mahjong-options"
+# The open options are modal (VoiceOver and Maestro only see the panel), so
+# they close with their ✕, not the Options button behind them.
 - tapOn:
-    id: mahjong-options
+    id: mahjong-options-x
     waitToSettleTimeoutMs: 2000
+- extendedWaitUntil:
+    notVisible:
+      id: mahjong-options-panel
+    timeout: 10000
 # Leave the table: it asks first (a bot plays your seat), then a bot takes
 # the seat, and the World is back.
 - tapOn:
