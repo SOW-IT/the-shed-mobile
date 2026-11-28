@@ -19,8 +19,11 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 4,
+    // A label longer than its share of the bar ellipsizes instead of running
+    // into the next tab or off the screen.
+    maxWidth: "100%",
   },
-  tabText: { fontSize: 14.5, letterSpacing: -0.15 },
+  tabText: { fontSize: 14.5, letterSpacing: -0.15, flexShrink: 1 },
   tabIndicator: { height: 3, alignSelf: "stretch" },
   tabIndicatorBar: {
     position: "absolute",
