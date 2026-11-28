@@ -9,7 +9,9 @@ import {
   HOP_MAX_SCORE,
   HOP_PREVIEWS,
   hopAt,
+  hopCatching,
   hopDifficulty,
+  hopRise,
   hopPage,
   hopScore,
   isHopPreview,
@@ -33,7 +35,7 @@ import {
   type HopPlatform,
   type HopState,
 } from "./hop";
-import { HOP, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
+import { HOP, HOP_DIFFICULTY, HOP_LEVELS, HOP_STAGES } from "./hopTuning";
 
 const W = 390;
 const H = 700;
@@ -737,6 +739,126 @@ describe("the page", () => {
     const between = hopPage(825, palette).paper;
     expect(between).not.toBe(grey(240));
     expect(between).not.toBe(grey(200));
+  });
+});
+
+describe("the page rising", () => {
+  const { grace, ramp, speed } = HOP.rise;
+  /** Bouncing straight up and down on one platform, steering nowhere. */
+  const idle = (height = H) => ({ ...bare([{ y: 0 }], { y: 0, vy: HOP.jumpSpeed }), height, camera: -height * 0.22 });
+  /** Where the camera sits following a bounce from 0 and nothing else. */
+  const followed = (height = H) => JUMP_RISE - height * HOP.cameraShare;
+
+  test("waits out a few seconds of grace at the start of a run", () => {
+    const state = play(idle(), grace - 0.05);
+    expect(hopRise(state)).toBe(0);
+    expect(hopCatching(state)).toBe(0);
+    expect(state.camera).toBeCloseTo(followed(), 0);
+  });
+
+  test("then speeds up over a moment to a slow pace, and holds it", () => {
+    const at = (t: number) => hopRise({ ...idle(), time: t });
+    expect(at(grace + ramp / 2)).toBeCloseTo(speed[0] / 2);
+    expect(at(grace + ramp)).toBeCloseTo(speed[0]);
+    expect(at(grace + ramp * 5)).toBeCloseTo(speed[0]);
+    expect(hopCatching({ ...idle(), time: grace + ramp / 2 })).toBeCloseTo(0.5);
+    // A little faster higher up, to its top at peak difficulty.
+    const high = (points: number) => hopRise({ ...idle(), time: 60, landed: points * HOP.unitsPerPoint });
+    expect(high(HOP_LEVELS.peak / 2)).toBeGreaterThan(speed[0]);
+    expect(high(HOP_LEVELS.peak)).toBeCloseTo(speed[1]);
+    expect(high(HOP_LEVELS.peak * 3)).toBeCloseTo(speed[1]);
+  });
+
+  test.each(HEIGHTS)("bouncing in place on a board %d tall ends the run, and earns nothing for it", (height) => {
+    let caught = 0;
+    const state = play(idle(height), 40, FRAME, (s) => {
+      if (!s.dying) caught = s.time;
+      expect(s.score).toBeLessThanOrEqual(hopScore(JUMP_RISE));
+    });
+    expect(state.score).toBe(hopScore(JUMP_RISE));
+    expect(state.over).toBe(true);
+    // Not straight away: well after the grace.
+    expect(caught).toBeGreaterThan(grace + ramp + 2);
+    expect(caught).toBeLessThan(25);
+  });
+
+  test("landing higher than you have before starts the grace again; landing back down doesn't", () => {
+    let state = bare([{ y: 0 }, { y: 120, x: W / 2 }], { y: 0, vy: HOP.jumpSpeed, time: 10, riseAt: 0 });
+    state = play(state, 1.2);
+    expect(state.landed).toBe(120);
+    expect(hopRise(state)).toBe(0);
+    const higher = state.riseAt;
+    expect(higher).toBeGreaterThan(10);
+    // Dropping back to a lower one keeps the clock where it was.
+    const back = play(bare([{ y: 0 }], { y: 40, vy: -100, time: 10, riseAt: 2, landed: 120 }), 0.2);
+    expect(back.landedAt).not.toBeNull();
+    expect(back.riseAt).toBe(2);
+    expect(back.landed).toBe(120);
+  });
+
+  test("a breakable you fall through isn't a landing", () => {
+    const state = play(bare([{ y: 0, kind: "breakable" }], { y: 10, vy: -100, time: 10, riseAt: 2, landed: -100 }), 0.1);
+    expect(state.riseAt).toBe(2);
+    expect(state.landed).toBe(-100);
+  });
+
+  test("never moves during a boost's flight, and gives a fresh grace after it", () => {
+    const start = bare([], { y: 0, vy: 0, time: 30, riseAt: 0, flight: { kind: "propeller", at: 30 } });
+    const end = play(start, HOP.propeller.seconds + 0.5, FRAME, (s, before) => {
+      if (s.flight) {
+        expect(hopRise(s)).toBe(0);
+        // Only following you up.
+        expect(s.camera).toBeCloseTo(Math.max(before.camera, s.y - H * HOP.cameraShare), 6);
+      }
+    });
+    expect(end.flight).toBeNull();
+    expect(hopRise(end)).toBe(0);
+    expect(end.time - end.riseAt).toBeLessThan(grace);
+  });
+
+  test("capped under the slowest pace the route climbs at, and climbing lands you higher inside the grace", () => {
+    // The smallest gap, made at the end of a whole bounce, is the slowest the route goes up.
+    const slowest = HOP_DIFFICULTY.gapMin[0] / landingTime(HOP_DIFFICULTY.gapMin[0])!;
+    expect(Math.max(...speed)).toBeLessThan(slowest);
+    // The longest a route step can take is a whole bounce back to the same height.
+    expect(landingTime(0)!).toBeLessThan(grace / 2);
+  });
+
+  test.each(HEIGHTS)("every route step on a board %d tall is reached inside the grace, so the page never moves for a climber", (height) => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const state = layRoute(W, height, seed, (HOP_LEVELS.peak + 500) * HOP.unitsPerPoint);
+      const tops = [...new Set(state.platforms.filter((p) => p.route).map((p) => p.y))].sort((a, b) => a - b);
+      for (let i = 1; i < tops.length; i++) {
+        const t = landingTime(tops[i] - tops[i - 1]);
+        expect(t, `seed ${seed} step ${i}`).not.toBeNull();
+        expect(t!).toBeLessThan(grace);
+      }
+    }
+  });
+
+  test("a careful climber barely feels it: the page rises on its own a sliver of the time", () => {
+    let rising = 0;
+    let steps = 0;
+    const state = botRun(H, 17, 3000, (_, before) => {
+      steps++;
+      if (hopRise(before) > 0) rising++;
+    });
+    expect(state.score).toBeGreaterThanOrEqual(3000);
+    expect(rising / steps).toBeLessThan(0.05);
+  });
+
+  test("rises the same way at any frame rate, to within a unit", () => {
+    const at = (dt: number) => play(idle(), grace + ramp + 3, dt).camera;
+    const sixty = at(1 / 60);
+    expect(sixty).toBeGreaterThan(followed() + speed[0] * 2);
+    for (const dt of [1 / 30, 1 / 120, 1 / 144]) expect(Math.abs(at(dt) - sixty)).toBeLessThan(1);
+  });
+
+  test("the rising preview is catching up, its bottom just under your platform", () => {
+    const state = previewHop("rising", W, H);
+    expect(hopCatching(state)).toBeGreaterThan(0.5);
+    expect(state.camera).toBeLessThan(state.base);
+    expect(state.camera).toBeGreaterThan(state.base - 60);
   });
 });
 

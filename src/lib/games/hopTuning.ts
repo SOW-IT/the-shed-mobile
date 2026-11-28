@@ -37,6 +37,15 @@ export const HOP = {
   reachMargin: 14,
   /** The camera keeps you at most this share of the board above its bottom. */
   cameraShare: 0.45,
+  /**
+   * The page creeps up on its own when you stop climbing: nothing for
+   * `grace` seconds after the run starts, a flight ends or you land higher
+   * than you have before, then it speeds up over `ramp` seconds to a pace
+   * between `speed` (the opening) and its top (peak difficulty), in units a
+   * second. Its top stays under the slowest pace the route climbs at, and
+   * climbing lands you higher well inside the grace.
+   */
+  rise: { grace: 3, ramp: 2, speed: [22, 46] as const },
   /** Generated this far above the top of the board; dropped this far below its bottom. */
   ahead: 320,
   behind: 220,

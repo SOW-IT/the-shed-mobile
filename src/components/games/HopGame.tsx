@@ -3,6 +3,7 @@ import {
   autoSteer,
   dropFloor,
   hopAt,
+  hopCatching,
   hopPage,
   newHop,
   pagePoints,
@@ -222,6 +223,26 @@ const Constellation = ({ tile, width, colour, opacity }: { tile: number; width: 
 };
 
 /** Your best when the run started: a dashed pencil line, ticked once you pass it. */
+/** Bands of the soft wash that rises from the bottom while the page catches up. */
+const CATCH_BANDS = 8;
+const CATCH_BAND = 12;
+
+/** The page catching up: a wash of the margin's red, rising from the bottom edge. */
+const Catching = ({ state, colour }: { state: HopState; colour: string }) => {
+  const k = hopCatching(state);
+  if (k <= 0) return null;
+  return (
+    <View style={[styles.catching, { height: CATCH_BANDS * CATCH_BAND }]} testID="hop-catching">
+      {Array.from({ length: CATCH_BANDS }, (_, i) => (
+        <View
+          key={i}
+          style={[styles.catchBand, { bottom: i * CATCH_BAND, backgroundColor: colour, opacity: 0.32 * k * (1 - i / CATCH_BANDS) ** 2 }]}
+        />
+      ))}
+    </View>
+  );
+};
+
 const BestLine = ({ state }: { state: HopState }) => {
   if (state.best <= 0) return null;
   const y = screenY(state, state.best * HOP.unitsPerPoint);
@@ -543,6 +564,7 @@ const Scene = ({ state, look }: { state: HopState; look: Look | null }) => {
     <View style={[styles.clip, { width: state.width, height: state.height }]} pointerEvents="none" testID="hop-scene">
       <Paper state={state} page={page} />
       <Doodles state={state} page={page} weights={weights} />
+      <Catching state={state} colour={page.margin} />
       <BestLine state={state} />
       <Platforms state={state} outline={c.outline} />
       {state.effects.map((effect) => (
@@ -749,6 +771,8 @@ export const HopGame = ({
 const styles = StyleSheet.create({
   clip: { position: "absolute", left: 0, top: 0, overflow: "hidden" },
   measure: { position: "absolute", left: 0, top: 0 },
+  catching: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  catchBand: { position: "absolute", left: 0, right: 0, height: CATCH_BAND },
   gridLayer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   gridV: { position: "absolute", top: 0, width: 1, opacity: 0.8 },
   gridH: { position: "absolute", left: 0, height: 1, opacity: 0.8 },
