@@ -20,8 +20,10 @@ All notable changes to **The SHED** mobile app. This project follows
     before it loads, that it has already tried, the way the page remembers
     that itself after its first try.
   - The iOS checks open the World menu through one shared step,
-    `flows/open-world-menu.yaml`. It taps the place title once, and again
-    only if the menu isn't up. Maestro's own second try at a tap that seemed
+    `flows/open-world-menu.yaml` (`backyard-chat`, `home-furniture`, and
+    `chapel-pews` on its way back to the Garden). It taps the place title
+    once, waits up to 5 seconds for the menu, and taps again only if the
+    menu still isn't up. Maestro's own second try at a tap that seemed
     to change nothing could land on the menu's backdrop and shut the menu
     the first tap had opened, the likely reason an iOS run of
     `home-furniture` found no Home row.

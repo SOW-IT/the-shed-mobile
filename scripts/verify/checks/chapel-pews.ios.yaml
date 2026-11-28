@@ -26,24 +26,12 @@ appId: au.org.sow.theshed
         id: world-title
         text: "(?i).*(chapel|garden).*"
     commands:
+      # Anywhere but the Garden, the menu has a Garden row, and going there
+      # shuts the menu.
+      - runFlow: flows/open-world-menu.yaml
       - tapOn:
-          id: world-title
-      - waitForAnimationToEnd:
-          timeout: 2000
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-garden
-          commands:
-            - tapOn:
-                id: world-menu-garden
-      - runFlow:
-          when:
-            visible:
-              id: world-menu-close
-          commands:
-            - tapOn:
-                id: world-menu-close
+          id: world-menu-garden
+          waitToSettleTimeoutMs: 2000
       - extendedWaitUntil:
           visible: "Go to The Chapel"
           timeout: 30000
