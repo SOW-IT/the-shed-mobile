@@ -1,4 +1,10 @@
-export const TABLE_MAX_WIDTH = 560;
+/** The table can't be narrower than this unless the screen is; on a wide screen it grows with the window's height. */
+const TABLE_MIN_WIDTH = 560;
+export const TABLE_MAX_WIDTH = 1440;
+/** How wide the table may be for its height, on a wide window: room for a big one-row hand. */
+const TABLE_ASPECT = 1.4;
+/** The two-row hand's tile on a phone, about: once a whole hand fits in one row at this size, one row it is. */
+export const BIG_TILE = 52;
 export const PAD = 8;
 export const HAND_GAP = 1;
 export const DRAWN_GAP = 6;
@@ -8,46 +14,176 @@ export const CENTRE = 44;
 export const TABLE_GAP = 4;
 export const TILE_TALL = 1.36;
 export const ACROSS_SEAT_HEIGHT = 58;
-export const ACTION_HEIGHT = 66;
+/** A side seat's avatar, name and badges, above its melds. */
+const SIDE_PLATE = 80;
+/** The across seat's avatar, name and badges, before its melds. */
+const ACROSS_PLATE = 120;
+export const MELD_GAP = 4;
+/** The compass between A's and C's discards needs this much height. */
+export const MIDDLE_MIN = 84;
+const PILE_MIN = 10;
+/** The smallest a discard gets on a table too short for PILE_MIN. */
+const COMPACT_MIN = 5;
+const MELD_MAX = 40;
+const MELD_MIN = 8;
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
-export type Zone = { width: number; columns: number; rows: number; tile: number; sideways: boolean };
+/** The biggest hand tile that fits `perRow` tiles (the drawn one set apart) across `inner`. */
+const handFit = (inner: number, perRow: number) => Math.floor((inner - DRAWN_GAP - (perRow - 1) * HAND_GAP) / perRow);
 
-const rowHeight = (tile: number, sideways: boolean) => (sideways ? tile : tile * TILE_TALL) + RIVER_GAP;
-
-export const zoneHeight = (zone: Zone) => zone.rows * rowHeight(zone.tile, zone.sideways);
-
-export const riverFit = (count: number, zone: Zone) => {
-  const columns = Math.max(zone.columns, Math.ceil(count / zone.rows));
-  const fits = Math.floor((zone.width / columns - RIVER_GAP) / (zone.sideways ? TILE_TALL : 1));
-  return { columns, tile: Math.min(zone.tile, fits) };
-};
-
-export const tableLayout = (screenWidth: number) => {
-  const width = Math.min(screenWidth, TABLE_MAX_WIDTH);
+/**
+ * The table's sizes. Your hand is as big as the width allows, up to a
+ * limit that grows with the window's height (so a tablet or a desktop
+ * window gets much bigger tiles than a phone). When the whole hand fits in
+ * one row at BIG_TILE or more (`oneRow`), it's one row; otherwise two rows
+ * of seven (`handTwo`) are bigger.
+ */
+export const tableLayout = (screenWidth: number, screenHeight: number) => {
+  const width = Math.min(screenWidth, clamp(Math.round(screenHeight * TABLE_ASPECT), TABLE_MIN_WIDTH, TABLE_MAX_WIDTH));
   const inner = width - PAD * 2;
-  const hand = clamp(Math.floor((inner - DRAWN_GAP - 13 * HAND_GAP) / 14), 18, 40);
-  const acrossColumns = 13;
-  const across = clamp(Math.floor((inner - acrossColumns * RIVER_GAP) / acrossColumns), 14, 34);
-  const sideWidth = Math.floor((inner - 2 * SIDE_COLUMN - CENTRE - 4 * TABLE_GAP) / 2);
-  const sideColumns = 3;
-  const side = clamp(Math.floor((sideWidth / sideColumns - RIVER_GAP) / TILE_TALL), 14, 30);
+  const most = clamp(Math.round(screenHeight * 0.1), BIG_TILE, 96);
+  const oneRow = handFit(inner, 14) >= BIG_TILE;
+  const hand = clamp(handFit(inner, 14), 18, most);
+  const handTwo = clamp(handFit(inner, 7), 18, most);
   const zoom = clamp(Math.floor((Math.min(inner, 400) - 32 - 7 * RIVER_GAP) / 7), 30, 48);
-  const acrossZone: Zone = { width: inner, columns: acrossColumns, rows: 2, tile: across, sideways: false };
-  const sideZone: Zone = { width: sideWidth, columns: sideColumns, rows: 8, tile: side, sideways: true };
-  const handTwo = clamp(Math.floor((inner - DRAWN_GAP - 7 * HAND_GAP) / 8), 18, 52);
-  return { width, hand, handTwo, across: acrossZone, side: sideZone, zoom, sideStack: 30, myMeld: clamp(Math.round(hand * 0.7), 14, 26) };
+  // A's and C's seat columns run the table's full height; B's and your discards sit between them.
+  const centre = inner - 2 * (SIDE_COLUMN + TABLE_GAP);
+  const sideWidth = Math.floor((centre - CENTRE - 2 * TABLE_GAP) / 2);
+  return { width, inner, hand, handTwo, oneRow, zoom, centre, sideWidth, myMeld: clamp(Math.round(hand * 0.7), 14, 36) };
 };
 
-const SIDE_SEAT_MIN = 150;
+type TableLayout = ReturnType<typeof tableLayout>;
 
-export const zonesFor = (across: Zone, side: Zone, height: number) => {
-  const fits = (zones: { across: Zone; side: Zone }) => ACROSS_SEAT_HEIGHT + 2 * zoneHeight(zones.across) + Math.max(zoneHeight(zones.side), SIDE_SEAT_MIN) + 4 * TABLE_GAP <= height;
-  let zones = { across, side };
-  if (height <= 0) return zones;
-  for (let step = 0; step < 40 && !fits(zones) && (zones.across.tile > 10 || zones.side.tile > 10); step++) {
-    zones = { across: { ...zones.across, tile: Math.max(10, zones.across.tile - 1) }, side: { ...zones.side, tile: Math.max(10, zones.side.tile - 1) } };
+/** The biggest tile that fits `count` discards in two rows (B's and yours) in a box. */
+export const acrossFit = (count: number, width: number, height: number) => {
+  if (count === 0) return Infinity;
+  const perRow = Math.ceil(count / 2);
+  return Math.floor(Math.min((width - (perRow - 1) * RIVER_GAP) / perRow, (height - RIVER_GAP) / 2 / TILE_TALL));
+};
+
+/** How tall B's pile and yours are, two rows of `size` tiles. */
+export const acrossHeightOf = (size: number) => 2 * (Math.round(size * TILE_TALL) + RIVER_GAP) - RIVER_GAP;
+
+/** The biggest tile whose two rows fit in `height`, however few discards there are. */
+const acrossFitIn = (height: number) => {
+  let size = Math.floor((height - RIVER_GAP) / 2 / TILE_TALL);
+  while (size > 0 && acrossHeightOf(size) > height) size--;
+  return size;
+};
+
+/** A side pile's columns hold at least this many (or the whole pile), so it always reads as running down (A) or up (C). */
+const SIDE_RUN = 3;
+
+/** The biggest tile that fits `count` sideways discards in columns (A's and C's) in a box. */
+export const sideFit = (count: number, width: number, height: number) => {
+  if (count === 0) return Infinity;
+  let best = 0;
+  for (let columns = 1; columns <= count; columns++) {
+    const perColumn = Math.ceil(count / columns);
+    if (perColumn < Math.min(count, SIDE_RUN)) break;
+    best = Math.max(best, Math.floor(Math.min((height - (perColumn - 1) * RIVER_GAP) / perColumn, (width - (columns - 1) * RIVER_GAP) / columns / TILE_TALL)));
   }
-  return zones;
+  return best;
 };
+
+/** A discard pile's rows: two of them, the first on top, each half the pile (the first gets the odd one). */
+export const acrossRows = (count: number) => {
+  const perRow = Math.max(1, Math.ceil(count / 2));
+  return { perRow, rows: count > perRow ? 2 : 1 };
+};
+
+/** Where a side discard goes, from the top-left of its box: A fills each column down from the top, C up from the bottom; both start at their own seat's edge. */
+export const sideSpot = (i: number, tile: number, box: { width: number; height: number }, side: "left" | "right") => {
+  const perColumn = Math.max(1, Math.floor((box.height + RIVER_GAP) / (tile + RIVER_GAP)));
+  const column = Math.floor(i / perColumn);
+  const row = i % perColumn;
+  const wide = Math.round(tile * TILE_TALL);
+  return side === "left"
+    ? { x: column * (wide + RIVER_GAP), y: row * (tile + RIVER_GAP) }
+    : { x: box.width - wide - column * (wide + RIVER_GAP), y: box.height - tile - row * (tile + RIVER_GAP) };
+};
+
+export type PileCounts = { mine: number; across: number; left: number; right: number };
+
+/**
+ * How big the discards are: as big as every pile still fits, so they start
+ * big and shrink as the piles grow. `height` is the table below the across
+ * seat. The split between the two across piles and the middle is the one
+ * that keeps the smaller of the two sizes biggest (then the closest pair);
+ * the side piles then take whatever height the middle has.
+ */
+export const pileSizes = ({ layout, height, counts, cap }: { layout: TableLayout; height: number; counts: PileCounts; cap: number }) => {
+  const avail = height - 2 * TABLE_GAP;
+  let across = PILE_MIN;
+  let best = -Infinity;
+  for (let rows = 16; avail - 2 * rows >= MIDDLE_MIN; rows++) {
+    const middle = avail - 2 * rows;
+    // An empty pile still takes the rows its size needs, so it can't claim more height than this split gives it.
+    const a = Math.min(cap, acrossFitIn(rows), acrossFit(counts.across, layout.centre, rows), acrossFit(counts.mine, layout.centre, rows));
+    const b = Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle));
+    const score = Math.min(a, b) * 1000 - Math.abs(a - b);
+    if (score > best) {
+      best = score;
+      across = a;
+    }
+  }
+  // On a table too short for the usual minimums, everything goes compact rather than being sized for room it doesn't have.
+  const roomy = avail - 2 * acrossHeightOf(PILE_MIN) >= MIDDLE_MIN;
+  across = Math.max(roomy ? PILE_MIN : COMPACT_MIN, across);
+  const acrossHeight = acrossHeightOf(across);
+  // The middle the table renders: what's left between B's pile and yours.
+  const middle = Math.max(0, avail - 2 * acrossHeight);
+  const side = Math.max(roomy ? PILE_MIN : COMPACT_MIN, Math.min(cap, sideFit(counts.left, layout.sideWidth, middle), sideFit(counts.right, layout.sideWidth, middle)));
+  return { across, side, acrossHeight, middle };
+};
+
+/** Discards are never bigger than your own hand's tiles. */
+export const pileCap = (layout: TableLayout, handSize: number) => Math.min(handSize, clamp(Math.floor(layout.inner / 7), 40, 64));
+
+/** A seat's melds end to end: how many tiles, in how many melds, and how many of those tiles lie sideways (each a tile and a third long). */
+type MeldRun = { tiles: number; melds: number; sideways: number };
+const runFit = (run: MeldRun, length: number) =>
+  run.tiles === 0 ? Infinity : Math.floor((length - (run.melds - 1) * MELD_GAP - run.tiles) / (run.tiles + run.sideways * (TILE_TALL - 1)));
+
+/**
+ * One size for A's, B's and C's melds (their concealed tiles aren't drawn,
+ * just counted): as big as B's run fits beside B's plate, and A's and C's
+ * fit down their seat columns.
+ */
+export const meldSize = ({ layout, height, across, left, right }: { layout: TableLayout; height: number; across: MeldRun; left: MeldRun; right: MeldRun }) => {
+  const acrossLength = layout.inner - ACROSS_PLATE - 8;
+  const sideLength = height - SIDE_PLATE;
+  const fit = Math.min(MELD_MAX, Math.floor(SIDE_COLUMN / TILE_TALL), runFit(across, acrossLength), runFit(left, sideLength), runFit(right, sideLength));
+  return Math.max(MELD_MIN, fit);
+};
+
+/** Where a seat is, seen from yours: 0 you, 1 on your right (C), 2 across (B), 3 on your left (A). */
+const placeOf = (seat: number, viewer: number) => (seat - viewer + 4) % 4;
+
+/**
+ * A claimed meld's tiles in the order they're drawn, with the claimed tile
+ * laid sideways on the side of the seat it came from, as at a real table:
+ * from the owner's left, it's their leftmost tile; from across, the middle;
+ * from their right, the rightmost. On screen that's always the side the
+ * giver sits on (B's row and C's column run against their owner's own left
+ * to right). A concealed meld, or one nobody gave, has nothing sideways.
+ */
+export const meldOrder = (meld: { tiles: readonly number[]; from: number | null; claimed: number | null; concealed: boolean }, owner: number, viewer: number) => {
+  const at = meld.claimed === null || meld.concealed || meld.from === null ? -1 : meld.tiles.indexOf(meld.claimed);
+  if (at < 0 || meld.from === null) return { tiles: [...meld.tiles], sideways: null };
+  const n = meld.tiles.length;
+  const giver = placeOf(meld.from, owner);
+  const ownersOrder = giver === 3 ? 0 : giver === 2 ? 1 : n - 1;
+  const where = placeOf(owner, viewer);
+  const sideways = where === 1 || where === 2 ? n - 1 - ownersOrder : ownersOrder;
+  const rest = meld.tiles.filter((_, i) => i !== at);
+  return { tiles: [...rest.slice(0, sideways), meld.claimed as number, ...rest.slice(sideways)], sideways };
+};
+
+/** The run for a seat's melds (see meldSize). */
+export const meldRun = (melds: readonly { tiles: readonly number[]; from: number | null; claimed: number | null; concealed: boolean }[], owner: number, viewer: number): MeldRun => ({
+  tiles: melds.reduce((n, meld) => n + meld.tiles.length, 0),
+  melds: melds.length,
+  sideways: melds.filter((meld) => meldOrder(meld, owner, viewer).sideways !== null).length,
+});

@@ -14,7 +14,7 @@ import { scrollEdges, type ScrollEdges } from "./scrollEdges";
 import { styledName } from "@shared/names";
 
 const LINE_HEIGHT = 19;
-const SHOWN_LINES = 5;
+const SHOWN_LINES = 7;
 const END_SLACK = 6;
 const PAD = 2;
 const MOST = LINE_HEIGHT * SHOWN_LINES;
@@ -44,8 +44,11 @@ export const ChatLog = ({
   status,
   onLine,
   lines: shownLines = SHOWN_LINES,
+  text = 1,
 }: {
   lines?: number;
+  /** How much bigger than a phone's the type is (worldChatLog / tableChatLog). */
+  text?: number;
   roomId: Id<"worldRooms"> | null;
   onLine: (memberId: Id<"worldMembers">, name: string) => void;
   muted: ReadonlySet<string>;
@@ -88,7 +91,9 @@ export const ChatLog = ({
     });
   };
   if (!status && lines.length === 0) return null;
-  const shown = fitWhole([...(status ? [heights.status ?? LINE_HEIGHT] : []), ...lines.map((line) => heights[line.id] ?? LINE_HEIGHT)], LINE_HEIGHT * shownLines);
+  const lineHeight = Math.round(LINE_HEIGHT * text);
+  const type = text === 1 ? null : { fontSize: Math.round(13.5 * text * 2) / 2, lineHeight };
+  const shown = fitWhole([...(status ? [heights.status ?? lineHeight] : []), ...lines.map((line) => heights[line.id] ?? lineHeight)], lineHeight * shownLines);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
     atEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - END_SLACK;
@@ -117,21 +122,21 @@ export const ChatLog = ({
         testID="world-chat-log"
       >
         {status ? (
-          <Text style={[styles.line, styles.status]} onLayout={measure("status")} testID="world-chat-status">
+          <Text style={[styles.line, type, styles.status]} onLayout={measure("status")} testID="world-chat-status">
             {status}
           </Text>
         ) : null}
         {lines.map((line) => {
           const parts = chatLineParts(line, { ...format, pending: line.id.startsWith(PENDING) });
           return line.kind ? (
-            <Text key={line.id} style={[styles.line, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line, names)} testID="world-chat-system">
+            <Text key={line.id} style={[styles.line, type, styles.system]} onLayout={measure(line.id)} accessibilityLabel={saidLabel(line, names)} testID="world-chat-system">
               <ChatLineHead parts={parts} />
               {`${parts.name} ${parts.text}`}
             </Text>
           ) : (
             <Text
               key={line.id}
-              style={styles.line}
+              style={[styles.line, type]}
               onLayout={measure(line.id)}
               accessibilityLabel={saidLabel(line, names)}
               accessibilityHint={line.isMe ? undefined : `Mute, block or report ${styledName(line.name, names)}`}

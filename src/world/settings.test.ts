@@ -91,20 +91,21 @@ test("each choice is saved on this device and comes back next time", async () =>
   expect(next.WORLD_SETTINGS.names.get()).toBe("full");
 });
 
-test("the mahjong table starts with a one-row hand and labelled tiles, and each choice stays on this device only", async () => {
+test("the mahjong table starts with the bigger hand (one row on a short screen) and no numbers on the tiles, and each choice stays on this device only", async () => {
   const first = await fresh();
-  expect(first.WORLD_SETTINGS.mahjongRows.get()).toBe("one");
-  expect(first.WORLD_SETTINGS.mahjongLabels.get()).toBe("on");
-  first.WORLD_SETTINGS.mahjongRows.set("two");
-  first.WORLD_SETTINGS.mahjongLabels.set("off");
+  expect(first.WORLD_SETTINGS.mahjongRows.get()).toBe("auto");
+  expect(first.WORLD_SETTINGS.mahjongLabels.get()).toBe("off");
+  expect([first.handInTwoRows("auto", 874), first.handInTwoRows("auto", 667), first.handInTwoRows("two", 667), first.handInTwoRows("one", 874)]).toEqual([true, false, true, false]);
+  first.WORLD_SETTINGS.mahjongRows.set("one");
+  first.WORLD_SETTINGS.mahjongLabels.set("on");
   await settle();
-  expect(Object.fromEntries(saved)).toEqual({ worldMahjongRows: "two", worldMahjongLabels: "off" });
+  expect(Object.fromEntries(saved)).toEqual({ worldMahjongRows: "one", worldMahjongLabels: "on" });
   const next = await fresh(Object.fromEntries(saved));
-  expect(next.WORLD_SETTINGS.mahjongRows.get()).toBe("two");
-  expect(next.WORLD_SETTINGS.mahjongLabels.get()).toBe("off");
+  expect(next.WORLD_SETTINGS.mahjongRows.get()).toBe("one");
+  expect(next.WORLD_SETTINGS.mahjongLabels.get()).toBe("on");
   const other = await fresh();
-  expect(other.WORLD_SETTINGS.mahjongRows.get()).toBe("one");
-  expect(other.WORLD_SETTINGS.mahjongLabels.get()).toBe("on");
+  expect(other.WORLD_SETTINGS.mahjongRows.get()).toBe("auto");
+  expect(other.WORLD_SETTINGS.mahjongLabels.get()).toBe("off");
 });
 
 test("anything else saved under a key is ignored", async () => {
