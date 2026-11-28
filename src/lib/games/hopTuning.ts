@@ -19,11 +19,11 @@ export const HOP = {
   springSpeed: JUMP_SPEED * Math.sqrt(SPRING_HEIGHT),
   /**
    * Steering: full speed the frame you press, the same the frame you turn
-   * round, and a short, small glide to a stop when let go (about a tenth of
-   * a second and 20 units, never icy).
+   * round, and almost a dead stop when let go (two frames at 60 fps, about
+   * 5 units).
    */
   maxSpeed: 360,
-  glide: 3000,
+  glide: 12_000,
   /**
    * The route is still laid as if steering took a moment to get going and to
    * turn round, as it did before 2.14.7. Steering is instant now, so every

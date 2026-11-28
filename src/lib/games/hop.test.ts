@@ -330,7 +330,7 @@ describe("boosts", () => {
 });
 
 describe("steering", () => {
-  test("full speed the very next step you hold a way, turning round included, and a short glide when let go", () => {
+  test("full speed the very next step you hold a way, turning round included, and almost a dead stop when let go", () => {
     expect(steerSpeed(0, 1, FRAME)).toBe(HOP.maxSpeed);
     expect(steerSpeed(0, -1, FRAME)).toBe(-HOP.maxSpeed);
     // Reversing: no slide the wrong way first.
@@ -344,10 +344,9 @@ describe("steering", () => {
       slid += vx * FRAME;
       glide += FRAME;
     }
-    // Crisp, not icy: stopped in about a tenth of a second, having slid a third of a platform.
-    expect(glide).toBeLessThan(0.15);
-    expect(slid).toBeGreaterThan(8);
-    expect(slid).toBeLessThan(HOP.platform.width / 2);
+    // Almost a dead stop: still within two frames, having slid a few units.
+    expect(glide).toBeLessThan(2.5 * FRAME);
+    expect(slid).toBeLessThan(8);
   });
 
   test("one tap moves you that way on the very next step, by a step at full speed", () => {
