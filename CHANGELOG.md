@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.14.5] - 2026-11-29
+
+### Changed
+- **Reimbursement review lists read far less data.** Home's review queues,
+  the Reviewed list, the "waiting on me" counts and the daily reminders
+  only read requests that aren't paid yet, through a new index, instead of
+  every request of this staff year and last. In a late-November test set
+  that's about 86% fewer reads (213-235 documents down to 33-55). The lists
+  show the same requests as before.
+- **Unread comment badges on review lists cost less.** The approval chain
+  and Finance team are looked up once per list instead of once per unread
+  thread: 89 documents instead of 441 for a Head of Department with 40
+  unread threads, 81 instead of 121 for Finance.
+- **Suggested merges in Attendance read only this year's and next year's
+  staff.** A member already linked to a staff record from an earlier year is
+  still left out, checked only for members whose name matches. With five
+  past years of staff, 91 documents instead of 252.
+
 ## [2.14.2] - 2026-11-28
 
 ### Changed
