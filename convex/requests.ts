@@ -632,23 +632,55 @@ async function canViewReceiptDetails(
 
 const CHAIN_STATUSES = [PENDING, APPROVED, DECLINED];
 
-export async function canSeeRequest(
+type VisibilityLookups = {
+  inFinance: () => Promise<boolean>;
+  approversFor: (year: number, department: string) => Promise<Approvers>;
+  actAsIn: (year: number) => Promise<Set<string>>;
+};
+
+async function seesRequestWith(
   ctx: QueryCtx,
   caller: CallerContext,
-  request: Doc<"requests">
+  request: Doc<"requests">,
+  lookups: VisibilityLookups
 ): Promise<boolean> {
   if (request.requesterEmail === caller.email) return true;
-  if (await inFinanceTeam(ctx, caller)) return true;
+  if (await lookups.inFinance()) return true;
   for (const year of new Set([requestStaffYear(request), caller.year])) {
-    const approvers = await getApprovers(ctx, year, request.department);
+    const approvers = await lookups.approversFor(year, request.department);
     const chain = involvedApproverEmails(request, approvers, CHAIN_STATUSES);
     if (chain.length === 0) continue;
-    const actAs = await actAsEmails(ctx, year, caller.email);
+    const actAs = await lookups.actAsIn(year);
     if (chain.some((email) => actAs.has(email))) return true;
   }
   const events = await recentRequestEvents(ctx, request._id);
   return events.some((event) => event.actorEmail === caller.email);
 }
+
+export async function canSeeRequest(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">
+): Promise<boolean> {
+  return await seesRequestWith(ctx, caller, request, {
+    inFinance: () => inFinanceTeam(ctx, caller),
+    approversFor: (year, department) => getApprovers(ctx, year, department),
+    actAsIn: (year) => actAsEmails(ctx, year, caller.email),
+  });
+}
+
+/**
+ * {@link canSeeRequest} for checking many requests in one query: the Finance team,
+ * each department's approvers and the caller's delegations are read once, not per request.
+ */
+export const makeRequestVisibility = (ctx: QueryCtx, caller: CallerContext) => {
+  const lookups: VisibilityLookups = {
+    inFinance: memoAsync(() => inFinanceTeam(ctx, caller)),
+    approversFor: makeApproverResolver(ctx),
+    actAsIn: makeActAsResolver(ctx, caller.email),
+  };
+  return (request: Doc<"requests">) => seesRequestWith(ctx, caller, request, lookups);
+};
 
 export async function viewsRequest(
   ctx: QueryCtx,
