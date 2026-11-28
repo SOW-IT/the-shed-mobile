@@ -63,7 +63,8 @@ const menu = async (entry) => {
   return false;
 };
 const toGarden = async () => {
-  if (await titled(/Garden/)) return true;
+  // Read where you are once: waiting for the Garden first would add 30 seconds whenever you're elsewhere.
+  if (/Garden/i.test((await id("world-title").textContent()) ?? "")) return true;
   await menu("garden");
   return titled(/Garden/);
 };
@@ -186,6 +187,15 @@ try {
   await shot("guide-over-tray");
   await id("world-backyard-guide-close").click();
   await gone(guide);
+
+  // Typing in the chat puts How to farm away.
+  await open.click();
+  await shown(guide);
+  await page.waitForTimeout(500);
+  await id("world-chat-input").focus();
+  expect("focusing the chat didn't put How to farm away", await gone(guide));
+  await id("world-chat-input").blur();
+  await page.waitForTimeout(400);
 
   // A short window: the card shrinks to the room between the chat lines and the (i), clear of the title.
   await page.setViewportSize({ width: 390, height: 480 });

@@ -2032,6 +2032,8 @@ export const WorldScreen = ({
           onNote={setNote}
           savedDraft={savedDraft}
           keepDraft={keepDraft}
+          // Typing puts How to farm away, on web too, where the keyboard isn't reported.
+          onFocusChat={() => setGuideOpen(false)}
         />
       </Reanimated.View>
       <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { opacity: fade }]} pointerEvents="none" />
